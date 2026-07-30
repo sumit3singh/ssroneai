@@ -1,0 +1,16 @@
+{
+  "permission_key": "rbac_field_permissions",
+  "title": "Column & Field Visibility Matrix",
+  "field_masks": [
+    {
+      "field_key": "cost_price",
+      "visible_to_roles": ["ADMIN", "FINANCE_MANAGER"],
+      "hidden_from_roles": ["WAITER", "CASHIER"]
+    },
+    {
+      "field_key": "customer_phone",
+      "visible_to_roles": ["ADMIN", "MANAGER", "RECEPTIONIST"],
+      "mask_pattern": "XXX-XXX-****"
+    }
+  ]
+}

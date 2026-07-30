@@ -1,0 +1,12 @@
+{
+  "table_key": "pos_orders_table",
+  "title": "POS Orders Register",
+  "columns": [
+    { "key": "order_number", "label": "Order #", "sortable": true, "filterable": true },
+    { "key": "created_at", "label": "Date & Time", "type": "date", "sortable": true },
+    { "key": "order_type", "label": "Type", "type": "badge" },
+    { "key": "total_amount", "label": "Total", "type": "currency", "sortable": true },
+    { "key": "status", "label": "Status", "type": "status_badge" }
+  ],
+  "pagination": { "default_page_size": 25, "page_size_options": [10, 25, 50, 100] }
+}

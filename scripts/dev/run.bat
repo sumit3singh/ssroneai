@@ -1,0 +1,3 @@
+@echo off
+echo Starting SSR One AI Enterprise Services...
+npm --prefix apps/admin-web run dev

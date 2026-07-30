@@ -1,0 +1,16 @@
+{
+  "name": "The Baithak Cafe",
+  "short_name": "Baithak Cafe",
+  "description": "Order food online — dine-in or delivery",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf6f1",
+  "theme_color": "#f97316",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}

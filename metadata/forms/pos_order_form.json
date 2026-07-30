@@ -1,0 +1,40 @@
+{
+  "form_key": "pos_order_form",
+  "title": "New POS Order Entry",
+  "version": "1.0",
+  "sections": [
+    {
+      "id": "order_header",
+      "title": "Order Details",
+      "fields": [
+        {
+          "name": "customer_id",
+          "label": "Customer",
+          "type": "select",
+          "required": true,
+          "options_endpoint": "/api/v1/crm/customers"
+        },
+        {
+          "name": "order_type",
+          "label": "Order Type",
+          "type": "select",
+          "required": true,
+          "default": "DINE_IN",
+          "options": [
+            { "label": "Dine In", "value": "DINE_IN" },
+            { "label": "Takeaway", "value": "TAKEAWAY" },
+            { "label": "Delivery", "value": "DELIVERY" }
+          ]
+        },
+        {
+          "name": "table_id",
+          "label": "Table Number",
+          "type": "select",
+          "depends_on": "order_type",
+          "depends_value": "DINE_IN",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

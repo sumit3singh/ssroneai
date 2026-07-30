@@ -1,0 +1,26 @@
+{
+  "workflow_key": "order_approval_workflow",
+  "title": "Order Discount & Cancellation State Machine",
+  "initial_state": "DRAFT",
+  "states": ["DRAFT", "PENDING_APPROVAL", "APPROVED", "REJECTED", "CANCELLED"],
+  "transitions": [
+    {
+      "from": "DRAFT",
+      "to": "PENDING_APPROVAL",
+      "trigger": "SUBMIT_FOR_APPROVAL",
+      "condition": "discount_percentage > 15"
+    },
+    {
+      "from": "PENDING_APPROVAL",
+      "to": "APPROVED",
+      "trigger": "APPROVE",
+      "required_role": "MANAGER"
+    },
+    {
+      "from": "PENDING_APPROVAL",
+      "to": "REJECTED",
+      "trigger": "REJECT",
+      "required_role": "MANAGER"
+    }
+  ]
+}

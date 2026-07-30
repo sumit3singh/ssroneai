@@ -1,0 +1,120 @@
+version: "3.9"
+
+services:
+  # ── PostgreSQL ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: baithak_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cafedb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: asd123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cafedb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ──────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: baithak_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend API ────────────────────────────────────────────
+  backend:
+    build:
+      context: ./services/backend
+      dockerfile: Dockerfile
+    container_name: baithak_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: development
+      APP_DEBUG: "true"
+      APP_SECRET_KEY: baithak-docker-secret-key-change-in-production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: cafedb
+      DB_USER: postgres
+      DB_PASSWORD: asd123
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET_KEY: baithak-jwt-docker-secret-key-2026
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      FRONTEND_URL: http://localhost:5173
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/backend/uploads:/app/uploads
+    command: >
+      sh -c "
+        alembic upgrade head &&
+        python scripts/seed.py &&
+        uvicorn src.app.server:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+  # ── Celery Worker ──────────────────────────────────────────
+  celery_worker:
+    build:
+      context: ./services/backend
+      dockerfile: Dockerfile
+    container_name: baithak_celery
+    restart: unless-stopped
+    environment:
+      APP_ENV: development
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: cafedb
+      DB_USER: postgres
+      DB_PASSWORD: asd123
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A src.shared.celery_app worker --loglevel=info --concurrency=4
+
+  # ── Frontend ───────────────────────────────────────────────
+  frontend:
+    image: node:20-alpine
+    container_name: baithak_frontend
+    restart: unless-stopped
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:8000/api/v1
+    volumes:
+      - ./apps/admin-web:/app
+      - /app/node_modules
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:

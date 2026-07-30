@@ -1,0 +1,34 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "SSR One AI — Enterprise Production Observability",
+    "tags": ["ssr-one-ai", "production", "fastapi", "postgres", "redis"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "HTTP Request Throughput (req/sec)",
+        "type": "graph",
+        "targets": [{ "expr": "rate(http_requests_total[5m])" }]
+      },
+      {
+        "id": 2,
+        "title": "HTTP Error Rate (5xx)",
+        "type": "graph",
+        "targets": [{ "expr": "rate(http_requests_total{status=~\"5..\"}[5m])" }]
+      },
+      {
+        "id": 3,
+        "title": "PostgreSQL Active Database Connections",
+        "type": "singlestat",
+        "targets": [{ "expr": "pg_stat_database_numbackends" }]
+      },
+      {
+        "id": 4,
+        "title": "Redis Memory Usage (MB)",
+        "type": "graph",
+        "targets": [{ "expr": "redis_memory_used_bytes / 1024 / 1024" }]
+      }
+    ]
+  }
+}

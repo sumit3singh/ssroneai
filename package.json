@@ -1,0 +1,21 @@
+{
+  "name": "ssr-one-ai-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:admin": "pnpm --filter admin-web dev",
+    "dev:food": "pnpm --filter customer-food-web dev",
+    "dev:stay": "pnpm --filter customer-stay-web dev",
+    "dev:kds": "pnpm --filter kds-web dev",
+    "dev:staff": "pnpm --filter staff-web dev",
+    "dev:mobile": "pnpm --filter mobile-app dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "type-check": "turbo run type-check",
+    "lint": "turbo run lint"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0"
+  }
+}

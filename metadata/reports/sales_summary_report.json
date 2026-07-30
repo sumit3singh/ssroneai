@@ -1,0 +1,13 @@
+{
+  "report_key": "sales_summary_report",
+  "title": "Daily Sales & Revenue Summary",
+  "metrics": [
+    { "key": "total_revenue", "label": "Total Revenue", "type": "currency" },
+    { "key": "total_orders", "label": "Total Orders", "type": "number" },
+    { "key": "average_order_value", "label": "Avg Ticket Size", "type": "currency" }
+  ],
+  "charts": [
+    { "type": "area", "title": "Hourly Sales Trend", "x_axis": "hour", "y_axis": "revenue" },
+    { "type": "pie", "title": "Sales by Category", "x_axis": "category_name", "y_axis": "total" }
+  ]
+}

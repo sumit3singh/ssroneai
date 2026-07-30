@@ -1,0 +1,224 @@
+/* ============================================================
+   The Baithak – Global Styles (TBDL v1.0)
+   Design Language: Warm Hospitality + Enterprise Precision
+   ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── CSS Variables (Light Theme) ─────────────────────────── */
+@layer base {
+  :root {
+    --background: 220 14% 97%; /* #F7F8FA */
+    --foreground: 221 39% 11%; /* #111827 */
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 221 39% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 221 39% 11%;
+    --primary: 196 51% 25%; /* #1F4E5F */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 10% 94%;
+    --secondary-foreground: 196 51% 25%;
+    --muted: 220 10% 94%;
+    --muted-foreground: 221 15% 45%;
+    --accent: 35 55% 50%; /* #C58B3A */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%; /* #DC2626 */
+    --destructive-foreground: 210 40% 98%;
+    --border: 220 10% 88%;
+    --input: 220 10% 88%;
+    --ring: 196 51% 25%;
+    --radius: 0.75rem;
+
+    /* AI Brand */
+    --ai-primary: 258 83% 58%; /* #7C3AED */
+    --ai-light: 270 95% 75%;
+
+    /* Sidebar Widths */
+    --sidebar-width: 280px;
+    --sidebar-collapsed-width: 72px;
+    --header-height: 60px;
+  }
+
+  .dark {
+    --background: 218 13% 11%; /* #171A1F */
+    --foreground: 228 17% 93%; /* #E8EAF0 */
+    --card: 220 15% 15%; /* #20242C */
+    --card-foreground: 228 17% 93%;
+    --popover: 220 15% 15%; /* #20242C */
+    --popover-foreground: 228 17% 93%;
+    --primary: 217 100% 71%; /* #6BA6FF */
+    --primary-foreground: 228 17% 93%;
+    --secondary: 218 16% 18%; /* #262B35 */
+    --secondary-foreground: 228 17% 93%;
+    --muted: 218 16% 18%; /* #262B35 */
+    --muted-foreground: 218 10% 65%;
+    --accent: 36 58% 59%; /* #D4A45A */
+    --accent-foreground: 228 17% 93%;
+    --destructive: 0 72% 51%; /* #DC2626 */
+    --destructive-foreground: 210 40% 98%;
+    --border: 218 16% 24%; /* #343B48 */
+    --input: 218 16% 24%;
+    --ring: 217 100% 71%;
+
+    /* AI Brand */
+    --ai-primary: 258 90% 66%; /* #8B5CF6 */
+    --ai-light: 270 95% 75%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Typography Scale */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display tracking-tight;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/40;
+  }
+
+  /* Focus ring */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Selection */
+  ::selection {
+    background: hsl(var(--primary) / 0.15);
+    color: hsl(var(--primary));
+  }
+
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ── Component Utilities ─────────────────────────────────── */
+@layer components {
+
+  /* Skeleton loader */
+  .skeleton {
+    @apply relative overflow-hidden bg-muted rounded;
+  }
+
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0;
+    background: linear-gradient(90deg,
+        transparent 25%,
+        hsl(var(--background) / 0.5) 50%,
+        transparent 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  /* AI branded elements */
+  .ai-badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium;
+    background: hsl(var(--ai-primary) / 0.1);
+    color: hsl(var(--ai-primary));
+    border: 1px solid hsl(var(--ai-primary) / 0.2);
+  }
+
+  .ai-glow {
+    box-shadow: 0 0 20px hsl(var(--ai-primary) / 0.3);
+  }
+
+  /* KPI card */
+  .kpi-card {
+    @apply bg-card rounded-xl border border-border p-6 shadow-card hover:shadow-card-hover transition-shadow duration-200;
+  }
+
+  /* Data table */
+  .data-table-header {
+    @apply sticky top-0 z-10 bg-muted/80 backdrop-blur-sm;
+  }
+
+  /* Sidebar nav item */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors duration-150 cursor-pointer;
+  }
+
+  .nav-item.active {
+    @apply text-primary bg-primary/10 font-semibold;
+  }
+
+  /* Status badges */
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .status-pending {
+    @apply status-badge bg-warning/10 text-yellow-700;
+  }
+
+  .status-active {
+    @apply status-badge bg-success/10 text-emerald-700;
+  }
+
+  .status-inactive {
+    @apply status-badge bg-muted text-muted-foreground;
+  }
+
+  .status-error {
+    @apply status-badge bg-danger/10 text-red-700;
+  }
+}
+
+/* ── Utility Classes ─────────────────────────────────────── */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .font-numeric {
+    font-variant-numeric: tabular-nums;
+    @apply font-mono;
+  }
+
+  .scrollbar-hide {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}

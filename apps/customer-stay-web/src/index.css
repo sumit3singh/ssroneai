@@ -1,0 +1,287 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 30 40% 98%;
+    --foreground: 350 25% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 350 25% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 350 25% 15%;
+
+    --primary: 347 77% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 350 30% 95%;
+    --secondary-foreground: 350 25% 20%;
+
+    --muted: 30 20% 96%;
+    --muted-foreground: 350 10% 45%;
+
+    --accent: 347 60% 92%;
+    --accent-foreground: 347 77% 40%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 350 20% 90%;
+    --input: 350 20% 90%;
+    --ring: 347 77% 50%;
+
+    --radius: 0.75rem;
+
+    /* Custom colors */
+    --rose-dark: 347 45% 18%;
+    --rose-medium: 347 50% 30%;
+    --cream: 40 33% 96%;
+    --gold: 38 80% 55%;
+    --blush: 350 40% 97%;
+
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(347 45% 18%) 0%, hsl(347 50% 25%) 50%, hsl(347 40% 30%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(347 77% 50%) 0%, hsl(347 70% 60%) 100%);
+    --gradient-gold: linear-gradient(135deg, hsl(38 80% 55%) 0%, hsl(40 75% 65%) 100%);
+
+    /* Shadows */
+    --shadow-soft: 0 4px 20px -4px hsl(347 30% 20% / 0.1);
+    --shadow-card: 0 8px 30px -8px hsl(347 30% 20% / 0.12);
+    --shadow-elevated: 0 20px 50px -15px hsl(347 30% 20% / 0.15);
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 347 45% 8%;
+    --foreground: 30 40% 98%;
+
+    --card: 347 40% 12%;
+    --card-foreground: 30 40% 98%;
+
+    --popover: 347 40% 12%;
+    --popover-foreground: 30 40% 98%;
+
+    --primary: 347 70% 60%;
+    --primary-foreground: 347 45% 10%;
+
+    --secondary: 347 30% 18%;
+    --secondary-foreground: 30 40% 95%;
+
+    --muted: 347 25% 20%;
+    --muted-foreground: 350 15% 65%;
+
+    --accent: 347 35% 22%;
+    --accent-foreground: 347 60% 75%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 347 25% 22%;
+    --input: 347 25% 22%;
+    --ring: 347 70% 60%;
+
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+
+  /* Use border-box sizing globally to avoid layout surprises */
+  :where(*, *::before, *::after) {
+    box-sizing: border-box;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 10rem;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    /* Prevent horizontal scroll caused by overflowing children */
+    overflow-x: hidden;
+    min-width: 0;
+  }
+
+  /* Ensure main/content sections don't force a wider viewport */
+  main,
+  section,
+  header,
+  footer {
+    min-width: 0;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display;
+  }
+}
+
+@layer components {
+  .section-padding {
+    @apply py-16 md:py-24 px-4 md:px-8;
+    scroll-margin-top: 7rem;
+  }
+
+  .container-custom {
+    @apply max-w-7xl mx-auto px-4 sm:px-6;
+  }
+
+  /* Responsive headings to prevent overflow on small screens */
+  h1 {
+    font-size: clamp(1.5rem, 4.5vw, 2.5rem);
+  }
+
+  h2 {
+    font-size: clamp(1.25rem, 3.5vw, 1.75rem);
+  }
+
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-rose-400;
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-elevated hover:-translate-y-1;
+  }
+
+  /* Ensure layout sections don't overflow and are flexible */
+  .flex-responsive {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  .flex-responsive>* {
+    flex: 1 1 240px;
+    min-width: 0;
+    /* allow children to shrink properly */
+  }
+
+  .btn-glow {
+    @apply relative overflow-hidden;
+  }
+
+  .btn-glow::before {
+    content: '';
+    @apply absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full;
+    animation: shimmer 2s infinite;
+  }
+
+  @keyframes shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+}
+
+@layer utilities {
+  .animate-fade-up {
+    animation: fadeUp 0.6s ease-out forwards;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.4s ease-out forwards;
+  }
+
+  .animate-slide-in-right {
+    animation: slideInRight 0.5s ease-out forwards;
+  }
+
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes slideInRight {
+    from {
+      opacity: 0;
+      transform: translateX(-30px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .stagger-1 {
+    animation-delay: 0.1s;
+  }
+
+  .stagger-2 {
+    animation-delay: 0.2s;
+  }
+
+  .stagger-3 {
+    animation-delay: 0.3s;
+  }
+
+  .stagger-4 {
+    animation-delay: 0.4s;
+  }
+
+  .stagger-5 {
+    animation-delay: 0.5s;
+  }
+}

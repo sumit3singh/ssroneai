@@ -1,0 +1,93 @@
+name: SSR One AI — DevSecOps Enterprise CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint-and-typecheck:
+    name: Code Quality & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install Monorepo Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Type Check Across Packages
+        run: pnpm run type-check
+
+      - name: Run Lint Across Packages
+        run: pnpm run lint
+
+      - name: Build All Packages
+        run: pnpm run build
+
+  backend-test-suite:
+    name: FastAPI Pytest & Security Scan
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: cafedb
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: asd123
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Backend Dependencies
+        run: |
+          cd services/backend
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Async Pytest Suite
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: cafedb
+          DB_USER: postgres
+          DB_PASSWORD: asd123
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          JWT_SECRET_KEY: test-secret-key-ci
+        run: |
+          cd services/backend
+          pytest tests/unit/ --no-cov

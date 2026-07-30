@@ -1,0 +1,209 @@
+-- ============================================================
+-- SSR ONE AI — BUSINESS MASTER & TRANSACTION DATABASE SCHEMAS
+-- Database tables backing Restaurant/POS, Hotel PMS, Inventory, Finance, CRM, HRMS, PG Management
+-- ============================================================
+
+-- 1. RESTAURANT & POS TABLES
+CREATE TABLE IF NOT EXISTS menu_categories (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT REFERENCES tenants(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    sort_order INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS menu_items (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT REFERENCES tenants(id) ON DELETE CASCADE,
+    category_id BIGINT REFERENCES menu_categories(id) ON DELETE SET NULL,
+    item_code VARCHAR(50) NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    price NUMERIC(12,2) DEFAULT 0.00 NOT NULL,
+    cost_price NUMERIC(12,2) DEFAULT 0.00 NOT NULL,
+    tax_rate NUMERIC(5,2) DEFAULT 5.00 NOT NULL,
+    is_available BOOLEAN DEFAULT TRUE NOT NULL,
+    image_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT uq_tenant_item_code UNIQUE(tenant_id, item_code)
+);
+
+CREATE TABLE IF NOT EXISTS pos_orders (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT REFERENCES tenants(id) ON DELETE CASCADE,
+    order_number VARCHAR(50) NOT NULL,
+    table_number VARCHAR(20),
+    order_type VARCHAR(50) DEFAULT 'DINE_IN' NOT NULL, -- DINE_IN, TAKEAWAY, DELIVERY
+    subtotal NUMERIC(12,2) DEFAULT 0.00 NOT NULL,
+    tax_amount NUMERIC(12,2) DEFAULT 0.00 NOT NULL,
+    discount_amount NUMERIC(12,2) DEFAULT 0.00 NOT NULL,
+    total_amount NUMERIC(12,2) DEFAULT 0.00 NOT NULL,
+    status VARCHAR(50) DEFAULT 'PENDING' NOT NULL, -- PENDING, PREPARING, SERVED, COMPLETED, CANCELLED
+    payment_status VARCHAR(50) DEFAULT 'UNPAID' NOT NULL, -- UNPAID, PAID, PARTIAL
+    customer_name VARCHAR(150),
+    customer_phone VARCHAR(20),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT uq_tenant_pos_order UNIQUE(tenant_id, order_number)
+);
+
+CREATE TABLE IF NOT EXISTS pos_order_items (
+    id BIGSERIAL PRIMARY KEY,
+    order_id BIGINT REFERENCES pos_orders(id) ON DELETE CASCADE,
+    item_id BIGINT REFERENCES menu_items(id) ON DELETE RESTRICT,
+    item_name VARCHAR(200) NOT NULL,
+    unit_price NUMERIC(12,2) NOT NULL,
+    quantity INT DEFAULT 1 NOT NULL,
+    total_price NUMERIC(12,2) NOT NULL,
+    notes TEXT
+);
+
+-- 2. HOTEL PMS TABLES
+CREATE TABLE IF NOT EXISTS hotel_rooms (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT REFERENCES tenants(id) ON DELETE CASCADE,
+    room_number VARCHAR(20) NOT NULL,
+    room_type VARCHAR(50) NOT NULL, -- DELUXE, SUITE, STANDARD, EXECUTIVE
+    rate_per_night NUMERIC(12,2) NOT NULL,
+    status VARCHAR(50) DEFAULT 'VACANT' NOT NULL, -- VACANT, OCCUPIED, CLEANING, MAINTENANCE
+    floor_number INT DEFAULT 1,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT uq_tenant_room_no UNIQUE(tenant_id, room_number)
+);
+
+CREATE TABLE IF NOT EXISTS hotel_reservations (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT REFERENCES tenants(id) ON DELETE CASCADE,
+    reservation_code VARCHAR(50) NOT NULL,
+    room_id BIGINT REFERENCES hotel_rooms(id) ON DELETE RESTRICT,
+    guest_name VARCHAR(150) NOT NULL,
+    guest_phone VARCHAR(20) NOT NULL,
+    guest_email VARCHAR(150),
+    check_in_date DATE NOT NULL,
+    check_out_date DATE NOT NULL,
+    total_nights INT DEFAULT 1 NOT NULL,
+    total_amount NUMERIC(12,2) NOT NULL,
+    status VARCHAR(50) DEFAULT 'CONFIRMED' NOT NULL, -- CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT uq_tenant_reservation UNIQUE(tenant_id, reservation_code)
+);
+
+-- 3. INVENTORY TABLES
+CREATE TABLE IF NOT EXISTS inventory_items (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT REFERENCES tenants(id) ON DELETE CASCADE,
+    sku VARCHAR(50) NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    category VARCHAR(100),
+    unit VARCHAR(20) DEFAULT 'PCS' NOT NULL,
+    current_stock NUMERIC(12,3) DEFAULT 0.000 NOT NULL,
+    min_stock_level NUMERIC(12,3) DEFAULT 10.000 NOT NULL,
+    unit_cost NUMERIC(12,2) DEFAULT 0.00 NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT uq_tenant_sku UNIQUE(tenant_id, sku)
+);
+
+CREATE TABLE IF NOT EXISTS stock_transactions (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT REFERENCES tenants(id) ON DELETE CASCADE,
+    item_id BIGINT REFERENCES inventory_items(id) ON DELETE CASCADE,
+    transaction_type VARCHAR(50) NOT NULL, -- IN, OUT, ADJUSTMENT, TRANSFER
+    quantity NUMERIC(12,3) NOT NULL,
+    reference_no VARCHAR(100),
+    remarks TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- 4. FINANCE & BILLING TABLES
+CREATE TABLE IF NOT EXISTS invoices (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT REFERENCES tenants(id) ON DELETE CASCADE,
+    invoice_number VARCHAR(50) NOT NULL,
+    customer_name VARCHAR(150) NOT NULL,
+    invoice_date DATE DEFAULT CURRENT_DATE NOT NULL,
+    due_date DATE DEFAULT CURRENT_DATE NOT NULL,
+    subtotal NUMERIC(12,2) NOT NULL,
+    tax_amount NUMERIC(12,2) DEFAULT 0.00 NOT NULL,
+    total_amount NUMERIC(12,2) NOT NULL,
+    paid_amount NUMERIC(12,2) DEFAULT 0.00 NOT NULL,
+    status VARCHAR(50) DEFAULT 'UNPAID' NOT NULL, -- UNPAID, PARTIAL, PAID, OVERDUE, CANCELLED
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT uq_tenant_invoice UNIQUE(tenant_id, invoice_number)
+);
+
+-- 5. CRM TABLES
+CREATE TABLE IF NOT EXISTS customers (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT REFERENCES tenants(id) ON DELETE CASCADE,
+    name VARCHAR(150) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    email VARCHAR(150),
+    city VARCHAR(100),
+    total_orders INT DEFAULT 0,
+    total_spent NUMERIC(12,2) DEFAULT 0.00,
+    loyalty_points INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS crm_leads (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT REFERENCES tenants(id) ON DELETE CASCADE,
+    contact_name VARCHAR(150) NOT NULL,
+    company_name VARCHAR(150),
+    phone VARCHAR(20) NOT NULL,
+    email VARCHAR(150),
+    lead_source VARCHAR(50),
+    status VARCHAR(50) DEFAULT 'NEW' NOT NULL, -- NEW, CONTACTED, QUALIFIED, PROPOSAL, WON, LOST
+    estimated_value NUMERIC(12,2) DEFAULT 0.00,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- 6. HRMS TABLES
+CREATE TABLE IF NOT EXISTS employees (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT REFERENCES tenants(id) ON DELETE CASCADE,
+    employee_code VARCHAR(50) NOT NULL,
+    full_name VARCHAR(150) NOT NULL,
+    designation VARCHAR(100) NOT NULL,
+    department VARCHAR(100) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    email VARCHAR(150),
+    basic_salary NUMERIC(12,2) NOT NULL,
+    status VARCHAR(50) DEFAULT 'ACTIVE' NOT NULL, -- ACTIVE, ON_LEAVE, TERMINATED
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT uq_tenant_emp_code UNIQUE(tenant_id, employee_code)
+);
+
+-- 7. PG MANAGEMENT TABLES
+CREATE TABLE IF NOT EXISTS pg_properties (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT REFERENCES tenants(id) ON DELETE CASCADE,
+    property_name VARCHAR(150) NOT NULL,
+    address TEXT NOT NULL,
+    total_rooms INT DEFAULT 10 NOT NULL,
+    total_beds INT DEFAULT 20 NOT NULL,
+    monthly_rent_per_bed NUMERIC(12,2) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS pg_beds (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT REFERENCES tenants(id) ON DELETE CASCADE,
+    property_id BIGINT REFERENCES pg_properties(id) ON DELETE CASCADE,
+    room_number VARCHAR(20) NOT NULL,
+    bed_number VARCHAR(20) NOT NULL,
+    monthly_rent NUMERIC(12,2) NOT NULL,
+    status VARCHAR(50) DEFAULT 'VACANT' NOT NULL, -- VACANT, OCCUPIED, MAINTENANCE
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
