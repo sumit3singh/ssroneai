@@ -5,12 +5,16 @@ export type OrderStatus = "PENDING" | "CONFIRMED" | "PREPARING" | "READY" | "SER
 
 export interface POSCartItem {
   cart_id: string;
+  fingerprint_key?: string;
   item_id: number;
   name: string;
+  variant_name?: string;
   unit_price: number;
+  packaging_charge?: number;
   quantity: number;
   selected_variant?: POSVariantOption;
   selected_addons?: POSAddonOption[];
+  addons?: POSAddonOption[];
   notes?: string;
   is_veg: boolean;
 }
@@ -25,9 +29,11 @@ export interface POSOrder {
   customer_name?: string;
   customer_phone?: string;
   order_type: OrderType;
+  order_mode?: string;
   status: OrderStatus;
   items: POSCartItem[];
   subtotal: number;
+  packaging_charge?: number;
   tax_amount: number;
   discount_amount: number;
   net_amount: number;

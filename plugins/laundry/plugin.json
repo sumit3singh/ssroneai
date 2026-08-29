@@ -1,0 +1,8 @@
+{
+  "id": "plugin-laundry",
+  "name": "Guest Laundry Management",
+  "version": "1.0.0",
+  "category": "Hospitality Extension",
+  "description": "Garment barcode tagging, guest laundry collection, dry cleaning status, and automated room folio posting.",
+  "status": "active"
+}

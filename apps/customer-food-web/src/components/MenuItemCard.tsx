@@ -10,11 +10,13 @@ interface MenuItemCardProps {
 }
 
 const MenuItemCard = ({ item, onAdd }: MenuItemCardProps) => {
-  const hasVariants = item.variantGroups && item.variantGroups.length > 0;
+  const hasVariants = Boolean(item.variantGroups && item.variantGroups.length > 0);
+  const basePriceNum = typeof item.basePrice === "number" ? item.basePrice : (typeof (item as any).price === "number" ? (item as any).price : 100);
   const lowestPrice = hasVariants
-    ? Math.min(...(item.variantGroups || []).flatMap((g) => g.options.map((o) => getVariantDisplayPrice(item.basePrice, o))))
-    : item.basePrice;
-  const priceLabel = hasVariants ? `₹${lowestPrice}+` : `₹${item.basePrice}`;
+    ? Math.min(...(item.variantGroups || []).flatMap((g) => (g.options || []).map((o) => getVariantDisplayPrice(basePriceNum, o))))
+    : basePriceNum;
+  const safePrice = isNaN(lowestPrice) ? basePriceNum : lowestPrice;
+  const priceLabel = hasVariants ? `₹${safePrice}+` : `₹${basePriceNum}`;
 
   return (
     <motion.div

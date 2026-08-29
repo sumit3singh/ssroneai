@@ -1,5 +1,5 @@
 """
-The Baithak – Redis Client
+SSR One AI – Redis Client
 Centralized Redis connection for caching, pub/sub, and session management.
 """
 from collections.abc import AsyncGenerator
@@ -109,7 +109,7 @@ class InMemoryCache:
 class CacheService:
     """High-level cache service wrapping Redis operations with local memory fallback."""
 
-    def __init__(self, prefix: str = "baithak") -> None:
+    def __init__(self, prefix: str = "ssrone") -> None:
         self.prefix = prefix
         self._local_cache = InMemoryCache()
         self._use_redis = True

@@ -1,5 +1,5 @@
 """
-Tests for The Baithak Auth Service.
+Tests for The ssrone Auth Service.
 """
 import pytest
 from datetime import datetime, timezone, timedelta

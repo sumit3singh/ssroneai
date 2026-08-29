@@ -17,7 +17,7 @@ class MFAService:
         return pyotp.random_base32()
         
     @staticmethod
-    def get_provisioning_uri(username: str, secret: str, issuer_name: str = "The Baithak") -> str:
+    def get_provisioning_uri(username: str, secret: str, issuer_name: str = "The ssrone") -> str:
         """Generate provisioning URI for QR code configuration."""
         return pyotp.totp.TOTP(secret).provisioning_uri(name=username, issuer_name=issuer_name)
         

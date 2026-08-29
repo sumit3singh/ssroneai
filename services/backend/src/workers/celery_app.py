@@ -1,5 +1,5 @@
 """
-The Baithak – Celery Application
+SSR One AI – Celery Application
 Background task queue for emails, PDF generation, AI jobs, report exports.
 """
 from celery import Celery
@@ -9,7 +9,7 @@ from src.shared.config import get_settings
 settings = get_settings()
 
 celery_app = Celery(
-    "baithak",
+    "ssrone",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
     include=[

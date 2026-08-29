@@ -12,11 +12,11 @@ class NLToSQLEngine:
         """Translate user natural language question to read-only SQL query."""
         q = natural_language_query.lower()
         if "sales" in q or "revenue" in q:
-            sql = "SELECT DATE(created_at) as date, SUM(total_amount) as revenue FROM pos_orders GROUP BY DATE(created_at) ORDER BY date DESC LIMIT 30;"
+            sql = "SELECT DATE(created_at) as date, SUM(grand_total) as revenue FROM orders GROUP BY DATE(created_at) ORDER BY date DESC LIMIT 30;"
         elif "top items" in q or "best sellers" in q:
             sql = "SELECT item_name, SUM(quantity) as total_qty FROM order_items GROUP BY item_name ORDER BY total_qty DESC LIMIT 10;"
         else:
-            sql = "SELECT COUNT(*) as total_orders FROM pos_orders;"
+            sql = "SELECT COUNT(*) as total_orders FROM orders;"
 
         return {
             "query": natural_language_query,

@@ -1,1 +1,1 @@
-export { cn } from "@ssr-one-ai/utils";
+export { cn } from "@ssrone/utils";

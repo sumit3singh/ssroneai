@@ -1,5 +1,5 @@
 """
-The Baithak – AI Module Models
+The ssrone – AI Module Models
 Conversation history, prompt templates, and AI governance records.
 """
 from sqlalchemy import BigInteger, Boolean, Float, Integer, String, Text

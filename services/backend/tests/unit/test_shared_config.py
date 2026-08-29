@@ -3,7 +3,7 @@ from src.shared.config import get_settings, Settings, DatabaseSettings
 
 def test_settings_properties():
     settings = get_settings()
-    assert settings.app_name == "The Baithak Hospitality Platform"
+    assert settings.app_name == "SSR One AI Platform"
     
     # Test sync_url property
     db_settings = DatabaseSettings()

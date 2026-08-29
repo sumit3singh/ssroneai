@@ -1,5 +1,5 @@
 """
-The Baithak – Core Platform Database Models
+The ssrone – Core Platform Database Models
 All platform-wide tables: tenants, companies, branches, users, roles, etc.
 """
 from decimal import Decimal
@@ -49,9 +49,9 @@ class Company(TenantBaseModel):
 
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     legal_name: Mapped[str | None] = mapped_column(String(300), nullable=True)
-    gstin: Mapped[str | None] = mapped_column(String(15), nullable=True)
-    pan: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    cin: Mapped[str | None] = mapped_column(String(21), nullable=True)
+    gstin: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    pan: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    cin: Mapped[str | None] = mapped_column(String(100), nullable=True)
     address: Mapped[dict] = mapped_column(JSONB, default=dict)
     country_code: Mapped[str] = mapped_column(String(3), default="IN")
     currency_code: Mapped[str] = mapped_column(String(3), default="INR")
@@ -73,7 +73,7 @@ class Branch(TenantBaseModel):
     __tablename__ = "branches"
 
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    code: Mapped[str] = mapped_column(String(20), nullable=False)
+    code: Mapped[str] = mapped_column(String(50), nullable=False)
     branch_type: Mapped[str] = mapped_column(String(50), default="outlet")  # outlet, warehouse, franchise
     address: Mapped[dict] = mapped_column(JSONB, default=dict)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)

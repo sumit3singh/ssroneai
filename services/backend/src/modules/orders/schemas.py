@@ -1,5 +1,5 @@
 """
-The Baithak – Orders & KOT Pydantic Schemas
+The ssrone – Orders & KOT Pydantic Schemas
 """
 from datetime import datetime
 from decimal import Decimal

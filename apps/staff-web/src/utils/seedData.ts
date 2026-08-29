@@ -7,6 +7,6 @@ export const seedTables = () => {
 };
 
 export const clearSeedData = () => {
-    ['baithak_products', 'baithak_tables', 'baithak_orders', 'baithak_invoices'].forEach((k) => localStorage.removeItem(k));
+    ['ssrone_products', 'ssrone_tables', 'ssrone_orders', 'ssrone_invoices'].forEach((k) => localStorage.removeItem(k));
 };
 

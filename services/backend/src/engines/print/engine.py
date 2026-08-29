@@ -14,7 +14,7 @@ class PrintEngine:
         """Generate structured thermal receipt layout payload."""
         return {
             "order_number": order_number,
-            "header": "THE BAITHAK ENTERPRISE ERP",
+            "header": "THE ssrone ENTERPRISE ERP",
             "items": [
                 {
                     "name": item.get("name", "Item"),

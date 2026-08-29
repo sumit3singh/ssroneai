@@ -1,51 +1,42 @@
 @echo off
 title SSR One AI Ecosystem Launcher
-color 0A
-echo ===================================================
-echo   SSR ONE AI — ENTERPRISE OPERATING SYSTEM
-echo   Launching All 6 Portals & Backend Service...
-echo ===================================================
+cls
+echo ====================================================
+echo   Starting SSR One AI Backend and Frontend Apps
+echo ====================================================
 echo.
 
-:: 1. Launch FastAPI Backend API Server (Port 8000)
-echo [1/7] Starting FastAPI Backend API Server (Port 8000)...
-start "SSR One AI — FastAPI Backend API" cmd /k "cd services\backend && ..\..\.venv\Scripts\python.exe -m uvicorn src.api.app.server:app --reload --host 127.0.0.1 --port 8000"
+cd /d "%~dp0"
 
-:: 2. Launch Admin ERP Dashboard (Port 5173)
-echo [2/7] Starting Admin ERP Dashboard (Port 5173)...
-start "SSR One AI — Admin ERP Dashboard" cmd /k "npm run dev --prefix apps/admin-web"
+if exist "%~dp0.venv\Scripts\python.exe" (
+    set "PY_CMD=%~dp0.venv\Scripts\python.exe"
+) else (
+    set "PY_CMD=python"
+)
 
-:: 3. Launch Customer Food Ordering Portal (Port 3000)
-echo [3/7] Starting Customer Food Ordering Portal (Port 3000)...
-start "SSR One AI — Customer Food Portal" cmd /k "npm run dev --prefix apps/customer-food-web"
+echo [1/7] Starting Backend API (http://localhost:8000)...
+start "Backend API (8000)" cmd /k "cd /d "%~dp0services\backend" && %PY_CMD% -m uvicorn src.main:app --reload --host 0.0.0.0 --port 8000"
 
-:: 4. Launch Customer Stay Accommodation Portal (Port 3001)
-echo [4/7] Starting Customer Stay Accommodation Portal (Port 3001)...
-start "SSR One AI — Customer Stay Portal" cmd /k "npm run dev --prefix apps/customer-stay-web"
+echo [2/7] Starting Admin ERP Web Portal (http://localhost:5173)...
+start "Admin Web ERP (5173)" cmd /k "cd /d "%~dp0" && npx pnpm --filter @ssrone/admin-web dev"
 
-:: 5. Launch Kitchen Display Screen (KDS) (Port 8083)
-echo [5/7] Starting Kitchen Display Screen (Port 8083)...
-start "SSR One AI — Kitchen Display (KDS)" cmd /k "npm run dev --prefix apps/kds-web"
+echo [3/7] Starting Customer Food Web (http://localhost:3000)...
+start "Customer Food Web (3000)" cmd /k "cd /d "%~dp0" && npx pnpm --filter @ssrone/customer-food-web dev"
 
-:: 6. Launch Waiter Staff Companion (Port 8084)
-echo [6/7] Starting Waiter Staff Companion (Port 8084)...
-start "SSR One AI — Waiter Companion" cmd /k "npm run dev --prefix apps/staff-web"
+echo [4/7] Starting Customer Stay Web (http://localhost:3001)...
+start "Customer Stay Web (3001)" cmd /k "cd /d "%~dp0" && npx pnpm --filter @ssrone/customer-stay-web dev"
 
-:: 7. Launch Mobile Loyalty App (Port 8085)
-echo [7/7] Starting Mobile Loyalty App (Port 8085)...
-start "SSR One AI — Guest Loyalty Mobile App" cmd /k "npm run dev --prefix apps/mobile-app"
+echo [5/7] Starting Kitchen Display KDS (http://localhost:8083)...
+start "KDS Web (8083)" cmd /k "cd /d "%~dp0" && npx pnpm --filter @ssrone/kds-web dev"
+
+echo [6/7] Starting Staff Web Portal (http://localhost:8084)...
+start "Staff Web (8084)" cmd /k "cd /d "%~dp0" && npx pnpm --filter @ssrone/staff-web dev"
+
+echo [7/7] Starting Platform Superadmin Console (http://localhost:5174)...
+start "Platform Superadmin (5174)" cmd /k "cd /d "%~dp0" && npx pnpm --filter @ssrone/platform-admin dev"
 
 echo.
-echo ===================================================
-echo   ALL 7 SSR ONE AI ECOSYSTEM SERVICES ARE RUNNING!
-echo ===================================================
-echo - FastAPI Backend API & Docs:  http://localhost:8000/docs
-echo - Admin ERP Dashboard:       http://localhost:5173
-echo - Customer Food Portal:      http://localhost:3000
-echo - Customer Stay Portal:      http://localhost:3001
-echo - Kitchen Display (KDS):     http://localhost:8083
-echo - Waiter Staff Companion:    http://localhost:8084
-echo - Guest Loyalty Mobile App:  http://localhost:8085
-echo ===================================================
-echo.
-pause
+echo ====================================================
+echo All 7 Backend and Frontend Applications Launched!
+echo ====================================================
+

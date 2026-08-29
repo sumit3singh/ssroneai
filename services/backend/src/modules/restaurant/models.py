@@ -1,9 +1,10 @@
 """
-The Baithak – Restaurant & Menu Models
+The ssrone – Restaurant & Menu Models
 Enterprise, multi-tenant, normalized relational database models for Categories, Items, Variants, Addons, and Tags.
 """
+from datetime import datetime
 from typing import Any
-from sqlalchemy import String, Integer, BigInteger, Boolean, Float, ForeignKey
+from sqlalchemy import String, Integer, BigInteger, Boolean, Float, ForeignKey, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from src.core.database.engine import Base
@@ -25,6 +26,7 @@ class BigIntTenantBaseModel(BigIntMixin, TenantMixin, AuditMixin, SoftDeleteMixi
     Abstract base for tenant-scoped models with BigInteger primary keys.
     """
     __abstract__ = True
+    __table_args__ = {"extend_existing": True}
 
     company_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
 
@@ -39,8 +41,10 @@ class MenuCategory(BigIntTenantBaseModel):
     """
     __tablename__ = "menu_categories"
 
+    company_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     branch_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
+
     icon: Mapped[str | None] = mapped_column(String(50), nullable=True)
     slug: Mapped[str | None] = mapped_column(String(100), nullable=True)
     parent_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("menu_categories.id", ondelete="SET NULL"), nullable=True)
@@ -85,26 +89,42 @@ class MenuItem(BigIntTenantBaseModel):
 
     branch_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     category_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("menu_categories.id", ondelete="CASCADE"), nullable=False)
+    item_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     short_description: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    base_price: Mapped[float] = mapped_column(Float, default=0.0)
+    
+    price: Mapped[float | None] = mapped_column("price", Float, default=0.0, nullable=True)
+    cost_price: Mapped[float | None] = mapped_column("cost_price", Float, default=0.0, nullable=True)
+    tax_rate: Mapped[float | None] = mapped_column("tax_rate", Float, default=5.0, nullable=True)
+    
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    images: Mapped[list] = mapped_column(JSONB, default=list)
-    product_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    images: Mapped[list] = mapped_column(JSONB, default=list, nullable=True)
+    product_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("products.id", ondelete="SET NULL"), nullable=True, index=True)
     kds_station: Mapped[str | None] = mapped_column(String(50), nullable=True)  # e.g. Tandoor, Chinese, Main, Beverages
-    allergens: Mapped[list] = mapped_column(JSONB, default=list)
-    nutrition: Mapped[dict] = mapped_column(JSONB, default=dict)
-    is_veg: Mapped[bool] = mapped_column(Boolean, default=True)
-    is_popular: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_available: Mapped[bool] = mapped_column(Boolean, default=True)
-    gst_percent: Mapped[float] = mapped_column(Float, default=5.0)
-    sort_order: Mapped[int] = mapped_column(Integer, default=1)
+    allergens: Mapped[list] = mapped_column(JSONB, default=list, nullable=True)
+    nutrition: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=True)
+    is_veg: Mapped[bool] = mapped_column(Boolean, default=True, nullable=True)
+    is_popular: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
+    is_available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=True)
+    packaging_charge: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=1, nullable=True)
 
-    # Legacy JSONB fallback columns
-    tags: Mapped[list] = mapped_column(JSONB, default=list)
-    variant_groups: Mapped[list] = mapped_column(JSONB, default=list)
-    addon_groups: Mapped[list] = mapped_column(JSONB, default=list)
+    @property
+    def base_price(self) -> float:
+        return float(self.price or 0.0)
+
+    @base_price.setter
+    def base_price(self, val: float):
+        self.price = float(val) if val is not None else 0.0
+
+    @property
+    def gst_percent(self) -> float:
+        return float(self.tax_rate or 5.0)
+
+    @gst_percent.setter
+    def gst_percent(self, val: float):
+        self.tax_rate = float(val) if val is not None else 5.0
 
     # Relationships
     category: Mapped[MenuCategory] = relationship("MenuCategory", back_populates="items")
@@ -209,4 +229,65 @@ class MenuAddonOption(BigIntTenantBaseModel):
     sort_order: Mapped[int] = mapped_column(Integer, default=1)
 
     group: Mapped[MenuAddonGroup] = relationship("MenuAddonGroup", back_populates="options")
+
+
+class PaymentMode(BigIntTenantBaseModel):
+    """
+    Payment Settlement Modes (e.g. Cash, UPI / QR, Credit Card, Pay Later)
+    """
+    __tablename__ = "payment_modes"
+
+    branch_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    code: Mapped[str] = mapped_column(String(30), nullable=False)
+    icon: Mapped[str | None] = mapped_column(String(50), default="💳")
+    payment_type: Mapped[str] = mapped_column(String(50), default="cash")
+    qr_code_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class PosShift(BigIntTenantBaseModel):
+    """
+    POS Cash Drawer & Shift Management.
+    """
+    __tablename__ = "pos_shifts"
+
+    branch_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    shift_number: Mapped[str] = mapped_column(String(50), nullable=False)
+    cashier_name: Mapped[str] = mapped_column(String(100), nullable=False, default="Cashier Admin")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="open")  # open, closed
+    opening_cash: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    closing_cash: Mapped[float | None] = mapped_column(Float, nullable=True)
+    expected_cash: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    cash_sales: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    upi_sales: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    card_sales: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    total_sales: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    pay_ins: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    pay_outs: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    variance: Mapped[float | None] = mapped_column(Float, nullable=True)
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    transactions: Mapped[list["PosShiftTransaction"]] = relationship("PosShiftTransaction", back_populates="shift", cascade="all, delete-orphan")
+
+
+class PosShiftTransaction(BigIntTenantBaseModel):
+    """
+    Drawer audit log for Pay-In, Pay-Out, and Cash Sales.
+    """
+    __tablename__ = "pos_shift_transactions"
+
+    shift_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("pos_shifts.id", ondelete="CASCADE"), nullable=False, index=True)
+    type: Mapped[str] = mapped_column(String(30), nullable=False)  # OPENING, CASH_SALE, PAY_IN, PAY_OUT, SHIFT_CLOSE
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    payment_mode: Mapped[str] = mapped_column(String(30), default="CASH")
+    reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    performed_by: Mapped[str] = mapped_column(String(100), default="Cashier Admin")
+
+    shift: Mapped[PosShift] = relationship("PosShift", back_populates="transactions")
+
+
 

@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Star, RotateCcw, MapPin, Hash, Package } from "lucide-react";
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthStore } from "@ssrone/auth";
 import { useCartStore } from "@/stores/cartStore";
 import { useI18n } from "@/stores/i18nStore";
 import { OrderCardSkeleton } from "@/components/LoadingSkeleton";
@@ -27,6 +27,8 @@ const MyOrders = () => {
     navigate("/menu");
   };
 
+  const ordersList = pastOrders || [];
+
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center pb-20">
@@ -34,7 +36,7 @@ const MyOrders = () => {
         <h2 className="font-display text-xl font-bold mb-2">{t("myOrders.loginRequired")}</h2>
         <p className="text-muted-foreground text-sm mb-6">{t("myOrders.loginSubtitle")}</p>
         <button
-          onClick={() => navigate("/login", { state: { from: "/my-orders" } })}
+          onClick={() => navigate("/")}
           className="btn-order px-6 py-3"
         >
           {t("welcome.login")} 📱
@@ -55,7 +57,7 @@ const MyOrders = () => {
       </header>
 
       <div className="max-w-lg mx-auto p-4 space-y-4">
-        {pastOrders.length === 0 ? (
+        {ordersList.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-5xl mb-3">📋</p>
             <p className="text-muted-foreground">{t("myOrders.noOrders")}</p>
@@ -64,7 +66,7 @@ const MyOrders = () => {
             </button>
           </div>
         ) : (
-          pastOrders.map((order, idx) => (
+          ordersList.map((order, idx) => (
             <motion.div
               key={order.id}
               initial={{ opacity: 0, y: 15 }}

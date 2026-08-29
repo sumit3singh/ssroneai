@@ -1,4 +1,4 @@
-import type { Role } from "@ssr-one-ai/types";
+import type { Role } from "@ssrone/types";
 
 export const permissionEngine = {
   hasPermission: (roles: Role[], permission: string): boolean => {

@@ -1,0 +1,22 @@
+{
+  "name": "finance",
+  "tier": "A",
+  "minTier": "Professional",
+  "version": "2.4.0",
+  "owner": "team-enterprise",
+  "permissions": [
+    "finance.view",
+    "finance.edit",
+    "finance.admin"
+  ],
+  "routes": [
+    "/finance"
+  ],
+  "dependencies": [],
+  "featureFlags": [
+    "voucher-entry",
+    "general-ledger",
+    "gst-reconciliation",
+    "trial-balance"
+  ]
+}

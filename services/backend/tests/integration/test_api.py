@@ -16,7 +16,7 @@ async def test_root_returns_200():
         response = await client.get("/")
     assert response.status_code == 200
     data = response.json()
-    assert data["name"] == "The Baithak Hospitality Platform"
+    assert data["name"] == "SSR One AI Platform"
     assert data["status"] == "running"
 
 

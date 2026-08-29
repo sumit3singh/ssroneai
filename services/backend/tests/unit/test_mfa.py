@@ -9,7 +9,7 @@ def test_totp_generation_and_verification():
     
     uri = MFAService.get_provisioning_uri("user@example.com", secret)
     assert "user%40example.com" in uri
-    assert "The%20Baithak" in uri
+    assert "The%20ssrone" in uri
 
     totp = pyotp.totp.TOTP(secret)
     current_code = totp.now()

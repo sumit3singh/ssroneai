@@ -34,3 +34,8 @@ Thumbs.db
 # Storage & Logs
 services/backend/uploads/
 *.log
+
+# Test & coverage artifacts
+.pytest_cache/
+.coverage
+coverage/

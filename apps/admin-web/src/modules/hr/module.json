@@ -1,0 +1,23 @@
+{
+  "name": "hr",
+  "tier": "A",
+  "version": "2.1.0",
+  "owner": "team-enterprise",
+  "permissions": [
+    "hr.view",
+    "hr.edit",
+    "hr.admin"
+  ],
+  "routes": [
+    "/hr"
+  ],
+  "dependencies": [
+    "finance"
+  ],
+  "featureFlags": [
+    "employee-directory",
+    "payroll-slips",
+    "shift-roster",
+    "attendance-sync"
+  ]
+}

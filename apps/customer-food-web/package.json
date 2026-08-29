@@ -1,10 +1,10 @@
 {
-  "name": "customer-food-web",
+  "name": "@ssrone/customer-food-web",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port 3000",
+    "dev": "vite --port 3000 --force",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
@@ -13,6 +13,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@ssrone/api-client": "workspace:*",
+    "@ssrone/auth": "workspace:*",
+    "@ssrone/ui": "workspace:*",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",

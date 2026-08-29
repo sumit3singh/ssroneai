@@ -1,87 +1,68 @@
-import { Suspense, lazy } from "react";
 import TopBar from "@/components/TopBar";
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
-import LazySection from "@/components/LazySection";
+import About from "@/components/About";
+import SafetySection from "@/components/SafetySection";
+import Facilities from "@/components/Facilities";
+import Rooms from "@/components/Rooms";
+import WhyDifferent from "@/components/WhyDifferent";
+import Testimonials from "@/components/Testimonials";
+import Location from "@/components/Location";
+import Contact from "@/components/Contact";
+import Footer from "@/components/Footer";
+import FloatingElements from "@/components/FloatingElements";
+import FloatingButtons from "@/components/FloatingButtons";
+import ScrollProgress from "@/components/ScrollProgress";
 import SectionDivider from "@/components/SectionDivider";
-
-const About = lazy(() => import("@/components/About"));
-const SafetySection = lazy(() => import("@/components/SafetySection"));
-const Facilities = lazy(() => import("@/components/Facilities"));
-const Rooms = lazy(() => import("@/components/Rooms"));
-const WhyDifferent = lazy(() => import("@/components/WhyDifferent"));
-const Testimonials = lazy(() => import("@/components/Testimonials"));
-const Location = lazy(() => import("@/components/Location"));
-const Contact = lazy(() => import("@/components/Contact"));
-const Footer = lazy(() => import("@/components/Footer"));
-const FloatingElements = lazy(() => import("@/components/FloatingElements"));
-const FloatingButtons = lazy(() => import("@/components/FloatingButtons"));
-const ScrollProgress = lazy(() => import("@/components/ScrollProgress"));
-
-const sectionFallback = (
-  <div className="section-padding bg-background/70 animate-pulse">
-    <div className="mx-auto h-24 rounded-3xl bg-muted" />
-  </div>
-);
 
 const Index = () => {
   return (
-    <div className="min-h-screen relative pt-[120px]">
-      {/* Scroll Progress */}
-      <Suspense fallback={null}>
-        <ScrollProgress />
-      </Suspense>
+    <div className="min-h-screen relative pt-[120px] bg-background text-foreground antialiased selection:bg-rose-medium selection:text-white">
+      {/* Scroll Progress Indicator */}
+      <ScrollProgress />
 
-      {/* Floating Decorative Elements */}
-      <Suspense fallback={null}>
-        <FloatingElements />
-      </Suspense>
+      {/* Background Floating Ambient Orbs */}
+      <FloatingElements />
 
-      {/* Top Bar */}
+      {/* Fixed Top Bar & Navigation */}
       <div className="fixed top-0 left-0 right-0 z-[60]">
         <TopBar />
       </div>
-
-      {/* Navbar */}
       <Navbar />
 
-      {/* Main Content */}
-      <main>
+      {/* Main Page Sections - Eager Pre-Loaded for 0ms Scroll Latency */}
+      <main className="relative z-10">
         <Hero />
 
         <SectionDivider variant="wave" className="bg-background" />
-        <LazySection loader={() => import("@/components/About")} fallback={sectionFallback} />
+        <About />
 
         <SectionDivider variant="curve" flip className="bg-blush" />
-        <LazySection loader={() => import("@/components/SafetySection")} fallback={sectionFallback} />
+        <SafetySection />
 
         <SectionDivider variant="wave" className="bg-background" />
-        <LazySection loader={() => import("@/components/Facilities")} fallback={sectionFallback} />
+        <Facilities />
 
         <SectionDivider variant="curve" className="bg-background" />
-        <LazySection loader={() => import("@/components/Rooms")} fallback={sectionFallback} />
+        <Rooms />
 
         <SectionDivider variant="wave" flip className="bg-blush" />
-        <LazySection loader={() => import("@/components/WhyDifferent")} fallback={sectionFallback} />
+        <WhyDifferent />
 
         <SectionDivider variant="curve" className="bg-background" />
-        <LazySection loader={() => import("@/components/Testimonials")} fallback={sectionFallback} />
+        <Testimonials />
 
         <SectionDivider variant="wave" flip className="bg-blush" />
-        <LazySection loader={() => import("@/components/Location")} fallback={sectionFallback} />
+        <Location />
 
         <SectionDivider variant="curve" className="bg-background" />
-        <LazySection loader={() => import("@/components/Contact")} fallback={sectionFallback} />
+        <Contact />
       </main>
 
-      <Suspense fallback={null}>
-        <Footer />
-      </Suspense>
+      <Footer />
 
-      {/* Floating Buttons */}
-      <Suspense fallback={null}>
-        <FloatingButtons />
-      </Suspense>
+      {/* Floating Call & WhatsApp Buttons */}
+      <FloatingButtons />
     </div>
   );
 };

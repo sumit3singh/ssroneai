@@ -1,5 +1,5 @@
 /**
- * The Baithak – Route Tree
+ * The ssrone – Route Tree
  * TanStack Router configuration with all module routes.
  */
 import {
@@ -11,30 +11,21 @@ import {
 
 import { ProtectedRoute } from "@/app/routes/ProtectedRoute";
 import { LoginPage } from "@/modules/auth";
-import { DashboardPage } from "@/modules/dashboard";
-import { POSPage, KDSScreen } from "@/modules/pos";
-import { RestaurantPage } from "@/modules/restaurant";
+import { POSPage, KDSScreen, POSOrdersListPage } from "@/modules/pos";
 import { ConnectedAppsLauncher } from "@/shared/layout/ConnectedAppsLauncher";
-import { TenantsAdminPage } from "@/platform/tenants/TenantsAdminPage";
-import { CompaniesAdminPage } from "@/platform/companies/CompaniesAdminPage";
-import { LicensingAdminPage } from "@/platform/licensing/LicensingAdminPage";
-
+import { ConnectedAppPage } from "@/shared/layout/ConnectedAppPage";
+import { PlatformRedirectPage } from "@/shared/pages/PlatformRedirectPage";
 
 import { HotelPage } from "@/modules/hotel";
 import { PGManagementPage } from "@/modules/pg-management";
-import { ReservationsPage } from "@/modules/reservations";
 import { InventoryPage } from "@/modules/inventory";
-import { BillingPage } from "@/modules/billing";
 import { CRMPage } from "@/modules/crm";
-import { HRPage } from "@/modules/hr";
+import { HRPage, EmployeeDirectoryPage, DepartmentMasterPage, DesignationMasterPage, AttendancePunchPage, PayrollGenerationPage, SalarySlipReportPage } from "@/modules/hr";
 import { AICopilotPage } from "@/modules/ai-copilot";
-import { ReportsPage } from "@/modules/reports";
-import { SettingsPage, PlatformStudioPage, MasterStudioPage, WorkflowPage, CommunicationPage } from "@/modules/settings";
+import { SettingsPage, PlatformStudioPage, MasterStudioPage, WorkflowPage, CommunicationPage, ProjectTrackerPage, EnterpriseRoadmapPage } from "@/modules/settings";
 import { FinancePage } from "@/modules/finance";
-import { ConnectedAppPage } from "@/modules/connected-apps";
 import { FormBuilderPage } from "@/modules/forms";
-import { ProjectTrackerPage } from "@/modules/project-tracker";
-import { EnterpriseRoadmapPage } from "@/modules/enterprise-roadmap";
+
 
 // ─── Root Route ──────────────────────────────────────────────
 
@@ -67,7 +58,7 @@ const platformRoute = createRoute({
   path: "/platform",
   component: () => (
     <ProtectedRoute>
-      <TenantsAdminPage />
+      <PlatformRedirectPage />
     </ProtectedRoute>
   ),
 });
@@ -77,7 +68,7 @@ const platformTenantsRoute = createRoute({
   path: "/platform/tenants",
   component: () => (
     <ProtectedRoute>
-      <TenantsAdminPage />
+      <PlatformRedirectPage />
     </ProtectedRoute>
   ),
 });
@@ -87,7 +78,7 @@ const platformCompaniesRoute = createRoute({
   path: "/platform/companies",
   component: () => (
     <ProtectedRoute>
-      <CompaniesAdminPage />
+      <PlatformRedirectPage />
     </ProtectedRoute>
   ),
 });
@@ -97,7 +88,7 @@ const platformBranchesRoute = createRoute({
   path: "/platform/branches",
   component: () => (
     <ProtectedRoute>
-      <CompaniesAdminPage />
+      <PlatformRedirectPage />
     </ProtectedRoute>
   ),
 });
@@ -107,7 +98,7 @@ const platformLicensingRoute = createRoute({
   path: "/platform/licensing",
   component: () => (
     <ProtectedRoute>
-      <LicensingAdminPage />
+      <PlatformRedirectPage />
     </ProtectedRoute>
   ),
 });
@@ -117,7 +108,7 @@ const platformAuditRoute = createRoute({
   path: "/platform/audit",
   component: () => (
     <ProtectedRoute>
-      <TenantsAdminPage />
+      <PlatformRedirectPage />
     </ProtectedRoute>
   ),
 });
@@ -127,10 +118,11 @@ const platformFeatureFlagsRoute = createRoute({
   path: "/platform/feature-flags",
   component: () => (
     <ProtectedRoute>
-      <TenantsAdminPage />
+      <PlatformRedirectPage />
     </ProtectedRoute>
   ),
 });
+
 
 const posRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -222,6 +214,26 @@ const posTransactionKDSRoute = createRoute({
   ),
 });
 
+const posTransactionOrdersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pos/transaction/orders",
+  component: () => (
+    <ProtectedRoute>
+      <POSOrdersListPage />
+    </ProtectedRoute>
+  ),
+});
+
+const posTransactionTablesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pos/transaction/tables",
+  component: () => (
+    <ProtectedRoute>
+      <POSPage />
+    </ProtectedRoute>
+  ),
+});
+
 const posTransactionShiftRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/pos/transaction/shift",
@@ -237,7 +249,7 @@ const posReportsDailySalesRoute = createRoute({
   path: "/pos/reports/daily-sales",
   component: () => (
     <ProtectedRoute>
-      <ReportsPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -247,7 +259,7 @@ const posReportsItemSalesRoute = createRoute({
   path: "/pos/reports/item-sales",
   component: () => (
     <ProtectedRoute>
-      <ReportsPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -257,7 +269,7 @@ const posReportsCashierRoute = createRoute({
   path: "/pos/reports/cashier-settlement",
   component: () => (
     <ProtectedRoute>
-      <ReportsPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -267,7 +279,7 @@ const posReportsGSTRoute = createRoute({
   path: "/pos/reports/gst-summary",
   component: () => (
     <ProtectedRoute>
-      <ReportsPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -312,12 +324,202 @@ const pgRoute = createRoute({
   ),
 });
 
+const pgManagementRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pg-management",
+  component: () => (
+    <ProtectedRoute>
+      <PGManagementPage />
+    </ProtectedRoute>
+  ),
+});
+
+const pgManagementSplatRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pg-management/$",
+  component: () => (
+    <ProtectedRoute>
+      <PGManagementPage />
+    </ProtectedRoute>
+  ),
+});
+
+const pgManagementMasterBedsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pg-management/master/beds",
+  component: () => (
+    <ProtectedRoute>
+      <PGManagementPage />
+    </ProtectedRoute>
+  ),
+});
+
+const pgManagementMasterRoomsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pg-management/master/rooms",
+  component: () => (
+    <ProtectedRoute>
+      <PGManagementPage />
+    </ProtectedRoute>
+  ),
+});
+
+const pgManagementMasterResidentsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pg-management/master/residents",
+  component: () => (
+    <ProtectedRoute>
+      <PGManagementPage />
+    </ProtectedRoute>
+  ),
+});
+
+const pgManagementMasterFloorsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pg-management/master/floors",
+  component: () => (
+    <ProtectedRoute>
+      <PGManagementPage />
+    </ProtectedRoute>
+  ),
+});
+
+const pgManagementTransRentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pg-management/transaction/rent",
+  component: () => (
+    <ProtectedRoute>
+      <PGManagementPage />
+    </ProtectedRoute>
+  ),
+});
+
+const pgManagementTransVisitorsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pg-management/transaction/visitors",
+  component: () => (
+    <ProtectedRoute>
+      <PGManagementPage />
+    </ProtectedRoute>
+  ),
+});
+
+const pgManagementReportLedgerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pg-management/report/ledger",
+  component: () => (
+    <ProtectedRoute>
+      <PGManagementPage />
+    </ProtectedRoute>
+  ),
+});
+
+const pgManagementReportOccupancyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pg-management/report/occupancy",
+  component: () => (
+    <ProtectedRoute>
+      <PGManagementPage />
+    </ProtectedRoute>
+  ),
+});
+
+const pgManagementSettingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pg-management/settings",
+  component: () => (
+    <ProtectedRoute>
+      <PGManagementPage />
+    </ProtectedRoute>
+  ),
+});
+
+const crmRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/crm",
+  component: () => (
+    <ProtectedRoute>
+      <CRMPage />
+    </ProtectedRoute>
+  ),
+});
+
+const crmSplatRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/crm/$",
+  component: () => (
+    <ProtectedRoute>
+      <CRMPage />
+    </ProtectedRoute>
+  ),
+});
+
+const crmMasterCustomersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/crm/master/customers",
+  component: () => (
+    <ProtectedRoute>
+      <CRMPage />
+    </ProtectedRoute>
+  ),
+});
+
+const crmMasterTiersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/crm/master/tiers",
+  component: () => (
+    <ProtectedRoute>
+      <CRMPage />
+    </ProtectedRoute>
+  ),
+});
+
+const crmTransPointsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/crm/transaction/points",
+  component: () => (
+    <ProtectedRoute>
+      <CRMPage />
+    </ProtectedRoute>
+  ),
+});
+
+const crmTransInteractionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/crm/transaction/interactions",
+  component: () => (
+    <ProtectedRoute>
+      <CRMPage />
+    </ProtectedRoute>
+  ),
+});
+
+const crmReportLedgerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/crm/report/ledger",
+  component: () => (
+    <ProtectedRoute>
+      <CRMPage />
+    </ProtectedRoute>
+  ),
+});
+
+const crmSettingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/crm/settings",
+  component: () => (
+    <ProtectedRoute>
+      <CRMPage />
+    </ProtectedRoute>
+  ),
+});
+
 const reservationsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/reservations",
   component: () => (
     <ProtectedRoute>
-      <ReservationsPage />
+      <HotelPage />
     </ProtectedRoute>
   ),
 });
@@ -337,7 +539,7 @@ const billingRoute = createRoute({
   path: "/billing",
   component: () => (
     <ProtectedRoute>
-      <BillingPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -372,9 +574,139 @@ const hrRoute = createRoute({
   ),
 });
 
+const hrEmployeesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/hr/employees",
+  component: () => (
+    <ProtectedRoute>
+      <EmployeeDirectoryPage />
+    </ProtectedRoute>
+  ),
+});
+
+const hrEmployeesMasterRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/hr/master/employees",
+  component: () => (
+    <ProtectedRoute>
+      <EmployeeDirectoryPage />
+    </ProtectedRoute>
+  ),
+});
+
+const hrDepartmentsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/hr/departments",
+  component: () => (
+    <ProtectedRoute>
+      <DepartmentMasterPage />
+    </ProtectedRoute>
+  ),
+});
+
+const hrMasterDepartmentsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/hr/master/departments",
+  component: () => (
+    <ProtectedRoute>
+      <DepartmentMasterPage />
+    </ProtectedRoute>
+  ),
+});
+
+const hrDesignationsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/hr/designations",
+  component: () => (
+    <ProtectedRoute>
+      <DesignationMasterPage />
+    </ProtectedRoute>
+  ),
+});
+
+const hrMasterDesignationsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/hr/master/designations",
+  component: () => (
+    <ProtectedRoute>
+      <DesignationMasterPage />
+    </ProtectedRoute>
+  ),
+});
+
+const hrAttendanceRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/hr/attendance",
+  component: () => (
+    <ProtectedRoute>
+      <AttendancePunchPage />
+    </ProtectedRoute>
+  ),
+});
+
+const hrAttendanceTransRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/hr/transaction/attendance",
+  component: () => (
+    <ProtectedRoute>
+      <AttendancePunchPage />
+    </ProtectedRoute>
+  ),
+});
+
+const hrPayrollRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/hr/payroll",
+  component: () => (
+    <ProtectedRoute>
+      <PayrollGenerationPage />
+    </ProtectedRoute>
+  ),
+});
+
+const hrPayrollTransRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/hr/transaction/payroll",
+  component: () => (
+    <ProtectedRoute>
+      <PayrollGenerationPage />
+    </ProtectedRoute>
+  ),
+});
+
+const hrPayslipRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/hr/payslip",
+  component: () => (
+    <ProtectedRoute>
+      <SalarySlipReportPage />
+    </ProtectedRoute>
+  ),
+});
+
+const hrReportsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/hr/reports",
+  component: () => (
+    <ProtectedRoute>
+      <SalarySlipReportPage />
+    </ProtectedRoute>
+  ),
+});
+
 const aiRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/ai",
+  component: () => (
+    <ProtectedRoute>
+      <AICopilotPage />
+    </ProtectedRoute>
+  ),
+});
+
+const aiCopilotRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/ai-copilot",
   component: () => (
     <ProtectedRoute>
       <AICopilotPage />
@@ -387,7 +719,7 @@ const reportsRoute = createRoute({
   path: "/reports",
   component: () => (
     <ProtectedRoute>
-      <ReportsPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -405,6 +737,16 @@ const settingsRoute = createRoute({
 const formsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/forms/$formKey",
+  component: () => (
+    <ProtectedRoute>
+      <FormBuilderPage />
+    </ProtectedRoute>
+  ),
+});
+
+const formsBuilderRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/forms/builder",
   component: () => (
     <ProtectedRoute>
       <FormBuilderPage />
@@ -541,7 +883,7 @@ const posCategoriesRoute = createRoute({
   path: "/pos/categories",
   component: () => (
     <ProtectedRoute>
-      <RestaurantPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -551,7 +893,7 @@ const posMenuItemsRoute = createRoute({
   path: "/pos/menu-items",
   component: () => (
     <ProtectedRoute>
-      <RestaurantPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -561,7 +903,7 @@ const posStationsRoute = createRoute({
   path: "/pos/stations",
   component: () => (
     <ProtectedRoute>
-      <RestaurantPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -591,7 +933,7 @@ const posSalesReportRoute = createRoute({
   path: "/pos/sales-report",
   component: () => (
     <ProtectedRoute>
-      <RestaurantPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -601,7 +943,7 @@ const posTablesRoute = createRoute({
   path: "/pos/tables",
   component: () => (
     <ProtectedRoute>
-      <RestaurantPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -785,47 +1127,7 @@ const financePLRoute = createRoute({
   ),
 });
 
-// ─── HR Sub-routes ───────────────────────────────────────────
 
-const hrEmployeesRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/hr/employees",
-  component: () => (
-    <ProtectedRoute>
-      <HRPage />
-    </ProtectedRoute>
-  ),
-});
-
-const hrAttendanceRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/hr/attendance",
-  component: () => (
-    <ProtectedRoute>
-      <HRPage />
-    </ProtectedRoute>
-  ),
-});
-
-const hrPayrollRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/hr/payroll-run",
-  component: () => (
-    <ProtectedRoute>
-      <HRPage />
-    </ProtectedRoute>
-  ),
-});
-
-const hrPayslipRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/hr/payslips",
-  component: () => (
-    <ProtectedRoute>
-      <HRPage />
-    </ProtectedRoute>
-  ),
-});
 
 // ─── Restaurant/Sweet Shop Sub-routes ────────────────────────
 
@@ -834,7 +1136,7 @@ const restaurantRecipesRoute = createRoute({
   path: "/restaurant/recipes",
   component: () => (
     <ProtectedRoute>
-      <RestaurantPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -844,7 +1146,7 @@ const restaurantBillingRoute = createRoute({
   path: "/restaurant/billing",
   component: () => (
     <ProtectedRoute>
-      <RestaurantPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -854,7 +1156,7 @@ const restaurantSalesReportRoute = createRoute({
   path: "/restaurant/sales-report",
   component: () => (
     <ProtectedRoute>
-      <RestaurantPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -898,7 +1200,7 @@ const reservationsTablesRoute = createRoute({
   path: "/reservations/tables",
   component: () => (
     <ProtectedRoute>
-      <ReservationsPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -908,7 +1210,7 @@ const reservationsNewRoute = createRoute({
   path: "/reservations/new",
   component: () => (
     <ProtectedRoute>
-      <ReservationsPage />
+      <HotelPage />
     </ProtectedRoute>
   ),
 });
@@ -918,7 +1220,7 @@ const reservationsLogRoute = createRoute({
   path: "/reservations/log",
   component: () => (
     <ProtectedRoute>
-      <ReservationsPage />
+      <HotelPage />
     </ProtectedRoute>
   ),
 });
@@ -930,7 +1232,7 @@ const reportsTemplatesRoute = createRoute({
   path: "/reports/templates",
   component: () => (
     <ProtectedRoute>
-      <ReportsPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -940,7 +1242,7 @@ const reportsRunRoute = createRoute({
   path: "/reports/run",
   component: () => (
     <ProtectedRoute>
-      <ReportsPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -950,7 +1252,7 @@ const reportsSummaryRoute = createRoute({
   path: "/reports/summary",
   component: () => (
     <ProtectedRoute>
-      <ReportsPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -1375,6 +1677,8 @@ const routeTree = rootRoute.addChildren([
   posMasterKitchenStationsRoute,
   posTransactionBillingRoute,
   posTransactionKDSRoute,
+  posTransactionOrdersRoute,
+  posTransactionTablesRoute,
   posTransactionShiftRoute,
   posReportsDailySalesRoute,
   posReportsItemSalesRoute,
@@ -1400,6 +1704,25 @@ const routeTree = rootRoute.addChildren([
   hotelCheckoutRoute,
   hotelOccupancyRoute,
   pgRoute,
+  pgManagementRoute,
+  pgManagementSplatRoute,
+  pgManagementMasterBedsRoute,
+  pgManagementMasterRoomsRoute,
+  pgManagementMasterResidentsRoute,
+  pgManagementMasterFloorsRoute,
+  pgManagementTransRentRoute,
+  pgManagementTransVisitorsRoute,
+  pgManagementReportLedgerRoute,
+  pgManagementReportOccupancyRoute,
+  pgManagementSettingsRoute,
+  crmRoute,
+  crmSplatRoute,
+  crmMasterCustomersRoute,
+  crmMasterTiersRoute,
+  crmTransPointsRoute,
+  crmTransInteractionsRoute,
+  crmReportLedgerRoute,
+  crmSettingsRoute,
   pgRoomsRoute,
   pgBedsRoute,
   pgResidentsRoute,
@@ -1425,14 +1748,23 @@ const routeTree = rootRoute.addChildren([
   crmLedgerRoute,
   hrRoute,
   hrEmployeesRoute,
+  hrEmployeesMasterRoute,
+  hrDepartmentsRoute,
+  hrMasterDepartmentsRoute,
+  hrDesignationsRoute,
+  hrMasterDesignationsRoute,
   hrAttendanceRoute,
+  hrAttendanceTransRoute,
   hrPayrollRoute,
+  hrPayrollTransRoute,
   hrPayslipRoute,
+  hrReportsRoute,
   reportsRoute,
   reportsTemplatesRoute,
   reportsRunRoute,
   reportsSummaryRoute,
   aiRoute,
+  aiCopilotRoute,
   aiConfigRoute,
   aiChatRoute,
   aiPredictRoute,
@@ -1448,6 +1780,7 @@ const routeTree = rootRoute.addChildren([
   platformAuditRoute,
   platformFeatureFlagsRoute,
   formsRoute,
+  formsBuilderRoute,
   formsDesignerRoute,
   formsFillRoute,
   formsResponsesRoute,

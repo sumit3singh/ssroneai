@@ -11,7 +11,7 @@ export default {
         background: "hsl(var(--background, 0 0% 100%))",
         foreground: "hsl(var(--foreground, 240 10% 3.9%))",
         primary: {
-          DEFAULT: "hsl(154, 39%, 17%)", // Baithak Forest Green
+          DEFAULT: "hsl(154, 39%, 17%)", // ssrone Forest Green
           foreground: "#ffffff",
         },
         secondary: {

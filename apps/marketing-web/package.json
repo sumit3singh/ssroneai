@@ -1,0 +1,26 @@
+{
+  "name": "@ssrone/marketing-web",
+  "private": true,
+  "version": "1.0.0",
+  "description": "SSR IT INDUSTRY – Public Enterprise Sales & Marketing Portal for SSR One AI",
+  "type": "module",
+  "scripts": {
+    "dev": "npx vite --port 3002",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "*",
+    "react-dom": "*",
+    "lucide-react": "*",
+    "clsx": "*",
+    "tailwind-merge": "*"
+  },
+  "devDependencies": {
+    "@types/react": "*",
+    "@types/react-dom": "*",
+    "@vitejs/plugin-react": "*",
+    "typescript": "*",
+    "vite": "*"
+  }
+}

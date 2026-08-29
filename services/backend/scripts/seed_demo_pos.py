@@ -1,5 +1,5 @@
 """
-Seed script to insert demo kitchen stations and dining tables for Baithak Cafe.
+Seed script to insert demo kitchen stations and dining tables for ssrone Cafe.
 Run: python scripts/seed_demo_pos.py
 """
 import asyncio
@@ -37,7 +37,7 @@ TABLES_DATA = [
 
 async def seed_pos_data():
     async with AsyncSessionLocal() as session:
-        print("[INIT] Starting Baithak POS stations & tables seed...")
+        print("[INIT] Starting ssrone POS stations & tables seed...")
 
         tenant_id = 1
         branch_id = 1
@@ -86,7 +86,7 @@ async def seed_pos_data():
                 print(f"  + Added Dining Table: {tb['table_number']} - {tb['name']}")
 
         await session.commit()
-        print("[SUCCESS] Baithak POS stations & tables seed completed successfully!\n")
+        print("[SUCCESS] ssrone POS stations & tables seed completed successfully!\n")
 
 
 if __name__ == "__main__":

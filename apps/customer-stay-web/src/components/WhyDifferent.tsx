@@ -61,7 +61,7 @@ const WhyDifferent = () => {
               </span>
             </h2>
             <p className="text-lg text-muted-foreground mb-8">
-              At The Baithak, we don't just provide rooms—we provide a{" "}
+              At SSR One AI, we don't just provide rooms—we provide a{" "}
               <strong className="text-foreground">home</strong>.
             </p>
 

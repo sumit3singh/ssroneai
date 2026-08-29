@@ -1,5 +1,5 @@
 import { categories as defaultCategories, Category } from "@/data/mockMenu";
-import { fetchCategories } from "@/services/api";
+import { fetchCategories } from "@ssrone/api-client";
 import { cn } from "@/lib/utils";
 import { Search, X } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -13,6 +13,7 @@ interface CategorySidebarProps {
   onVegToggle: (v: boolean) => void;
   isOpen: boolean;
   onClose: () => void;
+  branchCode?: string;
 }
 
 const CategorySidebar = ({
@@ -24,16 +25,17 @@ const CategorySidebar = ({
   onVegToggle,
   isOpen,
   onClose,
+  branchCode,
 }: CategorySidebarProps) => {
-  const [categoriesList, setCategoriesList] = useState<Category[]>(defaultCategories);
+  const [categoriesList, setCategoriesList] = useState<Category[]>([]);
 
   useEffect(() => {
-    fetchCategories().then((cats) => {
-      if (cats && cats.length > 0) {
-        setCategoriesList(cats);
-      }
-    }).catch((err) => console.error("Failed to load categories", err));
-  }, []);
+    fetchCategories(branchCode).then((cats) => {
+      setCategoriesList(Array.isArray(cats) ? cats : []);
+    }).catch(() => {
+      setCategoriesList([]);
+    });
+  }, [branchCode]);
 
   return (
     <>

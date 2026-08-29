@@ -1,6 +1,6 @@
 import React from "react";
 import { Search } from "lucide-react";
-import { Input } from "@/shared/ui/primitives/Input";
+import { Input } from "@ssrone/ui";
 
 interface SearchBarProps {
   value: string;

@@ -1,5 +1,5 @@
 """
-The Baithak – FastAPI Application Server
+The ssrone – FastAPI Application Server
 Main entry point: app factory, lifespan, middleware, router registration.
 """
 from collections.abc import AsyncGenerator
@@ -36,8 +36,8 @@ async def listen_cache_invalidations() -> None:
             try:
                 redis = await get_redis()
                 pubsub = redis.pubsub()
-                await pubsub.subscribe("baithak:licensing:cache_invalidation")
-                logger.info("Subscribed to baithak:licensing:cache_invalidation Pub/Sub channel")
+                await pubsub.subscribe("ssrone:licensing:cache_invalidation")
+                logger.info("Subscribed to ssrone:licensing:cache_invalidation Pub/Sub channel")
                 
                 async for message in pubsub.listen():
                     if message and message["type"] == "message":
@@ -60,35 +60,13 @@ async def listen_cache_invalidations() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan: startup checks and graceful shutdown."""
-    global listener_task
-    # ── Startup ────────────────────────────────
-    logger.info(
-        "🚀 Starting The Baithak Hospitality Platform",
-        version=settings.app_version,
-        env=settings.app_env,
-    )
-
-    db_ok = await ping_database()
-    redis_ok = await ping_redis()
-
-    if not db_ok:
-        logger.error("❌ Database connection FAILED. Check DB_HOST/DB_NAME/DB_PASSWORD.")
-    else:
-        logger.info("✅ PostgreSQL connected", database=settings.db.name, host=settings.db.host)
-
-    if not redis_ok:
-        logger.warning("⚠️  Redis connection FAILED. Caching & event bus disabled.")
-    else:
-        logger.info("✅ Redis connected", host=settings.redis.host)
-        # Start cache invalidation listener task
-        listener_task = asyncio.create_task(listen_cache_invalidations())
-
-    logger.info("✅ Application ready", docs_url=f"http://localhost:8000{app.docs_url}")
-
-    yield  # ── Application Running ──────────────
+    logger.info("🚀 The ssrone Backend API Server Online")
+    yield
+    await dispose_engine()
+    logger.info("Shutdown complete")  # ── Application Running ──────────────
 
     # ── Shutdown ───────────────────────────────
-    logger.info("🛑 Shutting down The Baithak Platform...")
+    logger.info("🛑 Shutting down The ssrone Platform...")
     if listener_task:
         listener_task.cancel()
         try:
@@ -103,7 +81,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 def create_app() -> FastAPI:
     """Factory function — creates and configures the FastAPI application."""
     app = FastAPI(
-        title="The Baithak Hospitality Platform API",
+        title="The ssrone Hospitality Platform API",
         description=(
             "World-class, AI-native, metadata-driven enterprise hospitality platform. "
             "One Platform. Every Hospitality Business."
@@ -114,19 +92,28 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json",
         lifespan=lifespan,
         contact={
-            "name": "The Baithak Engineering Team",
-            "email": "engineering@baithak.com",
+            "name": "The ssrone Engineering Team",
+            "email": "engineering@ssrone.com",
         },
         license_info={
             "name": "Proprietary",
-            "url": "https://baithak.com/license",
+            "url": "https://ssrone.com/license",
         },
     )
 
     # ── Middleware ──────────────────────────────────────────────
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[str(settings.frontend_url), "http://localhost:5173", "http://localhost:3000"],
+        allow_origins=[
+            "http://localhost:5173", "http://127.0.0.1:5173",
+            "http://localhost:3000", "http://127.0.0.1:3000",
+            "http://localhost:3001", "http://127.0.0.1:3001",
+            "http://localhost:3002", "http://127.0.0.1:3002",
+            "http://localhost:3003", "http://127.0.0.1:3003",
+            "http://localhost:3004", "http://127.0.0.1:3004",
+            "http://localhost:8000", "http://127.0.0.1:8000",
+        ],
+        allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -148,6 +135,7 @@ def create_app() -> FastAPI:
     from src.modules.hrms.router import router as hr_router
     from src.modules.restaurant.router import router as restaurant_router
     from src.modules.finance.router import router as finance_router
+    from src.modules.dashboard.router import router as dashboard_router
     from src.engines.notification.router import router as notifications_router
     from src.core.form_builder.router import router as form_builder_router
     from src.api.health.router import router as health_router
@@ -160,6 +148,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix=API_V1)
     app.include_router(licensing_router, prefix=API_V1)
     app.include_router(orders_router, prefix=API_V1)
+    app.include_router(dashboard_router, prefix=API_V1)
     app.include_router(ai_router, prefix=API_V1)
     app.include_router(inventory_router, prefix=API_V1)
     app.include_router(billing_router, prefix=API_V1)
@@ -180,7 +169,7 @@ def create_app() -> FastAPI:
     @app.get("/", tags=["Meta"], include_in_schema=False)
     async def root() -> dict:
         return {
-            "name": "The Baithak Hospitality Platform",
+            "name": settings.app_name,
             "version": settings.app_version,
             "status": "running",
             "docs": "/docs",

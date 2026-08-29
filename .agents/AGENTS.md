@@ -1,80 +1,97 @@
-# BAITHAK ERP – Enterprise Platform Master Entry Charter (AGENTS.md)
+# SSR One AI – Enterprise Documentation Master Index (AGENTS.md)
 
-> **MANDATORY INSTRUCTION**: Every developer, engineer, software architect, and AI coding assistant MUST read this document and all referenced standards in `.agents/` before making any code modifications or additions to THE BAITHAK.
+> **MANDATORY INSTRUCTION FOR ALL DEVELOPERS & AI ASSISTANTS**:  
+> Read this document first. **One topic = One file.** Before creating any new documentation, search this index to edit existing documents rather than creating duplicate files.
 
----
-
-## Project Vision: SSR INFINITY
-You are NOT building individual React pages. You are NOT building isolated modules.
-You are building **THE BAITHAK (SSR INFINITY)**, a metadata-driven, world-class Enterprise Business Operating System capable of serving thousands of companies, millions of users, and multiple hospitality/ERP industries from a single scalable platform.
+> **Last Reviewed**: August 2026
 
 ---
 
-## MANDATORY POST-LOGIN ARCHITECTURE LAW
+## 1. Governance & Critical Anti-Patterns
 
-1. **Always land on Platform Home (Module Launcher) after login (`/`).**
-2. **Never automatically land inside a specific module workspace (like POS).**
-3. **Platform Home is clean, calm, full-width, and uncluttered; sidebar ONLY appears inside an open module.**
-4. **Keep Platform Home generic (Search, Favorites, Business Modules, Connected Apps, Platform Admin); keep business data inside module dashboards.**
-5. **Only after clicking a module card does the system enter that module workspace.**
-6. **Inside every module workspace, navigation follows identical 5-part structure: Dashboard → Master → Transaction → Report → Settings.**
+- **[AGENTS.md](file:///e:/2026/ssr_one_ai/.agents/AGENTS.md)**: Master index and entry point for all documentation across SSR One AI.
+- **[DO_NOT.md](file:///e:/2026/ssr_one_ai/.agents/DO_NOT.md)**: Inventory of critical mistakes, anti-patterns, and golden rule violations to avoid.
 
 ---
 
-## CONSOLIDATED MASTER BLUEPRINTS & CONSTITUTIONS
+## 2. Platform Foundation (`01-foundation/`)
 
-- [THEBAITHAK_MASTER_BLUEPRINT.md](file:///e:/2026/baithak/.agents/THEBAITHAK_MASTER_BLUEPRINT.md) – Frozen Enterprise Master Architecture Baseline (71KB)
-- [ENTERPRISE_DEVELOPMENT_CONSTITUTION.md](file:///e:/2026/baithak/.agents/ENTERPRISE_DEVELOPMENT_CONSTITUTION.md) – Development Philosophy & Operating Laws
-- [ENTERPRISE_AUDIT_REPORT.md](file:///e:/2026/baithak/.agents/ENTERPRISE_AUDIT_REPORT.md) – System & Monorepo Inventory Audit Report
-- [MODULE_SPECIFICATIONS.md](file:///e:/2026/baithak/.agents/MODULE_SPECIFICATIONS.md) – POS, PMS & CRM Technical Specifications
-
----
-
-## 30 MANDATORY PLATFORM ARCHITECTURE CHARTERS
-
-All development MUST comply strictly with the following 30 platform standards:
-
-1. [01_PRODUCT_VISION.md](file:///e:/2026/baithak/.agents/01_PRODUCT_VISION.md) – Product Vision Document (PVD)
-2. [02_ENTERPRISE_ARCHITECTURE.md](file:///e:/2026/baithak/.agents/02_ENTERPRISE_ARCHITECTURE.md) – Enterprise Architecture Document (EAD)
-3. [03_FRONTEND_BLUEPRINT.md](file:///e:/2026/baithak/.agents/03_FRONTEND_BLUEPRINT.md) – Frontend Architecture Blueprint
-4. [04_BACKEND_BLUEPRINT.md](file:///e:/2026/baithak/.agents/04_BACKEND_BLUEPRINT.md) – Backend Architecture Blueprint
-5. [05_DATABASE_ARCHITECTURE.md](file:///e:/2026/baithak/.agents/05_DATABASE_ARCHITECTURE.md) – Database Architecture Document
-6. [06_UI_UX_DESIGN_SYSTEM.md](file:///e:/2026/baithak/.agents/06_UI_UX_DESIGN_SYSTEM.md) – UI/UX Design System
-7. [07_MODULE_STANDARDS.md](file:///e:/2026/baithak/.agents/07_MODULE_STANDARDS.md) – Module Standards Document
-8. [08_SIDEBAR_STANDARDS.md](file:///e:/2026/baithak/.agents/08_SIDEBAR_STANDARDS.md) – Sidebar Standards
-9. [09_NAVIGATION_STANDARDS.md](file:///e:/2026/baithak/.agents/09_NAVIGATION_STANDARDS.md) – Navigation Standards
-10. [10_MODULE_FOLDER_STRUCTURE.md](file:///e:/2026/baithak/.agents/10_MODULE_FOLDER_STRUCTURE.md) – Module Folder Structure
-11. [11_COMPONENT_LIBRARY_STANDARDS.md](file:///e:/2026/baithak/.agents/11_COMPONENT_LIBRARY_STANDARDS.md) – Component Library Standards
-12. [12_FORM_DESIGN_STANDARDS.md](file:///e:/2026/baithak/.agents/12_FORM_DESIGN_STANDARDS.md) – Form Design Standards
-13. [13_TABLE_STANDARDS.md](file:///e:/2026/baithak/.agents/13_TABLE_STANDARDS.md) – Table Standards
-14. [14_DASHBOARD_STANDARDS.md](file:///e:/2026/baithak/.agents/14_DASHBOARD_STANDARDS.md) – Dashboard Standards
-15. [15_API_STANDARDS.md](file:///e:/2026/baithak/.agents/15_API_STANDARDS.md) – API Standards
-16. [16_SECURITY_STANDARDS.md](file:///e:/2026/baithak/.agents/16_SECURITY_STANDARDS.md) – Security Standards
-17. [17_PERFORMANCE_STANDARDS.md](file:///e:/2026/baithak/.agents/17_PERFORMANCE_STANDARDS.md) – Performance Standards
-18. [18_MULTI_TENANT_STANDARDS.md](file:///e:/2026/baithak/.agents/18_MULTI_TENANT_STANDARDS.md) – Multi-Tenant Standards
-19. [19_PLATFORM_ADMIN_BLUEPRINT.md](file:///e:/2026/baithak/.agents/19_PLATFORM_ADMIN_BLUEPRINT.md) – Platform Admin Blueprint
-20. [20_CODING_STANDARDS.md](file:///e:/2026/baithak/.agents/20_CODING_STANDARDS.md) – Coding Standards
-21. [21_TESTING_STANDARDS.md](file:///e:/2026/baithak/.agents/21_TESTING_STANDARDS.md) – Testing Standards
-22. [22_DEPLOYMENT_ARCHITECTURE.md](file:///e:/2026/baithak/.agents/22_DEPLOYMENT_ARCHITECTURE.md) – Deployment Architecture
-23. [23_DESIGN_TOKEN_DOCS.md](file:///e:/2026/baithak/.agents/23_DESIGN_TOKEN_DOCS.md) – Design Token Documentation
-24. [24_AI_ARCHITECTURE.md](file:///e:/2026/baithak/.agents/24_AI_ARCHITECTURE.md) – AI Architecture
-25. [25_WORKFLOW_ENGINE.md](file:///e:/2026/baithak/.agents/25_WORKFLOW_ENGINE.md) – Workflow Engine
-26. [26_NOTIFICATION_ARCHITECTURE.md](file:///e:/2026/baithak/.agents/26_NOTIFICATION_ARCHITECTURE.md) – Notification Architecture
-27. [27_REPORTING_FRAMEWORK.md](file:///e:/2026/baithak/.agents/27_REPORTING_FRAMEWORK.md) – Reporting Framework
-28. [28_COMPLETE_ROUTE_MAP.md](file:///e:/2026/baithak/.agents/28_COMPLETE_ROUTE_MAP.md) – Complete Route Map
-29. [29_FEATURE_MATRIX.md](file:///e:/2026/baithak/.agents/29_FEATURE_MATRIX.md) – Feature Matrix
-30. [30_FINAL_MASTER_BLUEPRINT.md](file:///e:/2026/baithak/.agents/30_FINAL_MASTER_BLUEPRINT.md) – Final Master Blueprint (The Single Source of Truth)
+- **[01-foundation/VISION.md](file:///e:/2026/ssr_one_ai/.agents/01-foundation/VISION.md)**: Executive product vision, core strategic pillars, and supported business verticals.
+- **[01-foundation/PRODUCT_REQUIREMENTS.md](file:///e:/2026/ssr_one_ai/.agents/01-foundation/PRODUCT_REQUIREMENTS.md)**: Functional and non-functional product requirements for all 14 business modules.
+- **[01-foundation/TECH_STACK.md](file:///e:/2026/ssr_one_ai/.agents/01-foundation/TECH_STACK.md)**: Complete list of technologies used (Python, FastAPI, PostgreSQL, React 19, Vite, TanStack) and selection rationale.
+- **[01-foundation/FEATURE_MATRIX.md](file:///e:/2026/ssr_one_ai/.agents/01-foundation/FEATURE_MATRIX.md)**: Matrix mapping feature capabilities across Starter, Professional, and Enterprise licensing tiers.
 
 ---
 
-## MANDATORY GOLDEN RULES
+## 3. Platform Architecture (`02-architecture/`)
 
-### GOLDEN RULE #1: Database is the ONLY Source of Truth
-Never use `mockDB`, demo arrays, fake objects, local JSON, hardcoded master data, duplicated application state, or fallback demo records. All business data MUST come from backend APIs, which fetch strictly from PostgreSQL.
+- **[02-architecture/ARCHITECTURE.md](file:///e:/2026/ssr_one_ai/.agents/02-architecture/ARCHITECTURE.md)**: Canonical enterprise system architecture blueprint and service topology.
+- **[02-architecture/PROJECT_STRUCTURE.md](file:///e:/2026/ssr_one_ai/.agents/02-architecture/PROJECT_STRUCTURE.md)**: Complete 1,206-line recursive repository directory and file tree map.
+- **[02-architecture/FRONTEND_ARCHITECTURE.md](file:///e:/2026/ssr_one_ai/.agents/02-architecture/FRONTEND_ARCHITECTURE.md)**: React 19, TanStack Router, Zustand, and module layering standards.
+- **[02-architecture/BACKEND_ARCHITECTURE.md](file:///e:/2026/ssr_one_ai/.agents/02-architecture/BACKEND_ARCHITECTURE.md)**: FastAPI microservices, ASGI request lifecycle, and Service-Repository pattern.
+- **[02-architecture/DEPLOYMENT_ARCHITECTURE.md](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DEPLOYMENT_ARCHITECTURE.md)**: Docker Compose container topology and environment specifications.
+- **[02-architecture/AI_ARCHITECTURE.md](file:///e:/2026/ssr_one_ai/.agents/02-architecture/AI_ARCHITECTURE.md)**: AI Copilot, RAG context retrieval, OCR invoice scanning, and voice order engines.
+- **[02-architecture/MULTI_TENANCY.md](file:///e:/2026/ssr_one_ai/.agents/02-architecture/MULTI_TENANCY.md)**: Critical multi-tenant security boundary and PostgreSQL Row-Level Security (RLS) standards.
+- **[02-architecture/PLATFORM_ADMIN_BLUEPRINT.md](file:///e:/2026/ssr_one_ai/.agents/02-architecture/PLATFORM_ADMIN_BLUEPRINT.md)**: Superadmin tenant provisioning, licensing keys, and platform audit logs.
+- **[02-architecture/ROUTE_MAP.md](file:///e:/2026/ssr_one_ai/.agents/02-architecture/ROUTE_MAP.md)**: Canonical list of frontend application routes and backend API endpoints.
+- **[02-architecture/API_VERSIONING_GUIDE.md](file:///e:/2026/ssr_one_ai/.agents/02-architecture/API_VERSIONING_GUIDE.md)**: API versioning URI scheme, deprecation RFC headers, and SDK migration guidelines.
+- **[02-architecture/DECISIONS/](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/)**: Architectural Decision Records (ADRs) including [ADR-0004](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0004-structure-migration-complete.md) documenting monorepo consolidation, [ADR-0005](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0005-category-master-root-cause-and-governance.md) documenting Category Master fix & SSOT rules, and [ADR-0007](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0007-startup-ddl-lock-purge-and-pure-ssot-auth-context.md) documenting lifespan DDL lock elimination and pure database SSOT context architecture.
 
-### GOLDEN RULE #2: Zero Mock Data in Production Code
-Forbidden in production code: `mockDB`, `mockData`, `fakeOrders`, `sampleCustomers`, `dummyTables`, `hardcodedEmployees`, temporary arrays, test JSON inside components, or placeholder business records.
+---
 
+## 4. Platform Standards (`03-standards/`)
 
-### GOLDEN RULE #4: Sidebar is the ONLY Primary Navigation Inside Modules
-Never duplicate navigation inside the workspace content area. Every module follows `Dashboard → Master → Transaction → Report → Settings`.
+- **[03-standards/DOCUMENTATION_STANDARD.md](file:///e:/2026/ssr_one_ai/.agents/03-standards/DOCUMENTATION_STANDARD.md)**: Rules governing documentation creation, anti-duplication guidelines, and naming standards.
+- **[03-standards/CODING_STANDARDS.md](file:///e:/2026/ssr_one_ai/.agents/03-standards/CODING_STANDARDS.md)**: TypeScript, React, Python, and FastAPI code quality rules.
+- **[03-standards/NAMING_STANDARD.md](file:///e:/2026/ssr_one_ai/.agents/03-standards/NAMING_STANDARD.md)**: File, class, interface, database, and package naming conventions.
+- **[03-standards/MODULE_STRUCTURE.md](file:///e:/2026/ssr_one_ai/.agents/03-standards/MODULE_STRUCTURE.md)**: Frontend 5-part architecture and backend 5-layer folder blueprint.
+- **[03-standards/COMPONENT_GUIDELINES.md](file:///e:/2026/ssr_one_ai/.agents/03-standards/COMPONENT_GUIDELINES.md)**: Usage guidelines for `@ssrone/ui` primitive components.
+- **[03-standards/API_STANDARDS.md](file:///e:/2026/ssr_one_ai/.agents/03-standards/API_STANDARDS.md)**: REST API verb standards, HTTP status codes, and WebSocket event payloads.
+- **[03-standards/DATABASE_STANDARDS.md](file:///e:/2026/ssr_one_ai/.agents/03-standards/DATABASE_STANDARDS.md)**: PostgreSQL DDL schemas, BigInteger IDs, audit mixins, and Alembic migrations.
+- **[03-standards/SECURITY_STANDARDS.md](file:///e:/2026/ssr_one_ai/.agents/03-standards/SECURITY_STANDARDS.md)**: JWT authentication, CORS policies, XSS sanitization, and security compliance.
+- **[03-standards/PERFORMANCE_STANDARDS.md](file:///e:/2026/ssr_one_ai/.agents/03-standards/PERFORMANCE_STANDARDS.md)**: Latency benchmarks, async eager loading (`selectinload`), and frontend code-splitting.
+- **[03-standards/TESTING_STANDARDS.md](file:///e:/2026/ssr_one_ai/.agents/03-standards/TESTING_STANDARDS.md)**: Vitest unit tests, PyTest backend tests, and Playwright E2E suites.
+- **[03-standards/ERROR_HANDLING_STANDARD.md](file:///e:/2026/ssr_one_ai/.agents/03-standards/ERROR_HANDLING_STANDARD.md)**: Exception handling conventions, error payloads, and Sonner toast alerts.
+- **[03-standards/ENGINE_STANDARD.md](file:///e:/2026/ssr_one_ai/.agents/03-standards/ENGINE_STANDARD.md)**: Architecture standards for Workflow, Notification, Reporting, Audit, and Print engines.
+- **[03-standards/GIT_STANDARD.md](file:///e:/2026/ssr_one_ai/.agents/03-standards/GIT_STANDARD.md)**: Conventional Commits conventions and Git branch management rules.
+- **[03-standards/DEVOPS_STANDARDS.md](file:///e:/2026/ssr_one_ai/.agents/03-standards/DEVOPS_STANDARDS.md)**: GitHub Actions CI/CD pipeline and automated quality gates.
+
+---
+
+## 5. UI/UX Design (`04-design/`)
+
+- **[04-design/DESIGN_SYSTEM.md](file:///e:/2026/ssr_one_ai/.agents/04-design/DESIGN_SYSTEM.md)**: HSL design token CSS variables, typography scale, and micro-animation specs.
+- **[04-design/NAVIGATION_STANDARDS.md](file:///e:/2026/ssr_one_ai/.agents/04-design/NAVIGATION_STANDARDS.md)**: Platform home landing law and dynamic module sidebar rules.
+- **[04-design/UI_PATTERNS.md](file:///e:/2026/ssr_one_ai/.agents/04-design/UI_PATTERNS.md)**: Form design with Zod validation, TanStack data tables, and dashboard KPI grid patterns.
+
+---
+
+## 6. Quality & Governance (`05-quality/` & `06-governance/`)
+
+- **[05-quality/DEFINITION_OF_DONE.md](file:///e:/2026/ssr_one_ai/.agents/05-quality/DEFINITION_OF_DONE.md)**: Checklist defining criteria required before marking features as DONE.
+- **[05-quality/CODE_REVIEW_CHECKLIST.md](file:///e:/2026/ssr_one_ai/.agents/05-quality/CODE_REVIEW_CHECKLIST.md)**: Code reviewer checklist for Pull Request approvals.
+- **[05-quality/FINAL_SIGN_OFF_CHECKLIST.md](file:///e:/2026/ssr_one_ai/.agents/05-quality/FINAL_SIGN_OFF_CHECKLIST.md)**: Monorepo architecture, multi-tenant security, and code integrity final sign-off checklist.
+- **[06-governance/CHANGE_MANAGEMENT.md](file:///e:/2026/ssr_one_ai/.agents/06-governance/CHANGE_MANAGEMENT.md)**: Governance policy for introducing architectural changes via ADRs.
+- **[06-governance/RELEASE_MANAGEMENT.md](file:///e:/2026/ssr_one_ai/.agents/06-governance/RELEASE_MANAGEMENT.md)**: Semantic versioning and release tagging policies.
+- **[06-governance/CODE_OF_CONDUCT.md](file:///e:/2026/ssr_one_ai/.agents/06-governance/CODE_OF_CONDUCT.md)**: Community standards, pledge, and enforcement policies.
+- **[06-governance/CONTRIBUTING.md](file:///e:/2026/ssr_one_ai/.agents/06-governance/CONTRIBUTING.md)**: Developer setup, branching strategy, and contribution guidelines.
+
+---
+
+## 7. Domain Specifications (`07-modules/`)
+
+- **[07-modules/MODULE_SPECIFICATIONS.md](file:///e:/2026/ssr_one_ai/.agents/07-modules/MODULE_SPECIFICATIONS.md)**: Master index for domain specifications.
+- **[07-modules/POS_MODULE_SPECIFICATION.md](file:///e:/2026/ssr_one_ai/.agents/07-modules/POS_MODULE_SPECIFICATION.md)**: Point of Sale, KOT, and Kitchen Display System specification.
+- **[07-modules/PMS_MODULE_SPECIFICATION.md](file:///e:/2026/ssr_one_ai/.agents/07-modules/PMS_MODULE_SPECIFICATION.md)**: Hotel PMS, Room Inventory, and PG Management specification.
+- **[07-modules/CRM_MODULE_SPECIFICATION.md](file:///e:/2026/ssr_one_ai/.agents/07-modules/CRM_MODULE_SPECIFICATION.md)**: Customer Relationship Management and Loyalty specification.
+
+---
+
+## 8. AI Operating Rules & Living Tasks (`08-ai-rules/` & `09-tasks/`)
+
+- **[08-ai-rules/AI_DEVELOPMENT_RULES.md](file:///e:/2026/ssr_one_ai/.agents/08-ai-rules/AI_DEVELOPMENT_RULES.md)**: Operating rules and anti-patterns for AI assistants.
+- **[08-ai-rules/ENTERPRISE_ARCHITECT_AI_CONSTITUTION.json](file:///e:/2026/ssr_one_ai/.agents/08-ai-rules/ENTERPRISE_ARCHITECT_AI_CONSTITUTION.json)**: Machine-readable AI persona constitution.
+- **[09-tasks/PENDING_WORK_ROADMAP.md](file:///e:/2026/ssr_one_ai/.agents/09-tasks/PENDING_WORK_ROADMAP.md)**: Living roadmap phases and active milestone tasks.
+- **[09-tasks/ROUTING_TODO.md](file:///e:/2026/ssr_one_ai/.agents/09-tasks/ROUTING_TODO.md)**: Client-side SPA navigation completion matrix.
+- **[09-tasks/FEATURE_LICENSING_TASKS.md](file:///e:/2026/ssr_one_ai/.agents/09-tasks/FEATURE_LICENSING_TASKS.md)**: Living task tracker for feature licensing and tier entitlement checks.
+- **[archive/](file:///e:/2026/ssr_one_ai/.agents/archive/)**: Historical prompts and archived one-off specifications.

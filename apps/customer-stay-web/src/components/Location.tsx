@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { MapPin, Navigation, ExternalLink } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@ssrone/ui/customer";
 
 const nearbyPlaces = [
   { name: "Central University of Haryana", distance: "0.3 km" },
@@ -40,7 +40,7 @@ const Location = () => {
               </div>
               <div>
                 <h3 className="font-semibold text-foreground text-lg">
-                  The Baithak
+                  SSR One AI
                 </h3>
                 <p className="text-muted-foreground">
                   Near CUH Gate No. 1
@@ -120,7 +120,7 @@ const Location = () => {
                 allowFullScreen
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
-                title="The Baithak Location"
+                title="SSR One AI Location"
                 className="grayscale hover:grayscale-0 transition-all duration-500"
               />
             </div>

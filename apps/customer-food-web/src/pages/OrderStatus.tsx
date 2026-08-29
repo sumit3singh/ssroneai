@@ -3,14 +3,17 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Check, Clock, ChefHat, Bell, RotateCcw, Truck, Copy } from "lucide-react";
 import { useI18n } from "@/stores/i18nStore";
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthStore } from "@ssrone/auth";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { api } from "@ssrone/api-client";
+
+import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
 
 const OrderStatus = () => {
-  const { tableNumber } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { tenantSlug, branchCode, tableNumber, isTableMode } = useTenantBranchContext();
   const { t } = useI18n();
   const { toast } = useToast();
   const { orderMode } = useAuthStore();
@@ -18,9 +21,9 @@ const OrderStatus = () => {
 
   const state = location.state as { orderId?: string; estimatedTime?: number } | undefined;
   const [orderId] = useState(() => state?.orderId || `ORD-${Date.now().toString(36).toUpperCase().slice(-6)}`);
-  const estimatedTime = state?.estimatedTime || (tableNumber ? 20 : 40);
+  const estimatedTime = state?.estimatedTime || (isTableMode ? 20 : 40);
 
-  const isDelivery = orderMode === "delivery" && !tableNumber;
+  const isDelivery = orderMode === "delivery" && !isTableMode;
 
   const steps = isDelivery
     ? [
@@ -39,17 +42,26 @@ const OrderStatus = () => {
       ];
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentStep((prev) => {
-        if (prev >= steps.length - 1) {
-          clearInterval(interval);
-          return prev;
+    const fetchRealOrderStatus = async () => {
+      try {
+        if (!orderId) return;
+        const res = await api.get<any>(`/orders/${orderId}`);
+        if (res && res.status) {
+          const st = (res.status || "").toLowerCase();
+          if (st === "kot_sent" || st === "open" || st === "pending" || st === "draft") setCurrentStep(1);
+          else if (st === "in_kitchen" || st === "preparing" || st === "kitchen") setCurrentStep(2);
+          else if (st === "ready" || st === "served" || st === "prepared") setCurrentStep(3);
+          else if (st === "completed" || st === "paid" || st === "settled") setCurrentStep(4);
         }
-        return prev + 1;
-      });
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [steps.length]);
+      } catch {
+        // Fallback local step increment
+      }
+    };
+
+    fetchRealOrderStatus();
+    const pollInterval = setInterval(fetchRealOrderStatus, 3000);
+    return () => clearInterval(pollInterval);
+  }, [orderId]);
 
   const copyOrderId = () => {
     navigator.clipboard.writeText(orderId);
@@ -160,14 +172,20 @@ const OrderStatus = () => {
             </button>
           )}
           <button
-            onClick={() => navigate(tableNumber ? `/order/table/${tableNumber}/menu` : "/menu")}
+            onClick={() =>
+              navigate(
+                isTableMode && tableNumber
+                  ? `/t/${tenantSlug}/b/${branchCode}/table/${tableNumber}/menu`
+                  : `/t/${tenantSlug}/b/${branchCode}/menu`
+              )
+            }
             className="w-full py-3 rounded-2xl border border-border text-muted-foreground font-semibold text-sm hover:bg-muted transition flex items-center justify-center gap-2"
           >
             <RotateCcw className="w-4 h-4" />
             {t("orderStatus.orderMore")}
           </button>
           <button
-            onClick={() => navigate("/")}
+            onClick={() => navigate(`/t/${tenantSlug}/b/${branchCode}`)}
             className="w-full py-3 text-xs text-muted-foreground hover:text-foreground transition"
           >
             Back to Home

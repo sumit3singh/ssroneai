@@ -1,5 +1,5 @@
 /**
- * The Baithak – Formatting Utilities
+ * The ssrone – Formatting Utilities
  * Currency, date, and number formatting helpers.
  */
 import { format, formatDistanceToNow, parseISO } from "date-fns";
@@ -47,8 +47,12 @@ export function formatPercent(value: number, decimals = 1): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(decimals)}%`;
 }
 
-export function getInitials(firstName: string, lastName: string): string {
-  return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+export function getInitials(firstName?: string, lastName?: string): string {
+  const f = (firstName || "").trim();
+  const l = (lastName || "").trim();
+  if (!f && !l) return "U";
+  if (!l) return f.slice(0, 2).toUpperCase();
+  return `${f.charAt(0)}${l.charAt(0)}`.toUpperCase();
 }
 
 export function truncate(text: string, length: number): string {

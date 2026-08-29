@@ -40,7 +40,7 @@ const Footer = () => {
           >
             <div className="mb-4">
               <span className="text-2xl font-display font-bold block">
-                The Baithak
+                SSR One AI
               </span>
               <span className="text-primary-foreground/70 text-sm">
                 Modern Stay Experience
@@ -107,7 +107,7 @@ const Footer = () => {
               <li className="flex items-start gap-3">
                 <MapPin className="w-4 h-4 mt-1 text-gold" />
                 <span className="text-primary-foreground/70 text-sm">
-                  The Baithak,
+                  SSR One AI,
                   <br />
                   Near CUH Gate No. 1
                 </span>
@@ -124,10 +124,10 @@ const Footer = () => {
               <li className="flex items-center gap-3">
                 <Mail className="w-4 h-4 text-gold" />
                 <a
-                  href="mailto:thebaithakcafe@gmail.com"
+                  href="mailto:thessronecafe@gmail.com"
                   className="text-primary-foreground/70 hover:text-primary-foreground transition-colors text-sm"
                 >
-                  thebaithakcafe@gmail.com
+                  thessronecafe@gmail.com
                 </a>
               </li>
             </ul>
@@ -137,7 +137,7 @@ const Footer = () => {
         {/* Copyright */}
         <div className="pt-8 border-t border-primary-foreground/10 text-center">
           <p className="text-primary-foreground/50 text-sm flex items-center justify-center gap-1">
-            © {new Date().getFullYear()} The Baithak. Made with{" "}
+            © {new Date().getFullYear()} SSR One AI. Made with{" "}
             <Heart className="w-3 h-3 text-primary fill-primary" /> All rights reserved.
           </p>
         </div>

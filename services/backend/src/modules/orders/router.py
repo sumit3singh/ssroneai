@@ -1,5 +1,5 @@
 """
-The Baithak – Orders Schemas & Router
+The ssrone – Orders Schemas & Router
 """
 from datetime import datetime
 from decimal import Decimal
@@ -13,40 +13,66 @@ from sqlalchemy.orm import selectinload
 
 from src.core.database.engine import get_db_session
 from src.core.event_bus.bus import event_bus, order_created_event
-from src.modules.auth.dependencies import get_current_user, RequirePermission
+from src.modules.auth.dependencies import get_current_user, get_optional_user, RequirePermission
 from src.modules.auth.models import User
-from src.modules.orders.models import Order, OrderItem, OrderPayment, OrderStatus
+from src.modules.orders.models import Order, OrderItem, OrderPayment, OrderStatus, DiningTable
 from src.shared.logger import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
 
+def _parse_int_id(val: Any) -> int | None:
+    """Safely parse integer IDs from int, str, or None."""
+    if val is None or val == "" or val == "undefined":
+        return None
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return None
+
+
 # ─── Schemas ─────────────────────────────────────────────
 
 class OrderItemCreateSchema(BaseModel):
-    product_id: int
-    product_name: str
+    product_id: int | None = None
+    item_id: int | None = None
+    product_name: str | None = None
+    name: str | None = None
     product_code: str | None = None
-    quantity: Decimal = Field(gt=0)
-    unit_price: Decimal = Field(gt=0)
+    quantity: Decimal = Field(default=Decimal("1"))
+    unit_price: Decimal = Field(default=Decimal("0"))
     unit_of_measure: str = "pcs"
     discount_amount: Decimal = Decimal("0")
-    modifiers: list[dict] = Field(default_factory=list)
+    variant_name: str | None = None
+    addons: list[Any] = Field(default_factory=list)
+    selected_variant: dict | None = None
+    modifiers: list[Any] = Field(default_factory=list)
     preparation_notes: str | None = None
     course: str | None = None
+    packaging_charge: Decimal = Decimal("0")
 
 
 class OrderCreateSchema(BaseModel):
-    branch_id: int
+    branch_id: int | None = 1
     customer_id: int | None = None
     table_id: int | None = None
+    table_name: str | None = None
     waiter_id: int | None = None
+    waiter_name: str | None = None
     order_type: str = "dine_in"
-    items: list[OrderItemCreateSchema] = Field(min_length=1)
+    order_mode: str | None = "dine_in"
+    items: list[OrderItemCreateSchema] = Field(default_factory=list)
     notes: str | None = None
     special_instructions: str | None = None
     source_channel: str = "pos"
+    subtotal: Decimal | float | None = None
+    packaging_charge: Decimal | float | None = None
+    tax_amount: Decimal | float | None = None
+    discount_amount: Decimal | float | None = Decimal("0")
+    net_amount: Decimal | float | None = None
+    payment_method: str = "CASH"
+    status: str = "COMPLETED"
 
 
 class OrderPaymentSchema(BaseModel):
@@ -59,15 +85,19 @@ class OrderPaymentSchema(BaseModel):
 
 class OrderItemResponse(BaseModel):
     id: int
-    product_id: int
-    product_name: str
-    quantity: Decimal
-    unit_price: Decimal
-    discount_amount: Decimal
-    tax_amount: Decimal
-    line_total: Decimal
-    kds_status: str
-    modifiers: list[Any]
+    product_id: int | None = None
+    product_name: str | None = None
+    item_name: str | None = None
+    name: str | None = None
+    quantity: Decimal | float
+    unit_price: Decimal | float
+    discount_amount: Decimal | float = Decimal("0")
+    tax_amount: Decimal | float = Decimal("0")
+    line_total: Decimal | float = Decimal("0")
+    kds_status: str = "pending"
+    modifiers: list[Any] = Field(default_factory=list)
+    selected_addons: list[Any] = Field(default_factory=list)
+    variant_name: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -75,20 +105,22 @@ class OrderItemResponse(BaseModel):
 class OrderResponse(BaseModel):
     id: int
     order_number: str
-    branch_id: int
-    order_type: str
-    status: str
-    payment_status: str
-    subtotal: Decimal
-    discount_amount: Decimal
-    total_tax: Decimal
-    grand_total: Decimal
-    amount_paid: Decimal
-    balance_due: Decimal
-    notes: str | None
-    items: list[OrderItemResponse]
-    created_at: datetime
-    confirmed_at: datetime | None
+    branch_id: int | None = 1
+    order_type: str = "dine_in"
+    status: str = "draft"
+    payment_status: str = "unpaid"
+    subtotal: Decimal | float = Decimal("0")
+    discount_amount: Decimal | float = Decimal("0")
+    total_tax: Decimal | float = Decimal("0")
+    grand_total: Decimal | float = Decimal("0")
+    amount_paid: Decimal | float = Decimal("0")
+    balance_due: Decimal | float = Decimal("0")
+    notes: str | None = None
+    table_id: int | None = None
+    waiter_id: int | None = None
+    items: list[OrderItemResponse] = Field(default_factory=list)
+    created_at: datetime | None = None
+    confirmed_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -105,91 +137,61 @@ class OrderListResponse(BaseModel):
 @router.post("", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
 async def create_order(
     body: OrderCreateSchema,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> OrderResponse:
     """Create a new order and dispatch to KDS via Event Bus."""
+    tenant_id = current_user.tenant_id if current_user else 1
+    user_id = current_user.id if current_user else 1
 
-    # Generate order number (simplified — use NumberSeriesManager in production)
+    # Generate order number
     from datetime import timezone
     now = datetime.now(timezone.utc)
     order_number = f"ORD-{now.strftime('%Y%m%d')}-{now.strftime('%H%M%S%f')[:6]}"
 
-    # Calculate initial totals
-    subtotal = sum(item.quantity * item.unit_price for item in body.items)
-    total_discount = sum(item.discount_amount for item in body.items)
-    taxable = subtotal - total_discount
-    cgst = (taxable * Decimal("0.09")).quantize(Decimal("0.01"))
-    sgst = (taxable * Decimal("0.09")).quantize(Decimal("0.01"))
-    total_tax = cgst + sgst
-    grand_total = taxable + total_tax
+    # Calculate subtotal & totals
+    calc_subtotal = Decimal("0")
+    for item in body.items:
+        qty = Decimal(str(item.quantity)) if item.quantity else Decimal("1")
+        price = Decimal(str(item.unit_price)) if item.unit_price else Decimal("0")
+        calc_subtotal += qty * price
 
-    # Evaluate business rules
-    from src.engines.rules.engine import rule_engine, BusinessRule, RuleCondition, RuleAction, Operator, ActionType
-    
-    rules = [
-        BusinessRule(
-            rule_id="rule_large_order_block",
-            name="Block large orders without customer ID",
-            entity_type="order",
-            conditions=[
-                RuleCondition(field="grand_total", operator=Operator.GT, value=50000.0),
-                RuleCondition(field="customer_id", operator=Operator.IS_NULL, value=None)
-            ],
-            actions=[
-                RuleAction(action_type=ActionType.BLOCK, parameters={"reason": "Large orders (>50,000 INR) require an attached Customer profile."})
-            ]
-        ),
-        BusinessRule(
-            rule_id="rule_large_takeaway_discount",
-            name="Apply 10% discount for large takeaways",
-            entity_type="order",
-            conditions=[
-                RuleCondition(field="grand_total", operator=Operator.GT, value=5000.0),
-                RuleCondition(field="order_type", operator=Operator.EQ, value="takeaway")
-            ],
-            actions=[
-                RuleAction(action_type=ActionType.APPLY_DISCOUNT, parameters={"percent": 10})
-            ]
-        )
-    ]
+    subtotal = Decimal(str(body.subtotal)) if body.subtotal is not None else calc_subtotal
+    total_discount = Decimal(str(body.discount_amount)) if body.discount_amount is not None else Decimal("0")
+    pkg_charge = Decimal(str(body.packaging_charge)) if body.packaging_charge is not None else Decimal("0")
+    taxable = max(Decimal("0"), subtotal + pkg_charge - total_discount)
 
-    rule_ctx = {
-        "grand_total": float(grand_total),
-        "customer_id": str(body.customer_id) if body.customer_id else None,
-        "order_type": body.order_type
-    }
+    if body.tax_amount is not None:
+        total_tax = Decimal(str(body.tax_amount))
+        cgst = (total_tax / Decimal("2")).quantize(Decimal("0.01"))
+        sgst = total_tax - cgst
+    else:
+        cgst = (taxable * Decimal("0.025")).quantize(Decimal("0.01"))
+        sgst = (taxable * Decimal("0.025")).quantize(Decimal("0.01"))
+        total_tax = cgst + sgst
 
-    eval_result = rule_engine.evaluate(rules, rule_ctx, "order")
+    grand_total = Decimal(str(body.net_amount)) if body.net_amount is not None else (taxable + total_tax)
 
-    if eval_result.blocked:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=eval_result.block_reason or "Transaction blocked by business rules."
-        )
+    target_status = body.status.lower() if body.status else "completed"
+    payment_status = "paid" if target_status in ("completed", "paid") else "unpaid"
+    amount_paid = grand_total if payment_status == "paid" else Decimal("0")
+    balance_due = Decimal("0") if payment_status == "paid" else grand_total
 
-    # Apply discounts from rules if present
-    for act in eval_result.actions_to_execute:
-        if act.action_type == ActionType.APPLY_DISCOUNT:
-            pct = Decimal(str(act.parameters.get("percent", 0)))
-            if pct > 0:
-                additional_discount = (grand_total * (pct / Decimal("100"))).quantize(Decimal("0.01"))
-                total_discount += additional_discount
-                taxable = subtotal - total_discount
-                cgst = (taxable * Decimal("0.09")).quantize(Decimal("0.01"))
-                sgst = (taxable * Decimal("0.09")).quantize(Decimal("0.01"))
-                total_tax = cgst + sgst
-                grand_total = taxable + total_tax
+    parsed_table_id = _parse_int_id(body.table_id)
+    parsed_waiter_id = _parse_int_id(body.waiter_id)
+    parsed_customer_id = _parse_int_id(body.customer_id)
+    parsed_branch_id = _parse_int_id(body.branch_id) or 1
 
     order = Order(
-        tenant_id=current_user.tenant_id,
+        tenant_id=tenant_id,
         order_number=order_number,
-        branch_id=body.branch_id,
-        customer_id=body.customer_id,
-        table_id=body.table_id,
-        waiter_id=body.waiter_id,
-        order_type=body.order_type,
-        status=OrderStatus.CONFIRMED,
+        branch_id=parsed_branch_id,
+        customer_id=parsed_customer_id,
+        table_id=parsed_table_id,
+        waiter_id=parsed_waiter_id,
+        order_type=body.order_type or "dine_in",
+        status=target_status,
+        payment_status=payment_status,
         subtotal=subtotal,
         discount_amount=total_discount,
         taxable_amount=taxable,
@@ -197,66 +199,111 @@ async def create_order(
         sgst_amount=sgst,
         total_tax=total_tax,
         grand_total=grand_total,
-        balance_due=grand_total,
+        amount_paid=amount_paid,
+        balance_due=balance_due,
         notes=body.notes,
         special_instructions=body.special_instructions,
-        source_channel=body.source_channel,
-        created_by=current_user.id,
+        source_channel=body.source_channel or "pos",
+        created_by=user_id,
     )
     db.add(order)
     await db.flush()
 
+    # Update dining table status if assigned
+    if parsed_table_id:
+        try:
+            tbl_res = await db.execute(select(DiningTable).where(DiningTable.id == parsed_table_id))
+            tbl = tbl_res.scalar_one_or_none()
+            if tbl:
+                tbl.status = "occupied" if target_status not in ("completed", "cancelled") else "free"
+                tbl.current_order_id = order.id if tbl.status == "occupied" else None
+        except Exception as tbl_err:
+            logger.warning("Failed to update table status on order creation", error=str(tbl_err))
+
     # Create order items
     for item_data in body.items:
-        line_total = (
-            item_data.quantity * item_data.unit_price - item_data.discount_amount
-        ).quantize(Decimal("0.01"))
+        raw_id = item_data.product_id or item_data.item_id
+        prod_id = _parse_int_id(raw_id) or 1
+        prod_name = item_data.product_name or item_data.name or "Dish Item"
+
+        try:
+            qty = Decimal(str(item_data.quantity)) if item_data.quantity is not None else Decimal("1")
+        except Exception:
+            qty = Decimal("1")
+
+        try:
+            price = Decimal(str(item_data.unit_price)) if item_data.unit_price is not None else Decimal("0")
+        except Exception:
+            price = Decimal("0")
+
+        try:
+            disc = Decimal(str(item_data.discount_amount or 0))
+        except Exception:
+            disc = Decimal("0")
+
+        line_total = (qty * price - disc).quantize(Decimal("0.01"))
+
         item = OrderItem(
-            tenant_id=current_user.tenant_id,
+            tenant_id=tenant_id,
             order_id=order.id,
-            product_id=item_data.product_id,
-            product_name=item_data.product_name,
+            menu_item_id=prod_id,
+            product_id=prod_id,
+            product_name=prod_name,
+            item_name=prod_name,
+            total_price=line_total,
             product_code=item_data.product_code,
-            quantity=item_data.quantity,
-            unit_price=item_data.unit_price,
-            discount_amount=item_data.discount_amount,
+            variant_name=item_data.variant_name,
+            quantity=qty,
+            unit_price=price,
+            discount_amount=disc,
             line_total=line_total,
-            unit_of_measure=item_data.unit_of_measure,
-            modifiers=item_data.modifiers,
+            unit_of_measure=item_data.unit_of_measure or "pcs",
+            modifiers=item_data.modifiers or [],
+            selected_addons=item_data.addons or [],
             preparation_notes=item_data.preparation_notes,
             course=item_data.course,
-            created_by=current_user.id,
+            created_by=user_id,
         )
         db.add(item)
 
-    await db.flush()
-    await db.refresh(order, ["items"])
-
-    # Emit event to Event Bus (triggers KDS, inventory deduction, loyalty points)
-    event = order_created_event(
-        tenant_id=str(current_user.tenant_id),
-        order_id=str(order.id),
-        order_number=order_number,
-        branch_id=str(body.branch_id),
-        grand_total=float(grand_total),
-    )
     try:
+        await db.flush()
+        await db.commit()
+        await db.refresh(order, ["items"])
+    except Exception as commit_err:
+        await db.rollback()
+        logger.error("Order commit error in PostgreSQL", error=str(commit_err))
+        raise HTTPException(status_code=500, detail=f"Database Order Commit Error: {str(commit_err)}")
+
+    # Emit event to Event Bus
+    try:
+        event = order_created_event(
+            tenant_id=str(tenant_id),
+            order_id=str(order.id),
+            order_number=order_number,
+            branch_id=str(body.branch_id or 1),
+            grand_total=float(grand_total),
+        )
         await event_bus.publish(event)
     except Exception as e:
         logger.warning("Event bus publish failed (Redis offline)", error=str(e))
 
-    logger.info("Order created", order_id=str(order.id), order_number=order_number)
+    logger.info("Order created successfully", order_id=str(order.id), order_number=order_number)
 
-    from src.core.database.audit import log_audit
-    await log_audit(
-        session=db,
-        tenant_id=current_user.tenant_id,
-        user_id=current_user.id,
-        action="ORDER_CREATED",
-        resource_type="Order",
-        resource_id=str(order.id),
-        new_values={"order_number": order_number, "grand_total": float(grand_total)},
-    )
+
+    try:
+        from src.core.database.audit import log_audit
+        await log_audit(
+            session=db,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            action="ORDER_CREATED",
+            resource_type="Order",
+            resource_id=str(order.id),
+            new_values={"order_number": order_number, "grand_total": float(grand_total)},
+        )
+    except Exception as audit_err:
+        logger.warning("Audit log failed for order creation", error=str(audit_err))
 
     return OrderResponse.model_validate(order)
 
@@ -267,13 +314,14 @@ async def list_orders(
     status: str | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=100),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> OrderListResponse:
     """List orders with filters and pagination."""
+    tenant_id = current_user.tenant_id if current_user else 1
     query = (
         select(Order)
-        .where(Order.tenant_id == current_user.tenant_id, Order.is_deleted == False)
+        .where(Order.tenant_id == tenant_id, (Order.is_deleted == False) | (Order.is_deleted.is_(None)))
         .options(selectinload(Order.items))
         .order_by(Order.created_at.desc())
     )
@@ -303,16 +351,17 @@ async def list_orders(
 @router.get("/{order_id}", response_model=OrderResponse)
 async def get_order(
     order_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> OrderResponse:
     """Get a single order by ID."""
+    tenant_id = current_user.tenant_id if current_user else 1
     result = await db.execute(
         select(Order)
         .where(
             Order.id == order_id,
-            Order.tenant_id == current_user.tenant_id,
-            Order.is_deleted == False,
+            Order.tenant_id == tenant_id,
+            (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
         )
         .options(selectinload(Order.items))
     )
@@ -358,26 +407,49 @@ async def update_order_status(
     status: str = Query(..., description="Target status"),
     payment_status: str | None = Query(None, description="Target payment status"),
     amount_paid: Decimal | None = Query(None, description="Amount paid update"),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Update order status and/or payment status."""
     from datetime import timezone
+    tenant_id = current_user.tenant_id if current_user else 1
+    user_id = current_user.id if current_user else 1
+
     result = await db.execute(
         select(Order).where(
             Order.id == order_id,
-            Order.tenant_id == current_user.tenant_id,
-            Order.is_deleted == False
+            Order.tenant_id == tenant_id,
+            (Order.is_deleted == False) | (Order.is_deleted.is_(None))
         )
     )
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    order.status = status
-    if status == OrderStatus.COMPLETED:
+    current_status = (order.status or "").lower()
+    current_payment_status = (order.payment_status or "").lower()
+    target_status = status.lower()
+
+    if current_status in ("completed", "paid") or current_payment_status == "paid":
+        if target_status in ("completed", "paid"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Order #{order.order_number} is already settled & completed! Re-settlement is not permitted."
+            )
+
+    if current_status == "cancelled":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Order #{order.order_number} has been cancelled and cannot be modified."
+        )
+
+    order.status = target_status
+    if order.status in ("completed", "paid"):
         order.completed_at = datetime.now(timezone.utc)
-    elif status == OrderStatus.CANCELLED:
+        order.payment_status = "paid"
+        order.amount_paid = order.grand_total or Decimal("0.00")
+        order.balance_due = Decimal("0.00")
+    elif order.status == "cancelled":
         order.cancelled_at = datetime.now(timezone.utc)
 
     if payment_status:
@@ -390,7 +462,7 @@ async def update_order_status(
         order.amount_paid = amount_paid
         order.balance_due = max(Decimal("0.00"), order.grand_total - amount_paid)
 
-    order.updated_by = current_user.id
+    order.updated_by = user_id
     await db.commit()
     logger.info("Order status updated", order_id=str(order_id), status=status, payment_status=payment_status)
     return {
@@ -892,7 +964,7 @@ async def get_printable_bill(
 
     lines = [
         "========================================",
-        "          THE BAITHAK CAFE             ",
+        "          THE ssrone CAFE             ",
         "         TAX INVOICE / BILL            ",
         "========================================",
         f"Bill #:  {order.order_number}",
@@ -923,7 +995,7 @@ async def get_printable_bill(
         f"Paid ({order.payment_status.upper()}):             INR {order.amount_paid:>8.2f}",
         f"Balance Due:              INR {order.balance_due:>8.2f}",
         "========================================",
-        "     Thank you for visiting Baithak!    ",
+        "     Thank you for visiting ssrone!    ",
         "========================================",
     ])
 

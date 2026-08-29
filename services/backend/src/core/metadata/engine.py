@@ -22,27 +22,27 @@ class MetadataEngine:
         with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
 
-    @cache_response(ttl=600, prefix="baithak:metadata:form")
+    @cache_response(ttl=600, prefix="ssrone:metadata:form")
     async def get_form_metadata(self, form_name: str) -> Optional[Dict[str, Any]]:
         """Retrieve form metadata."""
         return self.load_metadata_file("forms", form_name)
 
-    @cache_response(ttl=600, prefix="baithak:metadata:table")
+    @cache_response(ttl=600, prefix="ssrone:metadata:table")
     async def get_table_metadata(self, table_name: str) -> Optional[Dict[str, Any]]:
         """Retrieve table metadata."""
         return self.load_metadata_file("tables", table_name)
 
-    @cache_response(ttl=600, prefix="baithak:metadata:report")
+    @cache_response(ttl=600, prefix="ssrone:metadata:report")
     async def get_report_metadata(self, report_name: str) -> Optional[Dict[str, Any]]:
         """Retrieve report metadata."""
         return self.load_metadata_file("reports", report_name)
 
-    @cache_response(ttl=600, prefix="baithak:metadata:workflow")
+    @cache_response(ttl=600, prefix="ssrone:metadata:workflow")
     async def get_workflow_metadata(self, workflow_name: str) -> Optional[Dict[str, Any]]:
         """Retrieve workflow metadata."""
         return self.load_metadata_file("workflow", workflow_name)
 
-    @cache_response(ttl=600, prefix="baithak:metadata:permission")
+    @cache_response(ttl=600, prefix="ssrone:metadata:permission")
     async def get_permission_metadata(self, permission_name: str) -> Optional[Dict[str, Any]]:
         """Retrieve permission metadata."""
         return self.load_metadata_file("permissions", permission_name)

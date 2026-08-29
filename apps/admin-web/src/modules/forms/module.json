@@ -1,0 +1,17 @@
+{
+  "name": "forms",
+  "tier": "B",
+  "version": "1.0.0",
+  "owner": "team-core",
+  "permissions": [
+    "forms.view",
+    "forms.admin"
+  ],
+  "routes": [
+    "/forms"
+  ],
+  "dependencies": [],
+  "featureFlags": [
+    "forms-enabled"
+  ]
+}

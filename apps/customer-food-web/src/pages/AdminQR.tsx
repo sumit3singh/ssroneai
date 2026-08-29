@@ -41,7 +41,7 @@ const AdminQR = () => {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="font-display text-base sm:text-lg font-bold">The Baithak Cafe – QR Codes</h1>
+            <h1 className="font-display text-base sm:text-lg font-bold">SSR One AI Cafe – QR Codes</h1>
             <p className="text-xs text-muted-foreground">Generate QR for each table</p>
           </div>
         </div>

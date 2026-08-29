@@ -15,7 +15,7 @@ const testimonials = [
     name: "Priya Sharma",
     role: "B.Tech Final Year",
     subtitle: "CUH Student",
-    text: "Finding The Baithak was a blessing. The safety measures give my parents peace of mind, and I've made lifelong friends here.",
+    text: "Finding SSR One AI was a blessing. The safety measures give my parents peace of mind, and I've made lifelong friends here.",
     rating: 5,
     avatar: "👩‍💻",
   },

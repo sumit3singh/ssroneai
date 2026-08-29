@@ -2,7 +2,7 @@
  * Offline Database Synchronization Engine
  * Captures offline transactions into local queue and syncs to PostgreSQL database on reconnect.
  */
-import { api } from "@/shared/utils/api-client";
+import { api } from "@ssrone/api-client";
 
 export interface PendingOfflineAction {
   id: string;
@@ -12,7 +12,7 @@ export interface PendingOfflineAction {
   timestamp: number;
 }
 
-const OFFLINE_QUEUE_KEY = "baithak_offline_sync_queue";
+const OFFLINE_QUEUE_KEY = "ssrone_offline_sync_queue";
 
 export const getOfflineQueue = (): PendingOfflineAction[] => {
   try {

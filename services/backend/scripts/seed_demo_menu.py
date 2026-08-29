@@ -1,6 +1,6 @@
 """
-The Baithak – Seed Demo Menu Script
-Populates database with realistic Baithak Cafe menu items, categories, normalized variant groups, options, addon groups, options, and tags.
+The ssrone – Seed Demo Menu Script
+Populates database with realistic ssrone Cafe menu items, categories, normalized variant groups, options, addon groups, options, and tags.
 Run: ..\.venv\Scripts\python scripts/seed_demo_menu.py
 """
 import asyncio
@@ -10,8 +10,8 @@ import os
 # Add backend directory to sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from sqlalchemy import select
-from src.core.database.engine import AsyncSessionLocal
+from sqlalchemy import select, text
+from src.core.database.engine import AsyncSessionLocal, engine, Base
 from src.modules.restaurant.models import (
     MenuCategory,
     MenuItem,
@@ -25,12 +25,11 @@ from src.modules.restaurant.models import (
 
 
 DEMO_CATEGORIES = [
-    {"name": "Starters & Momos", "icon": "Flame", "slug": "starters-momos", "sort_order": 1},
-    {"name": "Pizzas & Breads", "icon": "Utensils", "slug": "pizzas-breads", "sort_order": 2},
+    {"name": "Beverages & Chai", "icon": "CupSoda", "slug": "beverages-chai", "sort_order": 1},
+    {"name": "Breads & Roti", "icon": "Utensils", "slug": "breads-roti", "sort_order": 2},
     {"name": "Indian Main Course", "icon": "ChefHat", "slug": "indian-main-course", "sort_order": 3},
-    {"name": "Breads & Biryani", "icon": "Coffee", "slug": "breads-biryani", "sort_order": 4},
-    {"name": "Beverages & Shakes", "icon": "CupSoda", "slug": "beverages-shakes", "sort_order": 5},
-    {"name": "Desserts & Chai", "icon": "Cake", "slug": "desserts-chai", "sort_order": 6},
+    {"name": "Pizzas & Western", "icon": "Flame", "slug": "pizzas-western", "sort_order": 4},
+    {"name": "Starters & Momos", "icon": "Package", "slug": "starters-momos", "sort_order": 5},
 ]
 
 DEMO_TAGS = [
@@ -42,66 +41,44 @@ DEMO_TAGS = [
 
 DEMO_ITEMS = [
     {
-        "category_slug": "starters-momos",
-        "name": "Kurkure Veg Momos",
-        "description": "Crispy fried veg momos coated in crunchy cornflakes crust served with spicy chutney.",
-        "short_description": "Crispy cornflake coated veg momos",
-        "base_price": 130.0,
+        "category_slug": "beverages-chai",
+        "name": "Kulhad Masala Chai",
+        "description": "Authentic clay-pot brewed ginger cardamom tea.",
+        "short_description": "Clay-pot ginger tea",
+        "base_price": 20.0,
         "is_veg": True,
         "is_popular": True,
         "gst_percent": 5.0,
-        "kds_station": "Chinese",
+        "packaging_charge": 0.0,
+        "kds_station": "Beverages",
         "sort_order": 1,
-        "tags": ["Bestseller", "Spicy"],
-        "variant_groups": [
-            {
-                "name": "Portion Size",
-                "min_selection": 1,
-                "max_selection": 1,
-                "is_required": True,
-                "sort_order": 1,
-                "options": [
-                    {"name": "Half (5 Pcs)", "price_adjustment": 0.0, "is_default": True, "sort_order": 1},
-                    {"name": "Full (8 Pcs)", "price_adjustment": 60.0, "is_default": False, "sort_order": 2},
-                ]
-            }
-        ],
-        "addon_groups": [
-            {
-                "name": "Dips & Extras",
-                "min_selection": 0,
-                "max_selection": 3,
-                "sort_order": 1,
-                "options": [
-                    {"name": "Cheese Dip", "price": 30.0, "sort_order": 1},
-                    {"name": "Spicy Schezwan Dip", "price": 20.0, "sort_order": 2},
-                    {"name": "Extra Mayonnaise", "price": 15.0, "sort_order": 3},
-                ]
-            }
-        ]
+        "tags": ["Bestseller"],
+        "variant_groups": [],
+        "addon_groups": []
     },
     {
-        "category_slug": "starters-momos",
-        "name": "Steamed Paneer Momos",
-        "description": "Soft thin-flour dumplings stuffed with spiced cottage cheese and fresh herbs.",
-        "short_description": "Soft steamed paneer dumplings",
-        "base_price": 120.0,
+        "category_slug": "breads-roti",
+        "name": "Tawa Roti",
+        "description": "Fresh whole wheat tawa cooked Indian flatbread.",
+        "short_description": "Whole wheat tawa roti",
+        "base_price": 10.0,
         "is_veg": True,
-        "is_popular": False,
+        "is_popular": True,
         "gst_percent": 5.0,
-        "kds_station": "Chinese",
+        "packaging_charge": 0.0,
+        "kds_station": "Tandoor",
         "sort_order": 2,
-        "tags": ["Jain Option"],
+        "tags": [],
         "variant_groups": [
             {
-                "name": "Portion Size",
+                "name": "Roti Type",
                 "min_selection": 1,
                 "max_selection": 1,
                 "is_required": True,
                 "sort_order": 1,
                 "options": [
-                    {"name": "Half (5 Pcs)", "price_adjustment": 0.0, "is_default": True, "sort_order": 1},
-                    {"name": "Full (8 Pcs)", "price_adjustment": 50.0, "is_default": False, "sort_order": 2},
+                    {"name": "Plain Tawa Roti", "selling_price": 10.0, "price": 10.0, "is_default": True, "sort_order": 1},
+                    {"name": "Tawa Roti with Butter", "selling_price": 12.0, "price": 12.0, "is_default": False, "sort_order": 2},
                 ]
             }
         ],
@@ -109,15 +86,16 @@ DEMO_ITEMS = [
     },
     {
         "category_slug": "indian-main-course",
-        "name": "Paneer Butter Masala",
-        "description": "Rich, creamy cashew tomato gravy with soft cottage cheese cubes finished with fresh butter.",
-        "short_description": "Rich creamy cottage cheese gravy",
-        "base_price": 220.0,
+        "name": "Kadai Paneer",
+        "description": "Cottage cheese cooked with capsicum, onions, and freshly ground spices in a traditional wok.",
+        "short_description": "Wok-tossed spicy cottage cheese",
+        "base_price": 130.0,
         "is_veg": True,
         "is_popular": True,
         "gst_percent": 5.0,
+        "packaging_charge": 10.0,
         "kds_station": "Main",
-        "sort_order": 1,
+        "sort_order": 3,
         "tags": ["Bestseller", "Chef Special"],
         "variant_groups": [
             {
@@ -127,62 +105,36 @@ DEMO_ITEMS = [
                 "is_required": True,
                 "sort_order": 1,
                 "options": [
-                    {"name": "Half", "price_adjustment": 0.0, "is_default": True, "sort_order": 1},
-                    {"name": "Full", "price_adjustment": 120.0, "is_default": False, "sort_order": 2},
+                    {"name": "Half Portion", "selling_price": 130.0, "price": 130.0, "is_default": True, "sort_order": 1},
+                    {"name": "Full Portion", "selling_price": 250.0, "price": 250.0, "is_default": False, "sort_order": 2},
                 ]
             }
         ],
         "addon_groups": [
             {
-                "name": "Gravy Customizations",
+                "name": "Extra Toppings",
                 "min_selection": 0,
                 "max_selection": 2,
                 "sort_order": 1,
                 "options": [
-                    {"name": "Extra Amul Butter", "price": 30.0, "sort_order": 1},
-                    {"name": "Extra Fresh Cream", "price": 25.0, "sort_order": 2},
+                    {"name": "Extra Amul Butter", "price": 25.0, "sort_order": 1},
+                    {"name": "Extra Fresh Cream", "price": 20.0, "sort_order": 2},
                 ]
             }
         ]
     },
     {
-        "category_slug": "indian-main-course",
-        "name": "Dal Makhani (Overnight Cooked)",
-        "description": "Black lentils slow-cooked overnight with spices, butter, and cream.",
-        "short_description": "Slow-cooked black lentils with cream",
-        "base_price": 190.0,
+        "category_slug": "pizzas-western",
+        "name": "Veg Loaded Pizza",
+        "description": "Hand-tossed pizza crust loaded with crisp capsicum, onion, tomato, jalapenos, and melted mozzarella cheese.",
+        "short_description": "Veggie loaded hand-tossed pizza",
+        "base_price": 180.0,
         "is_veg": True,
         "is_popular": True,
         "gst_percent": 5.0,
-        "kds_station": "Main",
-        "sort_order": 2,
-        "tags": ["Bestseller"],
-        "variant_groups": [
-            {
-                "name": "Portion Size",
-                "min_selection": 1,
-                "max_selection": 1,
-                "is_required": True,
-                "sort_order": 1,
-                "options": [
-                    {"name": "Half", "price_adjustment": 0.0, "is_default": True, "sort_order": 1},
-                    {"name": "Full", "price_adjustment": 100.0, "is_default": False, "sort_order": 2},
-                ]
-            }
-        ],
-        "addon_groups": []
-    },
-    {
-        "category_slug": "pizzas-breads",
-        "name": "Farmhouse Loaded Pizza",
-        "description": "Hand-tossed pizza crust topped with capsicum, onion, tomato, jalapenos, and mozzarella.",
-        "short_description": "Hand-tossed veggie loaded pizza",
-        "base_price": 240.0,
-        "is_veg": True,
-        "is_popular": True,
-        "gst_percent": 5.0,
+        "packaging_charge": 10.0,
         "kds_station": "Western",
-        "sort_order": 1,
+        "sort_order": 4,
         "tags": ["Bestseller"],
         "variant_groups": [
             {
@@ -192,109 +144,95 @@ DEMO_ITEMS = [
                 "is_required": True,
                 "sort_order": 1,
                 "options": [
-                    {"name": "Personal (7\")", "price_adjustment": 0.0, "is_default": True, "sort_order": 1},
-                    {"name": "Medium (10\")", "price_adjustment": 130.0, "is_default": False, "sort_order": 2},
-                    {"name": "Large (12\")", "price_adjustment": 230.0, "is_default": False, "sort_order": 3},
+                    {"name": "Small (7\")", "selling_price": 150.0, "price": 150.0, "is_default": False, "sort_order": 1},
+                    {"name": "Medium (10\")", "selling_price": 180.0, "price": 180.0, "is_default": True, "sort_order": 2},
+                    {"name": "Large (12\")", "selling_price": 230.0, "price": 230.0, "is_default": False, "sort_order": 3},
                 ]
             }
         ],
         "addon_groups": [
             {
-                "name": "Crust Upgrade & Extra Toppings",
+                "name": "Crust Upgrade & Addons",
                 "min_selection": 0,
                 "max_selection": 3,
                 "sort_order": 1,
                 "options": [
-                    {"name": "Cheese Burst Crust", "price": 90.0, "sort_order": 1},
-                    {"name": "Extra Mozzarella", "price": 50.0, "sort_order": 2},
-                    {"name": "Extra Jalapenos", "price": 30.0, "sort_order": 3},
+                    {
+                        "name": "Cheese Burst Crust",
+                        "price": 80.0,
+                        "variant_prices": {
+                            "Small (7\")": 50.0,
+                            "Medium (10\")": 80.0,
+                            "Large (12\")": 100.0
+                        },
+                        "sort_order": 1
+                    },
+                    {
+                        "name": "Extra Mozzarella Cheese",
+                        "price": 40.0,
+                        "variant_prices": {
+                            "Small (7\")": 30.0,
+                            "Medium (10\")": 40.0,
+                            "Large (12\")": 60.0
+                        },
+                        "sort_order": 2
+                    }
                 ]
             }
         ]
     },
     {
-        "category_slug": "breads-biryani",
-        "name": "Tandoori Butter Naan",
-        "description": "Traditional clay-oven baked refined flour bread topped with melted Amul butter.",
-        "short_description": "Clay-oven baked butter naan",
-        "base_price": 45.0,
-        "is_veg": True,
-        "is_popular": False,
-        "gst_percent": 5.0,
-        "kds_station": "Tandoor",
-        "sort_order": 1,
-        "tags": [],
-        "variant_groups": [],
-        "addon_groups": []
-    },
-    {
-        "category_slug": "beverages-shakes",
-        "name": "Thick Cold Coffee with Ice Cream",
-        "description": "Chilled blended espresso coffee served with a scoop of vanilla ice cream.",
-        "short_description": "Blended espresso with vanilla ice cream",
-        "base_price": 110.0,
+        "category_slug": "starters-momos",
+        "name": "Kurkure Veg Momos",
+        "description": "Crispy fried veg momos coated in crunchy cornflakes crust served with spicy chutney.",
+        "short_description": "Crispy cornflakes coated momos",
+        "base_price": 130.0,
         "is_veg": True,
         "is_popular": True,
         "gst_percent": 5.0,
-        "kds_station": "Beverages",
-        "sort_order": 1,
-        "tags": ["Bestseller"],
+        "packaging_charge": 10.0,
+        "kds_station": "Chinese",
+        "sort_order": 5,
+        "tags": ["Bestseller", "Spicy"],
         "variant_groups": [
             {
-                "name": "Glass Size",
+                "name": "Portion Size",
                 "min_selection": 1,
                 "max_selection": 1,
                 "is_required": True,
                 "sort_order": 1,
                 "options": [
-                    {"name": "Regular (300ml)", "price_adjustment": 0.0, "is_default": True, "sort_order": 1},
-                    {"name": "Large (500ml)", "price_adjustment": 35.0, "is_default": False, "sort_order": 2},
+                    {"name": "Half (5 Pcs)", "selling_price": 130.0, "price": 130.0, "is_default": True, "sort_order": 1},
+                    {"name": "Full (8 Pcs)", "selling_price": 190.0, "price": 190.0, "is_default": False, "sort_order": 2},
                 ]
             }
         ],
         "addon_groups": [
             {
-                "name": "Extra Addons",
+                "name": "Dips & Sauces",
                 "min_selection": 0,
                 "max_selection": 2,
                 "sort_order": 1,
                 "options": [
-                    {"name": "Extra Ice Cream Scoop", "price": 35.0, "sort_order": 1},
-                    {"name": "Chocolate Chips", "price": 20.0, "sort_order": 2},
+                    {"name": "Cheese Dip", "price": 30.0, "sort_order": 1},
+                    {"name": "Spicy Schezwan Dip", "price": 20.0, "sort_order": 2},
                 ]
             }
         ]
-    },
-    {
-        "category_slug": "desserts-chai",
-        "name": "Kulhad Masala Chai",
-        "description": "Authentic clay-pot brewed ginger cardamom tea.",
-        "short_description": "Clay-pot ginger cardamom tea",
-        "base_price": 30.0,
-        "is_veg": True,
-        "is_popular": True,
-        "gst_percent": 5.0,
-        "kds_station": "Beverages",
-        "sort_order": 1,
-        "tags": ["Bestseller"],
-        "variant_groups": [],
-        "addon_groups": []
     }
 ]
-
-
-from sqlalchemy import select, text
 
 
 async def seed():
     tenant_id = 1
     branch_id = 1
     
-    print("[INIT] Starting Baithak Cafe demo menu seed...")
-    from src.core.database.engine import engine, Base
+    print("[INIT] Starting SSR One AI Cafe demo menu seed...")
     async with engine.begin() as conn:
+        await conn.execute(text("ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS packaging_charge DOUBLE PRECISION DEFAULT 0.0;"))
         await conn.execute(text("ALTER TABLE menu_variant_options ADD COLUMN IF NOT EXISTS selling_price DOUBLE PRECISION DEFAULT 0.0;"))
         await conn.execute(text("ALTER TABLE menu_variant_options ADD COLUMN IF NOT EXISTS price DOUBLE PRECISION DEFAULT 0.0;"))
+        await conn.execute(text("ALTER TABLE menu_addon_options ADD COLUMN IF NOT EXISTS variant_prices JSONB DEFAULT '{}'::jsonb;"))
         await conn.execute(text("UPDATE menu_variant_options SET selling_price = price WHERE selling_price = 0.0 OR selling_price IS NULL;"))
         await conn.run_sync(Base.metadata.create_all)
 
@@ -366,6 +304,7 @@ async def seed():
                     is_veg=item_data["is_veg"],
                     is_popular=item_data["is_popular"],
                     gst_percent=item_data["gst_percent"],
+                    packaging_charge=item_data.get("packaging_charge", 0.0),
                     kds_station=item_data.get("kds_station", "Main"),
                     sort_order=item_data["sort_order"],
                 )
@@ -400,7 +339,7 @@ async def seed():
                     await session.flush()
 
                     for opt_data in vg_data.get("options", []):
-                        opt_sp = float(opt_data.get("price", opt_data.get("price_adjustment", 0.0)))
+                        opt_sp = float(opt_data.get("selling_price", opt_data.get("price", 0.0)))
                         opt = MenuVariantOption(
                             tenant_id=tenant_id,
                             branch_id=branch_id,
@@ -434,13 +373,13 @@ async def seed():
                             group_id=ag.id,
                             name=opt_data["name"],
                             price=opt_data["price"],
+                            variant_prices=opt_data.get("variant_prices", {}),
                             sort_order=opt_data["sort_order"],
                         )
                         session.add(opt)
 
         await session.commit()
-        print("[SUCCESS] Baithak Cafe demo menu seed completed successfully!")
-
+        print("[SUCCESS] SSR One AI Cafe demo menu seed completed successfully!")
 
 
 if __name__ == "__main__":

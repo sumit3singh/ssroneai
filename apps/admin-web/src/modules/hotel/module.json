@@ -1,0 +1,30 @@
+{
+  "name": "hotel",
+  "tier": "A",
+  "minTier": "Starter",
+  "status": "stable",
+  "stability": "ga",
+  "license": ["starter", "professional", "enterprise"],
+  "deprecated": false,
+  "experimental": false,
+  "version": "2.2.0",
+  "owner": "team-enterprise",
+  "permissions": [
+    "hotel.view",
+    "hotel.edit",
+    "hotel.admin"
+  ],
+  "routes": [
+    "/hotel"
+  ],
+  "dependencies": [
+    "crm",
+    "finance"
+  ],
+  "featureFlags": [
+    "room-grid",
+    "guest-folio",
+    "check-in-check-out",
+    "housekeeping-status"
+  ]
+}

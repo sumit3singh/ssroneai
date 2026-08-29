@@ -1,5 +1,5 @@
 """
-The Baithak – Hotel PMS Module
+The ssrone – Hotel PMS Module
 Room management, reservations, check-in/out, folios, dynamic rates.
 """
 from datetime import date, datetime
@@ -50,9 +50,23 @@ class RoomType(TenantBaseModel):
     rooms: Mapped[list["Room"]] = relationship("Room", back_populates="room_type")
 
 
+class Guest(TenantBaseModel):
+    """Hotel guest profile for reservations and check-in."""
+    __tablename__ = "hotel_guests"
+
+    branch_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    first_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    last_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    id_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    id_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class Room(TenantBaseModel):
     """Physical room/unit."""
-    __tablename__ = "rooms"
+    __tablename__ = "hotel_rooms"
 
     branch_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     room_type_id: Mapped[int] = mapped_column(
@@ -72,35 +86,14 @@ class Room(TenantBaseModel):
     reservations: Mapped[list["Reservation"]] = relationship("Reservation", back_populates="room")
 
 
-class Guest(TenantBaseModel):
-    """Hotel guest profile."""
-    __tablename__ = "guests"
-
-    branch_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
-    first_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    last_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    id_type: Mapped[str | None] = mapped_column(String(30), nullable=True)   # aadhaar, passport, dl
-    id_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    nationality: Mapped[str | None] = mapped_column(String(60), nullable=True)
-    date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
-    address: Mapped[dict] = mapped_column(JSONB, default=dict)
-    vip_tier: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    preferences: Mapped[dict] = mapped_column(JSONB, default=dict)
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    total_stays: Mapped[int] = mapped_column(Integer, default=0)
-    total_spent: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
-
-
 class Reservation(TenantBaseModel):
     """Hotel booking/reservation."""
-    __tablename__ = "reservations"
+    __tablename__ = "hotel_reservations"
 
     branch_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     reservation_number: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     room_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("rooms.id"), nullable=False
+        BigInteger, ForeignKey("hotel_rooms.id"), nullable=False
     )
     primary_guest_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     room_type_id: Mapped[int] = mapped_column(BigInteger, nullable=False)

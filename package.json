@@ -2,18 +2,28 @@
   "name": "ssr-one-ai-monorepo",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "services/*"
+  ],
   "scripts": {
     "dev": "turbo run dev",
-    "dev:admin": "pnpm --filter admin-web dev",
-    "dev:food": "pnpm --filter customer-food-web dev",
-    "dev:stay": "pnpm --filter customer-stay-web dev",
-    "dev:kds": "pnpm --filter kds-web dev",
-    "dev:staff": "pnpm --filter staff-web dev",
-    "dev:mobile": "pnpm --filter mobile-app dev",
+    "dev:admin": "pnpm --filter @ssrone/admin-web dev",
+    "dev:food": "pnpm --filter @ssrone/customer-food-web dev",
+    "dev:stay": "pnpm --filter @ssrone/customer-stay-web dev",
+    "dev:kds": "pnpm --filter @ssrone/kds-web dev",
+    "dev:staff": "pnpm --filter @ssrone/staff-web dev",
+    "dev:superadmin": "pnpm --filter @ssrone/platform-admin dev",
+    "dev:marketing": "pnpm --filter @ssrone/marketing-web dev",
     "build": "turbo run build",
     "test": "turbo run test",
     "type-check": "turbo run type-check",
-    "lint": "turbo run lint"
+    "lint": "turbo run lint",
+    "scaffold:module": "python scripts/scaffold_module.py",
+    "check:structure": "python scripts/check_project_structure.py",
+    "setup:bg": "python scripts/copy_bg.py"
   },
   "devDependencies": {
     "turbo": "^2.0.0"

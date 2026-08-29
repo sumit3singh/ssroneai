@@ -1,5 +1,5 @@
 /**
- * The Baithak – Global TypeScript Types
+ * The ssrone – Global TypeScript Types
  * Shared types used across modules.
  */
 

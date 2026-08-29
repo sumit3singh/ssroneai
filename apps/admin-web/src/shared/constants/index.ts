@@ -1,7 +1,7 @@
 /**
- * The Baithak – Application Constants
+ * The ssrone – Application Constants
  */
-export const APP_NAME = "The Baithak";
+export const APP_NAME = "SSR One AI";
 export const APP_VERSION = "1.0.0";
 
 export const ROUTES = {

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Phone, MessageCircle, Mail, Clock, Send, CheckCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@ssrone/ui/customer";
+import { Input } from "@ssrone/ui/customer";
+import { Textarea } from "@ssrone/ui/customer";
 import { useToast } from "@/hooks/use-toast";
 
 const contactInfo = [
@@ -22,8 +22,8 @@ const contactInfo = [
   {
     icon: Mail,
     label: "Email",
-    value: "thebaithakcafe@gmail.com",
-    href: "mailto:thebaithakcafe@gmail.com",
+    value: "thessronecafe@gmail.com",
+    href: "mailto:thessronecafe@gmail.com",
   },
   {
     icon: Clock,
@@ -51,13 +51,7 @@ const Contact = () => {
     setIsSubmitted(true);
 
     // Create WhatsApp message
-    const whatsappMessage = `Hello! I'm interested in booking a room at The Baithak.
-
-Name: ${formData.name}
-Phone: ${formData.phone}
-Email: ${formData.email}
-Preferred Room: ${formData.roomType}
-Message: ${formData.message}`;
+    const whatsappMessage = `Hello! I'm interested in booking a room at SSR One AI. My name is ${formData.name}, email: ${formData.email}, room type: ${formData.roomType}. Message: ${formData.message}`;
 
     setTimeout(() => {
       window.open(

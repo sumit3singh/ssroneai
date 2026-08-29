@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import { useCartStore } from "@/stores/cartStore";
-import { getVariantPriceAdjustment } from "@/data/mockMenu";
+import { getVariantDisplayPrice, getVariantPriceAdjustment } from "@/data/mockMenu";
 import { useNavigate, useParams } from "react-router-dom";
 
 interface CartSheetProps {

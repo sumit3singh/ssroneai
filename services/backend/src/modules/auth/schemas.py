@@ -1,5 +1,5 @@
 """
-The Baithak – Auth Pydantic Schemas
+The ssrone – Auth Pydantic Schemas
 Request/response models for authentication endpoints.
 """
 from datetime import datetime

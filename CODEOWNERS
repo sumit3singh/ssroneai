@@ -1,0 +1,5 @@
+# Global Monorepo Code Ownership Rules
+*       @ssrone/platform-team
+/apps/  @ssrone/frontend-team
+/services/ @ssrone/backend-team
+/.agents/ @ssrone/architecture-team

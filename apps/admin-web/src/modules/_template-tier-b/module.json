@@ -1,0 +1,17 @@
+{
+  "name": "_template-tier-b",
+  "tier": "B",
+  "version": "1.0.0",
+  "owner": "team-core",
+  "permissions": [
+    "_template-tier-b.view",
+    "_template-tier-b.admin"
+  ],
+  "routes": [
+    "/_template-tier-b"
+  ],
+  "dependencies": [],
+  "featureFlags": [
+    "_template-tier-b-enabled"
+  ]
+}

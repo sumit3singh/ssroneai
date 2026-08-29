@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@ssrone/ui/customer";
 import ThemeToggle from "./ThemeToggle";
 
 const navLinks = [
@@ -49,7 +49,7 @@ const Navbar = () => {
           whileHover={{ scale: 1.02 }}
         >
           <span className="text-xl md:text-2xl font-display font-bold text-primary-foreground relative">
-            The Baithak
+            SSR One AI
             {/* Glow effect */}
             <span className="absolute inset-0 blur-lg bg-gold/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10" />
           </span>

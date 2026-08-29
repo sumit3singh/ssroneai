@@ -1,5 +1,5 @@
 """
-The Baithak – HR Module
+The ssrone – HR Module
 Employee profiles, departments, attendance, leaves, payroll, shifts.
 """
 from datetime import date, datetime, time
@@ -23,64 +23,56 @@ class EmploymentType(StrEnum):
 
 class Department(TenantBaseModel):
     __tablename__ = "departments"
-    branch_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    tenant_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    company_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    branch_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    code: Mapped[str] = mapped_column(String(20), nullable=False)
-    head_employee_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    employees: Mapped[list["Employee"]] = relationship("Employee", back_populates="department")
 
 
 class Designation(TenantBaseModel):
     __tablename__ = "designations"
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    code: Mapped[str] = mapped_column(String(20), nullable=False)
-    level: Mapped[int] = mapped_column(Integer, default=1)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    tenant_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    company_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    branch_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    department_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("departments.id"), nullable=True)
+    title: Mapped[str] = mapped_column(String(100), nullable=False)
 
 
 class Employee(TenantBaseModel):
     __tablename__ = "employees"
-    branch_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
-    employee_code: Mapped[str] = mapped_column(String(30), nullable=False, unique=True)
-    first_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    last_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    phone: Mapped[str] = mapped_column(String(20), nullable=False)
-    date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
-    gender: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    profile_photo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    department_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("departments.id"), nullable=True
-    )
-    designation_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    reporting_to_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    employment_type: Mapped[str] = mapped_column(String(20), default=EmploymentType.FULL_TIME)
-    joining_date: Mapped[date] = mapped_column(Date, nullable=False)
-    confirmation_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    exit_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    exit_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-    # Payroll
+    
+    tenant_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    company_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    branch_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    employee_code: Mapped[str] = mapped_column(String(50), nullable=False)
+    full_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    designation: Mapped[str] = mapped_column(String(100), nullable=False)
+    phone: Mapped[str] = mapped_column(String(30), nullable=False)
     basic_salary: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    salary_structure: Mapped[dict] = mapped_column(JSONB, default=dict)
-    bank_account: Mapped[dict] = mapped_column(JSONB, default=dict)
-    pan_number: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    aadhaar_number: Mapped[str | None] = mapped_column(String(12), nullable=True)
-    pf_account_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    esi_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="ACTIVE")
+    version: Mapped[int] = mapped_column(BigInteger, default=1)
+    
+    is_waiter: Mapped[bool | None] = mapped_column(Boolean, default=False)
+    is_cashier: Mapped[bool | None] = mapped_column(Boolean, default=False)
+    is_chef: Mapped[bool | None] = mapped_column(Boolean, default=False)
+    
+    department_name: Mapped[str | None] = mapped_column(String(100), default="General")
+    allowances: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    deductions: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    
+    can_access_staff_web: Mapped[bool | None] = mapped_column(Boolean, default=False)
+    can_access_kds_web: Mapped[bool | None] = mapped_column(Boolean, default=False)
+    can_access_pos: Mapped[bool | None] = mapped_column(Boolean, default=False)
+    
+    user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    pin_code: Mapped[str | None] = mapped_column(String(100), default="1234")
 
-    address: Mapped[dict] = mapped_column(JSONB, default=dict)
-    emergency_contact: Mapped[dict] = mapped_column(JSONB, default=dict)
-    documents: Mapped[list] = mapped_column(JSONB, default=list)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-
-    department: Mapped["Department | None"] = relationship("Department", back_populates="employees")
+    # Relationships
     attendance_records: Mapped[list["AttendanceRecord"]] = relationship(
-        "AttendanceRecord", back_populates="employee"
+        "AttendanceRecord", back_populates="employee", cascade="all, delete-orphan"
     )
     leave_requests: Mapped[list["LeaveRequest"]] = relationship(
-        "LeaveRequest", back_populates="employee"
+        "LeaveRequest", back_populates="employee", cascade="all, delete-orphan"
     )
 
 

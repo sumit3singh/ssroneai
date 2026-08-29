@@ -2,8 +2,8 @@
  * AIInsightCard - moved from apps/admin-web shared UI
  */
 import { AlertTriangle, Info, AlertCircle, ArrowRight, Sparkles } from "lucide-react";
-import type { InsightCard } from "@ssr-one-ai/types";
-import { cn } from "@ssr-one-ai/utils";
+import type { InsightCard } from "@ssrone/types";
+import { cn } from "@ssrone/utils";
 
 const PRIORITY_CONFIG = {
     info: { icon: Info, color: "hsl(var(--ai-primary))" },
@@ -17,10 +17,9 @@ export function AIInsightCard({ insight }: { insight: InsightCard }) {
 
     return (
         <div
-            className="rounded-xl border p-4 transition-shadow hover:shadow-card-hover"
+            className="rounded-lg border border-border bg-card p-4 transition-all hover:border-slate-300 dark:hover:border-slate-700 shadow-2xs"
             style={{
                 borderColor: `${config.color}30`,
-                background: `linear-gradient(135deg, ${config.color}08, transparent)`,
             }}
         >
             <div className="flex items-start gap-3">

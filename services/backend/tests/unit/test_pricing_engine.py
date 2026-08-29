@@ -1,10 +1,10 @@
 """
-Tests for The Baithak Pricing Engine.
+Tests for The ssrone Pricing Engine.
 """
 from decimal import Decimal
 import pytest
 
-from src.core.pricing_engine.engine import (
+from src.engines.pricing.engine import (
     PricingContext, PricingEngine, PriceRule, PriceType,
 )
 

@@ -1,5 +1,5 @@
 """
-The Baithak – Background Tasks
+The ssrone – Background Tasks
 Celery task definitions for notifications, PDF export, AI processing.
 """
 from src.workers.celery_app import celery_app

@@ -1,5 +1,5 @@
 """
-The Baithak – Feature Licensing Administration Router
+The ssrone – Feature Licensing Administration Router
 Provides endpoints to list, grant, update, and revoke feature licenses for tenants.
 Restricted to Superadmins only.
 """

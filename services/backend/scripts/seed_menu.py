@@ -1,5 +1,5 @@
 """
-The Baithak – Restaurant Menu Database Seed Script
+The ssrone – Restaurant Menu Database Seed Script
 Seeds all menu categories, detailed items (with variants & addons),
 branches (CUH02, GGN01), tables, and mock customer loyalty profiles.
 
@@ -35,10 +35,10 @@ async def seed_menu():
         from sqlalchemy import select
 
         # 1. Fetch Tenant & Company
-        tenant_res = await db.execute(select(Tenant).where(Tenant.slug == "baithak-demo"))
+        tenant_res = await db.execute(select(Tenant).where(Tenant.slug == "ssrone-demo"))
         tenant = tenant_res.scalar_one_or_none()
         if not tenant:
-            print("[ERROR] Tenant 'baithak-demo' not found! Please run python scripts/seed.py first.")
+            print("[ERROR] Tenant 'ssrone-demo' not found! Please run python scripts/seed.py first.")
             return
 
         company_res = await db.execute(select(Company).where(Company.tenant_id == tenant.id))
@@ -57,11 +57,11 @@ async def seed_menu():
                 b = Branch(
                     tenant_id=tenant.id,
                     company_id=company.id,
-                    name=f"Baithak Outlet - {code}",
+                    name=f"ssrone Outlet - {code}",
                     code=code,
                     branch_type="outlet",
                     phone="+91-9999988888",
-                    email=f"outlet.{code.lower()}@baithak.com",
+                    email=f"outlet.{code.lower()}@ssrone.com",
                     is_active=True
                 )
                 db.add(b)
@@ -351,9 +351,9 @@ async def seed_menu():
 
         # 6. Seed Loyalty Customers with history
         customers_data = [
-            ("Sumit", "Singh", "9999999999", "sumit@baithak.com", "gold", 450, 4500.0, 15, "Veg Pizza", "Veg Pizza Medium with Cheese Burst"),
-            ("Chunu", "Rao", "7056841994", "chunu@baithak.com", "platinum", 820, 8900.0, 24, "Cold Coffee", "Kitkat Shake with Extra Ice Cream"),
-            ("Mohit", "Bhanja", "8683849395", "mohit@baithak.com", "silver", 120, 1800.0, 6, "Veg Steam Momos", "Veg Steam Momos Half")
+            ("Sumit", "Singh", "9999999999", "sumit@ssrone.com", "gold", 450, 4500.0, 15, "Veg Pizza", "Veg Pizza Medium with Cheese Burst"),
+            ("Chunu", "Rao", "7056841994", "chunu@ssrone.com", "platinum", 820, 8900.0, 24, "Cold Coffee", "Kitkat Shake with Extra Ice Cream"),
+            ("Mohit", "Bhanja", "8683849395", "mohit@ssrone.com", "silver", 120, 1800.0, 6, "Veg Steam Momos", "Veg Steam Momos Half")
         ]
 
         for first, last, phone, email, tier, pts, spend, visits, fav, last_order in customers_data:

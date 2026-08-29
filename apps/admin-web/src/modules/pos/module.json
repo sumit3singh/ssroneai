@@ -1,0 +1,34 @@
+{
+  "name": "pos",
+  "tier": "A",
+  "minTier": "Starter",
+  "status": "stable",
+  "stability": "ga",
+  "license": ["starter", "professional", "enterprise"],
+  "deprecated": false,
+  "experimental": false,
+  "version": "2.4.0",
+  "owner": "team-enterprise",
+  "permissions": [
+    "pos.view",
+    "pos.edit",
+    "pos.admin"
+  ],
+  "routes": [
+    "/pos"
+  ],
+  "dependencies": [
+    "inventory",
+    "finance",
+    "restaurant"
+  ],
+  "featureFlags": [
+    "table-management",
+    "dine-in-billing",
+    "takeaway-delivery",
+    "kitchen-display-system",
+    "offline-sync",
+    "item-modifiers",
+    "discount-rules"
+  ]
+}

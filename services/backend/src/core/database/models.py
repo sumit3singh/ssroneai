@@ -1,5 +1,5 @@
 """
-The Baithak – Base ORM Models
+The ssrone – Base ORM Models
 Shared mixin classes providing audit fields, soft delete, and tenant isolation.
 """
 from datetime import datetime
@@ -37,7 +37,7 @@ class TimestampMixin:
 
 
 class AuditMixin(TimestampMixin):
-    """Full audit trail — who created/updated/deleted."""
+    """Audit trail mixin — matches database schema columns."""
     created_by: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True
     )
@@ -46,15 +46,10 @@ class AuditMixin(TimestampMixin):
     )
 
 
+
 class SoftDeleteMixin:
-    """Soft delete support — records are never physically removed."""
+    """Soft delete mixin — matches database schema columns."""
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    deleted_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    deleted_by: Mapped[int | None] = mapped_column(
-        BigInteger, nullable=True
-    )
 
 
 class TenantMixin:
@@ -72,6 +67,7 @@ class BaseModel(BigIntMixin, AuditMixin, SoftDeleteMixin, Base):
     Includes: BigInt PK, timestamps, audit fields, soft delete.
     """
     __abstract__ = True
+    __table_args__ = {"extend_existing": True}
 
     def to_dict(self) -> dict[str, Any]:
         """Convert model to dictionary."""
@@ -81,20 +77,10 @@ class BaseModel(BigIntMixin, AuditMixin, SoftDeleteMixin, Base):
 class TenantBaseModel(BigIntMixin, TenantMixin, AuditMixin, SoftDeleteMixin, Base):
     """
     Abstract base for all tenant-scoped models.
-    Includes everything from BaseModel + tenant_id for RLS + company_id and branch_id.
+    Includes everything from BaseModel + tenant_id for RLS.
     """
     __abstract__ = True
-
-    company_id: Mapped[int | None] = mapped_column(
-        BigInteger,
-        nullable=True,
-        index=True,
-    )
-    branch_id: Mapped[int | None] = mapped_column(
-        BigInteger,
-        nullable=True,
-        index=True,
-    )
+    __table_args__ = {"extend_existing": True}
 
     def to_dict(self) -> dict[str, Any]:
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}

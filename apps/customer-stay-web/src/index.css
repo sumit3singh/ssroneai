@@ -285,3 +285,13 @@
     animation-delay: 0.5s;
   }
 }
+
+html {
+  scroll-behavior: smooth;
+  text-rendering: optimizeSpeed;
+  -webkit-font-smoothing: antialiased;
+}
+
+img, svg {
+  content-visibility: auto;
+}

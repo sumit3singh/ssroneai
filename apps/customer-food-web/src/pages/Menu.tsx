@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Menu as MenuIcon, ShoppingBag, Home } from "lucide-react";
-import { fetchMenuItems } from "@/services/api";
+import { Menu as MenuIcon, ShoppingBag, Home, Store, ChevronDown, MapPin } from "lucide-react";
+import { fetchMenuItems, type BranchInfo } from "@ssrone/api-client";
 import { menuItems as defaultMockItems } from "@/data/mockMenu";
 import { useCartStore } from "@/stores/cartStore";
 import { useI18n } from "@/stores/i18nStore";
@@ -12,47 +12,76 @@ import ItemDetailModal from "@/components/ItemDetailModal";
 import CartSheet from "@/components/CartSheet";
 import LanguageToggle from "@/components/LanguageToggle";
 import { FoodParticleLayer, useFoodParticles } from "@/components/FoodParticles";
+import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
 import type { MenuItem } from "@/data/mockMenu";
 import type { CartItemVariant, CartItemAddon } from "@/stores/cartStore";
+import BranchSwitchDialog from "@/components/BranchSwitchDialog";
 
 const MenuPage = () => {
-  const { tableNumber } = useParams();
   const navigate = useNavigate();
+  const { tenantSlug, branchCode, tableNumber, isTableMode, branches, switchBranch } = useTenantBranchContext();
   const { t } = useI18n();
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [vegOnly, setVegOnly] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [menuItemsList, setMenuItemsList] = useState<MenuItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
-  const [menuItemsList, setMenuItemsList] = useState<MenuItem[]>(defaultMockItems);
+  const [pendingBranch, setPendingBranch] = useState<BranchInfo | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+
+  const activeBranch = (branches || []).find((b) => b?.code === branchCode);
+
+  const handleBranchSelectAttempt = (newCode: string) => {
+    if (newCode === branchCode) return;
+    const target = (branches || []).find((b) => b?.code === newCode);
+    if (target) {
+      setPendingBranch(target);
+      setIsConfirmOpen(true);
+    }
+  };
+
+  const handleConfirmBranchSwitch = () => {
+    if (pendingBranch) {
+      switchBranch(pendingBranch.code);
+    }
+    setIsConfirmOpen(false);
+    setPendingBranch(null);
+  };
 
   const addItem = useCartStore((s) => s.addItem);
-  const itemCount = useCartStore((s) => s.getItemCount());
+  const items = useCartStore((s) => s.items || []);
+  const itemCount = (items || []).reduce((acc, item) => acc + (item?.quantity || 0), 0);
   const { particles, burst } = useFoodParticles();
 
   useEffect(() => {
-    fetchMenuItems().then((data) => {
-      if (data && data.length > 0) {
-        setMenuItemsList(data);
-      }
-    }).catch(err => console.error("Failed to load menu items", err));
-  }, []);
+    fetchMenuItems(branchCode).then((data) => {
+      setMenuItemsList(Array.isArray(data) ? data : []);
+    }).catch(() => {
+      setMenuItemsList([]);
+    });
+  }, [branchCode]);
 
   const filteredItems = useMemo(() => {
-    let items = menuItemsList;
+    let items = (menuItemsList || []).filter(Boolean);
 
     if (selectedCategory !== "all") {
-      items = items.filter((i) => i.categoryId === selectedCategory);
+      items = items.filter((i) => {
+        const catId = i.categoryId ?? (i as any).category_id;
+        return String(catId) === String(selectedCategory);
+      });
     }
     if (vegOnly) {
-      items = items.filter((i) => i.isVeg);
+      items = items.filter((i) => Boolean(i.isVeg || (i as any).is_veg));
     }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       items = items.filter(
-        (i) => i.name.toLowerCase().includes(q) || i.description.toLowerCase().includes(q)
+        (i) =>
+          (i.name || "").toLowerCase().includes(q) ||
+          (i.description || "").toLowerCase().includes(q)
       );
     }
     return items;
@@ -85,15 +114,33 @@ const MenuPage = () => {
               <MenuIcon className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
             <button
-              onClick={() => navigate(tableNumber ? `/order/table/${tableNumber}` : "/")}
+              onClick={() => navigate(`/t/${tenantSlug}/b/${branchCode}${tableNumber ? `/table/${tableNumber}` : ''}`)}
               className="p-1 sm:p-1.5 rounded-full hover:bg-muted transition flex-shrink-0"
               aria-label="Home"
             >
               <Home className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
             </button>
             <div className="min-w-0 flex-1">
-              <h1 className="font-display text-xs sm:text-lg font-bold leading-tight truncate">{t("app.name")}</h1>
-              <p className="text-[9px] sm:text-xs text-muted-foreground truncate">Table {tableNumber || "—"} · {t("misc.dineIn")}</p>
+              <h1 className="font-display text-xs sm:text-lg font-bold leading-tight truncate">{activeBranch?.name || t("app.name")}</h1>
+              <div className="flex items-center gap-1 text-[9px] sm:text-xs text-muted-foreground truncate">
+                <span>{isTableMode ? `Table ${tableNumber}` : t("misc.dineIn")}</span>
+                <span>·</span>
+                <div className="relative inline-flex items-center bg-muted/60 hover:bg-muted px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-semibold cursor-pointer">
+                  <MapPin className="w-3 h-3 text-primary mr-1 flex-shrink-0" />
+                  <select
+                    value={branchCode}
+                    onChange={(e) => handleBranchSelectAttempt(e.target.value)}
+                    className="bg-transparent text-foreground focus:outline-none cursor-pointer appearance-none pr-3"
+                  >
+                    {(branches || []).map((b) => (
+                      <option key={b.code} value={b.code} className="bg-popover text-popover-foreground">
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3 h-3 text-muted-foreground absolute right-0.5 pointer-events-none" />
+                </div>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -130,6 +177,7 @@ const MenuPage = () => {
           onVegToggle={setVegOnly}
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
+          branchCode={branchCode}
         />
 
         {/* Menu Grid */}
@@ -217,6 +265,18 @@ const MenuPage = () => {
 
       {/* Cart Sheet */}
       <CartSheet isOpen={cartOpen} onClose={() => setCartOpen(false)} />
+
+      {/* Confirmation Dialog on Branch Change */}
+      <BranchSwitchDialog
+        isOpen={isConfirmOpen}
+        targetBranch={pendingBranch}
+        currentBranchName={activeBranch?.name || branchCode}
+        onConfirm={handleConfirmBranchSwitch}
+        onCancel={() => {
+          setIsConfirmOpen(false);
+          setPendingBranch(null);
+        }}
+      />
     </div>
   );
 };

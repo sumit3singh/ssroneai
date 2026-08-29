@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Check, Sparkles, X, CreditCard, Clipboard, Landmark, ShieldCheck, User } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@ssrone/ui/customer";
 
 const rooms = [
   {

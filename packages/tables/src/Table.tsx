@@ -1,10 +1,10 @@
 import React from "react";
-import { cn } from "@ssr-one-ai/utils";
+import { cn } from "@ssrone/utils";
 
 export const Table: React.FC<React.TableHTMLAttributes<HTMLTableElement>> = ({ className, children, ...props }) => {
     return (
-        <div className="w-full overflow-x-auto rounded-lg border border-slate-200">
-            <table className={cn("w-full text-left text-sm text-slate-600", className)} {...props}>
+        <div className="w-full overflow-x-auto rounded-lg border border-border bg-card">
+            <table className={cn("w-full text-left text-xs text-foreground font-sans", className)} {...props}>
                 {children}
             </table>
         </div>
@@ -12,25 +12,25 @@ export const Table: React.FC<React.TableHTMLAttributes<HTMLTableElement>> = ({ c
 };
 
 export const TableHeader: React.FC<React.HTMLAttributes<HTMLTableSectionElement>> = ({ className, children, ...props }) => (
-    <thead className={cn("bg-slate-50 text-xs uppercase text-slate-700 font-bold border-b border-slate-200", className)} {...props}>
+    <thead className={cn("bg-muted/60 text-[11px] font-mono font-bold uppercase tracking-wider text-muted-foreground border-b border-border", className)} {...props}>
         {children}
     </thead>
 );
 
 export const TableBody: React.FC<React.HTMLAttributes<HTMLTableSectionElement>> = ({ className, children, ...props }) => (
-    <tbody className={cn("divide-y divide-slate-100 bg-white", className)} {...props}>
+    <tbody className={cn("divide-y divide-border/60 bg-card", className)} {...props}>
         {children}
     </tbody>
 );
 
 export const TableRow: React.FC<React.HTMLAttributes<HTMLTableRowElement>> = ({ className, children, ...props }) => (
-    <tr className={cn("hover:bg-slate-50/50 transition-colors", className)} {...props}>
+    <tr className={cn("hover:bg-muted/40 transition-colors", className)} {...props}>
         {children}
     </tr>
 );
 
 export const TableCell: React.FC<React.TdHTMLAttributes<HTMLTableCellElement>> = ({ className, children, ...props }) => (
-    <td className={cn("px-4 py-3 align-middle", className)} {...props}>
+    <td className={cn("px-3 py-2 align-middle font-medium text-xs text-foreground", className)} {...props}>
         {children}
     </td>
 );

@@ -2,7 +2,7 @@
  * PG Management API Service
  * Endpoint wrappers for PostgreSQL backend endpoints.
  */
-import { api } from "@/shared/utils/api-client";
+import { api } from "@ssrone/api-client";
 
 export const pgApi = {
   getResidents: (branchId?: string | number) =>

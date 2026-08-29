@@ -36,6 +36,10 @@ from src.modules.pg_management.models import (  # noqa: F401
     PGBed, PGFloor, PGRentRecord, PGResident, PGRoom, PGVisitorLog,
 )
 from src.modules.restaurant.router import RestaurantTable, KDSStation  # noqa: F401
+from src.modules.restaurant.models import (  # noqa: F401
+    MenuCategory, MenuTag, MenuItemTag, MenuItem,
+    MenuVariantGroup, MenuVariantOption, MenuAddonGroup, MenuAddonOption,
+)
 from src.shared.config import get_settings
 
 settings_obj = get_settings()

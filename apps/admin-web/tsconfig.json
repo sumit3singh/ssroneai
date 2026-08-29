@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "../../packages/config/tsconfig.base.json",
   "compilerOptions": {
     "target": "ES2022",
     "useDefineForClassFields": true,
@@ -25,14 +25,23 @@
       "@/*": [
         "./src/*"
       ],
-      "@ssr-one-ai/types": [
+      "@ssrone/types": [
         "../../packages/types/src/index.ts"
       ],
-      "@ssr-one-ai/api-client": [
+      "@ssrone/api-client": [
         "../../packages/api-client/src/index.ts"
       ],
-      "@ssr-one-ai/ui": [
+      "@ssrone/ui": [
         "../../packages/ui/src/index.ts"
+      ],
+      "@ssrone/navigation": [
+        "../../packages/navigation/src/index.ts"
+      ],
+      "@ssrone/forms": [
+        "../../packages/forms/src/index.ts"
+      ],
+      "@ssrone/charts": [
+        "../../packages/charts/src/index.ts"
       ]
     }
   },

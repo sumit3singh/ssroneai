@@ -1,7 +1,7 @@
 /**
  * Inventory API Client
  */
-import { api } from "@/shared/utils/api-client";
+import { api } from "@ssrone/api-client";
 import { StockItem } from "../types";
 
 export const inventoryApi = {

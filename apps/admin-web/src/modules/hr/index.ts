@@ -1,3 +1,13 @@
-// Public module exports for the enterprise feature module pattern
-export { HRPage } from "./HRPage";
-
+export * from "./types/hr.types";
+export * from "./services/hr.service";
+export * from "./components/HRStatGrid";
+export * from "./components/EmployeeCard";
+export * from "./components/AddEmployeeModal";
+export * from "./pages/dashboard/HRDashboardPage";
+export * from "./pages/dashboard/HRPage";
+export * from "./pages/master/EmployeeDirectoryPage";
+export * from "./pages/master/DepartmentMasterPage";
+export * from "./pages/master/DesignationMasterPage";
+export * from "./pages/transaction/AttendancePunchPage";
+export * from "./pages/transaction/PayrollGenerationPage";
+export * from "./pages/report/SalarySlipReportPage";

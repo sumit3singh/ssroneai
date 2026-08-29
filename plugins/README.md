@@ -1,11 +1,14 @@
-# SSR One AI — Plugin Ecosystem
+# SSR One AI – Plugin Ecosystem Directory (`plugins/`)
 
-This directory contains integration plugins connecting SSR One AI to external service providers and enterprise tools.
+## Architecture
+The `plugins/` directory houses modular, hot-pluggable extensions that extend the core ERP capabilities without modifying the core codebase.
 
-## Supported Plugin Categories
+## Available Plugins
+1. **`plugins/spa`**: Spa & Wellness Appointment Booking, Therapist Schedules, Treatment Rooms.
+2. **`plugins/banquet`**: Event Hall Reservations, Wedding/Conference Catering, Layout Management.
+3. **`plugins/laundry`**: Guest Laundry Tracking, Garment Tagging, Dry Cleaning Billing.
+4. **`plugins/parking`**: Valet Parking, Vehicle Tracking, Automated Slot Allocation.
+5. **`plugins/franchise`**: Multi-unit Franchise Management, Royalty Fee Reporting, Global Menu Pushes.
 
-* `payment/` — Payment gateways (Razorpay, Stripe, PhonePe, Paytm).
-* `gst/` — E-invoicing, E-way bill & GST tax filing integration connectors.
-* `sms/` — SMS gateways (Twilio, MSG91, Kaleyra).
-* `email/` — Transactional & marketing email providers (SendGrid, AWS SES, Mailgun).
-* `whatsapp/` — Meta WhatsApp Business API integration.
+## Licensing & Entitlement
+Plugins are dynamically enabled per tenant via Database Subscription Feature Flags (`platform/licensing`).

@@ -1,11 +1,12 @@
 """
-The Baithak – Inventory Module
+The ssrone – Inventory Module
 Product catalog, stock management, transfers, adjustments, low-stock alerts.
 """
+from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import BigInteger, Boolean, Date, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -131,3 +132,23 @@ class StockMovement(TenantBaseModel):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     batch_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     expiry_date: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+
+class ProductionBatch(TenantBaseModel):
+    """Daily Production Batch Logs for Inventory & Production FEFO Tracking."""
+    __tablename__ = "production_batches"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "batch_number", name="uq_tenant_prod_batch"),
+        {"extend_existing": True},
+    )
+
+    batch_number: Mapped[str] = mapped_column(String(50), nullable=False)
+    item_type: Mapped[str] = mapped_column(String(50), default="FOOD", nullable=False)  # FOOD, SWEET, BAKERY, INGREDIENT
+    item_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    quantity_produced: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)
+    unit: Mapped[str] = mapped_column(String(20), default="KG", nullable=False)
+    production_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    expiry_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    chef_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="COMPLETED", nullable=False)
+

@@ -1,5 +1,5 @@
 """
-The Baithak – Event Bus Engine
+The ssrone – Event Bus Engine
 Redis Pub/Sub event broadcasting for decoupled domain communication.
 Emits structured events like OrderCreated, RoomCheckedIn, RentPastDue.
 """
@@ -58,9 +58,9 @@ class EventBus:
     Publish events to channels; subscribers receive and handle them.
     """
 
-    CHANNEL_PREFIX = "baithak:events"
-    GLOBAL_CHANNEL = "baithak:events:all"
-    STORE_KEY_PREFIX = "baithak:event_store"
+    CHANNEL_PREFIX = "ssrone:events"
+    GLOBAL_CHANNEL = "ssrone:events:all"
+    STORE_KEY_PREFIX = "ssrone:event_store"
 
     def __init__(self) -> None:
         self._handlers: dict[str, list[EventHandler]] = {}

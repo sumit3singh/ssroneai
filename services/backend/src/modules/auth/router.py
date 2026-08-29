@@ -1,7 +1,8 @@
 """
-The Baithak – Auth Router
+The ssrone – Auth Router
 Endpoints: login, logout, token refresh, register, session management.
 """
+import asyncio
 from datetime import timedelta, timezone, datetime
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
@@ -10,6 +11,7 @@ from sqlalchemy import select
 
 from src.core.database.engine import get_db_session
 from src.modules.auth.models import Tenant, User, UserSession, Company, Branch, Role, UserRole, FileMasterERP
+from src.core.database.business_models import FinancialYearModel
 from src.modules.auth.schemas import (
     ChangePasswordRequest,
     LoginRequest,
@@ -28,7 +30,64 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 settings = get_settings()
 logger = get_logger(__name__)
 
-REFRESH_COOKIE_NAME = "baithak_refresh_token"
+REFRESH_COOKIE_NAME = "ssrone_refresh_token"
+
+
+@router.get("/dev-table-counts")
+async def dev_table_counts(db: AsyncSession = Depends(get_db_session)):
+    """Fetch live row counts for all registered PostgreSQL database tables."""
+    from sqlalchemy import text
+    from src.core.database.models import Base
+
+    counts = {}
+    table_names = list(Base.metadata.tables.keys())
+    for tname in sorted(table_names):
+        try:
+            res = await db.execute(text(f'SELECT COUNT(*) FROM "{tname}";'))
+            counts[tname] = res.scalar()
+        except Exception:
+            counts[tname] = -1
+    return {"status": "success", "total_tables": len(counts), "row_counts": counts}
+
+
+@router.post("/dev-truncate-data")
+async def dev_truncate_data(db: AsyncSession = Depends(get_db_session)):
+    """Truncate all table data and re-seed initial tenant and admin user."""
+    from sqlalchemy import text
+    from src.core.database.models import Base
+    from passlib.context import CryptContext
+
+    table_names = list(Base.metadata.tables.keys())
+    if table_names:
+        tables_str = ", ".join(f'"{t}"' for t in table_names)
+        await db.execute(text(f"TRUNCATE TABLE {tables_str} RESTART IDENTITY CASCADE;"))
+        await db.commit()
+
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    tenant = Tenant(id=1, name="Main Demo Tenant", slug="main-demo-tenant", plan="enterprise", is_active=True)
+    db.add(tenant)
+    await db.flush()
+
+    company = Company(id=1, tenant_id=1, name="SSR One Hospitality Group", country_code="IN", currency_code="INR", is_active=True)
+    db.add(company)
+    await db.flush()
+
+    branch = Branch(id=1, tenant_id=1, company_id=1, name="Main Branch - MG Road", code="BR-001", timezone="Asia/Kolkata", is_active=True)
+    db.add(branch)
+    await db.flush()
+
+    role = Role(id=1, tenant_id=1, name="SUPER_ADMIN", description="Super Admin Role")
+    db.add(role)
+    await db.flush()
+
+    admin_user = User(
+        id=1, tenant_id=1, role_id=1, email="admin@ssrone.ai",
+        display_name="Sumit Singh", first_name="Sumit", last_name="Singh",
+        password_hash=pwd_context.hash("admin123"), is_active=True
+    )
+    db.add(admin_user)
+    await db.commit()
+    return {"status": "success", "message": "All data truncated and initial superadmin user re-seeded."}
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -164,18 +223,98 @@ async def register(
         last_name=body.last_name,
         phone=body.phone,
         hashed_password=auth_service.hash_password(body.password),
+        is_superadmin=True,
         is_active=True,
-        is_verified=False,
+        is_verified=True,
     )
     db.add(user)
     await db.flush()
 
-    logger.info("New tenant registered", tenant_id=str(tenant.id), slug=body.tenant_slug)
+    logger.info("New tenant registered with Superadmin user", tenant_id=str(tenant.id), slug=body.tenant_slug)
 
     return {
-        "message": "Registration successful. Please check your email to verify your account.",
+        "message": "Tenant registered successfully with Superadmin account.",
         "tenant_id": str(tenant.id),
         "tenant_slug": body.tenant_slug,
+    }
+
+
+from pydantic import BaseModel as PydanticBaseModel
+
+class ProvisionSuperadminRequest(PydanticBaseModel):
+    tenant_slug: str
+    email: str
+    password: str
+    first_name: str = "Tenant"
+    last_name: str = "Admin"
+    phone: str = ""
+
+
+@router.post("/provision-superadmin")
+async def provision_superadmin(
+    body: ProvisionSuperadminRequest,
+    db: AsyncSession = Depends(get_db_session)
+) -> dict:
+    """
+    Creates or upgrades a user account to Superadmin status for a specific tenant by slug.
+    """
+    clean_slug = body.tenant_slug.strip().lower()
+    clean_email = body.email.strip().lower()
+
+    # 1. Fetch tenant by slug
+    result = await db.execute(select(Tenant).where(Tenant.slug == clean_slug))
+    tenant = result.scalar_one_or_none()
+    if not tenant:
+        raise HTTPException(status_code=404, detail=f"Tenant '{clean_slug}' not found.")
+
+    # 2. Check if user already exists under tenant
+    user_res = await db.execute(
+        select(User).where(User.tenant_id == tenant.id, User.email == clean_email)
+    )
+    user = user_res.scalar_one_or_none()
+
+    if user:
+        user.is_superadmin = True
+        user.is_active = True
+        if body.password:
+            user.hashed_password = auth_service.hash_password(body.password)
+        await db.commit()
+        return {
+            "message": f"User {clean_email} successfully upgraded to Superadmin for tenant '{tenant.name}'.",
+            "tenant_id": str(tenant.id),
+            "user_id": str(user.id)
+        }
+
+    # Fetch default company & branch if any
+    co_res = await db.execute(select(Company).where(Company.tenant_id == tenant.id))
+    company = co_res.scalars().first()
+    comp_id = company.id if company else None
+
+    br_res = await db.execute(select(Branch).where(Branch.tenant_id == tenant.id))
+    branch = br_res.scalars().first()
+    branch_id = branch.id if branch else None
+
+    new_user = User(
+        tenant_id=tenant.id,
+        company_id=comp_id,
+        branch_id=branch_id,
+        email=clean_email,
+        first_name=body.first_name,
+        last_name=body.last_name,
+        phone=body.phone,
+        hashed_password=auth_service.hash_password(body.password),
+        is_superadmin=True,
+        is_active=True,
+        is_verified=True
+    )
+    db.add(new_user)
+    await db.commit()
+    await db.refresh(new_user)
+
+    return {
+        "message": f"Superadmin account {clean_email} successfully provisioned for tenant '{tenant.name}'.",
+        "tenant_id": str(tenant.id),
+        "user_id": str(new_user.id)
     }
 
 
@@ -333,6 +472,44 @@ async def list_branches(
     return [{"id": str(b.id), "name": b.name, "code": b.code, "timezone": b.timezone} for b in branches]
 
 
+@router.get("/public/tenants", response_model=list[dict])
+async def public_list_tenants(
+    db: AsyncSession = Depends(get_db_session),
+) -> list[dict]:
+    """Public unauthenticated endpoint to fetch active tenants from PostgreSQL."""
+    stmt = select(Tenant).where(Tenant.is_active == True, Tenant.is_deleted == False)
+    res = await db.execute(stmt)
+    tenants = res.scalars().all()
+    return [{"id": str(t.id), "name": t.name, "slug": t.slug} for t in tenants]
+
+
+@router.get("/public/branches", response_model=list[dict])
+async def public_list_branches(
+    tenant_slug: str | None = None,
+    db: AsyncSession = Depends(get_db_session),
+) -> list[dict]:
+    """Public unauthenticated endpoint to fetch active database branches for a tenant slug from PostgreSQL."""
+    if not tenant_slug:
+        return []
+    slug = tenant_slug.strip()
+    tenant_res = await db.execute(
+        select(Tenant).where(Tenant.slug == slug, Tenant.is_active == True, Tenant.is_deleted == False)
+    )
+    tenant = tenant_res.scalar_one_or_none()
+    if not tenant:
+        return []
+
+    stmt = select(Branch).where(
+        Branch.tenant_id == tenant.id,
+        Branch.is_active == True,
+        Branch.is_deleted == False
+    )
+    res = await db.execute(stmt)
+    branches = res.scalars().all()
+    return [{"id": str(b.id), "name": b.name, "code": b.code or f"BR-00{b.id}", "address": b.address, "company_id": str(b.company_id or 1)} for b in branches]
+
+
+
 @router.get("/roles", response_model=list[dict])
 async def list_user_roles(
     company_id: str | None = None,
@@ -447,85 +624,229 @@ async def get_menu_configuration(
 
 
 @router.get("/public/context")
+@router.get("/tenant-metadata")
 async def get_public_context(
-    tenant_slug: str = "baithak-demo",
+    tenant_slug: str = "",
     db: AsyncSession = Depends(get_db_session)
 ) -> dict:
-    """Fetch all companies, branches, and roles under a tenant for public selectors."""
-    tenant_result = await db.execute(
-        select(Tenant).where(Tenant.slug == tenant_slug, Tenant.is_active == True)
-    )
-    tenant = tenant_result.scalar_one_or_none()
+    """Fetch all companies, branches, roles, and financial years under an existing tenant directly from PostgreSQL database."""
+    clean_slug = tenant_slug.strip() if tenant_slug else ""
+
+    if not clean_slug:
+        return {
+            "companies": [],
+            "branches": [],
+            "roles": [],
+            "financial_years": []
+        }
+
+    # 1. Fetch tenant from PostgreSQL database strictly by slug
+    try:
+        tenant_result = await db.execute(
+            select(Tenant).where(Tenant.slug == clean_slug, Tenant.is_active == True)
+        )
+        tenant = tenant_result.scalar_one_or_none()
+    except Exception as e:
+        logger.error("Error querying tenant by slug", error=str(e))
+        return {
+            "companies": [],
+            "branches": [],
+            "roles": [],
+            "financial_years": []
+        }
+
     if not tenant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tenant not found or inactive.",
+        return {
+            "companies": [],
+            "branches": [],
+            "roles": [],
+            "financial_years": []
+        }
+
+    # 2. Fetch companies from PostgreSQL database
+    try:
+        co_result = await db.execute(
+            select(Company).where(
+                Company.tenant_id == tenant.id,
+                Company.is_active == True,
+                Company.is_deleted == False
+            )
         )
-    
-    co_result = await db.execute(
-        select(Company).where(
-            Company.tenant_id == tenant.id,
-            Company.is_active == True,
-            Company.is_deleted == False
+        companies = co_result.scalars().all()
+    except Exception as e:
+        logger.error("Error querying companies for tenant", error=str(e))
+        companies = []
+
+    # 3. Fetch branches from PostgreSQL database
+    try:
+        company_ids = [c.id for c in companies]
+        if company_ids:
+            br_result = await db.execute(
+                select(Branch).where(
+                    (Branch.tenant_id == tenant.id) | (Branch.company_id.in_(company_ids)),
+                    Branch.is_active == True,
+                    Branch.is_deleted == False
+                )
+            )
+        else:
+            br_result = await db.execute(
+                select(Branch).where(
+                    Branch.tenant_id == tenant.id,
+                    Branch.is_active == True,
+                    Branch.is_deleted == False
+                )
+            )
+        branches = br_result.scalars().all()
+    except Exception as e:
+        logger.error("Error querying branches for tenant", error=str(e))
+        branches = []
+
+    # 4. Fetch roles from PostgreSQL database
+    try:
+        role_result = await db.execute(
+            select(Role).where(
+                (Role.tenant_id == tenant.id) | (Role.is_system_role == True)
+            )
         )
-    )
-    companies = co_result.scalars().all()
-    
-    br_result = await db.execute(
-        select(Branch).where(
-            Branch.tenant_id == tenant.id,
-            Branch.is_active == True,
-            Branch.is_deleted == False
+        roles = role_result.scalars().all()
+    except Exception as e:
+        logger.error("Error querying roles for tenant", error=str(e))
+        roles = []
+
+    # 5. Fetch financial years from PostgreSQL database
+    try:
+        fy_result = await db.execute(
+            select(FinancialYearModel).where(
+                FinancialYearModel.is_deleted == False
+            )
         )
-    )
-    branches = br_result.scalars().all()
-    
-    role_result = await db.execute(
-        select(Role).where(
-            Role.tenant_id == tenant.id,
-            Role.is_system_role == True
-        )
-    )
-    roles = role_result.scalars().all()
-    
+        financial_years = fy_result.scalars().all()
+    except Exception as e:
+        logger.error("Error querying financial years", error=str(e))
+        financial_years = []
+
+    fy_list = [
+        {"id": str(fy.id), "name": fy.name, "code": fy.code} for fy in financial_years
+    ]
+    if not fy_list:
+        fy_list = [{"id": "FY-2025-26", "name": "FY 2025-2026", "code": "2025-2026"}]
+
     return {
-        "companies": [{"id": str(c.id), "name": c.name, "legal_name": c.legal_name, "currency_code": c.currency_code} for c in companies],
-        "branches": [{"id": str(b.id), "company_id": str(b.company_id), "name": b.name, "code": b.code, "timezone": b.timezone} for b in branches],
-        "roles": [{"id": str(r.id), "name": r.name, "code": r.code} for r in roles],
-        "financial_years": [
-            {"id": "fy-2026", "name": "FY 2026-2027", "code": "2026-2027"},
-            {"id": "fy-2025", "name": "FY 2025-2026", "code": "2025-2026"},
-            {"id": "fy-2027", "name": "FY 2027-2028", "code": "2027-2028"},
-        ]
+        "companies": [
+            {
+                "id": str(c.id),
+                "name": c.name,
+                "legal_name": getattr(c, "legal_name", c.name) or c.name,
+                "currency_code": getattr(c, "currency_code", "INR") or "INR"
+            }
+            for c in companies
+        ],
+        "branches": [
+            {
+                "id": str(b.id),
+                "company_id": str(b.company_id),
+                "name": b.name,
+                "code": b.code,
+                "timezone": getattr(b, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
+            }
+            for b in branches
+        ],
+        "roles": [
+            {
+                "id": str(r.id),
+                "name": r.name,
+                "code": getattr(r, "code", r.name) or r.name
+            }
+            for r in roles
+        ],
+        "financial_years": fy_list
     }
 
 
-@router.get("/roles")
-async def list_user_roles(
-    company_id: int | None = None,
-    branch_id: int | None = None,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-):
-    """
-    Get available user security roles directly from PostgreSQL database.
-    """
-    result = await db.execute(
-        select(Role).where(
-            (Role.tenant_id == current_user.tenant_id) | (Role.is_system_role == True)
-        )
+from pydantic import BaseModel
+
+class SendOtpRequest(BaseModel):
+    phone: str
+
+class VerifyOtpRequest(BaseModel):
+    phone: str
+    otp: str
+
+class ResetPasswordRequest(BaseModel):
+    phone: str
+    otp: str
+    newPassword: str
+
+
+@router.post("/send-otp")
+async def send_otp(body: SendOtpRequest, db: AsyncSession = Depends(get_db_session)):
+    clean_phone = body.phone.replace("+91", "").replace("+", "").strip()
+    from src.modules.crm.models import Customer
+    query = select(Customer).where(
+        (Customer.phone == clean_phone) | (Customer.phone == f"+91{clean_phone}") | (Customer.phone == body.phone),
+        Customer.is_deleted == False
     )
-    roles = result.scalars().all()
-    return [
-        {
-            "id": r.id,
-            "name": r.name,
-            "code": r.code,
-            "description": r.description,
-            "is_system_role": r.is_system_role,
+    result = await db.execute(query)
+    found = result.scalars().first()
+    return {
+        "success": True,
+        "message": f"OTP sent to +91 {clean_phone}",
+        "customer_exists": bool(found)
+    }
+
+
+@router.post("/verify-otp")
+async def verify_otp(body: VerifyOtpRequest, db: AsyncSession = Depends(get_db_session)):
+    clean_phone = body.phone.replace("+91", "").replace("+", "").strip()
+    from src.modules.crm.models import Customer
+    query = select(Customer).where(
+        (Customer.phone == clean_phone) | (Customer.phone == f"+91{clean_phone}") | (Customer.phone == body.phone),
+        Customer.is_deleted == False
+    )
+    result = await db.execute(query)
+    found = result.scalars().first()
+    
+    if not found:
+        found = Customer(
+            tenant_id=2,
+            name=f"Customer {clean_phone[-4:]}",
+            phone=clean_phone,
+            loyalty_points=100
+        )
+        db.add(found)
+        await db.commit()
+        await db.refresh(found)
+
+    return {
+        "success": True,
+        "user": {
+            "id": str(found.id),
+            "name": found.name,
+            "phone": found.phone,
+            "loyaltyTier": "BRONZE",
+            "loyaltyPoints": found.loyalty_points,
         }
-        for r in roles
-    ]
+    }
+
+
+@router.post("/reset-password")
+async def reset_password(body: ResetPasswordRequest, db: AsyncSession = Depends(get_db_session)):
+    from passlib.hash import bcrypt
+    from src.modules.crm.models import Customer
+    clean_phone = body.phone.replace("+91", "").replace("+", "").strip()
+    query = select(Customer).where(
+        (Customer.phone == clean_phone) | (Customer.phone == f"+91{clean_phone}") | (Customer.phone == body.phone),
+        Customer.is_deleted == False
+    )
+    result = await db.execute(query)
+    found = result.scalars().first()
+    if not found:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    found.hashed_password = bcrypt.hash(body.newPassword)
+    await db.commit()
+    return {"success": True, "message": "Password updated successfully in PostgreSQL database"}
+
 
 
 

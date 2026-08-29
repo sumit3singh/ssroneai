@@ -1,5 +1,5 @@
 /**
- * The Baithak – App Providers
+ * The ssrone – App Providers
  * Wraps the app with QueryClient, Theme, and Toast providers.
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

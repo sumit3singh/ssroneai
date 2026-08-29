@@ -1,10 +1,10 @@
 """
-Tests for The Baithak Tax Engine.
+Tests for The ssrone Tax Engine.
 """
 from decimal import Decimal
 import pytest
 
-from src.core.tax_engine.engine import (
+from src.engines.tax.engine import (
     TaxCalculationMethod, TaxEngine,
     gst_18_intrastate, gst_5_intrastate, gst_exempt,
 )

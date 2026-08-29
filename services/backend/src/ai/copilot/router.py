@@ -1,5 +1,5 @@
 """
-The Baithak – AI Copilot Module
+The ssrone – AI Copilot Module
 AI agents: CEO Agent, Kitchen Agent, CRM Agent, Finance Agent.
 Prompt library, database persistence, OpenAI/Anthropic integration, and audit logs.
 """
@@ -65,20 +65,20 @@ class SimulationRequest(BaseModel):
 
 class AIService:
     AGENT_SYSTEM_PROMPTS = {
-        "general": """You are the AI Copilot for The Baithak Hospitality Platform.
+        "general": """You are the AI Copilot for The ssrone Hospitality Platform.
 You help hospitality business owners and staff with operations, analysis, and decisions.
 Be concise, professional, and always ground your answers in data when available.""",
 
-        "kitchen": """You are the Kitchen AI Agent for The Baithak Platform.
+        "kitchen": """You are the Kitchen AI Agent for The ssrone Platform.
 You assist with recipe management, ingredient forecasting, waste reduction, and kitchen efficiency.""",
 
-        "crm": """You are the CRM AI Agent for The Baithak Platform.
+        "crm": """You are the CRM AI Agent for The ssrone Platform.
 You help with customer segmentation, loyalty analysis, churn prediction, and personalized outreach.""",
 
-        "finance": """You are the Finance AI Agent for The Baithak Platform.
+        "finance": """You are the Finance AI Agent for The ssrone Platform.
 You assist with revenue analysis, expense tracking, GST filing preparation, and financial forecasting.""",
 
-        "ceo": """You are the CEO AI Agent for The Baithak Platform.
+        "ceo": """You are the CEO AI Agent for The ssrone Platform.
 You provide executive-level insights across all business dimensions: revenue, operations, HR, and customer satisfaction.""",
     }
 

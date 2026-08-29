@@ -48,7 +48,7 @@ const About = () => {
             </h2>
             <div className="space-y-4 text-muted-foreground leading-relaxed">
               <p>
-                At The Baithak, we understand the importance of a
+                At SSR One AI, we understand the importance of a
                 comfortable and safe living environment. Our mission is to
                 provide a home-like atmosphere where students, professionals,
                 and guests can thrive.

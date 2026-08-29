@@ -1,5 +1,5 @@
 """
-The Baithak – Billing Module
+The ssrone – Billing Module
 Invoices, credit notes, receipts, payment tracking, GST returns.
 """
 from datetime import date, datetime
@@ -34,6 +34,7 @@ class InvoiceStatus(StrEnum):
 
 class Invoice(TenantBaseModel):
     __tablename__ = "invoices"
+    __table_args__ = {"extend_existing": True}
 
     invoice_number: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     invoice_type: Mapped[str] = mapped_column(String(30), default=InvoiceType.TAX_INVOICE)

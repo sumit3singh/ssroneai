@@ -1,5 +1,5 @@
 """
-The Baithak – Universal Communication Center Engine (UCCE)
+The ssrone – Universal Communication Center Engine (UCCE)
 Multi-channel notification dispatch: Email, SMS, WhatsApp, Push, Internal.
 Template engine with merge tags. Delivery audit ledger.
 """

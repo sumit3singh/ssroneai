@@ -1,9 +1,9 @@
 /**
- * The Baithak – Service Worker (sw.js)
+ * The ssrone – Service Worker (sw.js)
  * Caches static assets for offline POS operation.
  * Blueprint §7.1: Service Workers cache HTML/CSS/JS/icons.
  */
-const CACHE_NAME = "baithak-v1";
+const CACHE_NAME = "ssrone-v1";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

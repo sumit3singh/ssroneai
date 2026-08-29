@@ -1,5 +1,5 @@
 /**
- * The Baithak – Application Entry Point
+ * The ssrone – Application Entry Point
  */
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

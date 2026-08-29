@@ -3,14 +3,14 @@ export type Language = "en" | "hi";
 export const translations: Record<Language, Record<string, string>> = {
   en: {
     // General
-    "app.name": "The Baithak Cafe",
-    "app.tagline": "Powered by The Baithak Cafe ✨",
+    "app.name": "{name}",
+    "app.tagline": "Live Digital Ordering & Dining ✨",
     "app.loading": "Loading...",
 
     // Welcome
     "welcome.back": "Welcome back, {name}! 😍",
     "welcome.table": "Welcome to Table {table}!",
-    "welcome.general": "Welcome to The Baithak Cafe!",
+    "welcome.general": "Welcome to {name}!",
     "welcome.subtitle.table": "Scan & Order directly — fast, fun & delicious!",
     "welcome.subtitle.general": "Order in-table or for home delivery — easy & delicious!",
     "welcome.tableDetected": "🪑 Table {table} detected!",

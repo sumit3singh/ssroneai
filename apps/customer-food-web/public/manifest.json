@@ -1,16 +1,19 @@
 {
-  "name": "The Baithak Cafe",
   "short_name": "Baithak Cafe",
-  "description": "Order food online — dine-in or delivery",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#faf6f1",
-  "theme_color": "#f97316",
+  "name": "Baithak Cafe — Digital Dining & Ordering",
+  "description": "Order food online for dine-in table ordering or home delivery",
   "icons": [
     {
-      "src": "/favicon.ico",
-      "sizes": "64x64",
-      "type": "image/x-icon"
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512 192x192 64x64 32x32",
+      "purpose": "any maskable"
     }
-  ]
+  ],
+  "start_url": "/",
+  "background_color": "#faf6f1",
+  "theme_color": "#f97316",
+  "display": "standalone",
+  "orientation": "portrait",
+  "categories": ["food", "dining", "ordering", "lifestyle"]
 }

@@ -8,4 +8,4 @@ export * from "./services/pgService";
 export * from "./validators";
 export * from "./permissions";
 export * from "./routes";
-export { PGManagementPage } from "./PGManagementPage";
+export { PGManagementPage } from "./pages/dashboard/PGManagementPage";

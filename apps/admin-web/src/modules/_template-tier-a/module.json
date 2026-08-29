@@ -1,0 +1,18 @@
+{
+  "name": "_template-tier-a",
+  "tier": "A",
+  "version": "1.0.0",
+  "owner": "team-enterprise",
+  "permissions": [
+    "_template-tier-a.view",
+    "_template-tier-a.edit",
+    "_template-tier-a.admin"
+  ],
+  "routes": [
+    "/_template-tier-a"
+  ],
+  "dependencies": [],
+  "featureFlags": [
+    "_template-tier-a-enabled"
+  ]
+}

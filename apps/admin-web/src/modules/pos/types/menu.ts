@@ -4,6 +4,12 @@ export interface POSCategory {
   slug?: string;
   icon?: string;
   sort_order?: number;
+  parent_id?: number | null;
+  level?: number;
+  company_id?: number | null;
+  branch_id?: number | null;
+  tenant_id?: number;
+  is_deleted?: boolean;
 }
 
 export interface POSVariantOption {
@@ -27,6 +33,8 @@ export interface POSAddonOption {
   id: number | string;
   name: string;
   price: number;
+  variantPrices?: Record<string, number>;
+  variant_prices?: Record<string, number>;
   isAvailable?: boolean;
 }
 
@@ -43,6 +51,7 @@ export interface POSMenuItem {
   description: string;
   base_price: number;
   selling_price?: number;
+  packaging_charge?: number;
   image_url: string;
   is_veg: boolean;
   is_popular: boolean;

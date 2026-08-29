@@ -1,6 +1,6 @@
 import React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { cn } from "@ssr-one-ai/utils";
+import { cn } from "@ssrone/utils";
 
 interface SidebarFooterProps {
     isCollapsed: boolean;
@@ -25,32 +25,37 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({
     };
 
     return (
-        <div className="p-3 border-t border-border">
-            <button
-                type="button"
-                onClick={handleLogout}
-                className={cn(
-                    "flex items-center justify-between w-full rounded-2xl px-3 py-2 text-xs font-black transition-all",
-                    isCollapsed ? "bg-muted/40 text-muted-foreground" : "bg-primary/10 text-primary",
-                )}
-            >
-                {!isCollapsed ? (
-                    <>
-                        <div className="flex items-center gap-3">
-                            <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                                {userName.charAt(0)}
-                            </span>
-                            <div className="text-left">
-                                <p className="text-[11px] font-black text-foreground truncate">{userName}</p>
-                                <p className="text-[9px] uppercase tracking-[0.24em] text-muted-foreground">{userRole}</p>
-                            </div>
+        <div className="p-3 border-t border-border flex items-center justify-between gap-2">
+            {!isCollapsed ? (
+                <>
+                    <div className="flex items-center gap-2.5 overflow-hidden">
+                        <div className="h-8 w-8 rounded-xl bg-primary text-white flex items-center justify-center font-black text-xs shrink-0">
+                            {userName.charAt(0)}
                         </div>
-                        <ChevronLeft size={14} />
-                    </>
-                ) : (
+                        <div className="text-left overflow-hidden">
+                            <p className="text-2xs font-extrabold text-foreground truncate">{userName}</p>
+                            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider truncate">{userRole}</p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onToggleCollapse}
+                        title="Collapse Sidebar"
+                        className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-all border-none bg-transparent cursor-pointer"
+                    >
+                        <ChevronLeft size={16} />
+                    </button>
+                </>
+            ) : (
+                <button
+                    type="button"
+                    onClick={onToggleCollapse}
+                    title="Expand Sidebar"
+                    className="w-full p-2 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-all border-none bg-transparent cursor-pointer flex justify-center"
+                >
                     <ChevronRight size={18} />
-                )}
-            </button>
+                </button>
+            )}
         </div>
     );
 };

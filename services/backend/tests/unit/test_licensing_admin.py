@@ -16,7 +16,7 @@ async def test_licensing_routes_as_superadmin():
     superadmin = User(
         id=1,
         tenant_id=1,
-        email="superadmin@baithak.com",
+        email="superadmin@ssrone.ai",
         first_name="Super",
         last_name="Admin",
         is_active=True,
@@ -129,7 +129,7 @@ async def test_licensing_routes_as_regular_user():
     regular_user = User(
         id=4,
         tenant_id=4,
-        email="user@baithak.com",
+        email="user@ssrone.ai",
         first_name="Regular",
         last_name="User",
         is_active=True,

@@ -1,5 +1,5 @@
 """
-The Baithak – Workflow Engine
+The ssrone – Workflow Engine
 Approval chain evaluator for purchase requests, leave approvals,
 vendor payments, and any multi-step document workflow.
 """

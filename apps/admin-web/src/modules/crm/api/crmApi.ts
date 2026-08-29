@@ -1,7 +1,7 @@
 /**
  * CRM API Client
  */
-import { api } from "@/shared/utils/api-client";
+import { api } from "@ssrone/api-client";
 import { CRMCustomer } from "../types";
 
 export const crmApi = {

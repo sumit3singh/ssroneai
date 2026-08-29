@@ -59,6 +59,7 @@ async def test_list_categories():
 async def test_create_category():
     mock_user = SimpleNamespace(tenant_id=1, id=10)
     mock_db = AsyncMock()
+    mock_db.add = MagicMock()
 
     body = CategoryCreateSchema(name="Pizzas", sort_order=2)
     with patch("src.modules.restaurant.router.MenuCategory") as mock_model:
@@ -85,6 +86,7 @@ async def test_delete_category_not_found():
 async def test_create_tag():
     mock_user = SimpleNamespace(tenant_id=1, id=10)
     mock_db = AsyncMock()
+    mock_db.add = MagicMock()
 
     body = MenuTagCreate(name="Bestseller", color="#ef4444")
     with patch("src.modules.restaurant.router.MenuTag") as mock_model:
@@ -226,6 +228,7 @@ async def test_addon_variant_pricing():
         description=None,
         short_description=None,
         base_price=200.0,
+        packaging_charge=10.0,
         image_url=None,
         images=[],
         product_id=None,
@@ -252,4 +255,117 @@ async def test_addon_variant_pricing():
     assert addon_opt["name"] == "Cheese Burst"
     assert addon_opt["price"] == 50.0
     assert addon_opt["variant_prices"] == {"Small": 50.0, "Full": 100.0}
+    assert res["packaging_charge"] == 10.0
+
+
+@pytest.mark.asyncio
+async def test_camel_case_pydantic_schema_validation():
+    """Verify frontend camelCase payloads parse cleanly into MenuItemCreateSchema."""
+    raw_payload = {
+        "categoryId": 2,
+        "name": "Special Chai",
+        "basePrice": 40.0,
+        "packagingCharge": 5.0,
+        "isVeg": True,
+        "variantGroups": [
+            {
+                "name": "Serving Size",
+                "isRequired": True,
+                "maxSelection": 1,
+                "options": [
+                    {"name": "Single Cup", "sellingPrice": 40.0},
+                    {"name": "Kulhad Chai", "sellingPrice": 60.0}
+                ]
+            }
+        ],
+        "addonGroups": [
+            {
+                "name": "Extras",
+                "options": [
+                    {"name": "Extra Elaichi", "price": 10.0, "variantPrices": {"Single Cup": 10.0}}
+                ]
+            }
+        ]
+    }
+    parsed = MenuItemCreateSchema.model_validate(raw_payload)
+    assert parsed.category_id == 2
+    assert parsed.name == "Special Chai"
+    assert parsed.base_price == 40.0
+    assert parsed.packaging_charge == 5.0
+    assert parsed.is_veg is True
+    assert len(parsed.variant_groups) == 1
+    assert parsed.variant_groups[0].is_required is True
+    assert parsed.variant_groups[0].options[0].selling_price == 40.0
+    assert parsed.addon_groups[0].options[0].variant_prices == {"Single Cup": 10.0}
+
+
+@pytest.mark.asyncio
+async def test_update_menu_item():
+    from src.modules.restaurant.router import update_menu_item
+    mock_user = SimpleNamespace(tenant_id=1, id=10)
+    mock_db = AsyncMock()
+    mock_db.add = MagicMock()
+
+    existing_item = SimpleNamespace(
+        id=1,
+        tenant_id=1,
+        branch_id=1,
+        category_id=1,
+        name="Chai",
+        description=None,
+        short_description=None,
+        base_price=20.0,
+        packaging_charge=0.0,
+        image_url=None,
+        images=[],
+        product_id=None,
+        kds_station="Beverages",
+        allergens=[],
+        nutrition={},
+        is_veg=True,
+        is_popular=False,
+        is_available=True,
+        gst_percent=5.0,
+        sort_order=1,
+        variant_groups_rel=[],
+        addon_groups_rel=[],
+        item_tags_rel=[],
+        variant_groups=[],
+        addon_groups=[],
+        tags=[]
+    )
+    mock_db.execute.side_effect = [DummyResult([existing_item]), DummyResult([existing_item])]
+
+    body = MenuItemCreateSchema(
+        category_id=1,
+        name="Masala Chai",
+        base_price=30.0,
+        packaging_charge=5.0,
+        variant_groups=[],
+        addon_groups=[]
+    )
+
+    res = await update_menu_item(item_id=1, body=body, current_user=mock_user, db=mock_db)
+    assert res.name == "Masala Chai"
+    assert mock_db.commit.called
+
+
+@pytest.mark.asyncio
+async def test_delete_menu_item():
+    from src.modules.restaurant.router import delete_menu_item
+    mock_user = SimpleNamespace(tenant_id=1, id=10)
+    mock_db = AsyncMock()
+
+    existing_item = SimpleNamespace(
+        id=1,
+        tenant_id=1,
+        is_deleted=False
+    )
+    mock_db.execute.return_value = DummyResult([existing_item])
+
+    res = await delete_menu_item(item_id=1, current_user=mock_user, db=mock_db)
+    assert res["message"] == "Menu item deleted successfully"
+    assert existing_item.is_deleted is True
+    assert mock_db.commit.called
+
 

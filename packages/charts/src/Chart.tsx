@@ -1,7 +1,7 @@
 import * as React from "react";
 import * as RechartsPrimitive from "recharts";
 
-import { cn } from "@ssr-one-ai/utils";
+import { cn } from "@ssronels";
 
 const THEMES = { light: "", dark: ".dark" } as const;
 
@@ -186,7 +186,7 @@ export const ChartTooltipContent = React.forwardRef<
                     {payload.map((item, index) => {
                         const key = `${nameKey || item.name || item.dataKey || "value"}`;
                         const itemConfig = getPayloadConfigFromPayload(config, item, key);
-                        const indicatorColor = color || item.payload.fill || item.color;
+                        const indicatorColor = color || item.payload?.fill || item.color;
                         const itemKey = item.dataKey != null ? String(item.dataKey) : item.name ?? index;
 
                         return (

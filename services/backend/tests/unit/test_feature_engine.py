@@ -247,7 +247,7 @@ async def test_listen_cache_invalidations():
     with patch("src.shared.redis_client.get_redis", mock_get_redis):
         with patch("src.engines.licensing.engine.cache._local_cache.delete_pattern", MagicMock()) as mock_delete:
             await listen_cache_invalidations()
-            mock_pubsub.subscribe.assert_called_once_with("baithak:licensing:cache_invalidation")
+            mock_pubsub.subscribe.assert_called_once_with("ssrone:licensing:cache_invalidation")
             mock_delete.assert_called_once_with("features:123:*")
 
 

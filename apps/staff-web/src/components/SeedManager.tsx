@@ -5,10 +5,10 @@ export default function SeedManager({ onClose }: { onClose: () => void }) {
     const [counts, setCounts] = useState({ products: 0, tables: 0, orders: 0, invoices: 0 });
 
     const refresh = () => {
-        const products = JSON.parse(localStorage.getItem('baithak_products') || '[]');
-        const tables = JSON.parse(localStorage.getItem('baithak_tables') || '[]');
-        const orders = JSON.parse(localStorage.getItem('baithak_orders') || '[]');
-        const invs = JSON.parse(localStorage.getItem('baithak_invoices') || '[]');
+        const products = JSON.parse(localStorage.getItem('ssrone_products') || '[]');
+        const tables = JSON.parse(localStorage.getItem('ssrone_tables') || '[]');
+        const orders = JSON.parse(localStorage.getItem('ssrone_orders') || '[]');
+        const invs = JSON.parse(localStorage.getItem('ssrone_invoices') || '[]');
         setCounts({ products: products.length, tables: tables.length, orders: orders.length, invoices: invs.length });
     };
 

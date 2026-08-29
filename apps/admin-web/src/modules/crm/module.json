@@ -1,0 +1,27 @@
+{
+  "name": "crm",
+  "tier": "A",
+  "minTier": "Starter",
+  "status": "stable",
+  "stability": "ga",
+  "license": ["starter", "professional", "enterprise"],
+  "deprecated": false,
+  "experimental": false,
+  "version": "2.1.0",
+  "owner": "team-enterprise",
+  "permissions": [
+    "crm.view",
+    "crm.edit",
+    "crm.admin"
+  ],
+  "routes": [
+    "/crm"
+  ],
+  "dependencies": [],
+  "featureFlags": [
+    "guest-profile",
+    "loyalty-tiers",
+    "visit-history",
+    "automated-sms"
+  ]
+}

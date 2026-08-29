@@ -13,6 +13,8 @@ export const posRoutes = {
   transaction: {
     root: "/pos/transaction",
     billing: "/pos/transaction/billing",
+    orders: "/pos/transaction/orders",
+    tables: "/pos/transaction/tables",
     kds: "/pos/transaction/kds",
     shift: "/pos/transaction/shift"
   },

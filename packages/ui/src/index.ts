@@ -1,17 +1,17 @@
 /**
- * SSR One AI – Enterprise Design System Barrel Export (@ssr-one-ai/ui)
+ * @ssrone/ui – Shared UI Component Library
  */
-export * from "./components/Button";
-export * from "./components/Input";
-export * from "./components/Badge";
-export * from "./components/Card";
-export * from "./components/Modal";
-export * from "./components/AIInsightCard";
-export * from "./components/KPICard";
-export * from "./components/Table";
-export * from "./theme/tokens";
-export * from "./utils/cn";
-export * from "./hooks/useLocalStorage";
+export { AIInsightCard } from "./components/AIInsightCard";
+export { Badge } from "./components/Badge";
+export { Button } from "./components/Button";
+export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "./components/Card";
+export { Input } from "./components/Input";
+export { Label } from "./components/Label";
+export { KPICard } from "./components/KPICard";
+export { Modal } from "./components/Modal";
+export { Table } from "./components/Table";
+export { Skeleton, SkeletonCard, SkeletonTable } from "./components/Skeleton";
+export { CommandPalette } from "./components/CommandPalette";
+export { FormRenderer } from "./components/FormRenderer";
 
-export * from "@ssr-one-ai/tables";
-export * from "@ssr-one-ai/charts";
+export { cn } from "./utils/cn";

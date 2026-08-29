@@ -23,7 +23,7 @@ async def get_redis_client() -> Redis:
     return redis_client
 
 
-def cache_response(ttl: int = 300, prefix: str = "baithak:cache"):
+def cache_response(ttl: int = 300, prefix: str = "ssrone:cache"):
     """Decorator for caching async function responses in Redis."""
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)

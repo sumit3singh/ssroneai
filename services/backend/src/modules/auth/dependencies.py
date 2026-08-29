@@ -1,5 +1,5 @@
 """
-The Baithak – Auth FastAPI Dependencies
+The ssrone – Auth FastAPI Dependencies
 get_current_user, get_current_tenant — inject into route handlers.
 """
 from fastapi import Depends, HTTPException, Request, status
@@ -152,4 +152,11 @@ async def get_optional_user(
     try:
         return await get_current_user(request, credentials, db)
     except Exception:
+        # Ensure RLS context is present even for unauthenticated requests (fallback tenant=1)
+        try:
+            from src.core.database.engine import set_rls_context
+            await set_rls_context(db, "1", None, is_superadmin=False)
+        except Exception:
+            # If setting RLS also fails, ignore and return None — caller should handle empty results.
+            logger.debug("Failed to set fallback RLS context for optional user")
         return None

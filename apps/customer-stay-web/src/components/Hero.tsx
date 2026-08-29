@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
+import { Button } from "@ssrone/ui/customer";
 import { Users, Star, Clock, Shield, Utensils, UserCheck } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 
@@ -31,7 +31,7 @@ const Hero = () => {
       >
         <img
           src={heroBg}
-          alt="The Baithak common area"
+          alt="The ssrone common area"
           className="w-full h-full object-cover"
           loading="eager"
           decoding="async"
@@ -63,7 +63,7 @@ const Hero = () => {
             transition={{ duration: 0.6, delay: 0.3 }}
             className="text-primary-foreground/80 font-medium mb-4"
           >
-            The Baithak
+            SSR One AI
           </motion.p>
 
           <motion.h1
@@ -92,7 +92,7 @@ const Hero = () => {
             transition={{ duration: 0.6, delay: 0.5 }}
             className="text-xl md:text-2xl text-primary-foreground/90 mb-4"
           >
-            Welcome to The Baithak stay experience
+            Welcome to SSR One AI stay experience
           </motion.p>
 
           <motion.p

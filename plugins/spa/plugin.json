@@ -1,0 +1,8 @@
+{
+  "id": "plugin-spa",
+  "name": "Spa & Wellness Management",
+  "version": "1.0.0",
+  "category": "Hospitality Extension",
+  "description": "Spa appointment scheduling, therapist commission tracking, and treatment room management.",
+  "status": "active"
+}

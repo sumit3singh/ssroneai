@@ -1,5 +1,5 @@
 """
-The Baithak – CRM Module
+The ssrone – CRM Module
 Customer profiles, loyalty wallet, tiers, campaigns, interaction history.
 """
 from datetime import date, datetime
@@ -24,41 +24,40 @@ class CustomerTier(StrEnum):
 class Customer(TenantBaseModel):
     __tablename__ = "customers"
 
-    branch_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    first_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    last_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    phone: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
-    date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
-    anniversary_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    gender: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    gstin: Mapped[str | None] = mapped_column(String(15), nullable=True)
+    company_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    branch_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    phone: Mapped[str] = mapped_column(String(30), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     address: Mapped[dict] = mapped_column(JSONB, default=dict)
-    tags: Mapped[list] = mapped_column(JSONB, default=list)
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    preferences: Mapped[dict] = mapped_column(JSONB, default=dict)
-
-    # Loyalty
-    loyalty_tier: Mapped[str] = mapped_column(String(20), default=CustomerTier.STANDARD)
+    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    pincode: Mapped[str | None] = mapped_column(String(20), nullable=True)
     loyalty_points: Mapped[int] = mapped_column(Integer, default=0)
-    wallet_balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
-    lifetime_spent: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
-    total_visits: Mapped[int] = mapped_column(Integer, default=0)
-    last_visit_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    referral_code: Mapped[str | None] = mapped_column(String(20), nullable=True, unique=True)
-    referred_by_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    # Consent (GDPR / DPDP)
-    marketing_consent: Mapped[bool] = mapped_column(Boolean, default=False)
-    sms_consent: Mapped[bool] = mapped_column(Boolean, default=False)
-    whatsapp_consent: Mapped[bool] = mapped_column(Boolean, default=False)
+    @property
+    def first_name(self) -> str:
+        return self.name.split(" ")[0] if self.name else ""
+
+    @property
+    def last_name(self) -> str:
+        parts = self.name.split(" ") if self.name else []
+        return " ".join(parts[1:]) if len(parts) > 1 else ""
 
     loyalty_transactions: Mapped[list["LoyaltyTransaction"]] = relationship(
-        "LoyaltyTransaction", back_populates="customer"
+        "LoyaltyTransaction",
+        primaryjoin="Customer.id == LoyaltyTransaction.customer_id",
+        back_populates="customer",
     )
     interactions: Mapped[list["CustomerInteraction"]] = relationship(
-        "CustomerInteraction", back_populates="customer"
+        "CustomerInteraction",
+        primaryjoin="Customer.id == CustomerInteraction.customer_id",
+        back_populates="customer",
+    )
+    customer_addresses: Mapped[list["CustomerAddress"]] = relationship(
+        "CustomerAddress",
+        primaryjoin="Customer.id == CustomerAddress.customer_id",
+        back_populates="customer",
     )
 
 
@@ -76,7 +75,32 @@ class LoyaltyTransaction(TenantBaseModel):
     reference_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     description: Mapped[str | None] = mapped_column(String(300), nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    customer: Mapped["Customer"] = relationship("Customer", back_populates="loyalty_transactions")
+    customer: Mapped["Customer"] = relationship(
+        "Customer",
+        primaryjoin="LoyaltyTransaction.customer_id == Customer.id",
+        back_populates="loyalty_transactions",
+    )
+
+
+class CustomerAddress(TenantBaseModel):
+    __tablename__ = "customer_addresses"
+
+    customer_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("customers.id"), nullable=False, index=True
+    )
+    label: Mapped[str] = mapped_column(String(50), default="Home")
+    flat_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    area_street: Mapped[str] = mapped_column(Text, nullable=False)
+    landmark: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    city: Mapped[str] = mapped_column(String(100), default="Mahendragarh")
+    state: Mapped[str | None] = mapped_column(String(100), default="Haryana")
+    pincode: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    customer: Mapped["Customer"] = relationship(
+        "Customer",
+        primaryjoin="CustomerAddress.customer_id == Customer.id",
+        back_populates="customer_addresses",
+    )
 
 
 class CustomerInteraction(TenantBaseModel):
@@ -94,7 +118,11 @@ class CustomerInteraction(TenantBaseModel):
     follow_up_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     is_resolved: Mapped[bool] = mapped_column(Boolean, default=False)
     handled_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    customer: Mapped["Customer"] = relationship("Customer", back_populates="interactions")
+    customer: Mapped["Customer"] = relationship(
+        "Customer",
+        primaryjoin="CustomerInteraction.customer_id == Customer.id",
+        back_populates="interactions",
+    )
 
 
 class Campaign(TenantBaseModel):

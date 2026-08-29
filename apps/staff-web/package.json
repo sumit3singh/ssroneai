@@ -1,5 +1,5 @@
 {
-  "name": "staff-web",
+  "name": "@ssrone/staff-web",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -9,6 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ssrone/api-client": "workspace:*",
+    "@ssrone/auth": "workspace:*",
+    "@ssrone/ui": "workspace:*",
     "axios": "^1.18.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.462.0",

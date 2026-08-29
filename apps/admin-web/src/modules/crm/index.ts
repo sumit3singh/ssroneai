@@ -3,5 +3,6 @@
  */
 export * from "./types";
 export * from "./constants";
+export * from "./domain/Guest";
 export * from "./api/crmApi";
-export { CRMPage } from "./CRMPage";
+export { CRMPage } from "./pages/dashboard/CRMPage";

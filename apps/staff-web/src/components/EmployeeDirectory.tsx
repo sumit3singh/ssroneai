@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { seedEmployees } from '@/utils/seedEmployees';
-import { getAuth } from '@/stores/auth';
-import { api, getAccessToken } from '@/shared/api-client';
+import { getAuth } from '@ssrone/auth';
+import { api, getAccessToken } from '@ssrone/api-client';
 
 export default function EmployeeDirectory({ onClose }: { onClose: () => void }) {
     const [employees, setEmployees] = useState<any[]>([]);
@@ -22,7 +22,7 @@ export default function EmployeeDirectory({ onClose }: { onClose: () => void }) 
                 }
             }
 
-            const raw = localStorage.getItem('baithak_employees');
+            const raw = localStorage.getItem('ssrone_employees');
             setEmployees(raw ? JSON.parse(raw) : []);
         };
         void fetch();

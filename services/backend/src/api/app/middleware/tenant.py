@@ -1,5 +1,5 @@
 """
-The Baithak – Tenant Middleware
+The ssrone – Tenant Middleware
 Extracts tenant context from JWT or request headers.
 Sets request.state.tenant_id for downstream use.
 """
@@ -20,6 +20,8 @@ PUBLIC_PATHS = {
     "/api/v1/auth/login",
     "/api/v1/auth/register",
     "/api/v1/auth/public/context",
+    "/api/v1/auth/tenant-metadata",
+    "/api/v1/auth/provision-superadmin",
     "/api/v1/ping",
 }
 

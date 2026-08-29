@@ -189,7 +189,7 @@ async def test_refresh_token_expired_session():
     
     app.dependency_overrides[get_db_session] = lambda: mock_db
     try:
-        cookies = {"baithak_refresh_token": "some-token"}
+        cookies = {"ssrone_refresh_token": "some-token"}
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post("/api/v1/auth/refresh", cookies=cookies)
             assert response.status_code == status.HTTP_401_UNAUTHORIZED
@@ -404,7 +404,7 @@ async def test_refresh_token_success():
     app.dependency_overrides[get_db_session] = lambda: mock_db
     try:
         with patch("src.modules.auth.service.auth_service.create_access_token", return_value="new-access-token"):
-            cookies = {"baithak_refresh_token": "some-token"}
+            cookies = {"ssrone_refresh_token": "some-token"}
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.post("/api/v1/auth/refresh", cookies=cookies)
                 assert response.status_code == status.HTTP_200_OK

@@ -1,0 +1,17 @@
+{
+  "name": "auth",
+  "tier": "B",
+  "version": "1.0.0",
+  "owner": "team-core",
+  "permissions": [
+    "auth.view",
+    "auth.admin"
+  ],
+  "routes": [
+    "/auth"
+  ],
+  "dependencies": [],
+  "featureFlags": [
+    "auth-enabled"
+  ]
+}

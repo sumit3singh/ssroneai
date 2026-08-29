@@ -1,0 +1,8 @@
+{
+  "id": "plugin-banquet",
+  "name": "Banquet & Event Management",
+  "version": "1.0.0",
+  "category": "Hospitality Extension",
+  "description": "Banquet hall booking, catering menus, event packages, and seating arrangements.",
+  "status": "active"
+}

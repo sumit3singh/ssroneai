@@ -1,0 +1,17 @@
+{
+  "name": "ai-copilot",
+  "tier": "B",
+  "version": "1.0.0",
+  "owner": "team-core",
+  "permissions": [
+    "ai-copilot.view",
+    "ai-copilot.admin"
+  ],
+  "routes": [
+    "/ai-copilot"
+  ],
+  "dependencies": [],
+  "featureFlags": [
+    "ai-copilot-enabled"
+  ]
+}

@@ -1,18 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "@ssrone/auth";
 import { categoriesApi } from "../api/categories.api";
 import { menuItemsApi } from "../api/menuItems.api";
 
 export const useMenu = () => {
   const queryClient = useQueryClient();
+  const selectedBranch = useAuthStore((s) => s.selected_branch);
+  const branchId = selectedBranch?.id;
 
   const categoriesQuery = useQuery({
-    queryKey: ["pos-categories"],
-    queryFn: categoriesApi.getCategories
+    queryKey: ["pos-categories", branchId],
+    queryFn: () => categoriesApi.getCategories(branchId)
   });
 
   const menuItemsQuery = useQuery({
-    queryKey: ["pos-menu-items"],
-    queryFn: menuItemsApi.getMenuItems
+    queryKey: ["pos-menu-items", branchId],
+    queryFn: () => menuItemsApi.getMenuItems(branchId)
   });
 
   const createCategoryMutation = useMutation({

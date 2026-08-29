@@ -1,9 +1,10 @@
-import { api } from "@/shared/utils/api-client";
+import { api } from "@ssrone/api-client";
 import { POSMenuItem } from "../types/menu";
 
 export const menuItemsApi = {
-  getMenuItems: async (): Promise<POSMenuItem[]> => {
-    const res = await api.get<POSMenuItem[]>("/restaurant/menu-items");
+  getMenuItems: async (branchId?: number | string): Promise<POSMenuItem[]> => {
+    const params = branchId ? { branch_id: branchId } : {};
+    const res = await api.get<POSMenuItem[]>("/restaurant/menu-items", params);
     return res || [];
   },
 

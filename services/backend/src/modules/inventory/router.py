@@ -1,5 +1,5 @@
 """
-The Baithak – Inventory Router
+The ssrone – Inventory Router
 Product catalog and stock management endpoints.
 """
 from decimal import Decimal

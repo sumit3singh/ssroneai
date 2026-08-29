@@ -1,0 +1,17 @@
+{
+  "name": "settings",
+  "tier": "B",
+  "version": "1.0.0",
+  "owner": "team-core",
+  "permissions": [
+    "settings.view",
+    "settings.admin"
+  ],
+  "routes": [
+    "/settings"
+  ],
+  "dependencies": [],
+  "featureFlags": [
+    "settings-enabled"
+  ]
+}

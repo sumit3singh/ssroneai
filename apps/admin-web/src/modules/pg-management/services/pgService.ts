@@ -26,9 +26,9 @@ export const pgService = {
     if (!Array.isArray(rawList)) return [];
     return rawList.map((r: any, idx: number) => ({
       id: String(r.id),
-      name: `${r.first_name || ""} ${r.last_name || ""}`.trim() || r.name || "Resident",
-      room: r.room_number || r.room || "101",
-      bed: r.bed_code || r.bed || "Bed A",
+      name: `${r.first_name || ""} ${r.last_name || ""}`.trim() || r.name || "",
+      room: r.room_number || r.room || "",
+      bed: r.bed_code || r.bed || "",
       rent: Number(r.monthly_rent || r.rent || 0),
       paid_status: r.paid_status || (r.due_amount > 0 ? "overdue" : "paid"),
       phone: r.phone || "",

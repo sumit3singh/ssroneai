@@ -9,7 +9,7 @@ class PromptLibrary:
 
     PROMPTS: Dict[str, str] = {
         "copilot": (
-            "You are SSR One AI Copilot, an enterprise AI assistant for THE BAITHAK ERP. "
+            "You are SSR One AI Copilot, an enterprise AI assistant for THE ssrone ERP. "
             "You help users manage POS orders, inventory, reservations, hotel check-ins, and financial reports. "
             "Always maintain professional, precise enterprise tone."
         ),

@@ -1,6 +1,6 @@
 import React from "react";
 import { Store, RefreshCw, Circle } from "lucide-react";
-import { Button } from "@/shared/ui/primitives/Button";
+import { Button } from "@ssrone/ui";
 
 interface POSHeaderProps {
   branchName?: string;
@@ -12,9 +12,9 @@ interface POSHeaderProps {
 }
 
 export const POSHeader: React.FC<POSHeaderProps> = ({
-  branchName = "Main Branch",
-  counterName = "Counter 1",
-  cashierName = "Sumit",
+  branchName = "",
+  counterName = "",
+  cashierName = "",
   isShiftOpen = true,
   onRefresh,
   isLoading = false
@@ -36,7 +36,7 @@ export const POSHeader: React.FC<POSHeaderProps> = ({
         <span className="text-muted-foreground/40">•</span>
         <span className="flex items-center gap-1">
           <span className="text-muted-foreground">Shift:</span>
-          <span className={isShiftOpen ? "text-emerald-600 font-extrabold" : "text-red-500 font-extrabold"}>
+          <span className={isShiftOpen ? "text-emerald-600 font-extrabold" : "text-destructive font-extrabold"}>
             {isShiftOpen ? "OPEN" : "CLOSED"}
           </span>
         </span>

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { MenuItem, VariantOption, AddonOption } from "@/data/mockMenu";
-import { getVariantPriceAdjustment } from "@/data/mockMenu";
+import { getVariantDisplayPrice, getVariantPriceAdjustment } from "@/data/mockMenu";
 
 export interface CartItemVariant {
   groupId: string;
@@ -42,10 +42,12 @@ interface CartStore {
 }
 
 function calcItemPrice(item: CartItem): number {
+  if (!item || !item.menuItem) return 0;
   const variants = item.selectedVariants || [];
   const addons = item.selectedAddons || [];
-  const baseCost = variants.length > 0 ? getVariantDisplayPrice(item.menuItem?.basePrice ?? 0, variants[0].option) : (item.menuItem?.basePrice ?? 0);
-  const addonsPrice = addons.reduce((s, a) => s + (a.option?.price ?? 0), 0);
+  const basePrice = typeof item.menuItem.basePrice === "number" ? item.menuItem.basePrice : (typeof (item.menuItem as any).price === "number" ? (item.menuItem as any).price : 0);
+  const baseCost = variants.length > 0 && variants[0]?.option ? getVariantDisplayPrice(basePrice, variants[0].option) : basePrice;
+  const addonsPrice = addons.reduce((s, a) => s + (a?.option?.price ?? 0), 0);
   return (baseCost + addonsPrice) * (item.quantity || 1);
 }
 
@@ -97,11 +99,11 @@ export const useCartStore = create<CartStore>()(
       setCustomerPhone: (phone) => set({ customerPhone: phone }),
       setSpecialInstructions: (text) => set({ specialInstructions: text }),
 
-      getTotal: () => get().items.reduce((total, item) => total + calcItemPrice(item), 0),
-      getItemCount: () => get().items.reduce((sum, item) => sum + item.quantity, 0),
+      getTotal: () => (get().items || []).reduce((total, item) => total + calcItemPrice(item), 0),
+      getItemCount: () => (get().items || []).reduce((sum, item) => sum + (item?.quantity || 0), 0),
     }),
     {
-      name: "baithak-cart",
+      name: "ssrone-cart",
     }
   )
 );

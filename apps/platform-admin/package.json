@@ -1,0 +1,31 @@
+{
+  "name": "@ssrone/platform-admin",
+  "private": true,
+  "version": "1.0.0",
+  "description": "SSR One AI Platform – SaaS Superadmin Owner Portal",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5174",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "*",
+    "react-dom": "*",
+    "lucide-react": "*",
+    "clsx": "*",
+    "tailwind-merge": "*",
+    "@tanstack/react-query": "*",
+    "react-hook-form": "*"
+  },
+  "devDependencies": {
+    "@types/react": "*",
+    "@types/react-dom": "*",
+    "@vitejs/plugin-react": "*",
+    "autoprefixer": "*",
+    "postcss": "*",
+    "tailwindcss": "*",
+    "typescript": "*",
+    "vite": "*"
+  }
+}

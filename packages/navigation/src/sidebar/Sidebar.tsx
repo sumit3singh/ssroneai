@@ -1,9 +1,7 @@
-import { useState } from "react";
-import { SidebarHeader } from "./SidebarHeader";
-import { SidebarSearch } from "./SidebarSearch";
+import React from "react";
+import { Grid, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { SidebarGroup } from "./SidebarGroup";
-import { SidebarFooter } from "./SidebarFooter";
-import { navigationEngine } from "@ssr-one-ai/navigation";
+import { navigationEngine } from "../navigation.engine";
 
 interface SidebarProps {
     isCollapsed: boolean;
@@ -12,93 +10,82 @@ interface SidebarProps {
     currentPath: string;
     userName?: string;
     userRole?: string;
+    onLogout?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
     isCollapsed,
     onToggleCollapse,
-    onToggleCompanyModal,
     currentPath,
-    userName,
-    userRole,
 }) => {
-    const [searchQuery, setSearchQuery] = useState("");
+    const resolveModuleId = (path: string): string => {
+        const segment = path.split("/")[1]?.toLowerCase() || "";
+        if (segment === "pg-management") return "pg";
+        if (segment === "hrms") return "hr";
+        if (segment === "ai-copilot") return "ai";
+        if (segment === "platform-studio" || segment === "master-studio" || segment === "workflow" || segment === "communication") return "settings";
+        if (navigationEngine.getModuleConfig(segment)) return segment;
+        return "pos";
+    };
 
-    const activeModuleId = currentPath.startsWith("/platform")
-        ? "platform"
-        : currentPath.startsWith("/restaurant")
-            ? "restaurant"
-            : currentPath.startsWith("/inventory")
-                ? "inventory"
-                : currentPath.startsWith("/finance")
-                    ? "finance"
-                    : currentPath.startsWith("/crm")
-                        ? "crm"
-                        : currentPath.startsWith("/hotel")
-                            ? "hotel"
-                            : "pos";
-
+    const activeModuleId = resolveModuleId(currentPath);
     const activeModuleConfig = navigationEngine.getModuleConfig(activeModuleId) || navigationEngine.getModuleConfig("pos");
-    const searchResults = searchQuery.trim() ? navigationEngine.searchNavigation(searchQuery) : [];
+
+    const handleLauncherClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+        e.preventDefault();
+        window.history.pushState({}, "", "/");
+        window.dispatchEvent(new PopStateEvent("popstate"));
+    };
 
     return (
-        <aside className={`bg-card border-r border-border flex flex-col justify-between h-screen transition-all duration-300 select-none z-30 ${isCollapsed ? "w-16" : "w-64"}`}>
-            <div>
-                <SidebarHeader
-                    isCollapsed={isCollapsed}
-                    tenantName="BAITHAK OS"
-                    branchName="Main Branch"
-                    activeModuleId={activeModuleId}
-                    onToggleCompanyModal={onToggleCompanyModal}
-                />
-
-                <SidebarSearch
-                    query={searchQuery}
-                    onChange={setSearchQuery}
-                    isCollapsed={isCollapsed}
-                />
-
-                <div className="p-2 space-y-3 overflow-y-auto max-h-[calc(100vh-140px)] pr-1">
-                    {searchQuery.trim() ? (
-                        <div className="space-y-1">
-                            <span className="text-[10px] font-black uppercase text-muted-foreground px-2 py-1 block">
-                                Search Results ({searchResults.length})
-                            </span>
-                            {searchResults.length === 0 ? (
-                                <div className="px-2 py-4 text-center text-xs font-semibold text-muted-foreground">
-                                    No matching items
-                                </div>
-                            ) : (
-                                searchResults.map((item) => (
-                                    <SidebarGroup
-                                        key={item.id}
-                                        group={{ id: `search-${item.id}`, title: "SEARCH", items: [item] }}
-                                        currentPath={currentPath}
-                                        isCollapsed={isCollapsed}
-                                    />
-                                ))
-                            )}
-                        </div>
-                    ) : (
-                        activeModuleConfig?.groups.map((group) => (
-                            <SidebarGroup
-                                key={group.id}
-                                group={group}
-                                currentPath={currentPath}
-                                isCollapsed={isCollapsed}
-                            />
-                        ))
+        <aside className={`backdrop-blur-2xl bg-white/80 dark:bg-slate-950/80 border-r border-slate-200/80 dark:border-slate-800/80 flex flex-col justify-between h-full transition-all duration-300 select-none z-30 shrink-0 shadow-lg ${isCollapsed ? "w-16" : "w-64"}`}>
+            {/* Top Toolbar: Back to All Modules Launcher + Collapse Toggle */}
+            <div className="p-3 border-b border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between gap-2 shrink-0">
+                <a
+                    href="/"
+                    onClick={handleLauncherClick}
+                    title="Back to Platform Home Launcher"
+                    className="group p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all border-none bg-transparent cursor-pointer flex items-center gap-2 min-w-0"
+                >
+                    <div className="p-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shrink-0 group-hover:scale-105 transition-transform">
+                      <Grid size={15} />
+                    </div>
+                    {!isCollapsed && (
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-900 dark:text-slate-100 font-mono truncate">
+                            {activeModuleId.toUpperCase()} WORKSPACE
+                        </span>
                     )}
-                </div>
+                </a>
+
+                <button
+                    type="button"
+                    onClick={onToggleCollapse}
+                    title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                    className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-all border-none bg-transparent cursor-pointer shrink-0"
+                >
+                    {isCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+                </button>
             </div>
 
-            <SidebarFooter
-                isCollapsed={isCollapsed}
-                userName={userName}
-                userRole={userRole}
-                onToggleCollapse={onToggleCollapse}
-                onLogout={onLogout}
-            />
+            {/* Scrollable Navigation Items Container */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0 scrollbar-thin">
+                {activeModuleConfig?.groups.map((group) => (
+                    <SidebarGroup
+                        key={group.id}
+                        group={group}
+                        currentPath={currentPath}
+                        isCollapsed={isCollapsed}
+                    />
+                ))}
+            </div>
+
+            {/* Bottom Enterprise Version Indicator */}
+            {!isCollapsed && (
+              <div className="p-2.5 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                <span>SSR ONE AI</span>
+                <span className="font-semibold text-slate-500 dark:text-slate-400">v2.0</span>
+              </div>
+            )}
         </aside>
     );
 };

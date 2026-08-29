@@ -1,5 +1,5 @@
 """
-The Baithak – Structured Logger
+The ssrone – Structured Logger
 JSON-structured logging with request context binding.
 """
 import logging

@@ -1,7 +1,7 @@
 {
-  "name": "@ssr-one-ai/config",
+  "name": "@ssrone/config",
   "version": "1.0.0",
   "private": true,
-  "main": "index.js",
-  "license": "MIT"
+  "main": "./src/index.ts",
+  "types": "./src/index.ts"
 }

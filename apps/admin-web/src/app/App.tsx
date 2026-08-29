@@ -1,5 +1,5 @@
 /**
- * The Baithak – Root App Component
+ * The ssrone – Root App Component
  */
 import { RouterProvider } from "@tanstack/react-router";
 import { Providers } from "@/app/providers";

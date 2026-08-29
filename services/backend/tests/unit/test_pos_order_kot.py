@@ -272,6 +272,6 @@ async def test_get_printable_bill():
     mock_db.execute.return_value = DummyResult([mock_order])
 
     res = await get_printable_bill(order_id=100, current_user=mock_user, db=mock_db)
-    assert "THE BAITHAK CAFE" in res["thermal_text"]
+    assert "THE ssrone CAFE" in res["thermal_text"]
     assert "Farmhouse Loaded Pizza" in res["thermal_text"]
     assert res["grand_total"] == 294.00

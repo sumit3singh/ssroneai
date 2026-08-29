@@ -1,5 +1,5 @@
 """
-The Baithak – Feature Engine
+The ssrone – Feature Engine
 Controls which modules are enabled per tenant via licensing.
 If a feature is unlicensed: menus disappear, API endpoints reject, permissions revoked.
 """
@@ -182,6 +182,60 @@ class FeatureEngine:
         await cache.set(cache_key, result, ttl=300)  # Cache for 5 minutes
         return result
 
+    def is_tier_feature_allowed(self, feature_id: str, tenant_tier: str) -> bool:
+        """
+        Check feature gating server-side against metadata/features/feature_registry.json.
+        """
+        import json
+        from pathlib import Path
+        
+        # Path resolution for feature_registry.json
+        possible_paths = [
+            Path("metadata/features/feature_registry.json"),
+            Path("../../metadata/features/feature_registry.json"),
+            Path("../../../metadata/features/feature_registry.json"),
+            Path(__file__).parents[4] / "metadata" / "features" / "feature_registry.json"
+        ]
+        
+        registry_data = None
+        for path in possible_paths:
+            if path.exists():
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        registry_data = json.load(f)
+                        break
+                except Exception:
+                    pass
+
+        if not registry_data:
+            return True
+
+        normalized_tier = tenant_tier.lower()
+        if normalized_tier == "basic":
+            normalized_tier = "starter"
+
+        features = registry_data.get("features", [])
+        for feat in features:
+            if feat.get("feature_id") == feature_id:
+                allowed_licenses = [l.lower() for l in feat.get("license", [])]
+                return normalized_tier in allowed_licenses
+
+        return True
+
+    def require_tier_feature(self, feature_id: str, tenant_tier: str) -> None:
+        """Enforce server-side licensing against subscription tier."""
+        if not self.is_tier_feature_allowed(feature_id, tenant_tier):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "tier_feature_restricted",
+                    "feature_id": feature_id,
+                    "tenant_tier": tenant_tier,
+                    "message": f"Feature '{feature_id}' is restricted on '{tenant_tier}' tier plan."
+                }
+            )
+
+
     async def check_user_quota(self, tenant_id: str) -> bool:
         """Check if the user count for the tenant exceeds max_users license quota."""
         from src.core.database.engine import AsyncSessionLocal
@@ -281,7 +335,7 @@ class FeatureEngine:
         try:
             from src.shared.redis_client import get_redis
             redis = await get_redis()
-            await redis.publish("baithak:licensing:cache_invalidation", str(tenant_id))
+            await redis.publish("ssrone:licensing:cache_invalidation", str(tenant_id))
             logger.info("Feature cache invalidation broadcasted", tenant_id=tenant_id)
         except Exception as e:
             logger.error("Failed to broadcast cache invalidation", tenant_id=tenant_id, error=str(e))

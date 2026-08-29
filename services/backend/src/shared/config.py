@@ -1,5 +1,5 @@
 """
-The Baithak – Application Settings
+SSR One AI – Application Settings
 All configuration is loaded from environment variables via Pydantic Settings.
 """
 from functools import lru_cache
@@ -10,7 +10,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class DatabaseSettings(BaseSettings):
-    host: str = Field(default="localhost", alias="DB_HOST")
+    url: str | None = Field(default=None, alias="DATABASE_URL")
+    provider: str = Field(default="postgresql", alias="DB_PROVIDER")
+    host: str = Field(default="127.0.0.1", alias="DB_HOST")
     port: int = Field(default=5432, alias="DB_PORT")
     name: str = Field(default="cafedb", alias="DB_NAME")
     user: str = Field(default="postgres", alias="DB_USER")
@@ -22,11 +24,17 @@ class DatabaseSettings(BaseSettings):
     @computed_field  # type: ignore[misc]
     @property
     def async_url(self) -> str:
+        if self.url:
+            return self.url
+        if self.provider.lower() == "sqlite":
+            return "sqlite+aiosqlite:///./cafedb.db"
         return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
 
     @computed_field  # type: ignore[misc]
     @property
     def sync_url(self) -> str:
+        if self.provider.lower() == "sqlite":
+            return "sqlite:///./cafedb.db"
         return f"postgresql+psycopg2://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -48,7 +56,7 @@ class RedisSettings(BaseSettings):
 
 
 class JWTSettings(BaseSettings):
-    secret_key: str = Field(default="baithak-jwt-secret-key-2026", alias="JWT_SECRET_KEY")
+    secret_key: str = Field(default="ssrone-jwt-secret-key-2026", alias="JWT_SECRET_KEY")
     algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(default=30, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
     refresh_token_expire_days: int = Field(default=30, alias="JWT_REFRESH_TOKEN_EXPIRE_DAYS")
@@ -69,13 +77,13 @@ class AISettings(BaseSettings):
 
 class Settings(BaseSettings):
     # Application
-    app_name: str = Field(default="The Baithak Hospitality Platform", alias="APP_NAME")
+    app_name: str = Field(default="SSR One AI Platform", alias="APP_NAME")
     app_version: str = Field(default="1.0.0", alias="APP_VERSION")
     app_env: Literal["development", "staging", "production"] = Field(
         default="development", alias="APP_ENV"
     )
     app_debug: bool = Field(default=True, alias="APP_DEBUG")
-    app_secret_key: str = Field(default="baithak-app-secret-key-2026", alias="APP_SECRET_KEY")
+    app_secret_key: str = Field(default="ssrone-app-secret-key-2026", alias="APP_SECRET_KEY")
     frontend_url: AnyHttpUrl = Field(default="http://localhost:5173", alias="FRONTEND_URL")  # type: ignore[assignment]
 
     # Celery

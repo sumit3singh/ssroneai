@@ -1,5 +1,5 @@
 {
-  "name": "kds-web",
+  "name": "@ssrone/kds-web",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -9,6 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ssrone/api-client": "workspace:*",
+    "@ssrone/auth": "workspace:*",
+    "@ssrone/ui": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "lucide-react": "^0.462.0",

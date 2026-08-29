@@ -1,0 +1,24 @@
+{
+  "name": "inventory",
+  "tier": "A",
+  "minTier": "Starter",
+  "version": "2.3.0",
+  "owner": "team-enterprise",
+  "permissions": [
+    "inventory.view",
+    "inventory.edit",
+    "inventory.admin"
+  ],
+  "routes": [
+    "/inventory"
+  ],
+  "dependencies": [
+    "finance"
+  ],
+  "featureFlags": [
+    "stock-ledger",
+    "purchase-order-stream",
+    "grn-receipts",
+    "vendor-management"
+  ]
+}

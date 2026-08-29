@@ -1,5 +1,5 @@
 """
-The Baithak – Request Logging Middleware
+The ssrone – Request Logging Middleware
 Logs every request with method, path, status, latency, and request ID.
 """
 import time

@@ -1,5 +1,5 @@
 {
-  "name": "@ssr-one-ai/api-client",
+  "name": "@ssrone/api-client",
   "version": "1.0.0",
   "private": true,
   "main": "./src/index.ts",
@@ -8,6 +8,6 @@
     "axios": "^1.7.0"
   },
   "devDependencies": {
-    "@ssr-one-ai/types": "*"
+    "@ssrone/types": "workspace:*"
   }
 }

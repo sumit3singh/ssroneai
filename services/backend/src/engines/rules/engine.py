@@ -1,5 +1,5 @@
 """
-The Baithak – Rule Engine
+The ssrone – Rule Engine
 Evaluates complex conditional business rules without code changes.
 e.g. IF customer_tier == 'VIP' AND order_value > 2000 THEN apply_discount(15)
 """

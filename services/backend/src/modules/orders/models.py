@@ -1,5 +1,5 @@
 """
-The Baithak – Orders & KOT Models
+The ssrone – Orders & KOT Models
 Full order lifecycle: creation, hold, void, split, KOT station routing, billing, status logs.
 """
 from datetime import datetime
@@ -53,9 +53,13 @@ class DiningTable(TenantBaseModel):
     name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     capacity: Mapped[int] = mapped_column(Integer, default=4)
     status: Mapped[str] = mapped_column(String(20), default="free")  # free, occupied, reserved, cleaning
+    section: Mapped[str | None] = mapped_column(String(50), nullable=True)
     floor: Mapped[str | None] = mapped_column(String(50), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    position_x: Mapped[int] = mapped_column(Integer, default=0)
+    position_y: Mapped[int] = mapped_column(Integer, default=0)
+    current_order_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    attributes: Mapped[dict] = mapped_column(JSONB, default=dict)
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "branch_id", "table_number", name="uq_dining_table"),
@@ -70,6 +74,8 @@ class KitchenStation(TenantBaseModel):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     code: Mapped[str] = mapped_column(String(30), nullable=False)
     printer_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    station_type: Mapped[str] = mapped_column(String(50), default="main")
+    categories: Mapped[list] = mapped_column(JSONB, default=list)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
@@ -83,9 +89,9 @@ class Order(TenantBaseModel):
     order_number: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     token_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
     branch_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("branches.id"), nullable=False, index=True)
-    customer_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    table_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    waiter_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    customer_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("customers.id", ondelete="SET NULL"), nullable=True)
+    table_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("dining_tables.id", ondelete="SET NULL"), nullable=True)
+    waiter_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True)
 
     guest_count: Mapped[int] = mapped_column(Integer, default=1)
     order_type: Mapped[str] = mapped_column(String(30), default=OrderType.DINE_IN)
@@ -145,17 +151,23 @@ class OrderItem(TenantBaseModel):
     menu_item_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("menu_items.id", ondelete="SET NULL"), nullable=True)
     product_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     product_name: Mapped[str] = mapped_column(String(300), nullable=False)
+    item_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     product_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     variant_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     variant_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     quantity: Mapped[Decimal] = mapped_column(Numeric(10, 3), nullable=False)
     unit_of_measure: Mapped[str] = mapped_column(String(20), default="pcs")
+
+    @property
+    def name(self) -> str:
+        return self.item_name or self.product_name or "Item"
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     mrp: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     discount_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
     tax_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
     line_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    total_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
 
     # Kitchen & Modifications
     kot_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
@@ -240,9 +252,88 @@ class OrderStatusLog(BaseModel):
     order_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
     old_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
     new_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(100), default="order.status_changed", nullable=False, index=True)
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    correlation_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     changed_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()", nullable=False)
 
     order: Mapped[Order] = relationship("Order", back_populates="status_logs")
+
+
+class KDSOrderTicket(TenantBaseModel):
+    """Station-specific KDS production ticket."""
+    __tablename__ = "kds_order_tickets"
+
+    order_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
+    kot_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("kots.id", ondelete="SET NULL"), nullable=True)
+    station_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("kitchen_stations.id", ondelete="CASCADE"), nullable=True, index=True)
+
+    ticket_number: Mapped[str] = mapped_column(String(50), nullable=False)
+    order_type: Mapped[str] = mapped_column(String(30), default="DINE_IN")  # DINE_IN, TAKEAWAY, DELIVERY
+    fulfilment_mode: Mapped[str] = mapped_column(String(30), default="TABLE")
+
+    table_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    table_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    token_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
+    status: Mapped[str] = mapped_column(String(30), default="NEW")  # NEW, ACKNOWLEDGED, PREPARING, READY, HELD, RECALLED, CANCELLED
+    priority: Mapped[int] = mapped_column(Integer, default=100)
+    is_rush: Mapped[bool] = mapped_column(Boolean, default=False)
+    sla_seconds: Mapped[int] = mapped_column(Integer, default=600)
+
+    queued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()", nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    items: Mapped[list["KDSTicketItem"]] = relationship("KDSTicketItem", back_populates="ticket", cascade="all, delete-orphan")
+
+
+class KDSTicketItem(TenantBaseModel):
+    """Item-level production state within a KDS ticket."""
+    __tablename__ = "kds_ticket_items"
+
+    ticket_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("kds_order_tickets.id", ondelete="CASCADE"), nullable=False, index=True)
+    order_item_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("order_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    station_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("kitchen_stations.id", ondelete="CASCADE"), nullable=True, index=True)
+
+    item_name: Mapped[str] = mapped_column(String(300), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, default=1)
+    prepared_quantity: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(30), default="QUEUED")  # QUEUED, PREPARING, PARTIAL, READY, CANCELLED
+
+    variant_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    addons: Mapped[list] = mapped_column(JSONB, default=list)
+    preparation_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    ticket: Mapped[KDSOrderTicket] = relationship("KDSOrderTicket", back_populates="items")
+
+
+class KDSExpoOrder(TenantBaseModel):
+    """Pass / EXPO order consolidation model."""
+    __tablename__ = "kds_expo_orders"
+
+    order_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True, unique=True)
+    status: Mapped[str] = mapped_column(String(30), default="WAITING")  # WAITING, PARTIAL, READY, HANDOVER, COMPLETED
+    order_type: Mapped[str] = mapped_column(String(30), default="DINE_IN")
+    fulfilment_mode: Mapped[str] = mapped_column(String(30), default="TABLE")
+
+    total_items: Mapped[int] = mapped_column(Integer, default=0)
+    ready_items: Mapped[int] = mapped_column(Integer, default=0)
+    is_complete: Mapped[bool] = mapped_column(Boolean, default=False)
+    ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class KDSPackingOrder(TenantBaseModel):
+    """Packing station checklist order model."""
+    __tablename__ = "kds_packing_orders"
+
+    order_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True, unique=True)
+    status: Mapped[str] = mapped_column(String(30), default="WAITING")  # WAITING, PACKING, PACKED, CANCELLED
+    packing_required: Mapped[bool] = mapped_column(Boolean, default=True)
+    checklist: Mapped[list] = mapped_column(JSONB, default=list)
+    packed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
 

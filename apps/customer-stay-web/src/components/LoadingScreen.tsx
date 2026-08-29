@@ -24,7 +24,7 @@ const LoadingScreen = ({ onComplete }: LoadingScreenProps) => {
             animate={{ y: [0, -5, 0] }}
             transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
           >
-            The Baithak
+            SSR One AI
           </motion.h1>
           <p className="text-primary-foreground/70">Modern Stay Experience</p>
         </motion.div>

@@ -1,17 +1,19 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, Phone, User, MapPin, Truck, Tag, Award, MessageSquare, CreditCard } from "lucide-react";
+import { ArrowLeft, Phone, User, MapPin, Truck, Tag, Award, MessageSquare, CreditCard, LogIn } from "lucide-react";
 import { useCartStore } from "@/stores/cartStore";
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthStore } from "@ssrone/auth";
 import { useI18n } from "@/stores/i18nStore";
-import { getVariantPriceAdjustment } from "@/data/mockMenu";
-import { validatePromoCode, placeOrder, fetchSavedAddresses, type SavedAddress } from "@/services/api";
+import { getVariantDisplayPrice, getVariantPriceAdjustment } from "@/data/mockMenu";
+import { validatePromoCode, placeOrder, fetchSavedAddresses, type SavedAddress } from "@ssrone/api-client";
+import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
+import AuthModal from "@/components/AuthModal";
 import { useToast } from "@/hooks/use-toast";
 
 const Checkout = () => {
-  const { tableNumber } = useParams();
   const navigate = useNavigate();
+  const { tenantSlug, branchCode, tableNumber, isTableMode } = useTenantBranchContext();
   const { toast } = useToast();
   const { t } = useI18n();
   const {
@@ -38,6 +40,7 @@ const Checkout = () => {
   const [paymentMethod, setPaymentMethod] = useState("upi");
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const effectiveName = customerName || user?.name || "";
   const effectivePhone = customerPhone || user?.phone || "";
@@ -81,14 +84,14 @@ const Checkout = () => {
     const result = await validatePromoCode(promoCode, total);
     setApplyingPromo(false);
     if (result.valid) {
-      setPromoDiscount(result.discount);
-      setPromoMessage(result.message);
+      setPromoDiscount((result as any).discountAmount ?? (result as any).discount ?? 0);
+      setPromoMessage(result.message || "Promo applied!");
       setPromoApplied(true);
-      toast({ title: "🎉 Promo Applied!", description: result.message });
+      toast({ title: "🎉 Promo Applied!", description: result.message || "Discount applied" });
     } else {
-      setPromoMessage(result.message);
+      setPromoMessage(result.message || "Invalid promo code");
       setPromoApplied(false);
-      toast({ title: "❌ Invalid Code", description: result.message, variant: "destructive" });
+      toast({ title: "❌ Invalid Code", description: result.message || "Invalid promo code", variant: "destructive" });
     }
   };
 
@@ -155,9 +158,14 @@ const Checkout = () => {
       addLoyaltyPoints(response.loyaltyPointsEarned);
 
       clearCart();
-      navigate(tableNumber ? `/order/table/${tableNumber}/status` : "/order-status", {
-        state: { orderId: response.orderId, estimatedTime: response.estimatedTime },
-      });
+      navigate(
+        isTableMode && tableNumber
+          ? `/t/${tenantSlug}/b/${branchCode}/table/${tableNumber}/status`
+          : `/t/${tenantSlug}/b/${branchCode}/status`,
+        {
+          state: { orderId: response.orderId, estimatedTime: response.estimatedTime },
+        }
+      );
     } catch {
       toast({ title: "Order Failed", description: "Something went wrong. Please try again.", variant: "destructive" });
       setPlacing(false);
@@ -422,12 +430,32 @@ const Checkout = () => {
         <motion.button
           whileTap={{ scale: 0.97 }}
           onClick={handlePlaceOrder}
-          disabled={!effectivePhone.trim() || (orderMode === "delivery" && !tableNumber && !deliveryAddress.trim()) || placing}
-          className="btn-order w-full py-4 text-center font-bold text-base disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={placing}
+          className="btn-order w-full py-4 text-center font-bold text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
-          {placing ? t("checkout.placing") : `${t("checkout.placeOrder")} · ₹${grandTotal} 🎉`}
+          {!isLoggedIn ? (
+            <>
+              <LogIn className="w-5 h-5" /> Sign In with Mobile & Place Order (₹{grandTotal})
+            </>
+          ) : placing ? (
+            t("checkout.placing")
+          ) : (
+            `${t("checkout.placeOrder")} · ₹${grandTotal} 🎉`
+          )}
         </motion.button>
       </div>
+
+      {/* Auth Modal Sheet */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={() => {
+          setShowAuthModal(false);
+          handlePlaceOrder();
+        }}
+        title="Sign In to Complete Order"
+        subtitle="Enter your mobile number to confirm & place your order"
+      />
     </div>
   );
 };

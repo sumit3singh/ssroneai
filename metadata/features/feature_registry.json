@@ -1,0 +1,95 @@
+{
+  "version": "1.0.0",
+  "features": [
+    {
+      "feature_id": "pos.core",
+      "module": "pos",
+      "license": ["starter", "professional", "enterprise"],
+      "edition": "standard",
+      "dependencies": [],
+      "beta": false,
+      "deprecated": false
+    },
+    {
+      "feature_id": "pos.offline_sync",
+      "module": "pos",
+      "license": ["professional", "enterprise"],
+      "edition": "addon",
+      "dependencies": ["pos.core"],
+      "beta": false,
+      "deprecated": false
+    },
+    {
+      "feature_id": "hotel.core",
+      "module": "hotel",
+      "license": ["starter", "professional", "enterprise"],
+      "edition": "standard",
+      "dependencies": [],
+      "beta": false,
+      "deprecated": false
+    },
+    {
+      "feature_id": "hotel.dynamic_pricing",
+      "module": "hotel",
+      "license": ["professional", "enterprise"],
+      "edition": "addon",
+      "dependencies": ["hotel.core"],
+      "beta": false,
+      "deprecated": false
+    },
+    {
+      "feature_id": "crm.loyalty_tiers",
+      "module": "crm",
+      "license": ["professional", "enterprise"],
+      "edition": "addon",
+      "dependencies": ["crm.core"],
+      "beta": false,
+      "deprecated": false
+    },
+    {
+      "feature_id": "finance.gst_reconciliation",
+      "module": "finance",
+      "license": ["professional", "enterprise"],
+      "edition": "standard",
+      "dependencies": ["finance.core"],
+      "beta": false,
+      "deprecated": false
+    },
+    {
+      "feature_id": "inventory.purchase_orders",
+      "module": "inventory",
+      "license": ["starter", "professional", "enterprise"],
+      "edition": "standard",
+      "dependencies": [],
+      "beta": false,
+      "deprecated": false
+    },
+    {
+      "feature_id": "ai_copilot.voice_orders",
+      "module": "ai_copilot",
+      "license": ["enterprise"],
+      "edition": "addon",
+      "dependencies": [],
+      "beta": false,
+      "deprecated": false
+    },
+    {
+      "feature_id": "hr.payroll_generator",
+      "module": "hr",
+      "license": ["professional", "enterprise"],
+      "edition": "standard",
+      "dependencies": ["hr.core"],
+      "beta": false,
+      "deprecated": false
+    },
+    {
+      "feature_id": "pg.rent_collection",
+      "module": "pg-management",
+      "license": ["starter", "professional", "enterprise"],
+      "edition": "standard",
+      "dependencies": [],
+      "beta": false,
+      "deprecated": false
+    }
+  ]
+}

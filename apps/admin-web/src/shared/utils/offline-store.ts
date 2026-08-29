@@ -1,5 +1,5 @@
 /**
- * The Baithak – Offline Store (Dexie.js / IndexedDB)
+ * The ssrone – Offline Store (Dexie.js / IndexedDB)
  * Blueprint §7: Offline Engine — POS works without internet,
  * queues transactions locally, syncs when connection restores.
  */
@@ -46,14 +46,14 @@ interface SyncQueueItem {
   attempts: number;
 }
 
-class BaithakOfflineDB extends Dexie {
+class ssroneOfflineDB extends Dexie {
   offlineOrders!: Table<OfflineOrder>;
   cachedProducts!: Table<CachedProduct>;
   cachedCustomers!: Table<CachedCustomer>;
   syncQueue!: Table<SyncQueueItem>;
 
   constructor() {
-    super("BaithakPOS");
+    super("SSRONE_POS");
     this.version(1).stores({
       offlineOrders: "++id, localId, branchId, synced, createdAt",
       cachedProducts: "id, branchId, category, cachedAt",
@@ -63,7 +63,7 @@ class BaithakOfflineDB extends Dexie {
   }
 }
 
-export const offlineDB = new BaithakOfflineDB();
+export const offlineDB = new ssroneOfflineDB();
 
 /** Save an order locally when offline */
 export async function saveOfflineOrder(branchId: string, orderData: object): Promise<string> {

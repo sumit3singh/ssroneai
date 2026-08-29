@@ -1,11 +1,11 @@
 {
-  "name": "admin-web",
+  "name": "@ssrone/admin-web",
   "private": true,
   "version": "1.0.0",
-  "description": "The Baithak Hospitality Platform – React Frontend",
+  "description": "SSR One AI Platform – React Admin Web App",
   "type": "module",
   "scripts": {
-    "dev": "vite --port 5173",
+    "dev": "vite --port 5173 --force",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest",
@@ -17,6 +17,11 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@ssrone/api-client": "workspace:*",
+    "@ssrone/auth": "workspace:*",
+    "@ssrone/ui": "workspace:*",
+    "@ssrone/navigation": "workspace:*",
+    "@ssrone/theme": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "@tanstack/react-router": "^1.56.0",

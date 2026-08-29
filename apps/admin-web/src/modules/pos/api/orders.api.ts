@@ -1,4 +1,4 @@
-import { api } from "@/shared/utils/api-client";
+import { api } from "@ssrone/api-client";
 import { POSOrder } from "../types/billing";
 
 export const ordersApi = {

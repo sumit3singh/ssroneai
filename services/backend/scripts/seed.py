@@ -1,5 +1,5 @@
 """
-The Baithak – Database Seed Script
+The ssrone – Database Seed Script
 Creates default tenant, company, branch, roles, and admin user for development.
 
 Usage:
@@ -36,7 +36,9 @@ from src.modules.pg_management.models import (  # noqa: F401
     PGBed, PGFloor, PGRentRecord, PGResident, PGRoom, PGVisitorLog,
 )
 from src.modules.auth.models import Company, Branch  # noqa: F401
-from src.modules.restaurant.models import MenuCategory, MenuItem  # noqa: F401
+from src.modules.restaurant.models import (  # noqa: F401
+    MenuCategory, MenuItem, MenuVariantGroup, MenuVariantOption, MenuAddonGroup, MenuAddonOption,
+)
 from src.core.form_builder.models import (  # noqa: F401
     FormMaster, FormFieldModel, FieldValidationModel, FormSubmission,
 )
@@ -65,7 +67,7 @@ async def seed():
     async with AsyncSessionLocal() as db:
         # Check if already seeded
         from sqlalchemy import select, text
-        result = await db.execute(select(Tenant).where(Tenant.slug == "baithak-demo"))
+        result = await db.execute(select(Tenant).where(Tenant.slug == "ssrone-demo"))
         if result.scalar_one_or_none():
             logger.info("⚠️  Database already seeded. Skipping.")
             return
@@ -103,8 +105,8 @@ async def seed():
 
         # ── Demo Tenant ─────────────────────────────────────────
         tenant = Tenant(
-            name="The Baithak Demo",
-            slug="baithak-demo",
+            name="The ssrone Demo",
+            slug="ssrone-demo",
             plan="enterprise",
             is_active=True,
             settings={
@@ -126,8 +128,8 @@ async def seed():
         # ── Default Company & Branch ────────────────────────────
         company = Company(
             tenant_id=tenant.id,
-            name="The Baithak Demo Restaurant",
-            legal_name="The Baithak Hospitality Pvt Ltd",
+            name="The ssrone Demo Restaurant",
+            legal_name="The ssrone Hospitality Pvt Ltd",
             gstin="29ABCDE1234F1Z5",
             pan="ABCDE1234F",
             country_code="IN",
@@ -153,7 +155,7 @@ async def seed():
             code="MAIN",
             branch_type="outlet",
             phone="+91-9876543210",
-            email="mainbranch@baithak.com",
+            email="mainbranch@ssrone.com",
             gstin="29ABCDE1234F1Z5",
             timezone="Asia/Kolkata",
             is_active=True,
@@ -194,10 +196,10 @@ async def seed():
         # ── Admin User ──────────────────────────────────────────
         admin = User(
             tenant_id=tenant.id,
-            email="admin@baithak.com",
+            email="admin@ssrone.com",
             first_name="Platform",
             last_name="Admin",
-            display_name="The Baithak Admin",
+            display_name="The ssrone Admin",
             hashed_password=auth_service.hash_password("Admin@123"),
             is_active=True,
             is_verified=True,
@@ -219,7 +221,7 @@ async def seed():
         # ── Manager User ────────────────────────────────────────
         manager = User(
             tenant_id=tenant.id,
-            email="manager@baithak.com",
+            email="manager@ssrone.com",
             first_name="Demo",
             last_name="Manager",
             hashed_password=auth_service.hash_password("Manager@123"),
@@ -241,7 +243,7 @@ async def seed():
         # ── Cashier User ─────────────────────────────────────────
         cashier = User(
             tenant_id=tenant.id,
-            email="cashier@baithak.com",
+            email="cashier@ssrone.com",
             first_name="Demo",
             last_name="Cashier",
             hashed_password=auth_service.hash_password("Cashier@123"),
@@ -411,17 +413,160 @@ async def seed():
                 )
                 db.add(val_model)
 
+        # ── Finance Chart of Accounts Seed ────────────────────────
+        from src.modules.finance.models import ChartOfAccounts
+        coa_items = [
+            ("1000", "Cash & Cash Equivalents", "asset", Decimal("125000.00")),
+            ("1100", "Accounts Receivable", "asset", Decimal("45000.00")),
+            ("2000", "Accounts Payable", "liability", Decimal("18000.00")),
+            ("3000", "Owner Capital", "equity", Decimal("500000.00")),
+            ("4000", "Food & Beverage Revenue", "revenue", Decimal("350000.00")),
+            ("5000", "Salaries & Wages Expense", "expense", Decimal("95000.00")),
+            ("5100", "Electricity & Utilities Expense", "expense", Decimal("18000.00")),
+        ]
+        for code, name, type_, bal in coa_items:
+            acc = ChartOfAccounts(
+                tenant_id=tenant.id,
+                account_code=code,
+                account_name=name,
+                account_type=type_,
+                current_balance=bal,
+                is_active=True,
+                is_system=True,
+            )
+            db.add(acc)
+
+        # ── Hotel Rooms & Types Seed ─────────────────────────────
+        from src.modules.hotel.models import RoomType, Room
+        rt1 = RoomType(tenant_id=tenant.id, name="Deluxe King Room", code="DELUXE", base_rate=Decimal("3500.00"), max_occupancy=2)
+        rt2 = RoomType(tenant_id=tenant.id, name="Executive Suite", code="SUITE", base_rate=Decimal("7500.00"), max_occupancy=4)
+        db.add(rt1)
+        db.add(rt2)
+        await db.flush()
+
+        r1 = Room(tenant_id=tenant.id, room_type_id=rt1.id, room_number="101", floor_number=1, status="VACANT", is_clean=True)
+        r2 = Room(tenant_id=tenant.id, room_type_id=rt2.id, room_number="201", floor_number=2, status="OCCUPIED", is_clean=True)
+        db.add(r1)
+        db.add(r2)
+
+        # ── PG Management Beds Seed ──────────────────────────────
+        from src.modules.pg_management.models import PGFloor, PGRoom, PGBed, PGResident
+        pg_fl = PGFloor(tenant_id=tenant.id, floor_number=1, name="First Floor Boys Wing")
+        db.add(pg_fl)
+        await db.flush()
+
+        pg_rm = PGRoom(tenant_id=tenant.id, floor_id=pg_fl.id, room_number="G-101", sharing_type="DOUBLE", monthly_rent_per_bed=Decimal("8500.00"))
+        db.add(pg_rm)
+        await db.flush()
+
+        b1 = PGBed(tenant_id=tenant.id, room_id=pg_rm.id, bed_number="Bed-A", monthly_rent=Decimal("8500.00"), status="OCCUPIED")
+        b2 = PGBed(tenant_id=tenant.id, room_id=pg_rm.id, bed_number="Bed-B", monthly_rent=Decimal("8500.00"), status="VACANT")
+        db.add(b1)
+        db.add(b2)
+        await db.flush()
+
+        res1 = PGResident(tenant_id=tenant.id, bed_id=b1.id, full_name="Rahul Sharma", phone="+91-9876543210", email="rahul@example.com", is_active=True)
+        db.add(res1)
+
+        # ── CRM Customers Seed ──────────────────────────────────
+        from src.modules.crm.models import Customer
+        c1 = Customer(tenant_id=tenant.id, name="Ananya Gupta", phone="+91-9988776655", email="ananya@example.com", loyalty_points=250, loyalty_tier="Gold")
+        c2 = Customer(tenant_id=tenant.id, name="Vikram Singh", phone="+91-8877665544", email="vikram@example.com", loyalty_points=120, loyalty_tier="Silver")
+        db.add(c1)
+        db.add(c2)
+
+        # ── HRMS Employees & Departments Seed ────────────────────
+        from src.modules.hrms.models import Department, Designation, Employee
+        d1 = Department(tenant_id=tenant.id, name="Kitchen & Operations", code="KITCHEN")
+        d2 = Department(tenant_id=tenant.id, name="Front Office & PMS", code="FRONTDESK")
+        db.add(d1)
+        db.add(d2)
+        await db.flush()
+
+        des1 = Designation(tenant_id=tenant.id, department_id=d1.id, title="Head Chef", grade="G-4")
+        des2 = Designation(tenant_id=tenant.id, department_id=d2.id, title="Front Desk Executive", grade="G-2")
+        db.add(des1)
+        db.add(des2)
+        await db.flush()
+
+        emp1 = Employee(tenant_id=tenant.id, department_id=d1.id, designation_id=des1.id, employee_code="EMP-101", first_name="Suresh", last_name="Kumar", email="suresh@ssrone.com", basic_salary=Decimal("45000.00"), status="ACTIVE")
+        emp2 = Employee(tenant_id=tenant.id, department_id=d2.id, designation_id=des2.id, employee_code="EMP-102", first_name="Priya", last_name="Verma", email="priya@ssrone.com", basic_salary=Decimal("32000.00"), status="ACTIVE")
+        db.add(emp1)
+        db.add(emp2)
+
+        # ── POS Menu Categories & Dishes Seed ─────────────────────
+        cat_tea = MenuCategory(tenant_id=tenant.id, company_id=company.id, branch_id=branch.id, name="Special Chai & Tea", icon="🫖", slug="special-chai-tea", sort_order=1)
+        cat_coffee = MenuCategory(tenant_id=tenant.id, company_id=company.id, branch_id=branch.id, name="Artisanal Coffee", icon="🥤", slug="artisanal-coffee", sort_order=2)
+        cat_pizza = MenuCategory(tenant_id=tenant.id, company_id=company.id, branch_id=branch.id, name="Pizzas & Garlic Bread", icon="🍕", slug="pizzas-garlic-bread", sort_order=3)
+        cat_combos = MenuCategory(tenant_id=tenant.id, company_id=company.id, branch_id=branch.id, name="Value Combos", icon="🍱", slug="value-combos", sort_order=4)
+
+        db.add_all([cat_tea, cat_coffee, cat_pizza, cat_combos])
+        await db.flush()
+
+        item_chai = MenuItem(
+            tenant_id=tenant.id, company_id=company.id, branch_id=branch.id,
+            category_id=cat_tea.id, name="Baithak Special Kulhad Chai",
+            description="Freshly brewed ginger and cardamom tea served in authentic earthen kulhad.",
+            base_price=30.0, packaging_charge=5.0, kds_station="Beverages & Bar",
+            is_veg=True, is_popular=True, is_available=True, gst_percent=5.0, sort_order=1
+        )
+        item_coffee = MenuItem(
+            tenant_id=tenant.id, company_id=company.id, branch_id=branch.id,
+            category_id=cat_coffee.id, name="Artisanal Cold Brew Coffee",
+            description="Steeped overnight, rich Arabica cold coffee blend served over ice.",
+            base_price=120.0, packaging_charge=10.0, kds_station="Beverages & Bar",
+            is_veg=True, is_popular=True, is_available=True, gst_percent=5.0, sort_order=2
+        )
+        item_pizza = MenuItem(
+            tenant_id=tenant.id, company_id=company.id, branch_id=branch.id,
+            category_id=cat_pizza.id, name="Cheese Loaded Farmhouse Pizza",
+            description="Fresh dough pizza loaded with capsicum, onion, tomato, jalapenos, and mozzarella.",
+            base_price=180.0, packaging_charge=15.0, kds_station="Main Kitchen",
+            is_veg=True, is_popular=True, is_available=True, gst_percent=5.0, sort_order=3
+        )
+        db.add_all([item_chai, item_coffee, item_pizza])
+        await db.flush()
+
+        # Pizza Size Variant Group & Options
+        vg_pizza = MenuVariantGroup(
+            tenant_id=tenant.id, branch_id=branch.id, item_id=item_pizza.id,
+            name="Pizza Size", min_selection=1, max_selection=1, is_required=True, sort_order=1
+        )
+        db.add(vg_pizza)
+        await db.flush()
+
+        opt_sm = MenuVariantOption(tenant_id=tenant.id, branch_id=branch.id, group_id=vg_pizza.id, name="Small (7\")", selling_price=150.0, price=150.0, is_default=False, sort_order=1)
+        opt_md = MenuVariantOption(tenant_id=tenant.id, branch_id=branch.id, group_id=vg_pizza.id, name="Medium (10\")", selling_price=180.0, price=180.0, is_default=True, sort_order=2)
+        opt_lg = MenuVariantOption(tenant_id=tenant.id, branch_id=branch.id, group_id=vg_pizza.id, name="Large (12\")", selling_price=230.0, price=230.0, is_default=False, sort_order=3)
+        db.add_all([opt_sm, opt_md, opt_lg])
+
+        # Pizza Addon Group
+        ag_crust = MenuAddonGroup(
+            tenant_id=tenant.id, branch_id=branch.id, item_id=item_pizza.id,
+            name="Crust Upgrade & Addons", min_selection=0, max_selection=5, sort_order=1
+        )
+        db.add(ag_crust)
+        await db.flush()
+
+        ao_cheese = MenuAddonOption(
+            tenant_id=tenant.id, branch_id=branch.id, group_id=ag_crust.id,
+            name="Cheese Burst Crust", price=80.0,
+            variant_prices={"Small (7\")": 50.0, "Medium (10\")": 80.0, "Large (12\")": 100.0},
+            is_available=True, sort_order=1
+        )
+        db.add(ao_cheese)
+
         await db.commit()
 
         logger.info("=" * 55)
         logger.info("✅ DATABASE SEEDED SUCCESSFULLY!")
         logger.info("=" * 55)
-        logger.info("Tenant Slug : baithak-demo")
+        logger.info("Tenant Slug : ssrone-demo")
         logger.info(f"Branch ID   : {branch.id}")
-        logger.info("Admin Email : admin@baithak.com")
+        logger.info("Admin Email : admin@ssrone.com")
         logger.info("Admin Pass  : Admin@123")
-        logger.info("Manager     : manager@baithak.com / Manager@123")
-        logger.info("Cashier     : cashier@baithak.com / Cashier@123")
+        logger.info("Manager     : manager@ssrone.com / Manager@123")
+        logger.info("Cashier     : cashier@ssrone.com / Cashier@123")
         logger.info("=" * 55)
         logger.info("NOTE: Copy the Branch ID above into frontend demo")
         logger.info("calls (e.g. POS checkout) if you wire up live data.")

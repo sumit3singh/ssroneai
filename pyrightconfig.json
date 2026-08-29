@@ -1,0 +1,9 @@
+{
+  "extraPaths": [
+    "services/backend",
+    "services/backend/src"
+  ],
+  "exclude": [
+    "**/__pyrefly_virtual__**"
+  ]
+}

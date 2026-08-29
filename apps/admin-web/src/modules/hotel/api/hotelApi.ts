@@ -1,7 +1,7 @@
 /**
  * Hotel PMS API Client
  */
-import { api } from "@/shared/utils/api-client";
+import { api } from "@ssrone/api-client";
 import { HotelRoom } from "../types";
 
 export const hotelApi = {
