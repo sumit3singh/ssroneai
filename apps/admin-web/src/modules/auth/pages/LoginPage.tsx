@@ -2,18 +2,16 @@ import { useState, type FormEvent, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   Hotel, Lock, Mail, Building, MapPin,
-  Sparkles, Calendar, Loader2, Globe, Shield, CreditCard, ChevronRight
+  Sparkles, Calendar, Loader2, Globe, Shield, ChevronRight
 } from "lucide-react";
-import { useLogin } from "../hooks";
-import { Button, Input, Label } from "@ssrone/ui";
 import { useAuthStore } from "@ssrone/auth";
 import { api } from "@ssrone/api-client";
 import { toast } from "sonner";
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const loginMutation = useLogin();
   const auth = useAuthStore();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [tenantSlug, setTenantSlug] = useState("baithak-cafe");
   const [email, setEmail] = useState("");
@@ -34,7 +32,7 @@ export function LoginPage() {
   const contextCacheRef = useRef<Map<string, { companies: any[]; branches: any[]; finYears: any[] }>>(new Map());
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Helper to load context for a specific tenant slug directly from PostgreSQL
+  // Helper to load context for a specific tenant slug directly from PostgreSQL (Pure SSOT)
   const loadContext = async (slug: string) => {
     const cleanSlug = slug.trim();
     if (!cleanSlug) {
@@ -74,6 +72,7 @@ export function LoginPage() {
     setContextError(null);
 
     try {
+      // Query PostgreSQL backend SSOT endpoint
       const res = await api.get<{
         companies: any[];
         branches: any[];
@@ -134,7 +133,7 @@ export function LoginPage() {
       setSelectedBranchId("");
       setSelectedFinYear("");
       const msg = err instanceof Error ? err.message : String(err);
-      setContextError(`Unable to load workspace from PostgreSQL: ${msg}`);
+      setContextError(`Unable to load workspace from PostgreSQL database: ${msg}`);
     } finally {
       setIsLoadingContext(false);
     }
@@ -200,7 +199,7 @@ export function LoginPage() {
     }
 
     if (!selectedCompanyId || !selectedBranchId || !selectedFinYear) {
-      toast.error("Please select a company, unit, and financial year.");
+      toast.error("Please select a company, unit, and financial year from PostgreSQL database.");
       return;
     }
 
@@ -208,29 +207,31 @@ export function LoginPage() {
     const branch = branches.find((b) => String(b.id) === String(selectedBranchId));
 
     if (!company || !branch) {
-      toast.error("Invalid organizational context selected.");
+      toast.error("Invalid organizational context selected from PostgreSQL database.");
       return;
     }
 
-    await loginMutation.mutateAsync({
-      tenant_slug: tenantSlug,
-      email,
-      password
-    }, {
-      onSuccess: async () => {
-        // Save select parameters into Zustand store
-        auth.setSelectedCompany(company);
-        auth.setSelectedBranch(branch);
-        const finYearObj = finYears.find((fy) => fy.code === selectedFinYear) || { code: selectedFinYear, name: selectedFinYear };
-        auth.setSelectedFinYear(finYearObj as any);
+    setIsSubmitting(true);
+    try {
+      await auth.login({
+        tenant_slug: tenantSlug,
+        email,
+        password
+      });
 
-        toast.success("ERP workspace initialized successfully!");
-        void navigate({ to: "/" });
+      auth.setSelectedCompany(company);
+      auth.setSelectedBranch(branch);
+      const finYearObj = finYears.find((fy) => fy.code === selectedFinYear) || { code: selectedFinYear, name: selectedFinYear };
+      auth.setSelectedFinYear(finYearObj as any);
 
-
-
-      }
-    });
+      toast.success("ERP workspace initialized successfully!");
+      void navigate({ to: "/" });
+    } catch (err: any) {
+      console.error("Login error:", err);
+      toast.error("Login failed. Please check your credentials.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -250,10 +251,6 @@ export function LoginPage() {
           0%, 100% { transform: translateY(0px); }
           50% { transform: translateY(-12px); }
         }
-        @keyframes float-y-reverse {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(12px); }
-        }
         @keyframes float-card-1 {
           0%, 100% { transform: translate(0px, 0px) scale(1); }
           50% { transform: translate(-8px, -10px) scale(1.02); }
@@ -268,7 +265,7 @@ export function LoginPage() {
       <div className="absolute top-[-30%] left-[-20%] w-[70%] h-[70%] rounded-full bg-violet-500/5 blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-30%] right-[-20%] w-[70%] h-[70%] rounded-full bg-amber-500/5 blur-[120px] pointer-events-none" />
 
-      {/* Left side: Premium 3D AI Logo Graphics Panel (ULTRA PREMIUM AESTHETIC) */}
+      {/* Left side: Clean 3D AI Logo Graphics Panel (Original Light Design System) */}
       <div className="w-[45%] hidden lg:flex flex-col justify-between p-12 bg-gradient-to-b from-[#F3EFE6] to-[#E5E0D4] border-r border-slate-200/60 relative overflow-hidden">
 
         {/* Subtle grid background pattern */}
@@ -369,7 +366,7 @@ export function LoginPage() {
         </div>
       </div>
 
-      {/* Right side: Credentials, selectors & SignIn Form (LIGHT THEME) */}
+      {/* Right side: Credentials, selectors & SignIn Form (Original Light Theme) */}
       <div className="w-full lg:w-[55%] flex flex-col justify-center items-center p-6 lg:p-12 bg-[#F2EDE2] relative overflow-y-auto scrollbar-hide">
 
         <div className="w-full max-w-[440px] animate-in fade-in slide-in-from-bottom-8 duration-500">
@@ -397,20 +394,20 @@ export function LoginPage() {
             {isLoadingContext ? (
               <div className="flex flex-col items-center justify-center py-12 space-y-4">
                 <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
-                <p className="text-xs text-slate-500 font-semibold">Resolving tenant structure...</p>
+                <p className="text-xs text-slate-500 font-semibold">Querying PostgreSQL tenant structure...</p>
               </div>
             ) : (
               <form onSubmit={handleSignIn} className="space-y-4 font-sans text-xs">
 
                 {/* Email Input */}
                 <div className="space-y-1">
-                  <Label htmlFor="email" className="text-4xs font-bold text-slate-500 uppercase tracking-widest font-extrabold">Corporate Email</Label>
+                  <label htmlFor="email" className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-extrabold block">Corporate Email</label>
                   <div className="relative">
                     <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                    <Input
+                    <input
                       id="email"
                       type="email"
-                      className="pl-10 h-10 text-xs bg-slate-50 border-slate-200/80 hover:border-slate-300 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-slate-900 rounded-xl placeholder:text-slate-400 font-semibold"
+                      className="pl-10 h-10 w-full text-xs bg-slate-50 border border-slate-200/80 hover:border-slate-300 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-slate-900 rounded-xl placeholder:text-slate-400 font-semibold outline-none transition-colors"
                       placeholder="you@corporate.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -421,13 +418,13 @@ export function LoginPage() {
 
                 {/* Password Input */}
                 <div className="space-y-1">
-                  <Label htmlFor="password" className="text-4xs font-bold text-slate-500 uppercase tracking-widest font-extrabold">Password</Label>
+                  <label htmlFor="password" className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-extrabold block">Password</label>
                   <div className="relative">
                     <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                    <Input
+                    <input
                       id="password"
                       type="password"
-                      className="pl-10 h-10 text-xs bg-slate-50 border-slate-200/80 hover:border-slate-300 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-slate-900 rounded-xl placeholder:text-slate-400 font-semibold"
+                      className="pl-10 h-10 w-full text-xs bg-slate-50 border border-slate-200/80 hover:border-slate-300 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-slate-900 rounded-xl placeholder:text-slate-400 font-semibold outline-none transition-colors"
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -438,25 +435,24 @@ export function LoginPage() {
 
                 {/* Workspace Slug Input (Tenant Selector) */}
                 <div className="space-y-1">
-                  <Label htmlFor="tenant" className="text-4xs font-bold text-slate-500 uppercase tracking-widest font-extrabold">Workspace Slug</Label>
+                  <label htmlFor="tenant" className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-extrabold block">Workspace Slug</label>
                   <div className="relative">
                     <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                    <Input
+                    <input
                       id="tenant"
                       type="text"
-                      className="pl-10 h-10 text-xs bg-slate-50 border-slate-200/80 hover:border-slate-300 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-slate-900 rounded-xl placeholder:text-slate-400 font-bold"
-                      placeholder="e.g. demo-tenant"
+                      className="pl-10 h-10 w-full text-xs bg-slate-50 border border-slate-200/80 hover:border-slate-300 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-slate-900 rounded-xl placeholder:text-slate-400 font-bold outline-none transition-colors"
+                      placeholder="e.g. baithak-cafe"
                       value={tenantSlug}
                       onChange={(e) => setTenantSlug(e.target.value)}
-
                       required
                     />
                   </div>
                 </div>
 
-                {/* Corporate Company Selector */}
+                {/* Corporate Company Selector (PostgreSQL SSOT) */}
                 <div className="space-y-1">
-                  <Label htmlFor="company" className="text-4xs font-bold text-slate-500 uppercase tracking-widest font-extrabold">Target Company</Label>
+                  <label htmlFor="company" className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-extrabold block">Target Company</label>
                   <div className="relative">
                     <Building className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                     <select
@@ -489,7 +485,7 @@ export function LoginPage() {
                 </div>
 
                 {contextError ? (
-                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-xs text-amber-900 font-medium">
                     {contextError}
                   </div>
                 ) : null}
@@ -498,7 +494,7 @@ export function LoginPage() {
                 <div className="grid grid-cols-2 gap-3">
                   {/* Physical Unit Selector */}
                   <div className="space-y-1">
-                    <Label htmlFor="branch" className="text-4xs font-bold text-slate-500 uppercase tracking-widest font-extrabold">Active Unit</Label>
+                    <label htmlFor="branch" className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-extrabold block">Active Unit</label>
                     <div className="relative">
                       <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                       <select
@@ -525,7 +521,7 @@ export function LoginPage() {
 
                   {/* Financial Year Selector */}
                   <div className="space-y-1">
-                    <Label htmlFor="finyear" className="text-4xs font-bold text-slate-500 uppercase tracking-widest font-extrabold">Fin Year</Label>
+                    <label htmlFor="finyear" className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-extrabold block">Fin Year</label>
                     <div className="relative">
                       <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                       <select
@@ -549,13 +545,14 @@ export function LoginPage() {
                 </div>
 
                 {/* Sign In Button */}
-                <Button
+                <button
                   type="submit"
-                  className="w-full h-11 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-black text-xs tracking-widest uppercase rounded-xl shadow-md mt-4 transition-all duration-300 transform hover:scale-[1.01]"
-                  loading={loginMutation.isPending}
+                  disabled={isSubmitting}
+                  className="w-full h-11 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-black text-xs tracking-widest uppercase rounded-xl shadow-md mt-4 transition-all duration-300 transform hover:scale-[1.01] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : null}
                   Sign In to Workspace
-                </Button>
+                </button>
 
               </form>
             )}

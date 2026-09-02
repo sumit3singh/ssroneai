@@ -34,31 +34,39 @@ export const ItemSalesReport: React.FC<ItemSalesReportProps> = ({ orders }) => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-extrabold text-sm text-foreground uppercase tracking-wider">
+        <h3 className="font-semibold text-xs text-foreground uppercase tracking-wider">
           Item & Dish Sales Analytics
         </h3>
-        <Button size="sm" variant="outline" className="font-bold text-xs gap-1" onClick={() => window.print()}>
+        <Button size="sm" variant="outline" className="text-xs font-semibold gap-1.5 cursor-pointer" onClick={() => window.print()}>
           <Printer size={13} /> Print Item Report
         </Button>
       </div>
 
-      <div className="overflow-x-auto border border-border rounded-xl">
+      <div className="overflow-x-auto border border-border rounded-md bg-card">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
-            <tr className="bg-muted/50 border-b border-border text-[10px] font-black uppercase text-muted-foreground">
-              <th className="p-2.5">Dish Name</th>
-              <th className="p-2.5 text-center">Total Quantity Sold</th>
-              <th className="p-2.5 text-right">Gross Item Revenue</th>
+            <tr className="bg-muted/50 border-b border-border text-[11px] font-semibold uppercase text-muted-foreground">
+              <th className="py-2.5 px-3">Dish Name</th>
+              <th className="py-2.5 px-3 text-center">Total Quantity Sold</th>
+              <th className="py-2.5 px-3 text-right">Gross Item Revenue</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border/60 font-semibold text-muted-foreground">
-            {sortedItems.map((item, idx) => (
-              <tr key={idx} className="hover:bg-muted/10">
-                <td className="p-2.5 font-bold text-foreground">{item.name}</td>
-                <td className="p-2.5 text-center font-mono font-bold">{item.qty}</td>
-                <td className="p-2.5 text-right font-mono font-black text-foreground">₹{item.revenue.toFixed(2)}</td>
+          <tbody className="divide-y divide-border text-xs">
+            {sortedItems.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="py-8 text-center text-muted-foreground font-medium">
+                  No item sales data available.
+                </td>
               </tr>
-            ))}
+            ) : (
+              sortedItems.map((item, idx) => (
+                <tr key={idx} className="hover:bg-muted/40 transition-colors">
+                  <td className="py-2.5 px-3 font-medium text-foreground">{item.name}</td>
+                  <td className="py-2.5 px-3 text-center font-mono font-semibold text-foreground">{item.qty}</td>
+                  <td className="py-2.5 px-3 text-right font-mono font-bold text-foreground">₹{item.revenue.toFixed(2)}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

@@ -34,6 +34,8 @@ export const TenantDetailDrawer: React.FC<TenantDetailDrawerProps> = ({
     setTimeout(() => setCopiedKey(false), 2000);
   };
 
+  const effectiveAdminPassword = tenant.adminPassword || (tenant as any).settings?.admin_password || 'Admin@123';
+
   const handleGetPackageText = () => {
     return `
 🔑 SSR ONE AI - CUSTOMER LOGIN CREDENTIALS
@@ -41,7 +43,7 @@ export const TenantDetailDrawer: React.FC<TenantDetailDrawerProps> = ({
 Tenant Name: ${tenant.name} (ID: #${tenant.id})
 ERP Portal: https://${tenant.domain || 'app.ssrone.ai'}
 User ID / Email: ${tenant.adminEmail}
-Password: Sumit@1320
+Password: ${effectiveAdminPassword}
 License Key: ${tenant.licenseKey}
 Plan Tier: ${tenant.tier} | Expiry: ${tenant.subscriptionExpiryDate}
 `.trim();
@@ -58,7 +60,7 @@ Plan Tier: ${tenant.tier} | Expiry: ${tenant.subscriptionExpiryDate}
 ERP Portal: https://${tenant.domain || 'app.ssrone.ai'}
 Tenant ID: #${tenant.id}
 User ID: ${tenant.adminEmail}
-Password: Sumit@1320
+Password: ${effectiveAdminPassword}
 License Key: ${tenant.licenseKey}
 `.trim();
 
@@ -257,7 +259,7 @@ License Key: ${tenant.licenseKey}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontFamily: 'monospace', marginTop: '0.25rem' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Mail size={12} /> Email: <strong>{tenant.adminEmail}</strong></span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Phone size={12} /> Phone: <strong>{tenant.adminPhone || '+91 98765 43210'}</strong></span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Key size={12} /> Default Pass: <strong>Sumit@1320</strong></span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Key size={12} /> Admin Pass: <strong>{effectiveAdminPassword}</strong></span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Building2 size={12} /> Portal: <strong>https://{tenant.domain}</strong></span>
             </div>
           </div>

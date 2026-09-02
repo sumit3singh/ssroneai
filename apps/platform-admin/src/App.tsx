@@ -28,7 +28,6 @@ import {
   ChevronDown,
   UserPlus
 } from 'lucide-react';
-import { Button, Badge } from '@ssrone/ui';
 
 import { Tenant, AuditLog, CreateTenantDTO, Company, Branch } from './types';
 import { platformAdminApi } from './api/platformAdmin.api';
@@ -40,6 +39,7 @@ import { TenantDetailDrawer } from './components/TenantDetailDrawer';
 import { AddCompanyModal } from './components/AddCompanyModal';
 import { AddBranchModal } from './components/AddBranchModal';
 import { AddUserModal } from './components/AddUserModal';
+import { ProvisionSuperadminModal } from './components/ProvisionSuperadminModal';
 import { ClusterTelemetryView } from './components/ClusterTelemetryView';
 import { PlatformAdminLogin } from './components/PlatformAdminLogin';
 
@@ -105,6 +105,8 @@ export function App() {
   const [isAddCompanyOpen, setIsAddCompanyOpen] = useState(false);
   const [isAddBranchOpen, setIsAddBranchOpen] = useState(false);
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [isProvisionSuperadminOpen, setIsProvisionSuperadminOpen] = useState(false);
+  const [provisionSuperadminTargetTenant, setProvisionSuperadminTargetTenant] = useState<Tenant | null>(null);
 
   // Single Source of Truth (SSOT): Database state loaded live via API
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -302,7 +304,7 @@ export function App() {
     <div 
       className="min-h-screen flex flex-col font-sans transition-colors select-none"
       style={{ 
-        backgroundColor: isDark ? '#070a12' : '#f8fafc', 
+        backgroundColor: isDark ? '#070a12' : '#faf9f5', 
         color: isDark ? '#f1f5f9' : '#0f172a', 
         minHeight: '100vh', 
         display: 'flex', 
@@ -334,96 +336,92 @@ export function App() {
         />
 
         {/* Right Main Canvas */}
-        <main 
-          className="flex-1 overflow-y-auto p-6 space-y-6 transition-colors" 
-          style={{ 
-            flex: 1, 
-            overflowY: 'auto', 
-            padding: '1.5rem', 
-            backgroundColor: isDark ? '#070a12' : '#f8fafc' 
-          }}
-        >
+        <main className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#FAF9F5] dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
 
           {/* OVERVIEW PANEL */}
           {activeNav === 'overview' && (
-            <div className="space-y-6" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div className="space-y-5 flex flex-col">
               
               {/* Executive Telemetry Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isDark ? '#0b0f19' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.875rem', padding: '1.25rem', boxShadow: isDark ? '0 10px 30px -10px rgba(0,0,0,0.5)' : '0 4px 12px rgba(0,0,0,0.03)' }}>
+              <div className="flex justify-between items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md p-4 shadow-2xs">
                 <div>
-                  <h2 style={{ fontSize: '0.9375rem', fontWeight: 800, color: isDark ? '#ffffff' : '#0f172a', margin: 0, fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Activity style={{ color: '#6366f1', width: '1.125rem', height: '1.125rem' }} />
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white font-mono flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                     <span>PLATFORM TELEMETRY & SYSTEM HEALTH CONSOLE</span>
                   </h2>
-                  <p style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', marginTop: '0.25rem', margin: 0 }}>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     Real-time monitoring across PostgreSQL RLS database clusters, Redis PubSub event streams, and tenant workloads.
                   </p>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                  <span style={{ padding: '0.25rem 0.625rem', borderRadius: '0.375rem', background: isDark ? 'rgba(16, 185, 129, 0.15)' : '#d1fae5', color: '#059669', border: '1px solid rgba(16, 185, 129, 0.3)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                    <span style={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+                <div className="flex items-center gap-2 font-mono text-xs">
+                  <span className="px-2.5 py-1 rounded bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 font-bold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-2xs animate-pulse" />
                     SYSTEM HEALTH: 100% OK
                   </span>
                 </div>
               </div>
 
               {/* Top Banner Executive KPI Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 
                 <div 
                   onClick={() => setActiveNav('tenants')}
-                  style={{ background: isDark ? '#0b0f19' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.875rem', padding: '1.25rem', cursor: 'pointer', transition: 'all 0.15s' }}
-                  className="hover:border-indigo-500/50 hover:shadow-md"
+                  className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-xl p-5 cursor-pointer hover:border-indigo-500/60 hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-200 flex flex-col justify-between group"
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: '0.625rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 800, fontFamily: 'monospace' }}>REGISTERED TENANTS</span>
-                    <Building2 style={{ color: '#6366f1', width: '1.25rem', height: '1.25rem' }} />
+                  <div className="flex justify-between items-start">
+                    <span className="text-[10px] uppercase font-mono font-extrabold tracking-wider text-slate-500 dark:text-slate-400">REGISTERED TENANTS</span>
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform">
+                      <Building2 className="w-4 h-4 stroke-[2.5]" />
+                    </div>
                   </div>
-                  <p style={{ fontSize: '2rem', fontWeight: 800, color: isDark ? '#ffffff' : '#0f172a', marginTop: '0.5rem', fontFamily: 'monospace', margin: '0.5rem 0 0 0' }}>{tenants.length}</p>
-                  <p style={{ fontSize: '0.75rem', color: '#10b981', marginTop: '0.375rem', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 700, fontFamily: 'monospace', margin: '0.375rem 0 0 0' }}>
-                    <CheckCircle2 style={{ width: '0.875rem', height: '0.875rem' }} />
+                  <p className="text-3xl font-extrabold font-mono text-slate-900 dark:text-white mt-4 mb-1">{tenants.length}</p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-mono font-bold">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>PostgreSQL RLS Active</span>
                   </p>
                 </div>
 
                 <div 
                   onClick={() => setActiveNav('hierarchy')}
-                  style={{ background: isDark ? '#0b0f19' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.875rem', padding: '1.25rem', cursor: 'pointer', transition: 'all 0.15s' }}
-                  className="hover:border-purple-500/50 hover:shadow-md"
+                  className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-xl p-5 cursor-pointer hover:border-purple-500/60 hover:shadow-lg hover:shadow-purple-500/5 transition-all duration-200 flex flex-col justify-between group"
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: '0.625rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 800, fontFamily: 'monospace' }}>CORPORATE LEGAL ENTITIES</span>
-                    <Layers style={{ color: '#a855f7', width: '1.25rem', height: '1.25rem' }} />
+                  <div className="flex justify-between items-start">
+                    <span className="text-[10px] uppercase font-mono font-extrabold tracking-wider text-slate-500 dark:text-slate-400">CORPORATE LEGAL ENTITIES</span>
+                    <div className="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-950/60 border border-purple-200/60 dark:border-purple-800/50 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform">
+                      <Layers className="w-4 h-4 stroke-[2.5]" />
+                    </div>
                   </div>
-                  <p style={{ fontSize: '2rem', fontWeight: 800, color: isDark ? '#ffffff' : '#0f172a', marginTop: '0.5rem', fontFamily: 'monospace', margin: '0.5rem 0 0 0' }}>{totalCompanies}</p>
-                  <p style={{ fontSize: '0.75rem', color: '#a855f7', marginTop: '0.375rem', fontWeight: 700, fontFamily: 'monospace', margin: '0.375rem 0 0 0' }}>Registered Companies in DB</p>
+                  <p className="text-3xl font-extrabold font-mono text-slate-900 dark:text-white mt-4 mb-1">{totalCompanies}</p>
+                  <p className="text-xs text-purple-600 dark:text-purple-400 font-mono font-bold">Registered Companies in DB</p>
                 </div>
 
                 <div 
                   onClick={() => setActiveNav('hierarchy')}
-                  style={{ background: isDark ? '#0b0f19' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.875rem', padding: '1.25rem', cursor: 'pointer', transition: 'all 0.15s' }}
-                  className="hover:border-amber-500/50 hover:shadow-md"
+                  className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-xl p-5 cursor-pointer hover:border-amber-500/60 hover:shadow-lg hover:shadow-amber-500/5 transition-all duration-200 flex flex-col justify-between group"
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: '0.625rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 800, fontFamily: 'monospace' }}>OUTLETS & BRANCHES</span>
-                    <GitBranch style={{ color: '#d97706', width: '1.25rem', height: '1.25rem' }} />
+                  <div className="flex justify-between items-start">
+                    <span className="text-[10px] uppercase font-mono font-extrabold tracking-wider text-slate-500 dark:text-slate-400">OUTLETS & BRANCHES</span>
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-200/60 dark:border-amber-800/50 flex items-center justify-center text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform">
+                      <GitBranch className="w-4 h-4 stroke-[2.5]" />
+                    </div>
                   </div>
-                  <p style={{ fontSize: '2rem', fontWeight: 800, color: isDark ? '#ffffff' : '#0f172a', marginTop: '0.5rem', fontFamily: 'monospace', margin: '0.5rem 0 0 0' }}>{totalOutlets}</p>
-                  <p style={{ fontSize: '0.75rem', color: '#d97706', marginTop: '0.375rem', fontWeight: 700, fontFamily: 'monospace', margin: '0.375rem 0 0 0' }}>Active Operating Outlets</p>
+                  <p className="text-3xl font-extrabold font-mono text-slate-900 dark:text-white mt-4 mb-1">{totalOutlets}</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 font-mono font-bold">Active Operating Outlets</p>
                 </div>
 
                 <div 
                   onClick={() => setActiveNav('billing')}
-                  style={{ background: isDark ? '#0b0f19' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.875rem', padding: '1.25rem', cursor: 'pointer', transition: 'all 0.15s' }}
-                  className="hover:border-emerald-500/50 hover:shadow-md"
+                  className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-xl p-5 cursor-pointer hover:border-emerald-500/60 hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-200 flex flex-col justify-between group"
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: '0.625rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 800, fontFamily: 'monospace' }}>YEARLY RECURRING ARR</span>
-                    <IndianRupee style={{ color: '#10b981', width: '1.25rem', height: '1.25rem' }} />
+                  <div className="flex justify-between items-start">
+                    <span className="text-[10px] uppercase font-mono font-extrabold tracking-wider text-slate-500 dark:text-slate-400">YEARLY RECURRING ARR</span>
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/60 dark:border-emerald-800/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform">
+                      <IndianRupee className="w-4 h-4 stroke-[2.5]" />
+                    </div>
                   </div>
-                  <p style={{ fontSize: '2rem', fontWeight: 800, color: isDark ? '#ffffff' : '#0f172a', marginTop: '0.5rem', fontFamily: 'monospace', margin: '0.5rem 0 0 0' }}>₹{totalYearlyARR.toLocaleString('en-IN')}</p>
-                  <p style={{ fontSize: '0.75rem', color: '#10b981', marginTop: '0.375rem', fontWeight: 700, fontFamily: 'monospace', margin: '0.375rem 0 0 0' }}>Yearly Subscriptions (₹12k/yr)</p>
+                  <p className="text-3xl font-extrabold font-mono text-slate-900 dark:text-white mt-4 mb-1">₹{totalYearlyARR.toLocaleString('en-IN')}</p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-mono font-bold">Yearly Subscriptions (₹12k/yr)</p>
                 </div>
 
               </div>
@@ -435,39 +433,39 @@ export function App() {
 
           {/* TENANT DIRECTORY PANEL */}
           {activeNav === 'tenants' && (
-            <div className="space-y-4" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div className="space-y-4 flex flex-col">
               
               {/* Summary Stats Header Banner above Table */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem', background: isDark ? '#0f172a' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.75rem', padding: '0.875rem 1.25rem', fontSize: '0.75rem', fontFamily: 'monospace' }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-4 shadow-xs font-mono text-xs">
                 <div>
-                  <span style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: '0.625rem', textTransform: 'uppercase' }}>Total Customer Tenants</span>
-                  <p style={{ fontWeight: 800, fontSize: '1.125rem', color: isDark ? '#ffffff' : '#0f172a', margin: 0 }}>{tenants.length} Tenants</p>
+                  <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400 font-black tracking-wider block">Total Customer Tenants</span>
+                  <p className="font-extrabold text-lg text-slate-900 dark:text-white mt-0.5">{tenants.length} Tenants</p>
                 </div>
                 <div>
-                  <span style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: '0.625rem', textTransform: 'uppercase' }}>Active Paid Subscriptions</span>
-                  <p style={{ fontWeight: 800, fontSize: '1.125rem', color: '#059669', margin: 0 }}>{activeTenantsCount} Active</p>
+                  <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400 font-black tracking-wider block">Active Paid Subscriptions</span>
+                  <p className="font-extrabold text-lg text-emerald-600 dark:text-emerald-400 mt-0.5">{activeTenantsCount} Active</p>
                 </div>
                 <div>
-                  <span style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: '0.625rem', textTransform: 'uppercase' }}>Yearly ARR Revenue</span>
-                  <p style={{ fontWeight: 800, fontSize: '1.125rem', color: '#6366f1', margin: 0 }}>₹{totalYearlyARR.toLocaleString('en-IN')}</p>
+                  <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400 font-black tracking-wider block">Yearly ARR Revenue</span>
+                  <p className="font-extrabold text-lg text-sky-600 dark:text-sky-400 mt-0.5">₹{totalYearlyARR.toLocaleString('en-IN')}</p>
                 </div>
                 <div>
-                  <span style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: '0.625rem', textTransform: 'uppercase' }}>Outlets Quota Allocation</span>
-                  <p style={{ fontWeight: 800, fontSize: '1.125rem', color: '#d97706', margin: 0 }}>{totalOutlets} / {tenants.reduce((a,t) => a + t.maxOutlets, 0)} Outlets</p>
+                  <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400 font-black tracking-wider block">Outlets Quota Allocation</span>
+                  <p className="font-extrabold text-lg text-amber-600 dark:text-amber-400 mt-0.5">{totalOutlets} / {tenants.reduce((a,t) => a + t.maxOutlets, 0)} Outlets</p>
                 </div>
               </div>
 
               {/* Search & Filter Toolbar */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isDark ? '#0f172a' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.75rem', padding: '1rem', boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ position: 'relative', width: '280px' }}>
-                    <Search style={{ position: 'absolute', left: '0.75rem', top: '0.625rem', color: '#94a3b8', width: '1rem', height: '1rem' }} />
+              <div className="flex flex-wrap justify-between items-center bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-4 shadow-xs gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="relative w-72">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                     <input
                       type="text"
                       placeholder="Search tenant name, UTR ref, admin..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      style={{ width: '100%', background: isDark ? '#090d16' : '#f8fafc', border: `1px solid ${isDark ? '#1e293b' : '#cbd5e1'}`, borderRadius: '0.5rem', paddingLeft: '2.25rem', paddingRight: '1rem', paddingTop: '0.5rem', paddingBottom: '0.5rem', color: isDark ? '#e2e8f0' : '#0f172a', fontSize: '0.75rem', outline: 'none' }}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-medium outline-none focus:ring-1 focus:ring-indigo-500 transition-colors"
                     />
                   </div>
 
@@ -475,7 +473,7 @@ export function App() {
                   <select
                     value={selectedTierFilter}
                     onChange={(e) => setSelectedTierFilter(e.target.value)}
-                    style={{ background: isDark ? '#090d16' : '#f8fafc', border: `1px solid ${isDark ? '#1e293b' : '#cbd5e1'}`, borderRadius: '0.5rem', padding: '0.5rem 0.75rem', fontSize: '0.75rem', color: isDark ? '#e2e8f0' : '#0f172a', outline: 'none' }}
+                    className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                   >
                     <option value="ALL">All Tiers</option>
                     <option value="Enterprise">Enterprise</option>
@@ -487,7 +485,7 @@ export function App() {
                   <select
                     value={selectedStatusFilter}
                     onChange={(e) => setSelectedStatusFilter(e.target.value)}
-                    style={{ background: isDark ? '#090d16' : '#f8fafc', border: `1px solid ${isDark ? '#1e293b' : '#cbd5e1'}`, borderRadius: '0.5rem', padding: '0.5rem 0.75rem', fontSize: '0.75rem', color: isDark ? '#e2e8f0' : '#0f172a', outline: 'none' }}
+                    className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                   >
                     <option value="ALL">All Statuses</option>
                     <option value="Active">Active</option>
@@ -496,61 +494,55 @@ export function App() {
                   </select>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <Button
+                <div className="flex items-center gap-2.5">
+                  <button
                     onClick={loadPlatformData}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-1.5"
+                    className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-extrabold text-slate-700 dark:text-slate-300 inline-flex items-center gap-1.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs transition-all"
                   >
-                    <RefreshCw className="h-3.5 w-3.5" />
+                    <RefreshCw className="h-3.5 w-3.5 text-sky-600" />
                     <span>Refresh DB</span>
-                  </Button>
-                  <Button 
+                  </button>
+                  <button 
                     onClick={() => setIsLicenseWizardOpen(true)}
-                    variant="primary"
-                    size="sm"
-                    className="flex items-center gap-2"
+                    className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-extrabold flex items-center gap-2 cursor-pointer shadow-2xs transition-colors active:scale-[0.98]"
                   >
-                    <Plus className="h-4 w-4" />
+                    <Plus className="h-4 w-4 text-amber-300" />
                     <span>Onboard Tenant Customer</span>
-                  </Button>
+                  </button>
                 </div>
               </div>
 
               {/* Data Table */}
-              <div style={{ background: isDark ? '#0f172a' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.75rem', overflow: 'hidden', boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-xs">
                 {filteredTenants.length === 0 ? (
-                  <div style={{ padding: '3rem 1.5rem', textAlign: 'center', color: isDark ? '#94a3b8' : '#64748b' }}>
-                    <Building2 style={{ width: '2.5rem', height: '2.5rem', margin: '0 auto 0.75rem', opacity: 0.4, color: '#6366f1' }} />
-                    <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: isDark ? '#ffffff' : '#0f172a', margin: 0 }}>No Customer Tenants Found</h3>
-                    <p style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                  <div className="p-12 text-center text-slate-500 dark:text-slate-400">
+                    <Building2 className="w-10 h-10 mx-auto mb-3 opacity-40 text-indigo-600" />
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">No Customer Tenants Found</h3>
+                    <p className="text-xs mt-1">
                       {searchQuery ? 'No tenants match your search filter.' : 'No customer tenants exist in the PostgreSQL database. Click "Onboard Tenant Customer" to provision your first tenant.'}
                     </p>
-                    <Button
+                    <button
                       onClick={() => setIsLicenseWizardOpen(true)}
-                      variant="primary"
-                      size="sm"
-                      className="mt-4"
+                      className="mt-4 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer shadow-md shadow-indigo-500/20 transition-colors"
                     >
-                      <Plus className="h-4 w-4 mr-1" /> Onboard First Tenant
-                    </Button>
+                      <Plus className="h-4 w-4" /> Onboard First Tenant
+                    </button>
                   </div>
                 ) : (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', textAlign: 'left', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
-                      <thead style={{ background: isDark ? '#090d16' : '#f1f5f9', color: isDark ? '#94a3b8' : '#475569', borderBottom: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, fontSize: '0.625rem', textTransform: 'uppercase', fontFamily: 'monospace' }}>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-50/90 dark:bg-slate-950 text-slate-500 dark:text-slate-400 border-b border-slate-200/80 dark:border-slate-800 text-[10px] uppercase font-mono font-black tracking-wider">
                         <tr>
-                          <th style={{ padding: '0.75rem 1rem' }}>Customer Tenant</th>
-                          <th style={{ padding: '0.75rem 1rem' }}>DB Strategy</th>
-                          <th style={{ padding: '0.75rem 1rem' }}>Yearly Fee & UTR Ref</th>
-                          <th style={{ padding: '0.75rem 1rem' }}>Subscription Validity</th>
-                          <th style={{ padding: '0.75rem 1rem' }}>Companies / Outlets</th>
-                          <th style={{ padding: '0.75rem 1rem' }}>Status</th>
-                          <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Actions</th>
+                          <th className="py-3.5 px-4">Customer Tenant</th>
+                          <th className="py-3.5 px-4">DB Strategy</th>
+                          <th className="py-3.5 px-4">Yearly Fee & UTR Ref</th>
+                          <th className="py-3.5 px-4">Subscription Validity</th>
+                          <th className="py-3.5 px-4">Companies / Outlets</th>
+                          <th className="py-3.5 px-4">Status</th>
+                          <th className="py-3.5 px-4 text-right">Actions</th>
                         </tr>
                       </thead>
-                      <tbody style={{ fontFamily: 'sans-serif' }}>
+                      <tbody className="font-sans">
                         {filteredTenants.map((tenant) => {
                           const totalTenantOutlets = tenant.companies.reduce((acc, c) => acc + c.branches.length, 0);
                           const isExpired = tenant.daysRemaining <= 0;
@@ -558,76 +550,73 @@ export function App() {
                           return (
                             <tr 
                               key={tenant.id} 
-                              style={{ borderBottom: `1px solid ${isDark ? '#1e293b' : '#f1f5f9'}`, cursor: 'pointer' }}
-                              className="hover:bg-slate-500/5 transition-colors"
+                              className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/80 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
                               onClick={() => {
                                 setDrawerTenant(tenant);
                                 setIsDrawerOpen(true);
                               }}
                             >
-                              <td style={{ padding: '1rem' }}>
-                                <div style={{ fontWeight: 700, color: isDark ? '#ffffff' : '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                  <Building2 style={{ color: '#6366f1', width: '1rem', height: '1rem' }} />
+                              <td className="p-4">
+                                <div className="font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                                  <Building2 className="text-indigo-600 w-4 h-4 shrink-0" />
                                   <span>{tenant.name}</span>
-                                  <span style={{ fontSize: '0.625rem', fontFamily: 'monospace', fontWeight: 700, color: '#6366f1', background: isDark ? '#1e1b4b' : '#e0e7ff', padding: '0.125rem 0.375rem', borderRadius: '0.25rem' }}>ID: #{tenant.id}</span>
+                                  <span className="text-[10px] font-mono font-extrabold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-md">ID: #{tenant.id}</span>
                                 </div>
-                                <div style={{ fontSize: '0.625rem', color: '#6366f1', fontFamily: 'monospace', marginTop: '0.125rem' }}>{tenant.domain}</div>
+                                <div className="text-[11px] text-indigo-600 font-mono mt-0.5">{tenant.domain}</div>
                               </td>
-                              <td style={{ padding: '1rem' }}>
-                                <span style={{ padding: '0.25rem 0.5rem', borderRadius: '0.375rem', fontSize: '0.625rem', fontWeight: 800, fontFamily: 'monospace', background: tenant.dbStrategy === 'Dedicated Database' ? (isDark ? 'rgba(217, 119, 6, 0.15)' : '#fef3c7') : (isDark ? 'rgba(99, 102, 241, 0.15)' : '#e0e7ff'), color: tenant.dbStrategy === 'Dedicated Database' ? '#d97706' : '#6366f1', border: tenant.dbStrategy === 'Dedicated Database' ? '1px solid rgba(217, 119, 6, 0.3)' : '1px solid rgba(99, 102, 241, 0.3)' }}>
+                              <td className="p-4">
+                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold border ${
+                                  tenant.dbStrategy === 'Dedicated Database' 
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-800'
+                                    : 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-400 dark:border-indigo-800'
+                                }`}>
                                   {tenant.dbStrategy || 'Shared Schema RLS'}
                                 </span>
                               </td>
-                              <td style={{ padding: '1rem' }}>
-                                <div style={{ fontWeight: 800, color: '#059669', fontFamily: 'monospace' }}>
+                              <td className="p-4">
+                                <div className="font-mono font-extrabold text-emerald-600 dark:text-emerald-400">
                                   ₹{tenant.yearlyFee.toLocaleString('en-IN')} / yr
                                 </div>
-                                <div style={{ fontSize: '0.625rem', fontFamily: 'monospace', color: '#d97706', marginTop: '0.125rem' }}>
+                                <div className="text-[10px] font-mono text-amber-600 dark:text-amber-400 mt-0.5">
                                   {tenant.paymentRef || 'UTR-PAID'}
                                 </div>
                               </td>
-                              <td style={{ padding: '1rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                                  <Clock style={{ width: '0.75rem', height: '0.75rem', color: isExpired ? '#dc2626' : '#059669' }} />
-                                  <span style={{ fontWeight: 700, color: isExpired ? '#dc2626' : (isDark ? '#ffffff' : '#0f172a') }}>
+                              <td className="p-4">
+                                <div className="flex items-center gap-1.5 font-bold">
+                                  <Clock className={`w-3.5 h-3.5 ${isExpired ? 'text-rose-600' : 'text-emerald-600'}`} />
+                                  <span className={isExpired ? 'text-rose-600 font-extrabold' : 'text-slate-900 dark:text-white'}>
                                     {isExpired ? 'EXPIRED' : `${tenant.daysRemaining} Days Left`}
                                   </span>
                                 </div>
-                                <div style={{ fontSize: '0.625rem', fontFamily: 'monospace', color: '#64748b', marginTop: '0.125rem' }}>
+                                <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
                                   Exp: {tenant.subscriptionExpiryDate}
                                 </div>
                               </td>
-                              <td style={{ padding: '1rem' }}>
-                                <div style={{ fontWeight: 700, color: isDark ? '#ffffff' : '#0f172a' }}>{tenant.companies.length} Companies</div>
-                                <div style={{ fontSize: '0.625rem', color: '#d97706', fontWeight: 600 }}>{totalTenantOutlets} Outlets (Max {tenant.maxOutlets})</div>
+                              <td className="p-4">
+                                <div className="font-bold text-slate-900 dark:text-white">{tenant.companies.length} Companies</div>
+                                <div className="text-[10px] text-amber-600 font-semibold">{totalTenantOutlets} Outlets (Max {tenant.maxOutlets})</div>
                               </td>
-                              <td style={{ padding: '1rem' }}>
-                                <Badge variant={isExpired ? 'destructive' : tenant.status === 'Active' ? 'success' : 'warning'} size="sm">
+                              <td className="p-4">
+                                <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold border ${
+                                  isExpired 
+                                    ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400 border-rose-200' 
+                                    : tenant.status === 'Active' 
+                                      ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400 border-emerald-200' 
+                                      : 'bg-amber-50 text-amber-600 border-amber-200'
+                                }`}>
                                   {isExpired ? 'EXPIRED' : tenant.status}
-                                </Badge>
+                                </span>
                               </td>
-                              <td style={{ padding: '1rem', textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.375rem' }}>
-                                  <button 
-                                    onClick={() => {
-                                      setSelectedTenant(tenant);
-                                      setIsConfigureModalOpen(true);
-                                    }}
-                                    style={{
-                                      padding: '0.375rem 0.75rem',
-                                      borderRadius: '0.5rem',
-                                      fontSize: '0.75rem',
-                                      fontWeight: 700,
-                                      background: isDark ? '#1e293b' : '#f1f5f9',
-                                      color: isDark ? '#f8fafc' : '#0f172a',
-                                      border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
-                                      cursor: 'pointer',
-                                      transition: 'all 0.15s'
-                                    }}
-                                  >
-                                    Manage License
-                                  </button>
-                                </div>
+                              <td className="p-4 text-right" onClick={(e) => e.stopPropagation()}>
+                                <button 
+                                  onClick={() => {
+                                    setSelectedTenant(tenant);
+                                    setIsConfigureModalOpen(true);
+                                  }}
+                                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                                >
+                                  Manage License
+                                </button>
                               </td>
                             </tr>
                           );
@@ -642,159 +631,127 @@ export function App() {
 
           {/* HIERARCHY EXPLORER */}
           {activeNav === 'hierarchy' && (
-            <div className="space-y-6" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isDark ? '#0f172a' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.75rem', padding: '1.25rem', boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div className="space-y-5 flex flex-col">
+              <div className="flex flex-wrap justify-between items-center bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 shadow-xs gap-3">
                 <div>
-                  <h2 style={{ fontSize: '0.875rem', fontWeight: 700, color: isDark ? '#ffffff' : '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem', fontFamily: 'monospace', margin: 0 }}>
-                    <GitBranch style={{ color: '#d97706', width: '1rem', height: '1rem' }} />
-                    4-LEVEL MULTI-TENANT ENTERPRISE TREE EXPLORER
+                  <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2 font-mono">
+                    <GitBranch className="text-amber-600 w-4 h-4" />
+                    <span>4-LEVEL MULTI-TENANT ENTERPRISE TREE EXPLORER</span>
                   </h2>
-                  <p style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', marginTop: '0.125rem', margin: 0 }}>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     SSR IT Platform → Tenant Customers → Corporate Legal Entities → Outlets & Branches
                   </p>
                 </div>
 
                 {/* Tree Search */}
-                <div style={{ position: 'relative', width: '280px' }}>
-                  <Search style={{ position: 'absolute', left: '0.75rem', top: '0.625rem', color: '#94a3b8', width: '1rem', height: '1rem' }} />
+                <div className="relative w-72">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                   <input
                     type="text"
                     placeholder="Search tenant, company, branch..."
                     value={hierarchySearchQuery}
                     onChange={(e) => setHierarchySearchQuery(e.target.value)}
-                    style={{ width: '100%', background: isDark ? '#090d16' : '#f8fafc', border: `1px solid ${isDark ? '#1e293b' : '#cbd5e1'}`, borderRadius: '0.5rem', paddingLeft: '2.25rem', paddingRight: '1rem', paddingTop: '0.5rem', paddingBottom: '0.5rem', color: isDark ? '#e2e8f0' : '#0f172a', fontSize: '0.75rem', outline: 'none' }}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-medium outline-none focus:ring-1 focus:ring-indigo-500 transition-colors"
                   />
                 </div>
               </div>
 
               {filteredHierarchyTenants.length === 0 ? (
-                <div style={{ background: isDark ? '#0f172a' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.75rem', padding: '3rem 1.5rem', textAlign: 'center', color: isDark ? '#94a3b8' : '#64748b' }}>
-                  <GitBranch style={{ width: '2.5rem', height: '2.5rem', margin: '0 auto 0.75rem', opacity: 0.4, color: '#d97706' }} />
-                  <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: isDark ? '#ffffff' : '#0f172a', margin: 0 }}>No Enterprise Hierarchy Found</h3>
-                  <p style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>No companies or branches match your search filter.</p>
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-12 text-center text-slate-500 dark:text-slate-400">
+                  <GitBranch className="w-10 h-10 mx-auto mb-3 opacity-40 text-amber-600" />
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">No Enterprise Hierarchy Found</h3>
+                  <p className="text-xs mt-1">No companies or branches match your search filter.</p>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="flex flex-col gap-4">
                   {filteredHierarchyTenants.map((t) => {
                     const totalBranchesCount = t.companies.reduce((acc, c) => acc + c.branches.length, 0);
                     return (
                       <div 
                         key={t.id} 
-                        style={{ 
-                          background: isDark ? '#0b0f19' : '#ffffff', 
-                          border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, 
-                          borderRadius: '0.875rem', 
-                          padding: '1.25rem', 
-                          display: 'flex', 
-                          flexDirection: 'column', 
-                          gap: '1.25rem', 
-                          boxShadow: isDark ? '0 10px 30px -10px rgba(0,0,0,0.5)' : '0 4px 12px rgba(0,0,0,0.03)' 
-                        }}
+                        className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 flex flex-col gap-5 shadow-xs hover:border-indigo-300 transition-all duration-200"
                       >
                         {/* Level 1: Tenant Header */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${isDark ? '#1f2937' : '#f1f5f9'}`, paddingBottom: '0.875rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
-                            <div style={{ width: '2.5rem', height: '2.5rem', borderRadius: '0.625rem', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2))', border: '1px solid rgba(99, 102, 241, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6366f1' }}>
-                              <Building2 style={{ width: '1.25rem', height: '1.25rem' }} />
+                        <div className="flex flex-wrap justify-between items-center border-b border-slate-100 dark:border-slate-800/80 pb-4 gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500/20 via-purple-500/20 to-violet-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-600">
+                              <Building2 className="w-5 h-5 stroke-[2.5]" />
                             </div>
                             <div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <h3 style={{ fontSize: '0.9375rem', fontWeight: 800, color: isDark ? '#ffffff' : '#0f172a', margin: 0 }}>
+                              <div className="flex items-center gap-2">
+                                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
                                   {t.name}
                                 </h3>
-                                <span style={{ padding: '0.125rem 0.5rem', borderRadius: '0.375rem', fontSize: '0.6875rem', fontWeight: 800, background: isDark ? '#1e1b4b' : '#e0e7ff', color: '#6366f1', border: '1px solid rgba(99, 102, 241, 0.3)', fontFamily: 'monospace' }}>
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-extrabold bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
                                   Tenant ID: #{t.id}
                                 </span>
                               </div>
-                              <p style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontFamily: 'monospace', margin: '0.125rem 0 0 0' }}>
-                                {t.domain} • Admin: <strong style={{ color: isDark ? '#e2e8f0' : '#1e293b' }}>{t.adminName}</strong> ({t.adminEmail})
+                              <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                                {t.domain} • Admin: <strong className="text-slate-800 dark:text-slate-200 font-bold">{t.adminName}</strong> ({t.adminEmail})
                               </p>
                             </div>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <Badge variant="warning" size="sm" className="font-mono font-bold">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-extrabold bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
                               {t.companies.length} COMPANIES • {totalBranchesCount} OUTLETS
-                            </Badge>
+                            </span>
                             <button
                               onClick={() => {
                                 setDrawerTenant(t);
                                 setIsDrawerOpen(true);
                               }}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.375rem',
-                                padding: '0.375rem 0.75rem',
-                                borderRadius: '0.5rem',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                background: isDark ? 'rgba(99, 102, 241, 0.15)' : '#e0e7ff',
-                                color: isDark ? '#a5b4fc' : '#4338ca',
-                                border: `1px solid ${isDark ? 'rgba(99, 102, 241, 0.3)' : '#c7d2fe'}`,
-                                cursor: 'pointer'
-                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer"
                             >
-                              <Copy size={12} />
+                              <Copy size={13} />
                               <span>Copy Customer Info</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setProvisionSuperadminTargetTenant(t);
+                                setIsProvisionSuperadminOpen(true);
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer"
+                            >
+                              <ShieldCheck size={13} />
+                              <span>Provision Super Admin</span>
                             </button>
                             <button
                               onClick={() => {
                                 setAddCompanyTargetTenant(t);
                                 setIsAddCompanyOpen(true);
                               }}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.375rem',
-                                padding: '0.375rem 0.75rem',
-                                borderRadius: '0.5rem',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                background: isDark ? 'rgba(16, 185, 129, 0.15)' : '#d1fae5',
-                                color: isDark ? '#34d399' : '#047857',
-                                border: `1px solid ${isDark ? 'rgba(16, 185, 129, 0.3)' : '#a7f3d0'}`,
-                                cursor: 'pointer'
-                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs hover:from-emerald-500 hover:to-teal-500 transition-all cursor-pointer"
                             >
-                              <Plus size={12} />
+                              <Plus size={13} />
                               <span>Add Company</span>
                             </button>
                           </div>
                         </div>
 
                         {/* Level 2: Companies & Outlets Hierarchy Tree */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem', paddingLeft: '1.25rem', borderLeft: '2px solid rgba(99, 102, 241, 0.35)' }}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-4 border-l-2 border-indigo-200/80 dark:border-indigo-800/80">
                           {t.companies.map((c) => (
                             <div 
                               key={c.id} 
-                              style={{ 
-                                background: isDark ? '#111827' : '#f8fafc', 
-                                border: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`, 
-                                borderRadius: '0.75rem', 
-                                padding: '1rem', 
-                                display: 'flex', 
-                                flexDirection: 'column', 
-                                gap: '0.875rem',
-                                boxShadow: isDark ? 'none' : '0 2px 4px rgba(0,0,0,0.02)'
-                              }}
+                              className="bg-slate-50/80 dark:bg-slate-950/80 border border-slate-200/80 dark:border-slate-800/80 rounded-xl p-4 flex flex-col gap-3 shadow-2xs"
                             >
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
-                                  <Layers style={{ color: '#a855f7', width: '1.125rem', height: '1.125rem' }} />
-                                  <span style={{ fontSize: '0.8125rem', fontWeight: 800, color: isDark ? '#ffffff' : '#0f172a' }}>{c.name}</span>
-                                  <span style={{ fontSize: '0.625rem', fontFamily: 'monospace', fontWeight: 800, color: '#a855f7', background: isDark ? '#2e1065' : '#f3e8ff', padding: '0.125rem 0.5rem', borderRadius: '0.25rem' }}>
+                              <div className="flex justify-between items-center flex-wrap gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Layers className="text-purple-600 w-4 h-4 shrink-0" />
+                                  <span className="text-xs font-extrabold text-slate-900 dark:text-white">{c.name}</span>
+                                  <span className="text-[10px] font-mono font-extrabold text-purple-700 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 px-2 py-0.5 rounded-md">
                                     Company ID: #{c.id}
                                   </span>
                                 </div>
-                                <span style={{ fontSize: '0.625rem', fontFamily: 'monospace', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b' }}>
+                                <span className="text-[10px] font-mono text-slate-500 font-bold">
                                   CIN: {c.regNumber || 'N/A'}
                                 </span>
                               </div>
 
                               {/* Level 3: Branches under Company */}
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingTop: '0.625rem', borderTop: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}` }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ fontSize: '0.625rem', fontWeight: 800, color: isDark ? '#94a3b8' : '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'monospace' }}>
+                              <div className="flex flex-col gap-2 pt-2 border-t border-slate-200/80 dark:border-slate-800/80">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] font-mono font-black uppercase text-slate-500 tracking-wider">
                                     Branches / Outlets ({c.branches.length})
                                   </span>
                                   <button
@@ -802,7 +759,7 @@ export function App() {
                                       setAddBranchTargetCompany({ tenant: t, company: c });
                                       setIsAddBranchOpen(true);
                                     }}
-                                    style={{ background: 'transparent', border: 'none', color: '#d97706', fontSize: '0.6875rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                                    className="text-amber-600 hover:text-amber-700 text-xs font-extrabold flex items-center gap-1 cursor-pointer"
                                   >
                                     <Plus size={12} /> Add Branch
                                   </button>
@@ -811,27 +768,18 @@ export function App() {
                                 {c.branches.map((b) => (
                                   <div 
                                     key={b.id} 
-                                    style={{ 
-                                      display: 'flex', 
-                                      justify: 'space-between', 
-                                      alignItems: 'center', 
-                                      fontSize: '0.75rem', 
-                                      background: isDark ? '#0b0f19' : '#ffffff', 
-                                      padding: '0.5rem 0.75rem', 
-                                      borderRadius: '0.5rem', 
-                                      border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}` 
-                                    }}
+                                    className="flex justify-between items-center text-xs bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800/80"
                                   >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                      <GitBranch style={{ color: '#d97706', width: '0.875rem', height: '0.875rem' }} />
-                                      <span style={{ color: isDark ? '#ffffff' : '#0f172a', fontWeight: 700 }}>{b.name}</span>
-                                      <span style={{ fontSize: '0.625rem', fontFamily: 'monospace', fontWeight: 800, color: '#d97706', background: isDark ? '#451a03' : '#fef3c7', padding: '0.125rem 0.375rem', borderRadius: '0.25rem' }}>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <GitBranch className="text-amber-600 w-3.5 h-3.5" />
+                                      <span className="text-slate-900 dark:text-white font-bold">{b.name}</span>
+                                      <span className="text-[10px] font-mono font-extrabold text-amber-700 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 px-1.5 py-0.5 rounded-md">
                                         Branch ID: #{b.id}
                                       </span>
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.625rem', fontFamily: 'monospace' }}>
-                                      <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{b.city}</span>
-                                      <span style={{ color: '#6366f1', fontWeight: 700 }}>{b.code}</span>
+                                    <div className="flex items-center gap-3 text-[10px] font-mono">
+                                      <span className="text-slate-500">{b.city}</span>
+                                      <span className="text-indigo-600 font-bold">{b.code}</span>
                                     </div>
                                   </div>
                                 ))}
@@ -849,31 +797,31 @@ export function App() {
 
           {/* LICENSING & TIERS PANEL */}
           {activeNav === 'licensing' && (
-            <div className="space-y-6" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <div style={{ background: isDark ? '#0f172a' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.75rem', padding: '1.25rem' }}>
-                <h2 style={{ fontSize: '0.875rem', fontWeight: 700, color: isDark ? '#ffffff' : '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem', fontFamily: 'monospace', margin: 0 }}>
-                  <Key style={{ color: '#6366f1', width: '1rem', height: '1rem' }} />
-                  FEATURE LICENSING & SUBSCRIPTION TIER MATRIX (₹ INR)
+            <div className="space-y-5 flex flex-col">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 shadow-xs">
+                <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2 font-mono">
+                  <Key className="text-indigo-600 w-4 h-4" />
+                  <span>FEATURE LICENSING & SUBSCRIPTION TIER MATRIX (₹ INR)</span>
                 </h2>
-                <p style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', marginTop: '0.125rem', margin: 0 }}>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Manage Starter, Professional, and Enterprise license keys and module entitlements in Indian Rupees (₹).
                 </p>
               </div>
 
               {/* Tier Cards Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
-                  { name: 'Yearly Standard Plan', price: '₹12,000/yr', outlets: 'Max 15 Outlets', desc: 'Full 14-Module Suite + POS + Hotel PMS + Accounting', color: '#059669' },
-                  { name: 'Multi-Outlet Pro', price: '₹24,000/yr', outlets: 'Max 30 Outlets', desc: 'Multi-location chain support + KDS + AI Gateway', color: '#6366f1' },
-                  { name: 'Custom Enterprise', price: '₹36,000/yr', outlets: 'Unlimited Outlets', desc: 'Custom Dedicated Database + Unlimited Outlets', color: '#a855f7' }
+                  { name: 'Yearly Standard Plan', price: '₹12,000/yr', outlets: 'Max 15 Outlets', desc: 'Full 14-Module Suite + POS + Hotel PMS + Accounting', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+                  { name: 'Multi-Outlet Pro', price: '₹24,000/yr', outlets: 'Max 30 Outlets', desc: 'Multi-location chain support + KDS + AI Gateway', color: 'text-indigo-600 bg-indigo-50 border-indigo-200' },
+                  { name: 'Custom Enterprise', price: '₹36,000/yr', outlets: 'Unlimited Outlets', desc: 'Custom Dedicated Database + Unlimited Outlets', color: 'text-purple-600 bg-purple-50 border-purple-200' }
                 ].map((tierCard) => (
-                  <div key={tierCard.name} style={{ background: isDark ? '#0f172a' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.75rem', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: isDark ? '#ffffff' : '#0f172a', margin: 0 }}>{tierCard.name}</h3>
-                      <span style={{ fontSize: '0.875rem', fontWeight: 800, color: tierCard.color, fontFamily: 'monospace' }}>{tierCard.price}</span>
+                  <div key={tierCard.name} className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 flex flex-col justify-between gap-3 shadow-xs hover:border-indigo-400 transition-all duration-200">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">{tierCard.name}</h3>
+                      <span className="text-base font-extrabold font-mono text-indigo-600">{tierCard.price}</span>
                     </div>
-                    <p style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', margin: 0 }}>{tierCard.desc}</p>
-                    <div style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: tierCard.color, background: isDark ? '#090d16' : '#f8fafc', padding: '0.375rem 0.5rem', borderRadius: '0.375rem', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}` }}>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{tierCard.desc}</p>
+                    <div className={`text-[10px] font-mono font-extrabold p-2 rounded-xl border ${tierCard.color}`}>
                       {tierCard.outlets}
                     </div>
                   </div>
@@ -881,43 +829,45 @@ export function App() {
               </div>
 
               {/* Active License Keys Directory */}
-              <div style={{ background: isDark ? '#0f172a' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.75rem', overflow: 'hidden' }}>
-                <div style={{ padding: '1rem', borderBottom: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, fontWeight: 700, fontSize: '0.75rem', fontFamily: 'monospace' }}>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-xs">
+                <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 font-mono font-black text-xs text-slate-700 dark:text-slate-300">
                   ACTIVE TENANT LICENSES ({tenants.length})
                 </div>
                 {tenants.length === 0 ? (
-                  <div style={{ padding: '2rem', textAlign: 'center', color: isDark ? '#94a3b8' : '#64748b', fontSize: '0.75rem' }}>
+                  <div className="p-8 text-center text-slate-500 text-xs">
                     No active licenses found in database. Onboard a tenant to issue license keys.
                   </div>
                 ) : (
-                  <table style={{ width: '100%', textAlign: 'left', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
-                    <thead style={{ background: isDark ? '#090d16' : '#f1f5f9', color: isDark ? '#94a3b8' : '#475569', fontSize: '0.625rem', textTransform: 'uppercase', fontFamily: 'monospace' }}>
-                      <tr>
-                        <th style={{ padding: '0.75rem 1rem' }}>Tenant</th>
-                        <th style={{ padding: '0.75rem 1rem' }}>Cryptographic License Token</th>
-                        <th style={{ padding: '0.75rem 1rem' }}>Tier</th>
-                        <th style={{ padding: '0.75rem 1rem' }}>Max Outlets</th>
-                        <th style={{ padding: '0.75rem 1rem' }}>Status</th>
-                        <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tenants.map(t => (
-                        <tr key={t.id} style={{ borderBottom: `1px solid ${isDark ? '#1e293b' : '#f1f5f9'}` }}>
-                          <td style={{ padding: '0.75rem 1rem', fontWeight: 700 }}>{t.name}</td>
-                          <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace', color: '#d97706' }}>{t.licenseKey}</td>
-                          <td style={{ padding: '0.75rem 1rem' }}><Badge variant="primary" size="sm">{t.tier}</Badge></td>
-                          <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace' }}>{t.maxOutlets} Outlets</td>
-                          <td style={{ padding: '0.75rem 1rem' }}><Badge variant="success" size="sm">{t.status}</Badge></td>
-                          <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
-                            <Button size="sm" variant="outline" onClick={() => { setSelectedTenant(t); setIsConfigureModalOpen(true); }}>
-                              Edit License
-                            </Button>
-                          </td>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-50/90 dark:bg-slate-950 text-slate-500 dark:text-slate-400 text-[10px] uppercase font-mono font-black tracking-wider border-b border-slate-200/80 dark:border-slate-800">
+                        <tr>
+                          <th className="py-3.5 px-4">Tenant</th>
+                          <th className="py-3.5 px-4">Cryptographic License Token</th>
+                          <th className="py-3.5 px-4">Tier</th>
+                          <th className="py-3.5 px-4">Max Outlets</th>
+                          <th className="py-3.5 px-4">Status</th>
+                          <th className="py-3.5 px-4 text-right">Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="font-sans">
+                        {tenants.map(t => (
+                          <tr key={t.id} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">{t.name}</td>
+                            <td className="py-3.5 px-4 font-mono text-amber-600 dark:text-amber-400 font-bold">{t.licenseKey}</td>
+                            <td className="py-3.5 px-4"><span className="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-indigo-50 text-indigo-600 border border-indigo-200">{t.tier}</span></td>
+                            <td className="py-3.5 px-4 font-mono font-bold text-slate-700 dark:text-slate-300">{t.maxOutlets} Outlets</td>
+                            <td className="py-3.5 px-4"><span className="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-emerald-50 text-emerald-600 border border-emerald-200">{t.status}</span></td>
+                            <td className="py-3.5 px-4 text-right">
+                              <button className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => { setSelectedTenant(t); setIsConfigureModalOpen(true); }}>
+                                Edit License
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             </div>
@@ -925,65 +875,67 @@ export function App() {
 
           {/* SAAS BILLING & ARR PANEL */}
           {activeNav === 'billing' && (
-            <div className="space-y-6" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <div style={{ background: isDark ? '#0f172a' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.75rem', padding: '1.25rem' }}>
-                <h2 style={{ fontSize: '0.875rem', fontWeight: 700, color: isDark ? '#ffffff' : '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem', fontFamily: 'monospace', margin: 0 }}>
-                  <CreditCard style={{ color: '#059669', width: '1rem', height: '1rem' }} />
-                  SSR IT YEARLY SUBSCRIPTION BILLING & ARR MANAGEMENT (₹ INR)
+            <div className="space-y-5 flex flex-col">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 shadow-xs">
+                <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2 font-mono">
+                  <CreditCard className="text-emerald-600 w-4 h-4" />
+                  <span>SSR IT YEARLY SUBSCRIPTION BILLING & ARR MANAGEMENT (₹ INR)</span>
                 </h2>
-                <p style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', marginTop: '0.125rem', margin: 0 }}>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Real-time subscription billing analytics, recurring yearly revenue metrics, and UTR payment verification.
                 </p>
               </div>
 
               {/* Revenue Stats Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
-                <div style={{ background: isDark ? '#0f172a' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.75rem', padding: '1.25rem' }}>
-                  <span style={{ fontSize: '11px', textTransform: 'uppercase', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 700, fontFamily: 'monospace' }}>Annual Run Rate (ARR)</span>
-                  <p style={{ fontSize: '1.875rem', fontWeight: 800, color: '#059669', marginTop: '0.5rem', fontFamily: 'monospace' }}>₹{totalYearlyARR.toLocaleString('en-IN')}</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+                  <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400 font-mono font-black tracking-wider block">Annual Run Rate (ARR)</span>
+                  <p className="text-3xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400 mt-2">₹{totalYearlyARR.toLocaleString('en-IN')}</p>
                 </div>
-                <div style={{ background: isDark ? '#0f172a' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.75rem', padding: '1.25rem' }}>
-                  <span style={{ fontSize: '11px', textTransform: 'uppercase', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 700, fontFamily: 'monospace' }}>Monthly Run Rate (MRR)</span>
-                  <p style={{ fontSize: '1.875rem', fontWeight: 800, color: '#6366f1', marginTop: '0.5rem', fontFamily: 'monospace' }}>₹{totalMRR.toLocaleString('en-IN')}</p>
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+                  <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400 font-mono font-black tracking-wider block">Monthly Run Rate (MRR)</span>
+                  <p className="text-3xl font-extrabold font-mono text-indigo-600 dark:text-indigo-400 mt-2">₹{totalMRR.toLocaleString('en-IN')}</p>
                 </div>
-                <div style={{ background: isDark ? '#0f172a' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.75rem', padding: '1.25rem' }}>
-                  <span style={{ fontSize: '11px', textTransform: 'uppercase', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 700, fontFamily: 'monospace' }}>Average Yearly Subscription Fee</span>
-                  <p style={{ fontSize: '1.875rem', fontWeight: 800, color: '#d97706', marginTop: '0.5rem', fontFamily: 'monospace' }}>₹{tenants.length > 0 ? Math.round(totalYearlyARR / tenants.length).toLocaleString('en-IN') : 0}</p>
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+                  <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400 font-mono font-black tracking-wider block">Average Yearly Subscription Fee</span>
+                  <p className="text-3xl font-extrabold font-mono text-amber-600 dark:text-amber-400 mt-2">₹{tenants.length > 0 ? Math.round(totalYearlyARR / tenants.length).toLocaleString('en-IN') : 0}</p>
                 </div>
               </div>
 
               {/* Billing Subscriptions Directory */}
-              <div style={{ background: isDark ? '#0f172a' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.75rem', overflow: 'hidden' }}>
-                <div style={{ padding: '1rem', borderBottom: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, fontWeight: 700, fontSize: '0.75rem', fontFamily: 'monospace' }}>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-xs">
+                <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 font-mono font-black text-xs text-slate-700 dark:text-slate-300">
                   CUSTOMER YEARLY SUBSCRIPTION BILLING & UTR RECEIPT TABLE
                 </div>
                 {tenants.length === 0 ? (
-                  <div style={{ padding: '2rem', textAlign: 'center', color: isDark ? '#94a3b8' : '#64748b', fontSize: '0.75rem' }}>
+                  <div className="p-8 text-center text-slate-500 text-xs">
                     No subscription billing records found in database.
                   </div>
                 ) : (
-                  <table style={{ width: '100%', textAlign: 'left', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
-                    <thead style={{ background: isDark ? '#090d16' : '#f1f5f9', color: isDark ? '#94a3b8' : '#475569', fontSize: '0.625rem', textTransform: 'uppercase', fontFamily: 'monospace' }}>
-                      <tr>
-                        <th style={{ padding: '0.75rem 1rem' }}>Tenant</th>
-                        <th style={{ padding: '0.75rem 1rem' }}>Yearly Subscription Fee</th>
-                        <th style={{ padding: '0.75rem 1rem' }}>Payment Ref / UTR</th>
-                        <th style={{ padding: '0.75rem 1rem' }}>Validity Expiry</th>
-                        <th style={{ padding: '0.75rem 1rem' }}>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tenants.map(t => (
-                        <tr key={t.id} style={{ borderBottom: `1px solid ${isDark ? '#1e293b' : '#f1f5f9'}` }}>
-                          <td style={{ padding: '0.75rem 1rem', fontWeight: 700 }}>{t.name}</td>
-                          <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace', color: '#059669', fontWeight: 700 }}>₹{t.yearlyFee.toLocaleString('en-IN')} / yr</td>
-                          <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace', color: '#d97706' }}>{t.paymentRef || 'UTR-VERIFIED'} ({t.paymentMethod || 'UPI'})</td>
-                          <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace', color: '#6366f1' }}>{t.subscriptionExpiryDate}</td>
-                          <td style={{ padding: '0.75rem 1rem' }}><Badge variant="success" size="sm">{t.paymentStatus || 'PAID'}</Badge></td>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-50/90 dark:bg-slate-950 text-slate-500 dark:text-slate-400 text-[10px] uppercase font-mono font-black tracking-wider border-b border-slate-200/80 dark:border-slate-800">
+                        <tr>
+                          <th className="py-3.5 px-4">Tenant</th>
+                          <th className="py-3.5 px-4">Yearly Subscription Fee</th>
+                          <th className="py-3.5 px-4">Payment Ref / UTR</th>
+                          <th className="py-3.5 px-4">Validity Expiry</th>
+                          <th className="py-3.5 px-4">Status</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="font-sans">
+                        {tenants.map(t => (
+                          <tr key={t.id} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">{t.name}</td>
+                            <td className="py-3.5 px-4 font-mono text-emerald-600 font-extrabold">₹{t.yearlyFee.toLocaleString('en-IN')} / yr</td>
+                            <td className="py-3.5 px-4 font-mono text-amber-600 font-bold">{t.paymentRef || 'UTR-VERIFIED'} ({t.paymentMethod || 'UPI'})</td>
+                            <td className="py-3.5 px-4 font-mono text-indigo-600 font-bold">{t.subscriptionExpiryDate}</td>
+                            <td className="py-3.5 px-4"><span className="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-emerald-50 text-emerald-600 border border-emerald-200">{t.paymentStatus || 'PAID'}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             </div>
@@ -994,41 +946,43 @@ export function App() {
 
           {/* AUDIT LOG STREAM */}
           {activeNav === 'audit' && (
-            <div style={{ background: isDark ? '#0f172a' : '#ffffff', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, borderRadius: '0.75rem', padding: '1.5rem', fontFamily: 'monospace', fontSize: '0.75rem', boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, paddingBottom: '0.75rem' }}>
-                <h2 style={{ fontSize: '0.875rem', fontWeight: 700, color: isDark ? '#ffffff' : '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-                  <Terminal style={{ color: '#059669', width: '1rem', height: '1rem' }} />
-                  REAL-TIME MULTI-TENANT AUDIT LOG STREAM
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-6 font-mono text-xs shadow-xs space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Terminal className="text-emerald-600 w-4 h-4" />
+                  <span>REAL-TIME MULTI-TENANT AUDIT LOG STREAM</span>
                 </h2>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div className="flex items-center gap-3">
                   <button
                     onClick={() => setAuditLogs([])}
-                    style={{ background: 'transparent', border: 'none', color: isDark ? '#94a3b8' : '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.625rem' }}
+                    className="text-slate-500 hover:text-slate-700 cursor-pointer flex items-center gap-1 text-[10px] font-bold"
                   >
-                    <Trash2 style={{ width: '0.75rem', height: '0.75rem' }} />
+                    <Trash2 className="w-3.5 h-3.5" />
                     <span>Clear Stream</span>
                   </button>
-                  <span style={{ color: '#64748b', fontSize: '0.625rem' }}>OpenTelemetry Compatible</span>
+                  <span className="text-slate-400 text-[10px]">OpenTelemetry Compatible</span>
                 </div>
               </div>
 
               {auditLogs.length === 0 ? (
-                <div style={{ padding: '2rem', textAlign: 'center', color: isDark ? '#94a3b8' : '#64748b' }}>
+                <div className="p-8 text-center text-slate-500">
                   No audit log events recorded in database yet.
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: isDark ? '#090d16' : '#f8fafc', padding: '1rem', borderRadius: '0.5rem', border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, marginTop: '1rem' }}>
+                <div className="flex flex-col gap-2 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800">
                   {auditLogs.map((log) => (
-                    <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: `1px solid ${isDark ? '#0f172a' : '#e2e8f0'}` }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <span style={{ color: '#64748b' }}>{log.timestamp}</span>
-                        <span style={{ color: '#6366f1', fontWeight: 700 }}>[{log.tenantName}]</span>
-                        <span style={{ color: '#d97706' }}>{log.eventType}</span>
-                        <span style={{ color: isDark ? '#cbd5e1' : '#334155' }}>{log.details}</span>
+                    <div key={log.id} className="flex justify-between items-center py-2 border-b border-slate-200/60 dark:border-slate-900 last:border-0">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-slate-400">{log.timestamp}</span>
+                        <span className="text-indigo-600 font-bold">[{log.tenantName}]</span>
+                        <span className="text-amber-600 font-semibold">{log.eventType}</span>
+                        <span className="text-slate-700 dark:text-slate-300">{log.details}</span>
                       </div>
-                      <Badge variant={log.severity === 'SUCCESS' ? 'success' : log.severity === 'WARN' ? 'warning' : 'primary'} size="sm">
+                      <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold ${
+                        log.severity === 'SUCCESS' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : log.severity === 'WARN' ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-indigo-50 text-indigo-600 border border-indigo-200'
+                      }`}>
                         {log.severity}
-                      </Badge>
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -1095,6 +1049,15 @@ export function App() {
         isOpen={isAddUserOpen}
         onClose={() => { setIsAddUserOpen(false); setAddUserTargetTenant(null); }}
         onUserCreated={() => loadPlatformData()}
+        theme={theme}
+      />
+
+      {/* Provision Super Admin Modal */}
+      <ProvisionSuperadminModal
+        tenant={provisionSuperadminTargetTenant}
+        isOpen={isProvisionSuperadminOpen}
+        onClose={() => { setIsProvisionSuperadminOpen(false); setProvisionSuperadminTargetTenant(null); }}
+        onSuccess={() => loadPlatformData()}
         theme={theme}
       />
 

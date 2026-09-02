@@ -68,221 +68,26 @@ async def lifespan(app: FastAPI):
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all, checkfirst=True)
 
-        async with AsyncSessionLocal() as db:
-            existing = await db.execute(select(Tenant).where(Tenant.slug == "baithak-cafe"))
-            t_obj = existing.scalar_one_or_none()
-            if not t_obj:
-                pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-                tenant = Tenant(name="Baithak Cafe Tenant", slug="baithak-cafe", plan="enterprise", is_active=True)
-                db.add(tenant)
-                await db.flush()
-
-                company = Company(tenant_id=tenant.id, name="Baithak Cafe Hospitality", country_code="IN", currency_code="INR", is_active=True)
-                db.add(company)
-                await db.flush()
-
-                branch = Branch(tenant_id=tenant.id, company_id=company.id, name="Main Branch - Baithak Cafe", code="BR-001", timezone="Asia/Kolkata", is_active=True)
-                db.add(branch)
-                await db.flush()
-
-                role = Role(tenant_id=tenant.id, name="SUPER_ADMIN", description="Super Admin Role")
-                db.add(role)
-                await db.flush()
-
-                admin_user = User(
-                    tenant_id=tenant.id, role_id=role.id, email="admin@baithakcafe.com",
-                    display_name="Sumit Singh", first_name="Sumit", last_name="Singh",
-                    hashed_password=pwd_context.hash("admin123"), is_active=True
-                )
-                db.add(admin_user)
-                await db.commit()
-                t_obj = tenant
-
-            # Ensure default menu categories and items exist in PostgreSQL for ALL active branches
-            b_res = await db.execute(select(Branch).where((Branch.is_deleted == False) | (Branch.is_deleted.is_(None))))
-            all_branches = b_res.scalars().all()
-            target_branch_ids = [b.id for b in all_branches] if all_branches else [1, 2]
-
-            for bid in target_branch_ids:
-                cat_check = await db.execute(
-                    select(MenuCategory).where(
-                        MenuCategory.branch_id == bid,
-                        (MenuCategory.is_deleted == False) | (MenuCategory.is_deleted.is_(None))
-                    )
-                )
-                b_cats = cat_check.scalars().all()
-                if not b_cats:
-                    defaults = [
-                        {"name": "Special Chai & Tea", "icon": "☕", "slug": f"chai-tea-{bid}", "sort_order": 1},
-                        {"name": "Artisanal Coffee", "icon": "🥤", "slug": f"coffee-{bid}", "sort_order": 2},
-                        {"name": "Quick Bites & Snacks", "icon": "🍟", "slug": f"snacks-{bid}", "sort_order": 3},
-                        {"name": "Baithak Special Burgers", "icon": "🍔", "slug": f"burgers-{bid}", "sort_order": 4},
-                        {"name": "Value Combos", "icon": "🍱", "slug": f"combos-{bid}", "sort_order": 5},
-                    ]
-                    b_cats = []
-                    for c in defaults:
-                        new_c = MenuCategory(
-                            tenant_id=t_obj.id if t_obj else 2,
-                            company_id=1,
-                            branch_id=bid,
-                            name=c["name"],
-                            icon=c["icon"],
-                            slug=c["slug"],
-                            sort_order=c["sort_order"],
-                            created_by=1
-                        )
-                        db.add(new_c)
-                        b_cats.append(new_c)
-                    await db.commit()
-
-                # Ensure menu items exist for this branch
-                item_check = await db.execute(
-                    select(MenuItem).where(
-                        MenuItem.branch_id == bid,
-                        (MenuItem.is_deleted == False) | (MenuItem.is_deleted.is_(None))
-                    )
-                )
-                if not item_check.scalars().all() and b_cats:
-                    target_cat = b_cats[0]
-                    snacks_cat = b_cats[2] if len(b_cats) > 2 else target_cat
-                    coffee_cat = b_cats[1] if len(b_cats) > 1 else target_cat
-
-                    item_defs = [
-                        {
-                            "name": "Kulhad Masala Chai", "cat": target_cat, "price": 30.0, "veg": True, "station": "Tea Bar"
-                        },
-                        {
-                            "name": "Elaichi Special Tea", "cat": target_cat, "price": 25.0, "veg": True, "station": "Tea Bar"
-                        },
-                        {
-                            "name": "Cold Coffee with Ice Cream", "cat": coffee_cat, "price": 120.0, "veg": True, "station": "Beverage"
-                        },
-                        {
-                            "name": "Peri Peri French Fries", "cat": snacks_cat, "price": 90.0, "veg": True, "station": "Kitchen"
-                        },
-                        {
-                            "name": "Veg Pizza", "cat": target_cat, "price": 180.0, "veg": True, "station": "Pizza Bar", "has_variants": True
-                        },
-                    ]
-
-                    for idef in item_defs:
-                        item_obj = MenuItem(
-                            tenant_id=t_obj.id if t_obj else 2,
-                            branch_id=bid,
-                            company_id=1,
-                            category_id=idef["cat"].id,
-                            name=idef["name"],
-                            description=f"Freshly prepared {idef['name']} for branch {bid}.",
-                            short_description=idef["name"],
-                            base_price=idef["price"],
-                            packaging_charge=10.0,
-                            is_veg=idef["veg"],
-                            is_available=True,
-                            kds_station=idef["station"],
-                            gst_percent=5.0,
-                            sort_order=1,
-                            created_by=1
-                        )
-                        db.add(item_obj)
-                        await db.flush()
-
-                        if idef.get("has_variants"):
-                            vg = MenuVariantGroup(
-                                tenant_id=item_obj.tenant_id,
-                                branch_id=bid,
-                                item_id=item_obj.id,
-                                name="Pizza Size",
-                                min_selection=1,
-                                max_selection=1,
-                                is_required=True,
-                                sort_order=1,
-                                created_by=1
-                            )
-                            db.add(vg)
-                            await db.flush()
-                            for opt in [
-                                {"name": 'Small (7")', "price": 150.0, "is_default": False},
-                                {"name": 'Medium (10")', "price": 180.0, "is_default": True},
-                                {"name": 'Large (12")', "price": 230.0, "is_default": False},
-                            ]:
-                                db.add(MenuVariantOption(
-                                    tenant_id=item_obj.tenant_id,
-                                    branch_id=bid,
-                                    group_id=vg.id,
-                                    name=opt["name"],
-                                    selling_price=opt["price"],
-                                    price=opt["price"],
-                                    is_default=opt["is_default"],
-                                    is_available=True,
-                                    sort_order=1,
-                                    created_by=1
-                                ))
-
-                            ag = MenuAddonGroup(
-                                tenant_id=item_obj.tenant_id,
-                                branch_id=bid,
-                                item_id=item_obj.id,
-                                name="Crust Upgrade",
-                                min_selection=0,
-                                max_selection=5,
-                                sort_order=1,
-                                created_by=1
-                            )
-                            db.add(ag)
-                            await db.flush()
-
-                            db.add(MenuAddonOption(
-                                tenant_id=item_obj.tenant_id,
-                                branch_id=bid,
-                                group_id=ag.id,
-                                name="Cheese Burst Crust",
-                                price=80.0,
-                                variant_prices={'Small (7")': 50.0, 'Medium (10")': 80.0, 'Large (12")': 100.0},
-                                is_available=True,
-                                sort_order=1,
-                                created_by=1
-                            ))
-                    await db.commit()
-
-                # Seed default employees in PostgreSQL if table is empty
-                from src.modules.hrms.models import Employee as EmpModel
-                emp_check = await db.execute(select(EmpModel))
-                if not emp_check.scalars().all():
-                    db.add(EmpModel(
-                        tenant_id=t_obj.id if t_obj else 2,
-                        branch_id=1,
-                        company_id=1,
-                        employee_code="EMP-1001",
-                        full_name="Ramesh Singh",
-                        designation="Server / Waiter",
-                        phone="9876543210",
-                        basic_salary=Decimal("22000.00"),
-                        is_waiter=True,
-                        status="ACTIVE",
-                        created_by=1
-                    ))
-                    db.add(EmpModel(
-                        tenant_id=t_obj.id if t_obj else 2,
-                        branch_id=1,
-                        company_id=1,
-                        employee_code="EMP-1002",
-                        full_name="Priya Sharma",
-                        designation="Head Chef",
-                        phone="9876543211",
-                        basic_salary=Decimal("25000.00"),
-                        is_chef=True,
-                        status="ACTIVE",
-                        created_by=1
-                    ))
-                    await db.commit()
-
-                await db.commit()
+        logger.info("✅ Database DDL schema verified & configured (Pure SSOT context active)")
 
     except Exception as exc:
         print(f"Lifespan DB setup warning: {exc}")
     yield
 
 
+
+import os
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        return response
 
 app = FastAPI(
     title="SSR One AI API Gateway",
@@ -292,6 +97,8 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # ─── CORS Middleware Setup ────────────────────────────────────
 app.add_middleware(

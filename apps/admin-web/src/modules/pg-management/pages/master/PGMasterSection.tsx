@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { 
-  Users, Search, Plus, Phone, Mail, Edit2, Trash2, ShieldCheck, CheckCircle2, Home, Layers, Grid 
+  Users, Search, Plus, Phone, Mail, Edit2, Trash2, ShieldCheck, CheckCircle2, Home, Layers, Grid, X 
 } from "lucide-react";
 import { Button } from "@ssrone/ui";
 import { Input } from "@ssrone/ui";
@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/shared/utils/formatters";
 import type { Resident } from "../../types";
 import { pgApi, PGRoomDTO, PGBedDTO } from "../../api/pg.api";
+
+import { useRouterState } from "@tanstack/react-router";
 
 interface PGMasterSectionProps {
   residents: Resident[];
@@ -29,8 +31,23 @@ export const PGMasterSection: React.FC<PGMasterSectionProps> = ({
   onOpenAgreementModal,
   onDeleteResident,
 }) => {
-  const [masterTab, setMasterTab] = useState<"residents" | "rooms" | "floors" | "beds">("residents");
+  const routerState = useRouterState();
+  const currentPath = routerState.location.pathname;
+
+  const getInitialTab = (): "residents" | "rooms" | "floors" | "beds" => {
+    if (currentPath.includes("/beds")) return "beds";
+    if (currentPath.includes("/rooms") || currentPath.includes("/types")) return "rooms";
+    return "residents";
+  };
+
+  const [masterTab, setMasterTab] = useState<"residents" | "rooms" | "floors" | "beds">(getInitialTab);
   const [filterStatus, setFilterStatus] = useState<"all" | "paid" | "partial" | "overdue">("all");
+
+  useEffect(() => {
+    if (currentPath.includes("/beds")) setMasterTab("beds");
+    else if (currentPath.includes("/rooms") || currentPath.includes("/types")) setMasterTab("rooms");
+    else setMasterTab("residents");
+  }, [currentPath]);
 
   // Master Rooms state
   const [rooms, setRooms] = useState<PGRoomDTO[]>([]);
@@ -66,140 +83,92 @@ export const PGMasterSection: React.FC<PGMasterSectionProps> = ({
   });
 
   return (
-    <div className="space-y-6">
-      {/* Sub-Tab Navigation Header for MASTER */}
-      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setMasterTab("residents")}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
-              masterTab === "residents"
-                ? "bg-violet-600 text-white shadow-sm"
-                : "bg-slate-100 dark:bg-slate-850 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            }`}
-          >
-            <Users className="w-3.5 h-3.5 inline-block mr-1.5" />
-            Resident Directory Master
-          </button>
-
-          <button
-            onClick={() => setMasterTab("rooms")}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
-              masterTab === "rooms"
-                ? "bg-violet-600 text-white shadow-sm"
-                : "bg-slate-100 dark:bg-slate-850 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            }`}
-          >
-            <Home className="w-3.5 h-3.5 inline-block mr-1.5" />
-            Rooms & Sharing Master
-          </button>
-
-          <button
-            onClick={() => setMasterTab("beds")}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
-              masterTab === "beds"
-                ? "bg-violet-600 text-white shadow-sm"
-                : "bg-slate-100 dark:bg-slate-850 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            }`}
-          >
-            <Grid className="w-3.5 h-3.5 inline-block mr-1.5" />
-            Bed Allotment Matrix
-          </button>
-        </div>
-
-        {masterTab === "residents" && (
-          <Button onClick={onOpenAddModal} size="sm" className="bg-violet-600 hover:bg-violet-700 text-white text-xs gap-1">
-            <Plus className="w-4 h-4" /> Add Resident
-          </Button>
-        )}
-
-        {masterTab === "rooms" && (
-          <Button onClick={() => setShowRoomModal(true)} size="sm" className="bg-violet-600 hover:bg-violet-700 text-white text-xs gap-1">
-            <Plus className="w-4 h-4" /> Add Room Master
-          </Button>
-        )}
-      </div>
-
+    <div className="space-y-4">
       {/* ── TAB 1: Resident Directory Master ── */}
       {masterTab === "residents" && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-            <div className="relative w-full sm:w-80">
-              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-              <Input
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3 bg-card p-3 rounded-md border border-border">
+            <div className="relative w-full max-w-sm">
+              <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name, room, or phone..."
-                className="pl-9 text-xs"
+                placeholder="Search residents by name, room, or phone..."
+                className="w-full pl-8 pr-2.5 py-1 text-xs font-medium bg-background border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
-
             <div className="flex items-center gap-2">
-              {(["all", "paid", "partial", "overdue"] as const).map((st) => (
-                <Button
-                  key={st}
-                  variant={filterStatus === st ? "primary" : "outline"}
-                  size="sm"
-                  onClick={() => setFilterStatus(st)}
-                  className="capitalize text-xs"
-                >
-                  {st}
-                </Button>
-              ))}
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as any)}
+                className="pl-2 pr-2 py-1 bg-background border border-border rounded text-foreground text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="all">All Payment Status</option>
+                <option value="paid">Paid</option>
+                <option value="partial">Partial</option>
+                <option value="overdue">Overdue</option>
+              </select>
+
+              <Button onClick={onOpenAddModal} size="sm" className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs">
+                <Plus className="w-4 h-4" /> Add Resident
+              </Button>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+          <div className="bg-card rounded-md border border-border overflow-hidden shadow-2xs">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 font-medium border-b border-slate-200 dark:border-slate-800">
+              <thead className="bg-muted/40 text-muted-foreground font-mono text-[11px] uppercase tracking-wider border-b border-border">
                 <tr>
-                  <th className="p-3">Tenant Details</th>
-                  <th className="p-3">Room & Bed</th>
-                  <th className="p-3">Rent / Mo</th>
-                  <th className="p-3">Due Status</th>
-                  <th className="p-3 text-right">Actions</th>
+                  <th className="p-2.5">Tenant Details</th>
+                  <th className="p-2.5">Room & Bed</th>
+                  <th className="p-2.5">Rent / Mo</th>
+                  <th className="p-2.5">Due Status</th>
+                  <th className="p-2.5 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              <tbody className="divide-y divide-border">
                 {filteredResidents.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-slate-400">
+                    <td colSpan={5} className="p-8 text-center text-muted-foreground font-medium text-xs">
                       No residents found in PostgreSQL database matching criteria.
                     </td>
                   </tr>
                 ) : (
                   filteredResidents.map((r) => (
-                    <tr key={r.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                      <td className="p-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-violet-500/10 text-violet-600 font-bold flex items-center justify-center text-xs">
+                    <tr key={r.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="p-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded bg-primary/10 border border-primary/20 text-primary font-bold flex items-center justify-center text-xs">
                             {r.name.slice(0, 2).toUpperCase()}
                           </div>
                           <div>
-                            <p className="font-medium text-slate-900 dark:text-white">{r.name}</p>
-                            <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                            <p className="font-semibold text-foreground">{r.name}</p>
+                            <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                               <Phone className="w-3 h-3" /> {r.phone}
                             </p>
                           </div>
                         </div>
                       </td>
-                      <td className="p-3 font-semibold text-slate-800 dark:text-slate-200">
+                      <td className="p-2.5 font-medium text-foreground">
                         {r.room}
                       </td>
-                      <td className="p-3 font-semibold text-slate-900 dark:text-white">
+                      <td className="p-2.5 font-bold font-mono text-foreground">
                         {formatCurrency(r.rent)}
                       </td>
-                      <td className="p-3">
-                        <Badge variant={r.paid_status === "paid" ? "success" : "danger"}>
-                          {r.paid_status.toUpperCase()}
-                        </Badge>
+                      <td className="p-2.5">
+                        <span className={`text-[10px] font-mono font-medium px-1.5 py-0.2 rounded border uppercase ${
+                          r.paid_status === "paid" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                        }`}>
+                          {r.paid_status}
+                        </span>
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-2.5 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => onOpenRentModal(r)} className="text-xs text-emerald-600">
+                          <Button size="sm" variant="ghost" onClick={() => onOpenRentModal(r)} className="text-xs text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10">
                             Collect Rent
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => onDeleteResident(r.id)} className="text-xs text-rose-500">
+                          <Button size="sm" variant="ghost" onClick={() => onDeleteResident(r.id)} className="text-xs text-rose-500 hover:bg-rose-500/10">
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </div>
@@ -215,27 +184,34 @@ export const PGMasterSection: React.FC<PGMasterSectionProps> = ({
 
       {/* ── TAB 2: Rooms & Sharing Master ── */}
       {masterTab === "rooms" && (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 space-y-4">
+        <div className="bg-card rounded-md border border-border p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold text-sm text-slate-900 dark:text-white">Room Inventory & Rate Cards</h3>
-            <span className="text-xs text-slate-500 font-mono">{rooms.length} Rooms Configured in PostgreSQL</span>
+            <h3 className="font-semibold text-xs text-foreground uppercase tracking-wider font-mono">Room Inventory & Rate Cards</h3>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-muted-foreground font-mono">{rooms.length} Rooms Configured</span>
+              <Button onClick={() => setShowRoomModal(true)} size="sm" className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs">
+                <Plus className="w-4 h-4" /> Add Room Master
+              </Button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {rooms.length === 0 ? (
-              <div className="col-span-3 p-8 text-center text-slate-400 text-xs border border-dashed rounded-xl">
+              <div className="col-span-3 p-8 text-center text-muted-foreground text-xs border border-dashed border-border rounded-md bg-muted/20 font-medium">
                 No rooms added yet. Click <strong>Add Room Master</strong> above to create rooms.
               </div>
             ) : (
               rooms.map((rm) => (
-                <div key={rm.id} className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950 space-y-2">
+                <div key={rm.id} className="p-3.5 rounded-md border border-border bg-background space-y-2 hover:border-primary/40 transition-colors">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-900 dark:text-white text-base">Room {rm.room_number}</span>
-                    <Badge variant={rm.is_ac ? "primary" : "outline"}>{rm.is_ac ? "AC" : "Non-AC"}</Badge>
+                    <span className="font-bold text-foreground text-sm font-mono">Room {rm.room_number}</span>
+                    <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${rm.is_ac ? "bg-primary/10 text-primary border-primary/20" : "bg-muted text-muted-foreground border-border"}`}>
+                      {rm.is_ac ? "AC" : "Non-AC"}
+                    </span>
                   </div>
-                  <p className="text-xs text-slate-500">Capacity: <strong className="text-slate-900 dark:text-white">{rm.capacity} Sharing</strong></p>
-                  <p className="text-xs text-slate-500">Monthly Rent: <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{formatCurrency(rm.monthly_rent)}</strong></p>
-                  <p className="text-xs text-slate-500">Deposit: <strong>{formatCurrency(rm.security_deposit)}</strong></p>
+                  <p className="text-xs text-muted-foreground">Capacity: <strong className="text-foreground">{rm.capacity} Sharing</strong></p>
+                  <p className="text-xs text-muted-foreground">Monthly Rent: <strong className="text-foreground font-mono font-bold">{formatCurrency(rm.monthly_rent)}</strong></p>
+                  <p className="text-xs text-muted-foreground">Deposit: <strong className="text-foreground font-mono">{formatCurrency(rm.security_deposit)}</strong></p>
                 </div>
               ))
             )}
@@ -245,32 +221,32 @@ export const PGMasterSection: React.FC<PGMasterSectionProps> = ({
 
       {/* ── TAB 3: Bed Allotment Matrix ── */}
       {masterTab === "beds" && (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 space-y-4">
+        <div className="bg-card rounded-md border border-border p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold text-sm text-slate-900 dark:text-white">Interactive Bed Allotment Grid</h3>
-            <div className="flex items-center gap-4 text-xs">
-              <span className="flex items-center gap-1.5 text-emerald-600 font-medium"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Vacant Bed</span>
-              <span className="flex items-center gap-1.5 text-rose-600 font-medium"><span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> Occupied Bed</span>
+            <h3 className="font-semibold text-xs text-foreground uppercase tracking-wider font-mono">Interactive Bed Allotment Grid</h3>
+            <div className="flex items-center gap-3 text-xs">
+              <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Vacant Bed</span>
+              <span className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400 font-medium"><span className="w-2 h-2 rounded-full bg-rose-500 inline-block" /> Occupied Bed</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
             {beds.length === 0 ? (
-              <div className="col-span-6 p-8 text-center text-slate-400 text-xs border border-dashed rounded-xl">
+              <div className="col-span-6 p-8 text-center text-muted-foreground text-xs border border-dashed border-border rounded-md bg-muted/20 font-medium">
                 No beds generated yet. Beds are automatically created when rooms are added.
               </div>
             ) : (
               beds.map((b) => (
                 <div
                   key={b.id}
-                  className={`p-3 rounded-xl border text-center transition-all ${
+                  className={`p-3 rounded-md border text-center transition-all ${
                     b.status === "occupied"
-                      ? "border-rose-300 dark:border-rose-900 bg-rose-50/60 dark:bg-rose-950/30 text-rose-900 dark:text-rose-200"
-                      : "border-emerald-300 dark:border-emerald-900 bg-emerald-50/60 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200"
+                      ? "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                      : "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                   }`}
                 >
-                  <p className="font-bold text-sm">{b.bed_number}</p>
-                  <p className="text-[10px] uppercase font-bold mt-1 tracking-wider">{b.status}</p>
+                  <p className="font-bold text-xs font-mono">{b.bed_number}</p>
+                  <p className="text-[9px] uppercase font-mono font-semibold mt-0.5 tracking-wider">{b.status}</p>
                 </div>
               ))
             )}
@@ -280,10 +256,15 @@ export const PGMasterSection: React.FC<PGMasterSectionProps> = ({
 
       {/* ── Add Room Master Modal ── */}
       {showRoomModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Create Room Master</h3>
-            <p className="text-xs text-slate-500">Add a new room and auto-generate beds in PostgreSQL DB.</p>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-card rounded-md max-w-md w-full p-5 border border-border shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-2.5">
+              <h3 className="font-semibold text-xs text-foreground uppercase tracking-wider">Create Room Master</h3>
+              <button onClick={() => setShowRoomModal(false)} className="text-muted-foreground hover:text-foreground cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">Add a new room and auto-generate beds in database.</p>
 
             <form
               onSubmit={async (e) => {
@@ -306,7 +287,7 @@ export const PGMasterSection: React.FC<PGMasterSectionProps> = ({
                     sharing_type: capacity,
                     monthly_rent,
                   } as any);
-                  toast.success(`Room ${room_number} & ${capacity} beds saved to PostgreSQL!`);
+                  toast.success(`Room ${room_number} & ${capacity} beds saved successfully!`);
                   setShowRoomModal(false);
                   fetchMasterData();
                 } catch (err) {
@@ -316,24 +297,24 @@ export const PGMasterSection: React.FC<PGMasterSectionProps> = ({
               className="space-y-3 text-xs"
             >
               <div>
-                <label className="block font-medium mb-1">Room Number *</label>
-                <input name="room_number" required placeholder="e.g. Room 101" className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />
+                <label className="block text-muted-foreground font-medium mb-1">Room Number *</label>
+                <input name="room_number" required placeholder="e.g. Room 101" className="w-full pl-3 pr-2.5 py-1.5 bg-background border border-border rounded text-foreground font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-medium mb-1">Capacity (Beds)</label>
-                  <input name="capacity" type="number" defaultValue="2" min="1" max="6" className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />
+                  <label className="block text-muted-foreground font-medium mb-1">Capacity (Beds)</label>
+                  <input name="capacity" type="number" defaultValue="2" min="1" max="6" className="w-full pl-3 pr-2.5 py-1.5 bg-background border border-border rounded text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
                 <div>
-                  <label className="block font-medium mb-1">Monthly Rent (₹)</label>
-                  <input name="monthly_rent" type="number" defaultValue="8500" className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />
+                  <label className="block text-muted-foreground font-medium mb-1">Monthly Rent (₹)</label>
+                  <input name="monthly_rent" type="number" defaultValue="8500" className="w-full pl-3 pr-2.5 py-1.5 bg-background border border-border rounded text-foreground font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <button type="button" onClick={() => setShowRoomModal(false)} className="px-4 py-2 font-semibold text-slate-600 rounded-lg">Cancel</button>
-                <button type="submit" className="px-4 py-2 font-semibold bg-violet-600 text-white rounded-lg">Create Room & Auto-Beds</button>
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                <Button type="button" variant="outline" size="sm" onClick={() => setShowRoomModal(false)} className="text-xs">Cancel</Button>
+                <Button type="submit" size="sm" className="text-xs font-semibold">Create Room & Auto-Beds</Button>
               </div>
             </form>
           </div>

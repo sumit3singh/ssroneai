@@ -257,6 +257,89 @@ async def create_entity(
             detail=f"Database save error for {entity_key}: {str(err)}"
         )
 
+    if entity_key == "tenants":
+        try:
+            settings_dict = payload.get("settings") if isinstance(payload.get("settings"), dict) else {}
+            admin_name = settings_dict.get("admin_name") or payload.get("adminName") or f"{instance.name} Admin"
+            admin_email = settings_dict.get("admin_email") or payload.get("adminEmail") or f"admin@{instance.slug}.com"
+            admin_phone = settings_dict.get("admin_phone") or payload.get("adminPhone") or ""
+            admin_password = settings_dict.get("admin_password") or payload.get("adminPassword") or "Admin@123"
+
+            from passlib.context import CryptContext
+            pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+            # 1. Company
+            new_co = Company(
+                tenant_id=instance.id,
+                name=f"{instance.name} Private Limited",
+                legal_name=f"{instance.name} Group",
+                country_code="IN",
+                currency_code="INR",
+                is_active=True
+            )
+            db.add(new_co)
+            await db.flush()
+
+            # 2. Branch
+            new_br = Branch(
+                tenant_id=instance.id,
+                company_id=new_co.id,
+                name=f"Main Outlet - {instance.name}",
+                code="MAIN-01",
+                timezone="Asia/Kolkata",
+                is_active=True
+            )
+            db.add(new_br)
+            await db.flush()
+
+            # 3. Superadmin Role
+            new_role = Role(
+                tenant_id=instance.id,
+                name="SUPER_ADMIN",
+                code="super_admin",
+                description="Super Admin Role",
+                is_system_role=True,
+                permissions={"*": ["*"]}
+            )
+            db.add(new_role)
+            await db.flush()
+
+            # 4. Superadmin User
+            name_parts = admin_name.strip().split()
+            f_name = name_parts[0] if name_parts else "Admin"
+            l_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else "User"
+
+            new_admin = User(
+                tenant_id=instance.id,
+                company_id=new_co.id,
+                branch_id=new_br.id,
+                role_id=new_role.id,
+                email=admin_email.strip().lower(),
+                display_name=admin_name,
+                first_name=f_name,
+                last_name=l_name,
+                phone=admin_phone,
+                hashed_password=pwd_context.hash(admin_password),
+                is_superadmin=True,
+                is_active=True,
+                is_verified=True
+            )
+            db.add(new_admin)
+            await db.flush()
+
+            # 5. UserRole Binding
+            db.add(UserRole(
+                tenant_id=instance.id,
+                user_id=new_admin.id,
+                role_id=new_role.id,
+                company_id=new_co.id,
+                branch_id=new_br.id
+            ))
+            await db.commit()
+            print(f"✅ Onboarded Tenant #{instance.id} '{instance.name}' with Superadmin user '{admin_email}'")
+        except Exception as t_err:
+            print("Tenant auto-provisioning warning:", t_err)
+
     if entity_key == "users":
         try:
             t_id = getattr(instance, "tenant_id", 1)

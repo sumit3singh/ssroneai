@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Plus, Search, Utensils, Edit2, Trash2, Layers, Package, Sparkles, ChevronDown, ChevronUp, Tag, AlertCircle, CheckCircle2, X } from "lucide-react";
-import { Button, Input } from "@ssrone/ui";
+import { Button, Input, PageHeader, PageContainer } from "@ssrone/ui";
 import { POSMenuItem, POSCategory } from "../../../types";
 
 interface MenuItemMasterPageProps {
@@ -64,123 +64,113 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
   };
 
   return (
-    <div className="space-y-5">
-      {/* Top Header Card */}
-      <div className="backdrop-blur-xl bg-white/75 dark:bg-slate-900/75 border border-slate-200/80 dark:border-slate-800/80 rounded-3xl p-6 shadow-xl shadow-slate-200/40 dark:shadow-slate-950/60 space-y-4">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-200/80 dark:border-slate-800/80 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-              <Utensils size={22} />
-            </div>
-            <div>
-              <h3 className="font-display font-extrabold text-base md:text-lg text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                Dish Catalog & Portion Variant Master ({totalCount})
-              </h3>
-              <p className="text-xs text-slate-400 font-medium">
-                Configure dishes, portion selling prices, KDS stations, size-linked addons, and packaging fees
-              </p>
-            </div>
-          </div>
-
+    <PageContainer>
+      {/* Standardized Enterprise Page Header */}
+      <PageHeader
+        title="Dish Catalog & Master"
+        description="Configure menu items, prices, stations, portion variants, and modifiers"
+        icon={<Utensils size={18} />}
+        badge={`${totalCount} Dishes`}
+        actions={
           <Button
             onClick={onOpenCreate}
-            variant="primary"
-            size="md"
-            className="text-xs uppercase tracking-wider gap-1.5 cursor-pointer shadow-lg shadow-indigo-500/25 shrink-0"
+            size="sm"
+            className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
           >
-            <Plus size={16} /> Add New Dish
+            <Plus size={15} /> Add New Dish
           </Button>
-        </div>
+        }
+      />
 
         {/* Top Summary KPI Cards Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <div
             onClick={() => setFilterMode("all")}
-            className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+            className={`p-3 rounded-md border transition-colors cursor-pointer ${
               filterMode === "all"
-                ? "bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-500/40 shadow-xs"
-                : "bg-slate-50/50 dark:bg-slate-950/50 border-slate-200/60 dark:border-slate-800/60 hover:bg-slate-100/60"
+                ? "bg-primary/10 border-primary/30 text-primary"
+                : "bg-card border-border hover:bg-muted/40 text-foreground"
             }`}
           >
-            <div className="text-[10px] font-extrabold uppercase font-mono text-slate-400">Total Dishes</div>
-            <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5">{totalCount}</div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Dishes</div>
+            <div className="text-lg font-bold font-mono mt-0.5">{totalCount}</div>
           </div>
 
           <div
             onClick={() => setFilterMode("in_stock")}
-            className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+            className={`p-3 rounded-md border transition-colors cursor-pointer ${
               filterMode === "in_stock"
-                ? "bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-500/40 shadow-xs"
-                : "bg-slate-50/50 dark:bg-slate-950/50 border-slate-200/60 dark:border-slate-800/60 hover:bg-slate-100/60"
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                : "bg-card border-border hover:bg-muted/40 text-foreground"
             }`}
           >
-            <div className="text-[10px] font-extrabold uppercase font-mono text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-              <CheckCircle2 size={11} /> In Stock
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <CheckCircle2 size={12} /> In Stock
             </div>
-            <div className="text-xl font-extrabold text-emerald-700 dark:text-emerald-300 mt-0.5">{inStockCount}</div>
+            <div className="text-lg font-bold font-mono mt-0.5">{inStockCount}</div>
           </div>
 
           <div
             onClick={() => setFilterMode("out_of_stock")}
-            className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+            className={`p-3 rounded-md border transition-colors cursor-pointer ${
               filterMode === "out_of_stock"
-                ? "bg-amber-50/80 dark:bg-amber-950/40 border-amber-500/40 shadow-xs"
-                : "bg-slate-50/50 dark:bg-slate-950/50 border-slate-200/60 dark:border-slate-800/60 hover:bg-slate-100/60"
+                ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
+                : "bg-card border-border hover:bg-muted/40 text-foreground"
             }`}
           >
-            <div className="text-[10px] font-extrabold uppercase font-mono text-amber-600 dark:text-amber-400 flex items-center gap-1">
-              <AlertCircle size={11} /> Out of Stock
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <AlertCircle size={12} /> Out of Stock
             </div>
-            <div className="text-xl font-extrabold text-amber-700 dark:text-amber-300 mt-0.5">{outOfStockCount}</div>
+            <div className="text-lg font-bold font-mono mt-0.5">{outOfStockCount}</div>
           </div>
 
           <div
             onClick={() => setFilterMode("veg")}
-            className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+            className={`p-3 rounded-md border transition-colors cursor-pointer ${
               filterMode === "veg"
-                ? "bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-500/40 shadow-xs"
-                : "bg-slate-50/50 dark:bg-slate-950/50 border-slate-200/60 dark:border-slate-800/60 hover:bg-slate-100/60"
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                : "bg-card border-border hover:bg-muted/40 text-foreground"
             }`}
           >
-            <div className="text-[10px] font-extrabold uppercase font-mono text-slate-400">Diet Type</div>
-            <div className="text-sm font-extrabold text-slate-900 dark:text-white mt-1 flex items-center gap-2">
-              <span className="text-emerald-600 dark:text-emerald-400">🟢 {vegCount}</span>
-              <span className="text-slate-300 dark:text-slate-700">|</span>
-              <span className="text-rose-600 dark:text-rose-400">🔴 {nonVegCount}</span>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Diet Type</div>
+            <div className="text-xs font-semibold mt-1 flex items-center gap-1.5 font-mono">
+              <span className="text-emerald-600 dark:text-emerald-400">Veg: {vegCount}</span>
+              <span className="text-muted-foreground">|</span>
+              <span className="text-rose-600 dark:text-rose-400">Non-Veg: {nonVegCount}</span>
             </div>
           </div>
 
           <div
             onClick={() => setFilterMode("variants")}
-            className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+            className={`p-3 rounded-md border transition-colors cursor-pointer ${
               filterMode === "variants"
-                ? "bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-500/40 shadow-xs"
-                : "bg-slate-50/50 dark:bg-slate-950/50 border-slate-200/60 dark:border-slate-800/60 hover:bg-slate-100/60"
+                ? "bg-primary/10 border-primary/30 text-primary"
+                : "bg-card border-border hover:bg-muted/40 text-foreground"
             }`}
           >
-            <div className="text-[10px] font-extrabold uppercase font-mono text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
-              <Layers size={11} /> Portion Variants
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Layers size={12} /> Variants
             </div>
-            <div className="text-xl font-extrabold text-indigo-700 dark:text-indigo-300 mt-0.5">{variantCount}</div>
+            <div className="text-lg font-bold font-mono mt-0.5">{variantCount}</div>
           </div>
         </div>
 
         {/* Filter Toolbar */}
-        <div className="flex flex-col sm:flex-row items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-center gap-2.5">
           <div className="relative flex-1 w-full">
             <Input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search dish by name or description..."
-              icon={<Search size={16} />}
-              className="h-10 text-xs md:text-sm font-bold"
+              icon={<Search size={14} />}
+              className="h-9 text-xs"
             />
           </div>
 
           <select
             value={selectedCatId || ""}
             onChange={(e) => setSelectedCatId(e.target.value ? Number(e.target.value) : null)}
-            className="bg-white/80 dark:bg-slate-900/80 border border-slate-300/80 dark:border-slate-700/80 rounded-xl px-3 py-2 text-xs md:text-sm font-bold text-slate-900 dark:text-white w-full sm:w-56 focus:ring-2 focus:ring-indigo-500/30"
+            className="h-9 px-2.5 rounded border border-border bg-background text-xs text-foreground cursor-pointer shrink-0 focus:outline-none"
           >
             <option value="">All Categories ({categories.length})</option>
             {categories.map((c) => (
@@ -193,58 +183,57 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
           {hasActiveFilters && (
             <Button
               onClick={clearFilters}
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="h-10 px-3 text-xs gap-1 cursor-pointer shrink-0 text-slate-500"
+              className="text-xs text-muted-foreground hover:text-foreground h-9 px-2.5 shrink-0 gap-1"
             >
-              <X size={14} /> Clear
+              <X size={13} /> Reset
             </Button>
           )}
         </div>
 
-        {/* Quick Filter Pills */}
-        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-800/60">
-          <span className="text-[10px] font-mono font-extrabold uppercase text-slate-400 mr-1">Filter View:</span>
+        {/* Filter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+          <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider shrink-0 mr-1">Filter View:</span>
           {[
-            { id: "all", label: "All Items", icon: null },
-            { id: "veg", label: "🟢 Veg Only", icon: null },
-            { id: "non_veg", label: "🔴 Non-Veg Only", icon: null },
-            { id: "in_stock", label: "⚡ In Stock", icon: null },
-            { id: "out_of_stock", label: "⚠️ Out of Stock", icon: null },
-            { id: "variants", label: "🍕 Has Size Variants", icon: null },
+            { id: "all", label: "All Items" },
+            { id: "veg", label: "Veg Only" },
+            { id: "non_veg", label: "Non-Veg Only" },
+            { id: "in_stock", label: "In Stock" },
+            { id: "out_of_stock", label: "Out of Stock" },
+            { id: "variants", label: "Has Size Variants" },
           ].map((pill) => (
             <button
               key={pill.id}
               onClick={() => setFilterMode(pill.id as any)}
-              className={`px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+              className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors cursor-pointer shrink-0 ${
                 filterMode === pill.id
-                  ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
-                  : "bg-white/60 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
               }`}
             >
               {pill.label}
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Main Dishes Table */}
-      <div className="backdrop-blur-xl bg-white/75 dark:bg-slate-900/75 border border-slate-200/80 dark:border-slate-800/80 rounded-3xl shadow-xl shadow-slate-200/40 dark:shadow-slate-950/60 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-50/80 dark:bg-slate-950/80 border-b border-slate-200/80 dark:border-slate-800/80 text-[10px] font-mono font-extrabold uppercase tracking-wider text-slate-400">
-                <th className="p-3.5 w-8"></th>
-                <th className="p-3.5">Dish Name</th>
-                <th className="p-3.5">Category</th>
-                <th className="p-3.5">Diet Type</th>
-                <th className="p-3.5">KDS Station</th>
-                <th className="p-3.5 text-center">Packaging Fee</th>
-                <th className="p-3.5 text-right">Selling Price</th>
-                <th className="p-3.5 text-center">Stock Availability</th>
-                <th className="p-3.5 text-center">Actions</th>
-              </tr>
-            </thead>
+        {/* Main Dishes Table Container */}
+        <div className="bg-card border border-border rounded-md overflow-hidden shadow-2xs">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-muted/40 border-b border-border text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <th className="p-2.5 w-8"></th>
+                  <th className="p-2.5">Dish Name</th>
+                  <th className="p-2.5">Category</th>
+                  <th className="p-2.5">Diet Type</th>
+                  <th className="p-2.5">KDS Station</th>
+                  <th className="p-2.5 text-center">Packaging Fee</th>
+                  <th className="p-2.5 text-right">Selling Price</th>
+                  <th className="p-2.5 text-center">Stock Availability</th>
+                  <th className="p-2.5 text-center">Actions</th>
+                </tr>
+              </thead>
             <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800/60 font-semibold text-slate-700 dark:text-slate-300">
               {isLoading ? (
                 [1, 2, 3, 4, 5].map((i) => (
@@ -289,31 +278,31 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                   return (
                     <React.Fragment key={item.id}>
                       <tr
-                        className={`hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors cursor-pointer ${
-                          isExpanded ? "bg-indigo-50/40 dark:bg-indigo-950/30" : ""
+                        className={`hover:bg-muted/40 transition-colors cursor-pointer ${
+                          isExpanded ? "bg-muted/50" : ""
                         }`}
                       >
-                        <td className="p-3.5 text-center text-slate-400" onClick={() => toggleExpandRow(item.id)}>
+                        <td className="p-2.5 text-center text-muted-foreground" onClick={() => toggleExpandRow(item.id)}>
                           {(hasVariants || hasAddons || item.description) && (
                             <button
                               type="button"
-                              className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-800 border-none bg-transparent cursor-pointer text-slate-400"
+                              className="p-1 rounded hover:bg-muted border-none bg-transparent cursor-pointer text-muted-foreground"
                             >
-                              {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                             </button>
                           )}
                         </td>
-                        <td className="p-3.5 font-bold text-slate-900 dark:text-white" onClick={() => toggleExpandRow(item.id)}>
-                          <div className="flex items-center gap-2.5">
+                        <td className="p-2.5 font-medium text-foreground" onClick={() => toggleExpandRow(item.id)}>
+                          <div className="flex items-center gap-2">
                             {item.image_url ? (
                               <img
                                 src={item.image_url}
                                 alt={item.name}
-                                className="h-9 w-9 rounded-xl object-cover border border-slate-200 dark:border-slate-800 shrink-0"
+                                className="h-7 w-7 rounded object-cover border border-border shrink-0"
                               />
                             ) : (
                               <span
-                                className={`h-4 w-4 border-2 rounded-md flex items-center justify-center p-0.5 shrink-0 ${
+                                className={`h-3.5 w-3.5 border rounded flex items-center justify-center p-0.5 shrink-0 ${
                                   item.is_veg ? "border-emerald-600 bg-emerald-500/10" : "border-rose-600 bg-rose-500/10"
                                 }`}
                               >
@@ -322,66 +311,64 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                             )}
                             <div>
                               <div className="flex items-center gap-1.5">
-                                <span className="font-extrabold text-sm text-slate-900 dark:text-white">{item.name}</span>
+                                <span className="font-semibold text-xs text-foreground">{item.name}</span>
                                 {item.is_popular && (
-                                  <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full uppercase bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                  <span className="text-[9px] font-medium px-1 py-0.2 rounded uppercase bg-amber-500/10 text-amber-600 border border-amber-500/20">
                                     Popular
                                   </span>
                                 )}
                               </div>
                               {item.description && (
-                                <p className="text-[10px] text-slate-400 font-medium truncate max-w-xs">{item.description}</p>
+                                <p className="text-[11px] text-muted-foreground truncate max-w-xs">{item.description}</p>
                               )}
                             </div>
                           </div>
                         </td>
-                        <td className="p-3.5">
-                          <span className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-lg text-[11px] font-bold border border-slate-200/50 dark:border-slate-700/50">
+                        <td className="p-2.5 text-muted-foreground text-xs font-medium">
+                          <span className="inline-flex items-center gap-1">
                             {cat?.icon || "🍛"} {cat?.name || `Cat #${item.category_id}`}
                           </span>
                         </td>
-                        <td className="p-3.5">
+                        <td className="p-2.5 text-xs font-medium">
                           {item.is_veg ? (
-                            <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
-                              🟢 Veg
+                            <span className="text-emerald-600 dark:text-emerald-400">
+                              Veg
                             </span>
                           ) : (
-                            <span className="text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1">
-                              🔴 Non-Veg
+                            <span className="text-rose-600 dark:text-rose-400">
+                              Non-Veg
                             </span>
                           )}
                         </td>
-                        <td className="p-3.5 font-mono text-xs text-slate-600 dark:text-slate-400">{item.kds_station || "Main Kitchen"}</td>
-                        <td className="p-3.5 text-center font-mono text-xs font-bold text-amber-600 dark:text-amber-400">
+                        <td className="p-2.5 font-mono text-xs text-muted-foreground">{item.kds_station || "Main Kitchen"}</td>
+                        <td className="p-2.5 text-center font-mono text-xs text-muted-foreground">
                           {item.packaging_charge ? `₹${item.packaging_charge}` : "--"}
                         </td>
-                        <td className="p-3.5 text-right font-mono font-extrabold text-slate-900 dark:text-white">
+                        <td className="p-2.5 text-right font-mono font-semibold text-foreground">
                           {hasVariants ? (
-                            <span className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full text-[10px] uppercase border border-indigo-500/20">
-                              <Layers size={11} /> {item.variant_groups?.[0]?.options?.length || 0} Sizes
+                            <span className="text-[10px] font-medium font-mono px-1.5 py-0.2 rounded border border-border bg-muted text-muted-foreground">
+                              {item.variant_groups?.[0]?.options?.length || 0} Sizes
                             </span>
                           ) : (
                             `₹${price}`
                           )}
                         </td>
-                        <td className="p-3.5 text-center">
-                          <Button
-                            size="sm"
-                            variant="ghost"
+                        <td className="p-2.5 text-center">
+                          <button
                             onClick={(e) => {
                               e.stopPropagation();
                               onToggleAvailability(item);
                             }}
-                            className={`h-7 px-2.5 text-xs font-bold rounded-xl cursor-pointer ${
+                            className={`px-2 py-0.5 text-[11px] font-medium rounded border cursor-pointer transition-colors ${
                               item.is_available
-                                ? "text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20"
-                                : "text-slate-500 bg-slate-500/10 border border-slate-500/20 hover:bg-slate-500/20"
+                                ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                                : "text-muted-foreground bg-muted border-border"
                             }`}
                           >
                             {item.is_available ? "In Stock" : "Out of Stock"}
-                          </Button>
+                          </button>
                         </td>
-                        <td className="p-3.5 text-center">
+                        <td className="p-2.5 text-center">
                           <div className="flex items-center justify-center gap-1">
                             <button
                               onClick={(e) => {
@@ -389,9 +376,9 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                                 onOpenEdit(item);
                               }}
                               title="Edit Dish & Variants"
-                              className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors border-none bg-transparent cursor-pointer"
+                              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border-none bg-transparent cursor-pointer"
                             >
-                              <Edit2 size={15} />
+                              <Edit2 size={14} />
                             </button>
                             <button
                               onClick={(e) => {
@@ -399,9 +386,9 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                                 onDelete(item.id);
                               }}
                               title="Delete Dish"
-                              className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-500/10 rounded-lg transition-colors border-none bg-transparent cursor-pointer"
+                              className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted transition-colors border-none bg-transparent cursor-pointer"
                             >
-                              <Trash2 size={15} />
+                              <Trash2 size={14} />
                             </button>
                           </div>
                         </td>
@@ -409,37 +396,37 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
 
                       {/* Expanded Row Drawer: Portion Variants & Addons Quick View */}
                       {isExpanded && (
-                        <tr className="bg-indigo-50/30 dark:bg-indigo-950/20 border-b border-indigo-100 dark:border-indigo-900/40">
-                          <td colSpan={9} className="p-4 pl-12">
-                            <div className="bg-white/90 dark:bg-slate-900/90 border border-indigo-200/80 dark:border-indigo-800/80 rounded-2xl p-4 shadow-lg space-y-3">
-                              <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800/60 pb-2">
-                                <div className="flex items-center gap-2 text-xs font-extrabold text-indigo-900 dark:text-indigo-200">
-                                  <Sparkles size={14} className="text-indigo-500" />
-                                  <span>Dish Specifications & Portion Pricing breakdown: {item.name}</span>
+                        <tr className="bg-muted/20 border-b border-border">
+                          <td colSpan={9} className="p-3 pl-10">
+                            <div className="bg-card border border-border rounded-md p-3 space-y-2 text-xs">
+                              <div className="flex items-center justify-between border-b border-border pb-1.5">
+                                <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                                  <Sparkles size={13} className="text-primary" />
+                                  <span>Dish Specifications & Portion Pricing: {item.name}</span>
                                 </div>
-                                <span className="text-[10px] font-mono text-slate-400">ID #{item.id}</span>
+                                <span className="text-[10px] font-mono text-muted-foreground">ID #{item.id}</span>
                               </div>
 
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {/* Portion Variants Column */}
-                                <div className="space-y-2">
-                                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-                                    <Layers size={13} className="text-indigo-500" />
-                                    <span>Portion Size Selling Prices:</span>
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center gap-1 font-medium text-muted-foreground text-xs">
+                                    <Layers size={12} />
+                                    <span>Portion Size Prices:</span>
                                   </div>
 
                                   {hasVariants ? (
-                                    <div className="border border-slate-200/60 dark:border-slate-800/60 rounded-xl overflow-hidden text-xs">
+                                    <div className="border border-border rounded overflow-hidden text-xs">
                                       {item.variant_groups?.map((vg, vgIdx) => (
                                         <div key={vgIdx} className="p-2 space-y-1">
-                                          <div className="text-[10px] font-mono font-extrabold text-slate-400 uppercase">{vg.name}</div>
-                                          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                                          <div className="text-[10px] font-mono font-semibold text-muted-foreground uppercase">{vg.name}</div>
+                                          <div className="divide-y divide-border">
                                             {vg.options.map((opt: any, optIdx: number) => {
                                               const optPrice = opt.sellingPrice ?? opt.selling_price ?? opt.price ?? 0;
                                               return (
-                                                <div key={optIdx} className="flex items-center justify-between py-1 px-1">
-                                                  <span className="font-bold text-slate-800 dark:text-slate-200">{opt.name}</span>
-                                                  <span className="font-mono font-extrabold text-indigo-600 dark:text-indigo-400">
+                                                <div key={optIdx} className="flex items-center justify-between py-1">
+                                                  <span className="font-medium text-foreground">{opt.name}</span>
+                                                  <span className="font-mono font-bold text-foreground">
                                                     ₹{optPrice}
                                                   </span>
                                                 </div>
@@ -450,40 +437,40 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                                       ))}
                                     </div>
                                   ) : (
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-slate-200/50 dark:border-slate-800/50 text-xs font-semibold text-slate-500">
-                                      Single Standard Portion Base Price: <span className="font-mono font-extrabold text-slate-900 dark:text-white">₹{price}</span>
+                                    <div className="p-2 bg-muted/30 rounded border border-border text-xs text-muted-foreground">
+                                      Base Price: <span className="font-mono font-bold text-foreground">₹{price}</span>
                                     </div>
                                   )}
                                 </div>
 
                                 {/* Size-Linked Addons Column */}
-                                <div className="space-y-2">
-                                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-                                    <Tag size={13} className="text-amber-500" />
-                                    <span>Size-Linked Addons & Customizations:</span>
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center gap-1 font-medium text-muted-foreground text-xs">
+                                    <Tag size={12} />
+                                    <span>Configured Addons & Modifiers:</span>
                                   </div>
 
                                   {hasAddons ? (
-                                    <div className="border border-slate-200/60 dark:border-slate-800/60 rounded-xl p-2 space-y-2 text-xs">
+                                    <div className="border border-border rounded overflow-hidden text-xs">
                                       {item.addon_groups?.map((ag, agIdx) => (
-                                        <div key={agIdx} className="space-y-1">
-                                          <div className="text-[10px] font-mono font-extrabold text-slate-400 uppercase">{ag.name}</div>
-                                          <div className="space-y-1">
-                                            {ag.options.map((opt: any, optIdx: number) => {
-                                              const vp = opt.variantPrices || opt.variant_prices || {};
+                                        <div key={agIdx} className="p-2 space-y-1">
+                                          <div className="text-[10px] font-mono font-semibold text-muted-foreground uppercase">{ag.name}</div>
+                                          <div className="divide-y divide-border">
+                                            {ag.options?.map((opt: any, optIdx: number) => {
+                                              const vp = opt.variant_prices || opt.variantPrices || {};
                                               const hasVpKeys = Object.keys(vp).length > 0;
                                               return (
-                                                <div key={optIdx} className="bg-slate-50 dark:bg-slate-950/60 p-2 rounded-lg space-y-1">
+                                                <div key={optIdx} className="py-1 space-y-0.5">
                                                   <div className="flex items-center justify-between">
-                                                    <span className="font-bold text-slate-800 dark:text-slate-200">{opt.name}</span>
-                                                    <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
-                                                      Base: +₹{opt.price || 0}
+                                                    <span className="font-medium text-foreground">{opt.name}</span>
+                                                    <span className="font-mono text-muted-foreground">
+                                                      +₹{opt.price || 0}
                                                     </span>
                                                   </div>
                                                   {hasVpKeys && (
-                                                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                                    <div className="flex flex-wrap gap-1 pt-0.5">
                                                       {Object.entries(vp).map(([sKey, sVal]) => (
-                                                        <span key={sKey} className="text-[10px] font-mono bg-amber-500/10 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                                        <span key={sKey} className="text-[10px] font-mono bg-muted text-muted-foreground px-1 py-0.2 rounded border border-border">
                                                           {sKey}: +₹{String(sVal)}
                                                         </span>
                                                       ))}
@@ -497,8 +484,8 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                                       ))}
                                     </div>
                                   ) : (
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-slate-200/50 dark:border-slate-800/50 text-xs text-slate-400 font-medium">
-                                      No size-linked addons or toppings configured for this dish.
+                                    <div className="p-2 bg-muted/30 rounded border border-border text-xs text-muted-foreground">
+                                      No size-linked addons or toppings configured.
                                     </div>
                                   )}
                                 </div>
@@ -515,7 +502,7 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
           </table>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 };
 

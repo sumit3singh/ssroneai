@@ -6,12 +6,17 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/shared/utils/formatters";
 import type { Resident } from "../../types";
 
+import { useRouterState } from "@tanstack/react-router";
+
 interface PGReportSectionProps {
   residents: Resident[];
 }
 
 export const PGReportSection: React.FC<PGReportSectionProps> = ({ residents }) => {
-  const [reportTab, setReportTab] = useState<"ledger" | "occupancy">("ledger");
+  const routerState = useRouterState();
+  const currentPath = routerState.location.pathname;
+
+  const reportTab = currentPath.includes("/occupancy") ? "occupancy" : "ledger";
 
   const totalCollected = residents
     .filter((r) => r.paid_status === "paid")
@@ -24,101 +29,83 @@ export const PGReportSection: React.FC<PGReportSectionProps> = ({ residents }) =
   };
 
   return (
-    <div className="space-y-6">
-      {/* Report Section Header & Sub-Nav */}
-      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setReportTab("ledger")}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
-              reportTab === "ledger"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "bg-slate-100 dark:bg-slate-850 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            }`}
-          >
-            <DollarSign className="w-3.5 h-3.5 inline-block mr-1.5" />
-            Rent Collection Ledger Report
-          </button>
-
-          <button
-            onClick={() => setReportTab("occupancy")}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
-              reportTab === "occupancy"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "bg-slate-100 dark:bg-slate-850 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            }`}
-          >
-            <TrendingUp className="w-3.5 h-3.5 inline-block mr-1.5" />
-            Bed Occupancy & Revenue Potential Report
-          </button>
-        </div>
+    <div className="space-y-4">
+      {/* Report Section Header & Controls */}
+      <div className="flex items-center justify-between border-b border-border pb-2.5">
+        <h3 className="font-semibold text-xs text-foreground uppercase tracking-wider font-mono">
+          {reportTab === "ledger" ? "Rent Collection Audit Ledger" : "Bed Occupancy & Revenue Potential Analysis"}
+        </h3>
 
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => handleExport("csv")} className="text-xs gap-1">
+          <Button size="sm" variant="outline" onClick={() => handleExport("csv")} className="text-xs gap-1 cursor-pointer">
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> Export CSV
           </Button>
-          <Button size="sm" variant="outline" onClick={() => window.print()} className="text-xs gap-1">
-            <Printer className="w-3.5 h-3.5 text-blue-600" /> Print
+          <Button size="sm" variant="outline" onClick={() => window.print()} className="text-xs gap-1 cursor-pointer">
+            <Printer className="w-3.5 h-3.5 text-primary" /> Print
           </Button>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <p className="text-xs text-slate-500 font-medium">Monthly Rent Roll Potential</p>
-          <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{formatCurrency(totalRevenuePotential)}</p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="p-3.5 rounded-md bg-card border border-border space-y-1 shadow-2xs">
+          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Monthly Rent Roll Potential</p>
+          <p className="text-xl font-bold font-mono text-foreground mt-0.5">{formatCurrency(totalRevenuePotential)}</p>
         </div>
-        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 shadow-sm">
-          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Realized Collections</p>
-          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{formatCurrency(totalCollected)}</p>
+        <div className="p-3.5 rounded-md bg-card border border-border space-y-1 shadow-2xs">
+          <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Realized Collections</p>
+          <p className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">{formatCurrency(totalCollected)}</p>
         </div>
-        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 shadow-sm">
-          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">Outstanding Arrears</p>
-          <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{formatCurrency(totalDues)}</p>
+        <div className="p-3.5 rounded-md bg-card border border-border space-y-1 shadow-2xs">
+          <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Outstanding Arrears</p>
+          <p className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400 mt-0.5">{formatCurrency(totalDues)}</p>
         </div>
       </div>
 
       {/* ── TAB 1: Rent Ledger Report ── */}
       {reportTab === "ledger" && (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-          <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-            <h4 className="font-bold text-sm text-slate-900 dark:text-white">Financial Rent Collection Audit Ledger</h4>
-            <span className="text-xs text-slate-500 font-mono">Live PostgreSQL Records</span>
+        <div className="bg-card rounded-md border border-border overflow-hidden shadow-2xs">
+          <div className="p-3 border-b border-border flex items-center justify-between">
+            <h4 className="font-semibold text-xs text-foreground uppercase tracking-wider font-mono">Financial Rent Collection Audit Ledger</h4>
+            <span className="text-[11px] text-muted-foreground font-mono">Live Database Records</span>
           </div>
 
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 font-medium border-b border-slate-200 dark:border-slate-800">
+            <thead className="bg-muted/40 text-muted-foreground font-mono text-[11px] uppercase tracking-wider border-b border-border">
               <tr>
-                <th className="p-3">Tenant Name</th>
-                <th className="p-3">Room / Bed</th>
-                <th className="p-3">Agreed Rent</th>
-                <th className="p-3">Amount Paid</th>
-                <th className="p-3">Balance Due</th>
-                <th className="p-3">Status</th>
+                <th className="p-2.5">Tenant Name</th>
+                <th className="p-2.5">Room / Bed</th>
+                <th className="p-2.5">Agreed Rent</th>
+                <th className="p-2.5">Amount Paid</th>
+                <th className="p-2.5">Balance Due</th>
+                <th className="p-2.5">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="divide-y divide-border">
               {residents.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-400">
-                    No resident financial ledger records in PostgreSQL database.
+                  <td colSpan={6} className="p-8 text-center text-muted-foreground font-medium text-xs">
+                    No rent ledger records logged in database.
                   </td>
                 </tr>
               ) : (
                 residents.map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-50/50">
-                    <td className="p-3 font-semibold text-slate-900 dark:text-white">{r.name}</td>
-                    <td className="p-3 text-slate-600 dark:text-slate-300">{r.room}</td>
-                    <td className="p-3 font-semibold text-slate-900 dark:text-white">{formatCurrency(r.rent)}</td>
-                    <td className="p-3 text-emerald-600 dark:text-emerald-400 font-bold">
-                      {r.paid_status === "paid" ? formatCurrency(r.rent) : "₹0.00"}
+                  <tr key={r.id} className="hover:bg-muted/20 transition-colors">
+                    <td className="p-2.5 font-semibold text-foreground">{r.name}</td>
+                    <td className="p-2.5 text-muted-foreground">{r.room}</td>
+                    <td className="p-2.5 font-mono font-bold text-foreground">{formatCurrency(r.rent)}</td>
+                    <td className="p-2.5 font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                      {formatCurrency(r.paid_status === "paid" ? r.rent : 0)}
                     </td>
-                    <td className="p-3 text-amber-600 dark:text-amber-400 font-bold">{formatCurrency(r.due_amount)}</td>
-                    <td className="p-3">
-                      <Badge variant={r.paid_status === "paid" ? "success" : "danger"}>
-                        {r.paid_status.toUpperCase()}
-                      </Badge>
+                    <td className="p-2.5 font-mono text-amber-600 dark:text-amber-400 font-bold">
+                      {formatCurrency(r.due_amount)}
+                    </td>
+                    <td className="p-2.5">
+                      <span className={`text-[10px] font-mono font-medium px-1.5 py-0.2 rounded border uppercase ${
+                        r.paid_status === "paid" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                      }`}>
+                        {r.paid_status}
+                      </span>
                     </td>
                   </tr>
                 ))
@@ -128,21 +115,12 @@ export const PGReportSection: React.FC<PGReportSectionProps> = ({ residents }) =
         </div>
       )}
 
-      {/* ── TAB 2: Bed Occupancy Report ── */}
+      {/* ── TAB 2: Occupancy Report ── */}
       {reportTab === "occupancy" && (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 space-y-4 shadow-sm">
-          <h4 className="font-bold text-sm text-slate-900 dark:text-white">Occupancy & Revenue Potential Analysis</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 space-y-2">
-              <p className="font-bold text-slate-900 dark:text-white">Total Active Residents</p>
-              <p className="text-3xl font-black text-violet-600">{residents.length}</p>
-              <p className="text-slate-500">Currently residing in PostgreSQL database units.</p>
-            </div>
-            <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 space-y-2">
-              <p className="font-bold text-slate-900 dark:text-white">Estimated Monthly Yield</p>
-              <p className="text-3xl font-black text-emerald-600">{formatCurrency(totalCollected)}</p>
-              <p className="text-slate-500">Realized cash inflow for the active billing cycle.</p>
-            </div>
+        <div className="bg-card rounded-md border border-border p-4 space-y-3">
+          <h4 className="font-semibold text-xs text-foreground uppercase tracking-wider font-mono">Bed Occupancy & Utilization Analysis</h4>
+          <div className="p-8 text-center border border-dashed border-border rounded-md bg-muted/20 text-muted-foreground text-xs font-medium">
+            Dynamic bed utilization metrics and occupancy charts powered by PostgreSQL analytical engines.
           </div>
         </div>
       )}

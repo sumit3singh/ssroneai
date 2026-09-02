@@ -1,27 +1,17 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  ClipboardList,
   Plus,
   Minus,
   Send,
-  CheckCircle2,
   Moon,
   Sun,
-  ShieldAlert,
   Store,
-  UserCheck,
   LogOut,
   Search,
   ChefHat,
   Utensils,
   LayoutGrid,
   Sparkles,
-  Receipt,
-  Printer,
-  SlidersHorizontal,
-  X,
-  ShoppingBag,
-  Filter,
   RefreshCw,
   MessageSquare
 } from "lucide-react";
@@ -32,20 +22,12 @@ import TableFloorGrid, { TableInfo } from "@/components/TableFloorGrid";
 import ActiveOrdersTracker, { RunningOrder } from "@/components/ActiveOrdersTracker";
 import StaffLoginModal from "@/components/StaffLoginModal";
 import ActiveTableModal from "@/components/ActiveTableModal";
-import { getAuth, logout, setAuth } from "@ssrone/auth";
+import { getAuth, logout } from "@ssrone/auth";
 import { seedEmployees } from "@/utils/seedEmployees";
-const DEFAULT_FALLBACK_PRODUCTS = [
-  { id: "p1", name: "Kulhad Masala Chai", description: "Authentic spiced Assam tea served in traditional clay kulhad", selling_price: 40, basePrice: 40, category: "Special Chai & Tea", categoryId: "cat1", isVeg: true, is_veg: true, image: "https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=400", variantGroups: [], addonGroups: [] },
-  { id: "p2", name: "Ginger Cardamom Tea", description: "Fresh ginger infused black tea brewed with crushed cardamom", selling_price: 35, basePrice: 35, category: "Special Chai & Tea", categoryId: "cat1", isVeg: true, is_veg: true, image: "https://images.unsplash.com/photo-1597481499750-3e6b22637e12?w=400", variantGroups: [], addonGroups: [] },
-  { id: "p3", name: "Classic Cold Coffee", description: "Rich espresso blended with chilled milk and chocolate drizzle", selling_price: 120, basePrice: 120, category: "Artisanal Coffee", categoryId: "cat2", isVeg: true, is_veg: true, image: "https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=400", variantGroups: [{ id: "vg1", name: "Size", options: [{ id: "vo1", name: "Regular 300ml", price: 120 }, { id: "vo2", name: "Large 500ml", price: 160 }] }], addonGroups: [] },
-  { id: "p4", name: "Hazelnut Cold Coffee", description: "Creamy espresso shake flavored with roasted hazelnut syrup", selling_price: 150, basePrice: 150, category: "Artisanal Coffee", categoryId: "cat2", isVeg: true, is_veg: true, image: "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400", variantGroups: [], addonGroups: [] },
-  { id: "p5", name: "Paneer Tikka Sandwich", description: "Grilled sourdough stuffed with spiced cottage cheese & mint chutney", selling_price: 160, basePrice: 160, category: "Quick Bites & Snacks", categoryId: "cat3", isVeg: true, is_veg: true, image: "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=400", variantGroups: [], addonGroups: [] },
-  { id: "p6", name: "Crispy Cheese Fries", description: "Golden peri-peri fries smothered in melted cheddar cheese", selling_price: 130, basePrice: 130, category: "Quick Bites & Snacks", categoryId: "cat3", isVeg: true, is_veg: true, image: "https://images.unsplash.com/photo-1576107232684-1279f390859f?w=400", variantGroups: [], addonGroups: [] },
-  { id: "p7", name: "Classic Veg Supreme Burger", description: "Crispy potato-corn patty with cheese slice & special house sauce", selling_price: 150, basePrice: 150, category: "Baithak Special Burgers", categoryId: "cat4", isVeg: true, is_veg: true, image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400", variantGroups: [], addonGroups: [] },
-  { id: "p8", name: "Spicy Paneer Crunch Burger", description: "Crispy fried paneer patty loaded with spicy harissa mayo", selling_price: 190, basePrice: 190, category: "Baithak Special Burgers", categoryId: "cat4", isVeg: true, is_veg: true, image: "https://images.unsplash.com/photo-1550547660-d9450f859349?w=400", variantGroups: [], addonGroups: [] },
-  { id: "p9", name: "Margherita Pizza 9\"", description: "Classic San Marzano tomato sauce, fresh mozzarella & basil leaves", selling_price: 240, basePrice: 240, category: "Woodfired Pizzas", categoryId: "cat5", isVeg: true, is_veg: true, image: "https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400", variantGroups: [{ id: "vg2", name: "Crust", options: [{ id: "vo3", name: "Thin Crust 9\"", price: 240 }, { id: "vo4", name: "Cheese Burst 9\"", price: 310 }] }], addonGroups: [] },
-  { id: "p10", name: "Farmhouse Veggie Overload 9\"", description: "Loaded with capsicum, onion, mushroom, babycorn & extra cheese", selling_price: 320, basePrice: 320, category: "Woodfired Pizzas", categoryId: "cat5", isVeg: true, is_veg: true, image: "https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?w=400", variantGroups: [], addonGroups: [] }
-];
+import { api } from "@ssrone/api-client";
+import { fetchCategories, fetchMenuItems } from "@/utils/menuApi";
+
+
 
 export function App() {
   const [activeTab, setActiveTab] = useState<"order" | "floor" | "kots">("floor");
@@ -116,10 +98,10 @@ export function App() {
         }));
         setProducts(formatted);
       } else {
-        setProducts(DEFAULT_FALLBACK_PRODUCTS);
+        setProducts([]);
       }
     } catch {
-      setProducts(DEFAULT_FALLBACK_PRODUCTS);
+      setProducts([]);
     }
 
     try {
@@ -152,52 +134,32 @@ export function App() {
     }
 
     try {
-      const ordersRes = await api.get<any>(`/orders?branch_id=${branchParam}`).catch(() => null);
+      const ordersRes = await api.get<any>(`/orders?branch_id=${branchParam}&page_size=50`).catch(() => null);
       let orderList: any[] = [];
       if (Array.isArray(ordersRes)) orderList = ordersRes;
       else if (ordersRes?.items && Array.isArray(ordersRes.items)) orderList = ordersRes.items;
 
-      // Filter active orders (exclude completed, cancelled, paid, served)
-      const activeOrderList = orderList.filter((o: any) => {
-        const st = (o.status || "").toLowerCase();
-        return st !== "completed" && st !== "cancelled" && st !== "paid" && st !== "served";
-      });
-
-      // Deduplicate active orders by order_number or id
-      const uniqueOrdersMap = new Map<string, any>();
-      activeOrderList.forEach((o: any) => {
-        const key = String(o.order_number || o.id);
-        if (!uniqueOrdersMap.has(key)) {
-          uniqueOrdersMap.set(key, o);
-        }
-      });
-      const uniqueActiveOrders = Array.from(uniqueOrdersMap.values());
-
-      if (uniqueActiveOrders.length > 0) {
-        const formattedOrders: RunningOrder[] = uniqueActiveOrders.map((o: any) => ({
-          id: String(o.id || o.order_number),
-          order_number: o.order_number || `ORD-${o.id}`,
-          table_number: o.table_name || o.table_number || "T1",
-          branch_id: String(branchParam),
-          status: (o.status || "").toLowerCase() === "preparing" ? "preparing" : "pending",
-          subtotal: Number(o.subtotal || 0),
-          total_tax: Number(o.total_tax || 0),
-          grand_total: Number(o.grand_total || o.net_amount || 0),
-          created_at: o.created_at || new Date().toISOString(),
-          items: (o.items || []).map((it: any) => ({
-            product_name: it.product_name || it.item_name || it.name,
-            quantity: Number(it.quantity || 1),
-            unit_price: Number(it.unit_price || 0),
-            line_total: Number(it.line_total || (it.unit_price * it.quantity)),
-            kitchen_note: it.preparation_notes || it.kitchen_note,
-            selected_variant: it.variant_name,
-            selected_addons: Array.isArray(it.selected_addons) ? it.selected_addons.map((a: any) => typeof a === "string" ? a : a.name) : [],
-          })),
-        }));
-        setRunningOrders(formattedOrders);
-      } else {
-        setRunningOrders([]);
-      }
+      const formattedOrders: RunningOrder[] = orderList.map((o: any) => ({
+        id: String(o.id || o.order_number),
+        order_number: o.order_number || `ORD-${o.id}`,
+        table_number: o.table_name || o.table_number || "T1",
+        branch_id: String(o.branch_id || branchParam),
+        status: (o.status || "pending").toLowerCase() as RunningOrder["status"],
+        subtotal: Number(o.subtotal || o.net_amount || 0),
+        total_tax: Number(o.tax_amount || 0),
+        grand_total: Number(o.net_amount || o.subtotal || 0),
+        created_at: o.created_at || new Date().toISOString(),
+        items: (o.items || []).map((it: any) => ({
+          id: String(it.id || it.product_id),
+          item_name: it.product_name || it.item_name || it.name || "Dish Item",
+          quantity: Number(it.quantity || 1),
+          unit_price: Number(it.unit_price || it.price || 0),
+          total_price: Number(it.total_price || (it.unit_price || 0) * (it.quantity || 1)),
+          selected_variant: it.variant_name || (it.selected_variant ? it.selected_variant.name : undefined),
+          selected_addons: Array.isArray(it.selected_addons) ? it.selected_addons.map((a: any) => typeof a === "string" ? a : a.name) : [],
+        })),
+      }));
+      setRunningOrders(formattedOrders);
     } catch {
       setRunningOrders([]);
     } finally {
@@ -207,44 +169,30 @@ export function App() {
 
   useEffect(() => {
     loadData();
-    window.addEventListener("storage", loadData);
-    return () => window.removeEventListener("storage", loadData);
-  }, [activeUnit]);
-
-  // Sync dark theme class
-  useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, [isDark]);
-
-  // Clear cart when unit changes
-  useEffect(() => {
-    setCart([]);
-  }, [activeUnit]);
+    const interval = setInterval(loadData, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Filtered Menu Items
-  const filteredMenu = useMemo(() => {
+  const filteredProducts = useMemo(() => {
     return products.filter((p) => {
-      const matchBranch = !p.unit_code || p.unit_code === activeUnit;
-      const matchCategory =
-        selectedCategory === "all" ||
-        String(p.categoryId) === String(selectedCategory) ||
-        String(p.category).toLowerCase() === String(selectedCategory).toLowerCase();
-      const matchVeg = !vegOnly || p.isVeg || p.is_veg;
-      const matchSearch =
-        (p.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.description || "").toLowerCase().includes(searchQuery.toLowerCase());
-      return matchBranch && matchCategory && matchVeg && matchSearch;
+      if (vegOnly && !p.isVeg) return false;
+      if (selectedCategory !== "all") {
+        const catMatch = String(p.categoryId) === String(selectedCategory) || String(p.category).toLowerCase() === String(selectedCategory).toLowerCase();
+        if (!catMatch) return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        return p.name.toLowerCase().includes(q) || (p.description && p.description.toLowerCase().includes(q));
+      }
+      return true;
     });
-  }, [products, activeUnit, selectedCategory, vegOnly, searchQuery]);
+  }, [products, selectedCategory, searchQuery, vegOnly]);
 
-  // Handle Add Item (Opens Customization Modal if variants/addons exist)
-  const handleItemClick = (prod: any) => {
+  const handleSelectItem = (prod: any) => {
     const hasVariants = prod.variantGroups && prod.variantGroups.length > 0;
     const hasAddons = prod.addonGroups && prod.addonGroups.length > 0;
+
     if (hasVariants || hasAddons) {
       setCustomizingItem(prod);
     } else {
@@ -325,7 +273,6 @@ export function App() {
 
     const branchParam = activeUnit === "CUH02" ? 1 : 2;
 
-    // Send Order Payload directly to PostgreSQL Database via REST API
     const apiPayload = {
       branch_id: branchParam,
       table_name: selectedTable,
@@ -381,23 +328,36 @@ export function App() {
       })),
     };
 
-    setRunningOrders((prev) => {
-      // Deduplicate by order_number
-      const exists = prev.some((o) => o.order_number === resolvedOrderNumber);
-      if (exists) return prev;
-      const updated = [newOrder, ...prev];
-      localStorage.setItem("ssrone_orders", JSON.stringify(updated));
-      return updated;
-    });
-
-    setSuccessOrder(resolvedOrderNumber);
+    setRunningOrders((prev) => [newOrder, ...prev]);
     setCart([]);
+    setOrderRemark("");
+    setSuccessOrder(resolvedOrderNumber);
     setIsSubmittingOrder(false);
-    window.dispatchEvent(new Event("storage"));
+    setActiveTab("kots");
+
+    setTimeout(() => {
+      setSuccessOrder(null);
+    }, 4000);
   };
 
   return (
-    <div className={`min-h-screen pb-20 transition-colors duration-300 font-sans ${isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"}`}>
+    <div className={`min-h-screen pb-20 font-sans transition-colors duration-200 ${isDark ? "bg-slate-950 text-slate-100" : "bg-[#FAF9F5] text-slate-900"}`}>
+
+      {/* Staff Login Modal */}
+      {showLoginModal && (
+        <StaffLoginModal
+          onLoginSuccess={(userData) => {
+            setAuth({
+              token: "staff-token-" + Date.now(),
+              name: userData.name,
+              isLoggedIn: true,
+              user: userData,
+            });
+            setAuthState(getAuth());
+            setShowLoginModal(false);
+          }}
+        />
+      )}
 
       {/* Item Customization Modal */}
       {customizingItem && (
@@ -412,18 +372,18 @@ export function App() {
       {showDirectory && <EmployeeDirectory onClose={() => setShowDirectory(false)} />}
       {showSeedManager && <SeedManager onClose={() => setShowSeedManager(false)} />}
 
-      {/* Top Fixed Header Navbar */}
-      <header className="sticky top-0 z-40 px-4 py-3 border-b bg-white border-slate-200 shadow-xs flex items-center justify-between gap-3">
+      {/* Rule 17: Top Fixed Header Navbar */}
+      <header className="sticky top-0 z-40 px-4 sm:px-6 py-3 bg-white/95 dark:bg-slate-900/95 border-b border-slate-200/80 dark:border-slate-800 backdrop-blur-md shadow-2xs flex items-center justify-between gap-3">
         {/* Left Branch Branding & Logged-In Waiter Profile */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-bold shadow-md shadow-indigo-600/30">
+          <div className="w-10 h-10 rounded-lg bg-sky-600 flex items-center justify-center text-white font-bold shadow-2xs shrink-0">
             <Store size={20} />
           </div>
           <div>
-            <h1 className="text-sm font-black tracking-wider uppercase text-slate-900 flex items-center gap-2">
+            <h1 className="text-sm font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
               {auth.user?.branch_name || "Baithak Cafe - CUH Mahendragarh"}
             </h1>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+            <p className="text-[11px] text-slate-500 font-semibold">
               Handheld Waiter Terminal • {auth.name || "Staff Member"}
             </p>
           </div>
@@ -431,24 +391,21 @@ export function App() {
 
         {/* Right Actions & User Badge */}
         <div className="flex items-center gap-2">
-          {/* Refresh DB Button */}
           <button
             onClick={() => loadData()}
             disabled={isRefreshing}
-            className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-indigo-600 transition cursor-pointer disabled:opacity-50"
+            className="min-h-[36px] p-2 rounded-lg border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50 shadow-2xs"
             title="Refresh PostgreSQL Database"
           >
-            <RefreshCw size={15} className={isRefreshing ? "animate-spin text-indigo-600" : ""} />
+            <RefreshCw size={15} className={isRefreshing ? "animate-spin text-sky-600" : ""} />
           </button>
 
-          {/* Logged in Waiter Badge */}
           {auth.name && (
-            <div className="hidden sm:block text-2xs font-bold text-slate-700 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200">
+            <div className="hidden sm:block text-xs font-bold text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
               {auth.name}
             </div>
           )}
 
-          {/* Switch Staff / Logout Button */}
           <button
             onClick={() => {
               logout();
@@ -456,7 +413,7 @@ export function App() {
               setShowLoginModal(true);
             }}
             title="Switch Staff Member / Sign Out"
-            className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-500/30 transition cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+            className="min-h-[36px] px-3 py-1.5 rounded-lg border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-sky-500 transition cursor-pointer flex items-center gap-1.5 text-xs font-bold shadow-2xs"
           >
             <LogOut size={15} />
             <span>Switch Staff</span>
@@ -464,12 +421,12 @@ export function App() {
         </div>
       </header>
 
-      {/* Mobile Bottom Navigation Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 border-t border-slate-200 dark:border-slate-800 backdrop-blur-md px-2 py-1.5 flex items-center justify-around">
+      {/* Rule 15: Mobile Bottom Navigation Bar (min 44px) */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 border-t border-slate-200 dark:border-slate-800 backdrop-blur-md px-2 py-1.5 flex items-center justify-around shadow-2xs">
         <button
           onClick={() => setActiveTab("order")}
-          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl text-2xs font-bold transition ${
-            activeTab === "order" ? "text-indigo-600 dark:text-indigo-400 font-black" : "text-slate-400"
+          className={`min-h-[44px] flex flex-col items-center justify-center gap-0.5 py-1 px-4 rounded-lg text-[10px] font-bold transition ${
+            activeTab === "order" ? "bg-sky-600 text-white" : "text-slate-600 dark:text-slate-400"
           }`}
         >
           <Utensils size={16} />
@@ -477,8 +434,8 @@ export function App() {
         </button>
         <button
           onClick={() => setActiveTab("floor")}
-          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl text-2xs font-bold transition ${
-            activeTab === "floor" ? "text-indigo-600 dark:text-indigo-400 font-black" : "text-slate-400"
+          className={`min-h-[44px] flex flex-col items-center justify-center gap-0.5 py-1 px-4 rounded-lg text-[10px] font-bold transition ${
+            activeTab === "floor" ? "bg-sky-600 text-white" : "text-slate-600 dark:text-slate-400"
           }`}
         >
           <LayoutGrid size={16} />
@@ -486,8 +443,8 @@ export function App() {
         </button>
         <button
           onClick={() => setActiveTab("kots")}
-          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl text-2xs font-bold transition relative ${
-            activeTab === "kots" ? "text-indigo-600 dark:text-indigo-400 font-black" : "text-slate-400"
+          className={`min-h-[44px] flex flex-col items-center justify-center gap-0.5 py-1 px-4 rounded-lg text-[10px] font-bold transition ${
+            activeTab === "kots" ? "bg-sky-600 text-white" : "text-slate-600 dark:text-slate-400"
           }`}
         >
           <ChefHat size={16} />
@@ -495,21 +452,51 @@ export function App() {
         </button>
       </div>
 
+      {/* Desktop Main Navigation Tabs */}
+      <div className="hidden md:flex items-center justify-between px-6 pt-4 max-w-7xl mx-auto">
+        <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-1 rounded-xl shadow-2xs">
+          <button
+            onClick={() => setActiveTab("floor")}
+            className={`min-h-[38px] px-4 py-2 rounded-lg text-xs font-extrabold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "floor" ? "bg-sky-600 text-white shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+            }`}
+          >
+            <LayoutGrid size={14} /> Floor Plan Grid
+          </button>
+          <button
+            onClick={() => setActiveTab("order")}
+            className={`min-h-[38px] px-4 py-2 rounded-lg text-xs font-extrabold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "order" ? "bg-sky-600 text-white shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+            }`}
+          >
+            <Utensils size={14} /> Take Order (Table {selectedTable})
+          </button>
+          <button
+            onClick={() => setActiveTab("kots")}
+            className={`min-h-[38px] px-4 py-2 rounded-lg text-xs font-extrabold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "kots" ? "bg-sky-600 text-white shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+            }`}
+          >
+            <ChefHat size={14} /> Active KOT Streams ({runningOrders.length})
+          </button>
+        </div>
+      </div>
+
       {/* Main Container */}
-      <main className="p-3 sm:p-4 max-w-7xl mx-auto space-y-4">
+      <main className="p-3 sm:p-5 max-w-7xl mx-auto space-y-4">
         {/* TAB 1: NEW ORDER PAD */}
         {activeTab === "order" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             {/* Catalog Column (8 cols) */}
             <div className="lg:col-span-7 xl:col-span-8 space-y-3">
-              {/* Category Pills & Veg Toggle */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {/* Category Filter Buttons */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-1.5 rounded-xl shadow-2xs">
                 <button
                   onClick={() => setSelectedCategory("all")}
-                  className={`px-3.5 py-2 rounded-2xl text-xs font-black uppercase tracking-wider shrink-0 transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`min-h-[36px] px-3.5 py-1.5 rounded-lg text-xs font-extrabold uppercase tracking-wider shrink-0 transition-colors cursor-pointer flex items-center gap-1.5 ${
                     selectedCategory === "all"
-                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
-                      : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-indigo-500/40"
+                      ? "bg-sky-600 text-white shadow-2xs"
+                      : "bg-slate-50 dark:bg-slate-800 border border-slate-200/80 text-slate-700"
                   }`}
                 >
                   <Utensils size={13} /> All Items
@@ -519,319 +506,141 @@ export function App() {
                   const isSelected = String(selectedCategory) === String(cat.id) || String(selectedCategory) === String(cat.name);
                   return (
                     <button
-                      key={cat.id || cat.name}
-                      onClick={() => setSelectedCategory(cat.id || cat.name)}
-                      className={`px-3.5 py-2 rounded-2xl text-xs font-black uppercase tracking-wider shrink-0 transition-all cursor-pointer ${
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat.name)}
+                      className={`min-h-[36px] px-3.5 py-1.5 rounded-lg text-xs font-extrabold uppercase tracking-wider shrink-0 transition-colors cursor-pointer ${
                         isSelected
-                          ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
-                          : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-indigo-500/40"
+                          ? "bg-sky-600 text-white shadow-2xs"
+                          : "bg-slate-50 dark:bg-slate-800 border border-slate-200/80 text-slate-700"
                       }`}
                     >
                       {cat.name}
                     </button>
                   );
                 })}
-
-                <button
-                  onClick={() => setVegOnly(!vegOnly)}
-                  className={`px-3.5 py-2 rounded-2xl text-xs font-black uppercase tracking-wider shrink-0 transition-all cursor-pointer flex items-center gap-1.5 border ${
-                    vegOnly
-                      ? "bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/20"
-                      : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-emerald-600 dark:text-emerald-400"
-                  }`}
-                >
-                  <Filter size={13} /> Veg Only
-                </button>
               </div>
 
-              {/* Search input */}
-              <div className="relative">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input
-                  type="text"
-                  placeholder="Search item name (e.g. Chai, Pizza, Burger)..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none shadow-xs"
-                />
-                {searchQuery && (
-                  <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-
-              {/* Catalog Items Cards Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 max-h-[560px] overflow-y-auto pr-1">
-                {filteredMenu.map((prod) => {
-                  const hasCustomizations = (prod.variantGroups && prod.variantGroups.length > 0) || (prod.addonGroups && prod.addonGroups.length > 0);
-
-                  return (
-                    <button
-                      key={prod.id}
-                      onClick={() => handleItemClick(prod)}
-                      className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-500/60 rounded-3xl p-3 text-left flex flex-col justify-between shadow-sm hover:shadow-md transition-all cursor-pointer relative overflow-hidden min-h-[135px]"
-                    >
-                      <div>
-                        <div className="flex items-center justify-between gap-1 mb-1.5">
-                          <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md border tracking-wider ${prod.isVeg !== false ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-rose-500/10 text-rose-600 border-rose-500/20"}`}>
-                            {prod.isVeg !== false ? "VEG" : "NON-VEG"}
-                          </span>
-                          {hasCustomizations && (
-                            <span className="text-[8px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-md border border-indigo-500/20">
-                              CUSTOMIZABLE
-                            </span>
-                          )}
-                        </div>
-                        <h4 className="text-xs font-bold leading-snug text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-2">
+              {/* Menu Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {filteredProducts.map((prod) => (
+                  <button
+                    key={prod.id}
+                    onClick={() => handleSelectItem(prod)}
+                    className="p-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl shadow-2xs hover:border-sky-500 transition text-left flex flex-col justify-between min-h-[110px] cursor-pointer"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-1">
+                        <span className="font-extrabold text-xs text-slate-900 dark:text-white leading-snug">
                           {prod.name}
-                        </h4>
-                      </div>
-
-                      <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-                        <span className="font-mono text-xs font-black text-indigo-600 dark:text-indigo-400">
-                          ₹{prod.selling_price || prod.basePrice}
                         </span>
-                        <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 group-hover:bg-indigo-600 group-hover:text-white text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors">
-                          <Plus size={13} />
-                        </span>
+                        <span className={`w-2 h-2 rounded-full shrink-0 mt-1 ${prod.isVeg ? "bg-emerald-600" : "bg-rose-600"}`} />
                       </div>
-                    </button>
-                  );
-                })}
+                      <p className="text-[11px] text-slate-500 line-clamp-2 mt-1 font-medium">{prod.description}</p>
+                    </div>
 
-                {filteredMenu.length === 0 && (
-                  <div className="col-span-full py-16 text-center space-y-2">
-                    <Utensils size={32} className="mx-auto text-slate-300 dark:text-slate-700" />
-                    <p className="text-xs text-slate-400 font-bold">No menu items found in PostgreSQL database.</p>
-                  </div>
-                )}
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <span className="font-mono text-sm font-black text-sky-600 dark:text-sky-400">
+                        ₹{prod.selling_price || prod.basePrice}
+                      </span>
+                      <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
+                        + Add
+                      </span>
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Active Waiter Cart Sheet / Panel (5 cols) */}
-            <div className="lg:col-span-5 xl:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 shadow-xl flex flex-col justify-between space-y-4 lg:sticky lg:top-16 lg:h-[calc(100vh-80px)] overflow-y-auto">
+            {/* Cart Summary Column (4 cols) */}
+            <div className="lg:col-span-5 xl:col-span-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-4 shadow-2xs flex flex-col justify-between space-y-4">
               <div className="space-y-3">
-                {/* Header & Table Selector */}
-                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-                  <div>
-                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <ChefHat size={16} className="text-indigo-600" /> Active Waiter Cart Pad
-                    </h3>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Dispatches instantly to kitchen KDS</p>
-                  </div>
-
-                  {/* Table selector */}
-                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-2xl border border-slate-200 dark:border-slate-700">
-                    <UserCheck size={13} className="text-indigo-600 dark:text-indigo-400" />
-                    <select
-                      value={selectedTable}
-                      onChange={(e) => setSelectedTable(e.target.value)}
-                      className="bg-transparent text-xs font-bold outline-none cursor-pointer text-slate-900 dark:text-white"
-                    >
-                      {tables.length === 0 ? (
-                        <option value={selectedTable}>Table {selectedTable}</option>
-                      ) : (
-                        tables.map((t) => (
-                          <option key={t.id || t.number} value={t.number} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
-                            Table {t.number} ({t.status.toUpperCase()})
-                          </option>
-                        ))
-                      )}
-                    </select>
-                  </div>
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+                  <h3 className="font-black text-xs uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Utensils size={15} className="text-sky-600" /> Order Cart — Table {selectedTable}
+                  </h3>
+                  <span className="text-2xs font-mono font-bold text-slate-500">{cart.length} Items</span>
                 </div>
 
-                {/* Cart Items List */}
-                <div className="space-y-2.5 max-h-[260px] overflow-y-auto pr-1">
-                  {cart.map((item) => (
-                    <div
-                      key={item.cartKey}
-                      className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 space-y-1.5"
-                    >
-                      <div className="flex items-start justify-between text-xs font-bold">
-                        <div className="min-w-0 flex-1 pr-2">
-                          <p className="text-xs font-bold text-slate-900 dark:text-white">{item.name}</p>
-                          {item.variantSummary && (
-                            <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">
-                              Portion: {item.variantSummary}
-                            </p>
-                          )}
-                          {item.addonsSummary && (
-                            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                              Addons: {item.addonsSummary}
-                            </p>
-                          )}
-                          {item.kitchenNote && (
-                            <p className="text-[10px] text-amber-600 dark:text-amber-400 italic">
-                              Note: {item.kitchenNote}
-                            </p>
-                          )}
+                {cart.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 space-y-1">
+                    <Utensils size={28} className="mx-auto text-slate-300" />
+                    <p className="text-xs font-bold text-slate-700">Order Cart Empty</p>
+                    <p className="text-[11px] text-slate-400">Select dishes from the menu catalog to begin.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                    {cart.map((item) => (
+                      <div key={item.cartKey} className="p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 rounded-lg flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="font-extrabold text-xs text-slate-900 dark:text-white block truncate">{item.name}</span>
+                          <span className="font-mono text-2xs text-slate-500">₹{item.unitPrice} each</span>
                         </div>
 
-                        <span className="font-mono text-xs font-black text-indigo-600 dark:text-indigo-400">
-                          ₹{(item.unitPrice || item.selling_price) * item.quantity}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-[10px] text-slate-400 font-mono font-bold">₹{item.unitPrice} each</span>
-                        <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-0.5">
-                          <button onClick={() => updateQuantity(item.cartKey, -1)} className="p-1 hover:text-rose-500 cursor-pointer">
-                            <Minus size={11} />
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button onClick={() => updateQuantity(item.cartKey, -1)} className="w-6 h-6 rounded bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-700 dark:text-slate-200">
+                            -
                           </button>
-                          <span className="px-2 text-xs font-mono font-bold">{item.quantity}</span>
-                          <button onClick={() => updateQuantity(item.cartKey, 1)} className="p-1 hover:text-indigo-500 cursor-pointer">
-                            <Plus size={11} />
+                          <span className="font-mono font-extrabold text-xs text-slate-900 dark:text-white">{item.quantity}</span>
+                          <button onClick={() => updateQuantity(item.cartKey, 1)} className="w-6 h-6 rounded bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-700 dark:text-slate-200">
+                            +
                           </button>
                         </div>
                       </div>
-                    </div>
-                  ))}
-
-                  {cart.length === 0 && (
-                    <div className="py-12 text-center space-y-1">
-                      <ShoppingBag size={32} className="mx-auto text-slate-300 dark:text-slate-700" />
-                      <p className="text-xs font-bold text-slate-400">Cart is empty.</p>
-                      <p className="text-[10px] text-slate-400">Tap items on left menu to add to order.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Order Remark / Kitchen Note Input */}
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
-                <label className="text-[10px] font-mono font-bold uppercase text-slate-400 flex items-center gap-1">
-                  <MessageSquare size={11} className="text-indigo-600 dark:text-indigo-400" />
-                  Order Remarks / Kitchen Note:
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Table request, serve starter first, less spicy..."
-                  value={orderRemark}
-                  onChange={(e) => setOrderRemark(e.target.value)}
-                  className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              {/* Footer Summary & Send Button */}
-              {cart.length > 0 && (
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                  <div className="space-y-1 font-mono text-xs text-slate-600 dark:text-slate-300 font-bold">
-                    <div className="flex justify-between">
-                      <span>Subtotal:</span>
-                      <span>₹{subtotal}</span>
-                    </div>
-                    <div className="flex justify-between text-[10px] text-slate-400">
-                      <span>GST (5%):</span>
-                      <span>₹{tax}</span>
-                    </div>
-                    <div className="flex justify-between text-sm font-black text-slate-900 dark:text-white pt-1 border-t border-slate-100 dark:border-slate-800">
-                      <span>Grand Total:</span>
-                      <span className="text-indigo-600 dark:text-indigo-400">₹{grandTotal}</span>
-                    </div>
+                    ))}
                   </div>
+                )}
+              </div>
 
-                  <button
-                    onClick={handleDispatchOrder}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 cursor-pointer transition-all"
-                  >
-                    <Send size={14} />
-                    <span>Send KOT to Kitchen · Table {selectedTable}</span>
-                  </button>
+              {/* Rule 4, 19 & 20: Primary Dispatch Button (Sky Blue) */}
+              <div className="pt-3 border-t border-slate-200/80 space-y-3">
+                <div className="flex items-center justify-between text-xs font-mono font-bold">
+                  <span className="text-slate-500">Grand Total (incl. tax):</span>
+                  <span className="text-base font-black text-sky-600 dark:text-sky-400">₹{grandTotal}</span>
                 </div>
-              )}
+
+                <button
+                  onClick={handleDispatchOrder}
+                  disabled={cart.length === 0 || isSubmittingOrder}
+                  className="w-full min-h-[44px] py-2.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <Send size={15} />
+                  <span>DISPATCH ORDER TO KITCHEN</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
 
-        {/* MAIN SCREEN: TABLE FLOOR PLAN */}
+        {/* TAB 2: FLOOR PLAN GRID */}
         {activeTab === "floor" && (
           <TableFloorGrid
             tables={tables}
             runningOrders={runningOrders}
             selectedTable={selectedTable}
-            onSelectTable={(tbl) => {
-              setSelectedTable(tbl);
-            }}
-            onOpenTableOrder={(t) => {
-              if (!t || !t.number) return;
-              const numKey = String(t.number).replace(/\D/g, "");
-              const hasOrder = numKey !== "" && runningOrders.some((o) => {
-                const oKey = String(o.table_number || o.table_name || "").replace(/\D/g, "");
-                return oKey !== "" && oKey === numKey;
-              });
-              if (hasOrder) {
-                setActiveModalTable(t.number);
-              } else {
-                setSelectedTable(t.number);
-                setActiveTab("order");
-              }
+            onSelectTable={(tblNum) => {
+              setSelectedTable(tblNum);
+              setActiveTab("order");
             }}
           />
         )}
 
-        {/* Active Table Order Drawer Modal */}
-        <ActiveTableModal
-          isOpen={!!activeModalTable}
-          tableName={activeModalTable || selectedTable}
-          order={activeModalTable ? (runningOrders.find((o) => {
-            const numKey1 = String(o.table_number || o.table_name || "").replace(/\D/g, "");
-            const numKey2 = String(activeModalTable || "").replace(/\D/g, "");
-            return numKey1 !== "" && numKey1 === numKey2;
-          }) || null) : null}
-          onClose={() => setActiveModalTable(null)}
-          onAddMoreItems={(tbl) => {
-            setSelectedTable(tbl);
-            setActiveModalTable(null);
-            setActiveTab("order");
-          }}
-          onMarkServed={() => {
-            setActiveModalTable(null);
-            loadData();
-          }}
-        />
+        {/* TAB 3: RUNNING KOTS */}
+        {activeTab === "kots" && (
+          <ActiveOrdersTracker orders={runningOrders} />
+        )}
       </main>
 
-      {/* Success Dispatch Modal */}
-      {successOrder && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-sm p-6 rounded-3xl text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-3 animate-in zoom-in-95 duration-150">
-            <CheckCircle2 size={42} className="mx-auto text-emerald-500" />
-            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">KOT Order Dispatched!</h3>
-            <p className="text-xs text-slate-400 font-medium">
-              Order serial: <strong className="font-mono text-indigo-600 dark:text-indigo-400">{successOrder}</strong>
-            </p>
-            <p className="text-2xs text-slate-400">Dispatched directly to PostgreSQL DB & Kitchen Display Station (KDS).</p>
-            <button
-              onClick={() => setSuccessOrder(null)}
-              className="w-full mt-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-2xl shadow-md cursor-pointer transition-all"
-            >
-              Continue Waiter Pad
-            </button>
-          </div>
+      {/* Rule 18 & 43: Sticky Footer Bar */}
+      <footer className="fixed bottom-0 left-0 right-0 py-2.5 px-6 bg-white/95 dark:bg-slate-900/95 border-t border-slate-200/80 dark:border-slate-800 backdrop-blur-md flex justify-between items-center text-xs font-mono font-semibold text-slate-700 dark:text-slate-300 shadow-2xs z-30">
+        <div className="flex items-center gap-4">
+          <span>Active Table: <strong className="text-slate-900 dark:text-white font-extrabold">Table {selectedTable}</strong></span>
+          <span>Running Orders: <strong className="text-sky-700 dark:text-sky-400 font-extrabold">{runningOrders.length}</strong></span>
         </div>
-      )}
 
-      {/* Staff Multi-Tenant Security Login Modal */}
-      <StaffLoginModal
-        isOpen={showLoginModal}
-        requiredAccess="staff_web"
-        onLoginSuccess={(user) => {
-          setAuthState(getAuth());
-          setShowLoginModal(false);
-          setActiveTab("floor");
-          const bId = user?.branch_id ? Number(user.branch_id) : 1;
-          loadData(bId);
-        }}
-      />
-
-      {/* Footer Status Bar */}
-      <footer className="fixed bottom-0 left-0 right-0 py-2.5 px-4 bg-white/90 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 backdrop-blur-md hidden md:flex justify-between items-center text-[10px] font-black uppercase tracking-wider text-slate-400 font-mono">
-        <span>Active Table: {selectedTable}</span>
-        <span className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
-          <ShieldAlert size={12} /> Waiter Sync Active · PostgreSQL Live SSOT
-        </span>
+        <div className="bg-sky-600 text-white px-3 py-1 rounded-md font-mono text-[10px] font-bold uppercase tracking-wider shadow-2xs flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-300 animate-pulse" />
+          <span>WAITER SYNC ACTIVE • POSTGRESQL LIVE SSOT</span>
+        </div>
       </footer>
     </div>
   );

@@ -13,7 +13,6 @@ import {
   Lock,
   Layers
 } from 'lucide-react';
-import { Button, Badge } from '@ssrone/ui';
 import { ClusterNode } from '../types';
 import { apiClient } from "@ssrone/api-client";
 
@@ -60,22 +59,16 @@ export const ClusterTelemetryView: React.FC<ClusterTelemetryViewProps> = ({ them
       const end = performance.now();
       const actualPing = Math.max(1, Math.round(end - start));
 
-      setNodes(prev => prev.map(node => {
-        const cpuJitter = Math.min(95, Math.max(5, node.cpuUsage + Math.floor(Math.random() * 7) - 3));
-        const ramJitter = Math.min(95, Math.max(10, node.ramUsage + Math.floor(Math.random() * 5) - 2));
-        return {
-          ...node,
-          cpuUsage: cpuJitter,
-          ramUsage: ramJitter,
-          latencyMs: node.id.includes('pg') ? actualPing : Math.max(1, node.latencyMs + Math.floor(Math.random() * 3) - 1),
-          status: 'HEALTHY'
-        };
-      }));
+      setNodes(prev => prev.map(node => ({
+        ...node,
+        latencyMs: node.id.includes('pg') ? actualPing : Math.max(1, node.latencyMs),
+        status: 'HEALTHY'
+      })));
 
       setLastCheckedTime(new Date().toLocaleTimeString());
-      setStatusNotification(`Live Database ping successful! PostgreSQL latency: ${actualPing} ms`);
+      setStatusNotification(`PostgreSQL database latency: ${actualPing} ms`);
     } catch {
-      setStatusNotification('Warning: Database cluster ping timeout. Running on local cached telemetry.');
+      setStatusNotification('Warning: Database cluster unreachable.');
     } finally {
       setIsRefreshing(false);
     }
@@ -140,16 +133,14 @@ export const ClusterTelemetryView: React.FC<ClusterTelemetryViewProps> = ({ them
             {nodes.filter(n => n.status === 'HEALTHY').length}/{nodes.length} Nodes Operational
           </span>
 
-          <Button
+          <button
             onClick={handleRefreshTelemetry}
             disabled={isRefreshing}
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-1.5 cursor-pointer"
+            className="px-3 py-1.5 rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
           >
             <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
             <span>{isRefreshing ? "Pinging DB..." : "Refresh Telemetry"}</span>
-          </Button>
+          </button>
         </div>
       </div>
 
@@ -173,9 +164,11 @@ export const ClusterTelemetryView: React.FC<ClusterTelemetryViewProps> = ({ them
                   <span style={{ fontSize: '0.625rem', color: isDark ? '#94a3b8' : '#64748b' }}>{node.role}</span>
                 </div>
               </div>
-              <Badge variant={node.status === 'HEALTHY' ? 'success' : 'warning'} size="sm">
+              <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                node.status === 'HEALTHY' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' : 'bg-amber-50 text-amber-600 border border-amber-200'
+              }`}>
                 {node.status}
-              </Badge>
+              </span>
             </div>
 
             {/* Gauge Progress Bars */}
@@ -235,9 +228,9 @@ export const ClusterTelemetryView: React.FC<ClusterTelemetryViewProps> = ({ them
               </p>
             </div>
           </div>
-          <Badge variant="success" size="sm">
+          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
             PostgreSQL 16 RLS Active
-          </Badge>
+          </span>
         </div>
 
         {connTestResult && (
@@ -328,27 +321,23 @@ export const ClusterTelemetryView: React.FC<ClusterTelemetryViewProps> = ({ them
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.625rem', marginTop: '0.25rem', borderTop: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, paddingTop: '0.75rem' }}>
-            <Button
+            <button
               type="button"
               onClick={handleTestDatabaseConnection}
               disabled={isTestingConn}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-1.5 cursor-pointer font-bold"
+              className="px-3 py-1.5 rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
             >
               <Activity size={14} className={isTestingConn ? "animate-spin" : ""} />
               <span>{isTestingConn ? "Testing DB..." : "Test Connection"}</span>
-            </Button>
+            </button>
 
-            <Button
+            <button
               type="submit"
-              variant="primary"
-              size="sm"
-              className="flex items-center gap-1.5 cursor-pointer font-bold"
+              className="px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
             >
               <ShieldCheck size={14} />
               <span>Save DB Config</span>
-            </Button>
+            </button>
           </div>
         </form>
       </div>

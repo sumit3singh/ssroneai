@@ -35,6 +35,7 @@ export interface Tenant {
   adminName: string;
   adminEmail: string;
   adminPhone?: string;
+  adminPassword?: string;
   tier: 'Starter' | 'Professional' | 'Enterprise';
   status: 'Active' | 'Suspended' | 'Trial' | 'Expired';
   dbStrategy: 'Shared Schema RLS' | 'Dedicated Database';

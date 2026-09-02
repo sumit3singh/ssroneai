@@ -1,19 +1,20 @@
 # Routing & SPA Navigation TODO Tracker
 
-> **Last Reviewed**: August 2026
+> **Last Reviewed**: September 2026
 
-This document tracks client-side SPA navigation completion across all module routes in `apps/admin-web`.
+This document tracks client-side SPA navigation completion across all applications in the SSR One AI monorepo.
 
 ---
 
-## 1. Routing Verification Matrix
+## 1. Web Application SPA Routing Verification Matrix
 
-| # | Enterprise Module | Route Path | 5-Part Navigation (`Dashboard → Master → Transaction → Report → Settings`) | Status |
+| App / Module | App Directory | Base / Module Routes | Navigation & View Modes | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| 1 | **POS & Billing** | `/pos` | Verified (`/pos`, `/pos/master`, `/pos/transaction`, `/pos/report`, `/pos/settings`) | 🟢 Complete |
-| 2 | **Hotel PMS & Rooms** | `/hotel` | Verified (`/hotel`, `/hotel/master`, `/hotel/transaction`, `/hotel/report`, `/hotel/settings`) | 🟢 Complete |
-| 3 | **PG & Hostel Management** | `/pg-management` | Verified (`/pg-management`, `/pg-management/master`, `/pg-management/transaction`, `/pg-management/report`, `/pg-management/settings`) | 🟢 Complete |
-| 4 | **Guest CRM & Loyalty** | `/crm` | Verified (`/crm`) | 🟢 Complete |
-| 5 | **HR & Payroll** | `/hr` | Verified (`/hr`) | 🟢 Complete |
-| 6 | **Material & Inventory** | `/inventory` | Verified (`/inventory`) | 🟢 Complete |
-| 7 | **Finance & Accounting** | `/finance` | Verified (`/finance`) | 🟢 Complete |
+| **Enterprise ERP Web** | `apps/admin-web` | `/pos`, `/hotel`, `/pg-management`, `/crm`, `/hr`, `/inventory`, `/finance` | 5-Part Navigation (`Dashboard → Master → Transaction → Report → Settings`) | 🟢 Complete |
+| **Platform Admin** | `apps/platform-admin` | `/`, `/tenants`, `/outlets`, `/subscriptions`, `/licenses`, `/audit-logs` | Dynamic tab switching, modal provisioning, cluster health status overlay | 🟢 Complete |
+| **Kitchen Display System** | `apps/kds-web` | `/`, `/kds` | Order status queues (`Pending`, `Preparing`, `Ready`, `Delivered`), timer alerts, KOT printing | 🟢 Complete |
+| **Staff Mobile Web** | `apps/staff-web` | `/`, `/housekeeping`, `/room-service`, `/kot-entry`, `/attendance` | Quick-action mobile grid, status toggles, task checklists | 🟢 Complete |
+| **Customer Food Web** | `apps/customer-food-web` | `/`, `/menu`, `/cart`, `/checkout`, `/order-status` | Dynamic menu filter, item customization modal, live order progress | 🟢 Complete |
+| **Customer Stay Web** | `apps/customer-stay-web` | `/`, `/rooms`, `/booking`, `/my-stay`, `/service-requests` | Date picker, room type filter, folio summary, guest check-in | 🟢 Complete |
+| **Marketing Site** | `apps/marketing-web` | `/`, `/solutions`, `/pricing`, `/contact` | Hero landing, feature showcase, contact form, tier comparison | 🟢 Complete |
+

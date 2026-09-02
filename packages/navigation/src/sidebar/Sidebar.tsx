@@ -21,7 +21,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const resolveModuleId = (path: string): string => {
         const segment = path.split("/")[1]?.toLowerCase() || "";
         if (segment === "pg-management") return "pg";
-        if (segment === "hrms") return "hr";
+        if (segment === "hrms" || segment === "hr") return "hr";
         if (segment === "ai-copilot") return "ai";
         if (segment === "platform-studio" || segment === "master-studio" || segment === "workflow" || segment === "communication") return "settings";
         if (navigationEngine.getModuleConfig(segment)) return segment;
@@ -38,21 +38,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
     };
 
     return (
-        <aside className={`backdrop-blur-2xl bg-white/80 dark:bg-slate-950/80 border-r border-slate-200/80 dark:border-slate-800/80 flex flex-col justify-between h-full transition-all duration-300 select-none z-30 shrink-0 shadow-lg ${isCollapsed ? "w-16" : "w-64"}`}>
-            {/* Top Toolbar: Back to All Modules Launcher + Collapse Toggle */}
-            <div className="p-3 border-b border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between gap-2 shrink-0">
+        <aside className={`bg-card border-r border-border flex flex-col justify-between h-full transition-all duration-200 select-none z-30 shrink-0 ${isCollapsed ? "w-14" : "w-56"}`}>
+            {/* Top Toolbar */}
+            <div className="p-2.5 border-b border-border flex items-center justify-between gap-1.5 shrink-0">
                 <a
                     href="/"
                     onClick={handleLauncherClick}
-                    title="Back to Platform Home Launcher"
-                    className="group p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all border-none bg-transparent cursor-pointer flex items-center gap-2 min-w-0"
+                    title="Back to Platform Home"
+                    className="group py-1 px-1.5 rounded-md text-foreground hover:bg-muted transition-colors border-none bg-transparent cursor-pointer flex items-center gap-2 min-w-0"
                 >
-                    <div className="p-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shrink-0 group-hover:scale-105 transition-transform">
-                      <Grid size={15} />
+                    <div className="p-1 rounded bg-muted text-muted-foreground shrink-0 group-hover:text-foreground transition-colors">
+                      <Grid size={14} />
                     </div>
                     {!isCollapsed && (
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-900 dark:text-slate-100 font-mono truncate">
-                            {activeModuleId.toUpperCase()} WORKSPACE
+                        <span className="text-xs font-semibold uppercase tracking-wider text-foreground truncate">
+                            {activeModuleId} Workspace
                         </span>
                     )}
                 </a>
@@ -61,14 +61,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     type="button"
                     onClick={onToggleCollapse}
                     title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-                    className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-all border-none bg-transparent cursor-pointer shrink-0"
+                    className="p-1 rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors border-none bg-transparent cursor-pointer shrink-0"
                 >
-                    {isCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+                    {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
                 </button>
             </div>
 
-            {/* Scrollable Navigation Items Container */}
-            <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0 scrollbar-thin">
+            {/* Scrollable Navigation Items */}
+            <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5 min-h-0 scrollbar-none">
                 {activeModuleConfig?.groups.map((group) => (
                     <SidebarGroup
                         key={group.id}
@@ -79,11 +79,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ))}
             </div>
 
-            {/* Bottom Enterprise Version Indicator */}
+            {/* Bottom Version Footer */}
             {!isCollapsed && (
-              <div className="p-2.5 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+              <div className="px-3 py-2 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground font-mono">
                 <span>SSR ONE AI</span>
-                <span className="font-semibold text-slate-500 dark:text-slate-400">v2.0</span>
+                <span className="font-medium">v2.0</span>
               </div>
             )}
         </aside>

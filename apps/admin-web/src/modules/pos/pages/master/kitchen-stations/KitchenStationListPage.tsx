@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { ChefHat, Plus, Printer, Edit2, Trash2, RefreshCw, CheckCircle2 } from "lucide-react";
-import { Button } from "@ssrone/ui";
+import { Button, PageHeader, PageContainer } from "@ssrone/ui";
 import { api } from "@ssrone/api-client";
 import { toast } from "sonner";
 import { KitchenStationFormDialog, KitchenStationData } from "./KitchenStationFormDialog";
@@ -64,141 +64,130 @@ export const KitchenStationListPage: React.FC = () => {
   const connectedPrinters = stations.filter((s) => Boolean(s.printer_name)).length;
 
   return (
-    <div className="space-y-4">
-      {/* Top KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-card flex items-center justify-between">
-          <div>
-            <p className="text-3xs uppercase font-bold tracking-wider text-muted-foreground">Total KDS Stations</p>
-            <h4 className="font-display font-black text-xl text-foreground mt-0.5">{stations.length}</h4>
-          </div>
-          <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
-            <ChefHat size={18} />
-          </div>
-        </div>
-
-        <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-card flex items-center justify-between">
-          <div>
-            <p className="text-3xs uppercase font-bold tracking-wider text-muted-foreground">Active Stations</p>
-            <h4 className="font-display font-black text-xl text-emerald-500 mt-0.5">{activeCount} Operational</h4>
-          </div>
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold">
-            <CheckCircle2 size={18} />
-          </div>
-        </div>
-
-        <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-card flex items-center justify-between">
-          <div>
-            <p className="text-3xs uppercase font-bold tracking-wider text-muted-foreground">Connected Printers</p>
-            <h4 className="font-display font-black text-xl text-violet-500 mt-0.5">{connectedPrinters} Devices</h4>
-          </div>
-          <div className="w-9 h-9 rounded-xl bg-violet-500/10 text-violet-500 flex items-center justify-center font-bold">
-            <Printer size={18} />
-          </div>
-        </div>
-      </div>
-
-      {/* Main List Container */}
-      <div className="bg-card border border-border rounded-2xl p-5 shadow-card space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border pb-4">
-          <div>
-            <h3 className="font-display font-extrabold text-base text-foreground uppercase tracking-wider flex items-center gap-2">
-              <ChefHat size={18} className="text-primary" />
-              Kitchen Display & KOT Station Master ({stations.length})
-            </h3>
-            <p className="text-3xs text-muted-foreground">
-              Configure preparation areas, KDS routing rules, and dedicated thermal printers
-            </p>
-          </div>
-
+    <PageContainer>
+      {/* Standardized Enterprise Page Header */}
+      <PageHeader
+        title="Kitchen Display & KOT Station Master"
+        description="Configure preparation areas, KDS routing rules, and dedicated thermal printers"
+        icon={<ChefHat size={18} />}
+        badge={`${stations.length} Stations`}
+        actions={
           <div className="flex items-center gap-2">
             <button
               onClick={fetchStations}
               disabled={isLoading}
-              className="p-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground transition-colors"
+              className="p-1.5 rounded border border-border bg-background hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
               title="Refresh Stations"
             >
-              <RefreshCw size={15} className={isLoading ? "animate-spin text-primary" : ""} />
+              <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
             </button>
             <Button
               onClick={() => {
                 setEditingStation(null);
                 setIsDialogOpen(true);
               }}
-              className="bg-primary hover:bg-primary/90 text-white font-bold text-xs px-4 py-2 rounded-xl uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-primary/20"
+              size="sm"
+              className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
             >
-              <Plus size={16} /> + Add Kitchen Station
+              <Plus size={14} /> Add Kitchen Station
             </Button>
           </div>
+        }
+      />
+
+      {/* Top KPI Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-card border border-border rounded-md p-3.5 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Total KDS Stations</span>
+            <div className="p-1 rounded bg-muted text-muted-foreground"><ChefHat size={15} /></div>
+          </div>
+          <div className="text-xl font-bold font-mono text-foreground">{stations.length}</div>
         </div>
 
-        {/* Empty State */}
-        {stations.length === 0 && (
-          <div className="text-center py-10 border border-dashed border-border rounded-2xl space-y-2">
-            <ChefHat size={32} className="mx-auto text-muted-foreground/50" />
-            <p className="font-bold text-sm text-foreground">No kitchen stations created yet</p>
-            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-              Click "+ Add Kitchen Station" above to create your first preparation area and routing printer.
-            </p>
+        <div className="bg-card border border-border rounded-md p-3.5 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Active Stations</span>
+            <div className="p-1 rounded bg-muted text-muted-foreground"><CheckCircle2 size={15} /></div>
           </div>
-        )}
+          <div className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">{activeCount} Operational</div>
+        </div>
 
-        {/* Station Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
-          {stations.map((s) => (
-            <div
-              key={s.id || s.code}
-              className="bg-card border border-border hover:border-primary/50 rounded-2xl p-4 flex flex-col justify-between h-32 transition-all shadow-card hover:shadow-card-hover group relative"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <h4 className="font-display font-black text-sm text-foreground group-hover:text-primary transition-colors">
-                    {s.name}
-                  </h4>
-                  <span className="text-[10px] font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md inline-block mt-1 uppercase">
-                    {s.code}
-                  </span>
-                </div>
-                <span
-                  className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase border ${
-                    s.is_active !== false
-                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                      : "bg-rose-500/10 text-rose-600 border-rose-500/20"
-                  }`}
-                >
-                  {s.is_active !== false ? "Active" : "Inactive"}
+        <div className="bg-card border border-border rounded-md p-3.5 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Connected Printers</span>
+            <div className="p-1 rounded bg-muted text-muted-foreground"><Printer size={15} /></div>
+          </div>
+          <div className="text-xl font-bold font-mono text-foreground">{connectedPrinters} Devices</div>
+        </div>
+      </div>
+
+      {/* Empty State */}
+      {stations.length === 0 && (
+        <div className="text-center py-8 border border-dashed border-border rounded-md space-y-2">
+          <ChefHat size={28} className="mx-auto text-muted-foreground/50" />
+          <p className="font-semibold text-xs text-foreground">No kitchen stations created yet</p>
+          <p className="text-[11px] text-muted-foreground max-w-xs mx-auto">
+            Click "+ Add Kitchen Station" above to create your first preparation area and routing printer.
+          </p>
+        </div>
+      )}
+
+      {/* Station Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+        {stations.map((s) => (
+          <div
+            key={s.id || s.code}
+            className="bg-card border border-border hover:border-primary/40 rounded-md p-3 flex flex-col justify-between h-24 transition-colors"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <h4 className="font-semibold text-xs text-foreground truncate">
+                  {s.name}
+                </h4>
+                <span className="text-[9px] font-mono text-muted-foreground bg-muted px-1.5 py-0.2 rounded border border-border inline-block uppercase mt-0.5">
+                  {s.code || `ST-${s.id}`}
                 </span>
               </div>
+              <span
+                className={`text-[9px] font-mono px-1.5 py-0.2 rounded border uppercase ${
+                  s.is_active !== false
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                    : "bg-muted text-muted-foreground border-border"
+                }`}
+              >
+                {s.is_active !== false ? "Active" : "Inactive"}
+              </span>
+            </div>
 
-              <div className="flex items-center justify-between text-2xs font-mono text-muted-foreground pt-2 border-t border-border/50">
-                <span className="flex items-center gap-1.5 font-bold text-foreground">
-                  <Printer size={13} className="text-primary" />
-                  {s.printer_name || "192.168.1.101"}
-                </span>
+            <div className="flex items-center justify-between text-xs text-muted-foreground pt-1.5 border-t border-border">
+              <span className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground">
+                <Printer size={12} className="text-muted-foreground" />
+                {s.printer_name || "192.168.1.101"}
+              </span>
 
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => {
-                      setEditingStation(s);
-                      setIsDialogOpen(true);
-                    }}
-                    className="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors"
-                    title="Edit Station"
-                  >
-                    <Edit2 size={13} />
-                  </button>
-                  <button
-                    onClick={() => s.id && handleDeleteStation(s.id, s.name)}
-                    className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors"
-                    title="Delete Station"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    setEditingStation(s);
+                    setIsDialogOpen(true);
+                  }}
+                  className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer border-none bg-transparent"
+                  title="Edit Station"
+                >
+                  <Edit2 size={13} />
+                </button>
+                <button
+                  onClick={() => s.id && handleDeleteStation(s.id, s.name)}
+                  className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted transition-colors cursor-pointer border-none bg-transparent"
+                  title="Delete Station"
+                >
+                  <Trash2 size={13} />
+                </button>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
 
       {/* Form Dialog */}
@@ -208,6 +197,6 @@ export const KitchenStationListPage: React.FC = () => {
         onSave={handleSaveStation}
         editingStation={editingStation}
       />
-    </div>
+    </PageContainer>
   );
 };

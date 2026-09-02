@@ -1,6 +1,6 @@
 # Enterprise Module Specifications Index
 
-> **Last Reviewed**: August 2026
+> **Last Reviewed**: September 2026
 
 This document serves as the master index for domain-specific module specifications across **The ssrone Ecosystem**.
 

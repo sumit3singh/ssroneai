@@ -678,24 +678,11 @@ async def staff_login(
         res = await db.execute(query)
         emp = res.scalars().first()
 
-        # Auto-seed employee if not existing in database
         if not emp:
-            emp = Employee(
-                tenant_id=tenant_id,
-                company_id=1,
-                branch_id=1,
-                employee_code=clean_identifier,
-                full_name=f"Staff {clean_identifier}",
-                designation="Staff Member",
-                phone="9999999999",
-                basic_salary=Decimal("15000.00"),
-                status="ACTIVE",
-                pin_code=body.pin_code.strip() if body.pin_code else "1234",
-                can_access_staff_web=True,
+            raise HTTPException(
+                status_code=404,
+                detail=f"Staff member '{clean_identifier}' not found in database."
             )
-            db.add(emp)
-            await db.commit()
-            await db.refresh(emp)
 
         from src.modules.auth.service import AuthService
         auth_service = AuthService()

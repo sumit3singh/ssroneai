@@ -13,5 +13,8 @@ export { Table } from "./components/Table";
 export { Skeleton, SkeletonCard, SkeletonTable } from "./components/Skeleton";
 export { CommandPalette } from "./components/CommandPalette";
 export { FormRenderer } from "./components/FormRenderer";
+export { PageHeader } from "./components/PageHeader";
+export { PageContainer } from "./components/PageContainer";
 
 export { cn } from "./utils/cn";
+

@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ssrone/ui": "workspace:*",
+    "@ssrone/api-client": "workspace:*",
     "react": "*",
     "react-dom": "*",
     "lucide-react": "*",

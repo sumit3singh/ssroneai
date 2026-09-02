@@ -64,7 +64,7 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
             <button
               type="button"
               onClick={() => navigate({ to: "/pos/transaction/tables" })}
-              className="h-8 px-2.5 rounded-md text-xs font-bold flex items-center gap-1.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 hover:bg-rose-500 hover:text-white transition-all cursor-pointer shadow-2xs"
+              className="h-8 px-2.5 rounded text-xs font-medium flex items-center gap-1.5 bg-background border border-border hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
             >
               <LayoutGrid size={13} />
               <span>Table Floor</span>
@@ -74,18 +74,18 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
             <button
               type="button"
               onClick={() => setVegOnlyFilter((prev) => !prev)}
-              className={`h-8 px-2.5 rounded-md text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
+              className={`h-8 px-2.5 rounded text-xs font-medium flex items-center gap-1.5 border transition-colors cursor-pointer ${
                 vegOnlyFilter
-                  ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
-                  : "bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                  : "bg-background border-border text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
-              <Leaf size={12} className={vegOnlyFilter ? "text-white" : "text-emerald-600"} />
+              <Leaf size={12} className={vegOnlyFilter ? "text-emerald-600" : "text-muted-foreground"} />
               <span>Veg Only</span>
             </button>
 
             {/* Dish Count Label */}
-            <span className="h-8 px-2 text-muted-foreground font-mono text-xs font-semibold flex items-center whitespace-nowrap">
+            <span className="h-8 px-2 text-muted-foreground font-mono text-xs font-medium flex items-center whitespace-nowrap">
               {filteredMenuItems.length} items
             </span>
 
@@ -104,7 +104,7 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
                   onToggleFullScreen();
                 }}
                 title={isFullScreenPOS ? "Exit Fullscreen Kiosk Mode (F11)" : "Enter Fullscreen Kiosk Mode (F11)"}
-                className="h-8 px-2.5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-2xs"
+                className="h-8 px-2.5 rounded bg-background hover:bg-muted border border-border text-muted-foreground font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
               >
                 {isFullScreenPOS ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
                 <span>{isFullScreenPOS ? "Exit Kiosk" : "Kiosk Fullscreen"}</span>
@@ -114,14 +114,14 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
         </div>
 
         {/* Category Horizontal Selector Bar (Enterprise Minimal Tabs) */}
-        <div className="flex items-center gap-1 overflow-x-auto py-0.5 scrollbar-thin border-t border-border/60 pt-1.5">
+        <div className="flex items-center gap-1 overflow-x-auto py-0.5 scrollbar-thin border-t border-border pt-1.5">
           <button
             type="button"
             onClick={() => setSelectedCategoryId(null)}
-            className={`px-3 py-1 rounded-md text-xs font-semibold uppercase tracking-wider whitespace-nowrap cursor-pointer transition-all ${
+            className={`px-2.5 py-1 rounded text-xs font-medium uppercase tracking-wider whitespace-nowrap cursor-pointer transition-colors ${
               selectedCategoryId === null
-                ? "bg-primary text-primary-foreground shadow-2xs"
-                : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+                ? "bg-primary text-primary-foreground"
+                : "bg-background text-muted-foreground border border-border hover:bg-muted hover:text-foreground"
             }`}
           >
             ALL ITEMS
@@ -131,10 +131,10 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
               key={c.id}
               type="button"
               onClick={() => setSelectedCategoryId(c.id)}
-              className={`px-3 py-1 rounded-md text-xs font-semibold uppercase tracking-wider whitespace-nowrap cursor-pointer transition-all ${
+              className={`px-2.5 py-1 rounded text-xs font-medium uppercase tracking-wider whitespace-nowrap cursor-pointer transition-colors ${
                 selectedCategoryId === c.id
-                  ? "bg-primary text-primary-foreground shadow-2xs"
-                  : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground border border-border hover:bg-muted hover:text-foreground"
               }`}
             >
               {c.name}

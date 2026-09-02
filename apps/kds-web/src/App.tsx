@@ -14,9 +14,7 @@ import {
   AlertCircle,
   Utensils,
   Package,
-  Truck,
-  BarChart3,
-  SlidersHorizontal
+  BarChart3
 } from "lucide-react";
 import KDSTicketCard, { KDSTicket } from "@/components/KDSTicketCard";
 import KDSHistoryModal from "@/components/KDSHistoryModal";
@@ -253,7 +251,7 @@ export function App() {
   }).length;
 
   return (
-    <div className={`min-h-screen pb-14 transition-colors duration-200 font-sans ${isDark ? "bg-slate-950 text-slate-100" : "bg-slate-100 text-slate-900"}`}>
+    <div className={`min-h-screen pb-16 font-sans transition-colors duration-200 ${isDark ? "bg-slate-950 text-slate-100" : "bg-[#FAF9F5] text-slate-900"}`}>
       {/* History Modal */}
       {showHistory && (
         <KDSHistoryModal
@@ -263,55 +261,57 @@ export function App() {
         />
       )}
 
-      {/* Top Header */}
-      <header className={`sticky top-0 z-40 px-5 py-3 border-b ${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-300"} shadow-xs flex flex-wrap items-center justify-between gap-3`}>
-        {/* Title */}
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold">
-            <ChefHat size={18} />
+      {/* Rule 17 & 18: Sticky Header */}
+      <header className="sticky top-0 z-40 px-4 sm:px-6 py-3 bg-white/95 dark:bg-slate-900/95 border-b border-slate-200/80 dark:border-slate-800 backdrop-blur-md shadow-2xs flex flex-wrap items-center justify-between gap-3">
+        {/* Title & Branding */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-sky-600 flex items-center justify-center text-white shadow-xs shrink-0">
+            <ChefHat size={20} />
           </div>
           <div>
-            <h1 className="text-sm font-black tracking-wider uppercase text-slate-900 dark:text-white flex items-center gap-1.5">
+            <h1 className="text-sm font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
               SSR ONE AI
-              <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded font-mono font-bold lowercase">kds</span>
+              <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded font-mono font-bold uppercase">
+                KDS
+              </span>
             </h1>
-            <p className="text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Enterprise Kitchen Operating System</p>
+            <p className="text-[11px] text-slate-500 font-medium">Enterprise Kitchen Operating System</p>
           </div>
         </div>
 
-        {/* 5 Display Mode Switcher */}
-        <div className="flex items-center gap-1 bg-slate-200 dark:bg-slate-800 p-1 rounded-xl">
+        {/* 4 Main View Switchers */}
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200/80 dark:border-slate-700">
           <button
             onClick={() => setDisplayMode("production")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1 transition cursor-pointer ${
-              displayMode === "production" ? "bg-blue-600 text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            className={`min-h-[36px] px-3.5 py-1.5 rounded-md text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+              displayMode === "production" ? "bg-sky-600 text-white shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
-            <ChefHat size={13} /> Production
+            <ChefHat size={14} /> Production
           </button>
           <button
             onClick={() => setDisplayMode("expo")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1 transition cursor-pointer ${
-              displayMode === "expo" ? "bg-blue-600 text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            className={`min-h-[36px] px-3.5 py-1.5 rounded-md text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+              displayMode === "expo" ? "bg-sky-600 text-white shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
-            <Utensils size={13} /> EXPO Pass
+            <Utensils size={14} /> EXPO Pass
           </button>
           <button
             onClick={() => setDisplayMode("packing")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1 transition cursor-pointer ${
-              displayMode === "packing" ? "bg-blue-600 text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            className={`min-h-[36px] px-3.5 py-1.5 rounded-md text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+              displayMode === "packing" ? "bg-sky-600 text-white shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
-            <Package size={13} /> Packing
+            <Package size={14} /> Packing
           </button>
           <button
             onClick={() => setDisplayMode("monitor")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1 transition cursor-pointer ${
-              displayMode === "monitor" ? "bg-blue-600 text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            className={`min-h-[36px] px-3.5 py-1.5 rounded-md text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+              displayMode === "monitor" ? "bg-sky-600 text-white shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
-            <BarChart3 size={13} /> Monitor
+            <BarChart3 size={14} /> Monitor
           </button>
         </div>
 
@@ -320,45 +320,45 @@ export function App() {
           <button
             onClick={loadOrders}
             disabled={isRefreshing}
-            className="p-2 rounded-lg border border-slate-300 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition cursor-pointer"
+            className="min-h-[36px] p-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
             title="Refresh Orders"
           >
-            <RefreshCw size={14} className={isRefreshing ? "animate-spin text-blue-600" : ""} />
+            <RefreshCw size={15} className={isRefreshing ? "animate-spin text-sky-600" : ""} />
           </button>
 
           <button
             onClick={toggleMute}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition flex items-center gap-1 cursor-pointer ${
+            className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs ${
               isMuted
-                ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400"
-                : "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                ? "bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/40 dark:border-rose-900"
+                : "bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-900"
             }`}
           >
-            {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+            {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
             <span>{isMuted ? "Muted" : "Chime On"}</span>
           </button>
 
           <button
             onClick={() => setShowHistory(true)}
-            className="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center gap-1 cursor-pointer"
+            className="min-h-[36px] px-3.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer hover:bg-slate-50 transition-colors shadow-2xs"
           >
-            <History size={14} />
+            <History size={15} />
             <span>History ({historyOrders.length})</span>
           </button>
 
-          <div className="flex bg-slate-200 dark:bg-slate-800 p-0.5 rounded-lg">
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
             <button
               onClick={() => setActiveUnit("CUH02")}
-              className={`px-2 py-1 rounded text-[9px] font-black uppercase ${
-                activeUnit === "CUH02" ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs" : "text-slate-500"
+              className={`px-2.5 py-1 rounded text-[10px] font-mono font-bold uppercase transition-colors ${
+                activeUnit === "CUH02" ? "bg-white dark:bg-slate-900 text-[#103B2B] dark:text-emerald-400 shadow-2xs" : "text-slate-500"
               }`}
             >
               CUH
             </button>
             <button
               onClick={() => setActiveUnit("GGN01")}
-              className={`px-2 py-1 rounded text-[9px] font-black uppercase ${
-                activeUnit === "GGN01" ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs" : "text-slate-500"
+              className={`px-2.5 py-1 rounded text-[10px] font-mono font-bold uppercase transition-colors ${
+                activeUnit === "GGN01" ? "bg-white dark:bg-slate-900 text-[#103B2B] dark:text-emerald-400 shadow-2xs" : "text-slate-500"
               }`}
             >
               GGN
@@ -367,20 +367,20 @@ export function App() {
 
           <button
             onClick={() => setIsDark(!isDark)}
-            className="p-2 rounded-lg border border-slate-300 dark:border-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
+            className="min-h-[36px] p-2 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white transition cursor-pointer shadow-2xs"
           >
-            {isDark ? <Sun size={14} /> : <Moon size={14} />}
+            {isDark ? <Sun size={15} /> : <Moon size={15} />}
           </button>
         </div>
       </header>
 
-      {/* Main Mode Content */}
-      <main className="p-4 sm:p-5 max-w-7xl mx-auto space-y-4">
+      {/* Main Content Area */}
+      <main className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
         {/* MODE 1: PRODUCTION KITCHEN SCREEN */}
         {displayMode === "production" && (
           <div className="space-y-4">
-            {/* Station Filter Pills */}
-            <div className="flex items-center gap-1 bg-slate-200 dark:bg-slate-800 p-1 rounded-xl w-fit">
+            {/* Station Filter Buttons */}
+            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-1 rounded-xl w-fit shadow-2xs">
               {[
                 { id: "all", label: "ALL STATIONS" },
                 { id: "pizza", label: "PIZZA & GRILL" },
@@ -390,8 +390,8 @@ export function App() {
                 <button
                   key={st.id}
                   onClick={() => setActiveStation(st.id)}
-                  className={`px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition cursor-pointer ${
-                    activeStation === st.id ? "bg-blue-600 text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                    activeStation === st.id ? "bg-[#103B2B] text-white shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                   }`}
                 >
                   {st.label}
@@ -400,9 +400,9 @@ export function App() {
             </div>
 
             {filteredTickets.length === 0 ? (
-              <div className="text-center py-24 space-y-3 max-w-sm mx-auto">
+              <div className="text-center py-20 space-y-3 max-w-sm mx-auto bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-8 shadow-xs">
                 <MonitorPlay size={36} className="mx-auto text-slate-400 dark:text-slate-600" />
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 dark:text-slate-200">
                   No Active Kitchen Tickets
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -449,20 +449,21 @@ export function App() {
         )}
       </main>
 
-      {/* Footer KPI Status Bar */}
-      <footer className="fixed bottom-0 left-0 right-0 py-2.5 px-5 bg-white dark:bg-slate-900 border-t border-slate-300 dark:border-slate-800 flex justify-between items-center text-xs font-mono font-bold text-slate-600 dark:text-slate-300">
-        <div className="flex gap-4">
-          <span>Active Tickets: <strong className="text-blue-600 dark:text-blue-400">{orders.length}</strong></span>
-          <span>In Prep: <strong className="text-blue-600 dark:text-blue-400">{preparingCount}</strong></span>
+      {/* Rule 18 & 43: Sticky Bottom KPI Status Bar */}
+      <footer className="fixed bottom-0 left-0 right-0 py-2.5 px-6 bg-white/95 dark:bg-slate-900/95 border-t border-slate-200/80 dark:border-slate-800 backdrop-blur-md flex justify-between items-center text-xs font-mono font-semibold text-slate-700 dark:text-slate-300 shadow-2xs z-30">
+        <div className="flex items-center gap-5">
+          <span>Active Tickets: <strong className="text-slate-900 dark:text-white font-extrabold">{orders.length}</strong></span>
+          <span>In Prep: <strong className="text-emerald-800 dark:text-emerald-400 font-extrabold">{preparingCount}</strong></span>
           {overdueCount > 0 && (
-            <span className="text-red-600 dark:text-red-400 font-black animate-pulse flex items-center gap-1">
-              <AlertCircle size={13} /> Overdue (&gt;10m): {overdueCount}
+            <span className="text-rose-700 dark:text-rose-400 font-black animate-pulse flex items-center gap-1.5">
+              <AlertCircle size={14} /> Overdue (&gt;10m): {overdueCount}
             </span>
           )}
         </div>
 
-        <div className="text-2xs font-mono uppercase tracking-wider text-blue-600 dark:text-blue-400 font-black">
-          PostgreSQL DB Live SSOT Sync Active
+        <div className="bg-sky-600 text-white px-3 py-1 rounded-md font-mono text-[10px] font-bold uppercase tracking-wider shadow-2xs flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-300 animate-pulse" />
+          <span>PostgreSQL DB Live SSOT Sync Active</span>
         </div>
       </footer>
     </div>

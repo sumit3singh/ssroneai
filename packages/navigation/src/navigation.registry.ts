@@ -139,7 +139,8 @@ export const moduleNavigationRegistry: Record<string, ModuleNavConfig> = {
                 title: "TRANSACTION",
                 iconName: "Receipt",
                 items: [
-                    { id: "pg-trans-rent", label: "Rent Receipt Entry", path: "/pg-management/transaction/rent", iconName: "Receipt" }
+                    { id: "pg-trans-rent", label: "Rent Receipt Entry", path: "/pg-management/transaction/rent", iconName: "Receipt" },
+                    { id: "pg-trans-visitors", label: "Visitor Check-In Log", path: "/pg-management/transaction/visitors", iconName: "UserCheck" }
                 ]
             },
             {
@@ -147,7 +148,8 @@ export const moduleNavigationRegistry: Record<string, ModuleNavConfig> = {
                 title: "REPORT",
                 iconName: "BarChart3",
                 items: [
-                    { id: "pg-rep-ledger", label: "Rent Collection Ledger", path: "/pg-management/report/ledger", iconName: "TrendingUp" }
+                    { id: "pg-rep-ledger", label: "Rent Collection Ledger", path: "/pg-management/report/ledger", iconName: "TrendingUp" },
+                    { id: "pg-rep-occupancy", label: "Occupancy & Revenue Yield", path: "/pg-management/report/occupancy", iconName: "BarChart3" }
                 ]
             },
             {
@@ -197,7 +199,8 @@ export const moduleNavigationRegistry: Record<string, ModuleNavConfig> = {
                 title: "REPORT",
                 iconName: "BarChart3",
                 items: [
-                    { id: "crm-rep-ledger", label: "Loyalty Points Ledger", path: "/crm/report/ledger", iconName: "TrendingUp" }
+                    { id: "crm-rep-ledger", label: "Loyalty Points Ledger", path: "/crm/report/ledger", iconName: "TrendingUp" },
+                    { id: "crm-rep-tier", label: "Tier Distribution Report", path: "/crm/report/tier-distribution", iconName: "BarChart3" }
                 ]
             },
             {
@@ -206,6 +209,57 @@ export const moduleNavigationRegistry: Record<string, ModuleNavConfig> = {
                 iconName: "Settings",
                 items: [
                     { id: "crm-set-config", label: "Campaign & Reward Rules", path: "/crm/settings", iconName: "Settings" }
+                ]
+            }
+        ]
+    },
+
+    hr: {
+        moduleId: "hr",
+        moduleName: "HR & Payroll",
+        moduleIcon: "Users",
+        groups: [
+            {
+                id: "hr-dashboard",
+                title: "DASHBOARD",
+                iconName: "LayoutDashboard",
+                items: [
+                    { id: "hr-dash-main", label: "HR & Staff Overview", path: "/hr", iconName: "LayoutDashboard" }
+                ]
+            },
+            {
+                id: "hr-master",
+                title: "MASTER",
+                iconName: "Database",
+                items: [
+                    { id: "hr-master-emp", label: "Employee Directory Master", path: "/hr/master/employees", iconName: "Users" },
+                    { id: "hr-master-dept", label: "Departments & Designations", path: "/hr/master/departments", iconName: "ShieldCheck" }
+                ]
+            },
+            {
+                id: "hr-transaction",
+                title: "TRANSACTION",
+                iconName: "Receipt",
+                items: [
+                    { id: "hr-trans-att", label: "Daily Attendance Punch", path: "/hr/transaction/attendance", iconName: "Clock" },
+                    { id: "hr-trans-pay", label: "Monthly Payroll Generation", path: "/hr/transaction/payroll", iconName: "DollarSign" }
+                ]
+            },
+            {
+                id: "hr-report",
+                title: "REPORT",
+                iconName: "BarChart3",
+                items: [
+                    { id: "hr-rep-ledger", label: "Salary Audit Ledger", path: "/hr/report/payroll-ledger", iconName: "TrendingUp" },
+                    { id: "hr-rep-att", label: "Attendance Summary Report", path: "/hr/report/attendance-summary", iconName: "BarChart3" }
+                ]
+            },
+            {
+                id: "hr-settings",
+                title: "SETTINGS",
+                iconName: "Settings",
+                items: [
+                    { id: "hr-set-config", label: "Shift & Salary Rules", path: "/hr/settings", iconName: "Settings" }
                 ]
             }
         ]

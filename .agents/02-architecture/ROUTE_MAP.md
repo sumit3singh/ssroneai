@@ -1,43 +1,41 @@
 # Complete Route Map Specifications
 
-> **Last Reviewed**: August 2026
+> **Last Reviewed**: September 2026
 
-This document lists canonical client and backend endpoint routes for **The ssrone**.
+This document lists canonical client and backend endpoint routes across all applications in **SSR One AI**.
 
 ---
 
-## 1. Platform & Module Navigation Route Map (`apps/admin-web`)
+## 1. Multi-App Client SPA Route Map
 
-| Route Path | Module Workspace | Active 5-Part Section |
+| App Directory | Route Path | Purpose & View Mode |
 | :--- | :--- | :--- |
-| `/` | Platform Home | Module Launcher |
-| `/pos` | Point of Sale | POS Dashboard |
-| `/pos/master` | Point of Sale | POS Menu & Waiter Master |
-| `/pos/transaction` | Point of Sale | POS KOT Billing & Orders |
-| `/pos/report` | Point of Sale | POS Daily Sales & Tax Summary |
-| `/pos/settings` | Point of Sale | POS Station & Printer Rules |
-| `/hotel` | Hotel PMS | Room Grid Dashboard |
-| `/hotel/master` | Hotel PMS | Room & Rate Plan Master |
-| `/hotel/transaction` | Hotel PMS | Check-in / Check-out & Folio |
-| `/hotel/report` | Hotel PMS | RevPAR & Occupancy Analytics |
-| `/hotel/settings` | Hotel PMS | Housekeeping & Check-out Rules |
-| `/pg-management` | PG Management | PG Dashboard KPIs |
-| `/pg-management/master` | PG Management | Resident & Bed Master |
-| `/pg-management/transaction` | PG Management | Rent Collection & Receipts |
-| `/pg-management/report` | PG Management | Rent Roll Revenue Audit |
-| `/pg-management/settings` | PG Management | Deposit & Late Fee Rules |
-| `/crm` | CRM & Loyalty | Customer Loyalty Dashboard |
-| `/finance` | Finance & Accounts | General Ledger & GST Tax |
-| `/inventory` | Inventory | Stock Ledger & Reorder |
-| `/hr` | HR & Payroll | Employee Roster & Payroll |
+| `apps/admin-web` | `/` | Main Module Launcher Dashboard |
+| `apps/admin-web` | `/pos` | POS Billing, Order Taking, Table Management |
+| `apps/admin-web` | `/hotel` | Hotel Room Grid, Booking, Check-in / Out, Folios |
+| `apps/admin-web` | `/pg-management` | Bed Allocation, Rent Collection, Deposit Audit |
+| `apps/admin-web` | `/crm` | Guest Loyalty, CLV, Campaign Management |
+| `apps/admin-web` | `/finance` | Double-Entry Ledger, P&L, GST Tax Returns |
+| `apps/admin-web` | `/inventory` | Stock Movement Ledger, Reorder Alerts, Purchase Orders |
+| `apps/admin-web` | `/hr` | Staff Roster, Attendance, Salary Slip Generator |
+| `apps/platform-admin` | `/` | Superadmin Tenant Provisioning, Cluster Status (100% OK) |
+| `apps/platform-admin` | `/outlets` | Multi-Outlet Branch Management & Licensing Keys |
+| `apps/kds-web` | `/` | Kitchen Display System Live Queue & Timer Badges |
+| `apps/staff-web` | `/` | Staff Mobile Operations (Housekeeping, Room Service, KOT) |
+| `apps/customer-food-web` | `/` | QR Digital Food Menu, Cart & Table Checkout |
+| `apps/customer-stay-web` | `/` | Guest Room Booking, Folio Balance & Amenities |
+| `apps/marketing-web` | `/` | Enterprise Landing Page, Pricing Tier Matrix & Demos |
 
 ---
 
 ## 2. Core Backend API Routes (`services/backend`)
 
-- `/api/v1/auth`: Login, Token Refresh, Tenant Context.
-- `/api/v1/restaurant`: Categories, Menu Items, Tables, KDS Orders.
-- `/api/v1/hotel`: Rooms, Reservations, Guest Folios.
-- `/api/v1/pg-management`: Residents, Beds, Rent Receipts.
-- `/api/v1/crm`: Customers, Wallet Balances, Loyalty Points.
-- `/api/v1/inventory`: Products, Stock Entries, Purchase Orders.
+- `/api/v1/auth`: Authentication, JWT Tokens, Tenant Context, License entitlement.
+- `/api/v1/restaurant`: Menu Categories, Item Masters, Tables, KDS WebSocket stream.
+- `/api/v1/orders`: Order Creation, KOT Generation, Split Billing, Payment Processing.
+- `/api/v1/hotel`: Room Inventory, Reservations, Guest Check-in/Out, Night Audit.
+- `/api/v1/pg_management`: Residents, Bed Masters, Monthly Rent Receipts.
+- `/api/v1/crm`: Customer Profiles, Wallet Transactions, Loyalty Points.
+- `/api/v1/inventory`: Products, Stock Movement Ledger, Purchase Orders.
+- `/api/v1/finance`: Chart of Accounts, Journal Vouchers, GST Invoices.
+- `/api/v1/hrms`: Employee Master, Shift Roster, Payroll Generation.

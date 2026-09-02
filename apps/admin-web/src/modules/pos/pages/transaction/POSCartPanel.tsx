@@ -108,8 +108,8 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
         {/* Header Bar */}
         <div className="flex items-center justify-between border-b border-border pb-2 shrink-0">
           <div className="flex items-center gap-1.5">
-            <Receipt size={15} className="text-indigo-600 dark:text-indigo-400" />
-            <h3 className="font-sans font-bold text-xs text-foreground uppercase tracking-wider">
+            <Receipt size={15} className="text-muted-foreground" />
+            <h3 className="font-mono font-bold text-xs text-foreground uppercase tracking-wider">
               ORDER #10482
             </h3>
           </div>
@@ -117,7 +117,7 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
             <button
               type="button"
               onClick={() => navigate({ to: "/pos/transaction/tables" })}
-              className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-sm bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-500/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-all flex items-center gap-1 cursor-pointer font-bold"
+              className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border hover:bg-muted/80 transition-colors flex items-center gap-1 cursor-pointer"
             >
               <LayoutGrid size={11} />
               <span>TABLES</span>
@@ -126,7 +126,7 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
               <button
                 type="button"
                 onClick={onOpenTrackerModal}
-                className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-sm bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 hover:bg-indigo-100 transition-all flex items-center gap-1 cursor-pointer"
+                className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border hover:bg-muted/80 transition-colors flex items-center gap-1 cursor-pointer"
               >
                 <ChefHat size={11} />
                 <span>KOT ({activeOrdersCount})</span>
@@ -135,12 +135,12 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
             <button
               type="button"
               onClick={onOpenHoldModal}
-              className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-sm bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-500/20 hover:bg-amber-100 transition-all flex items-center gap-1 cursor-pointer"
+              className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border hover:bg-muted/80 transition-colors flex items-center gap-1 cursor-pointer"
             >
               <Pause size={11} />
               <span>HELD ({heldBillsCount})</span>
             </button>
-            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded-sm bg-muted text-muted-foreground border border-border">
+            <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
               {totalItemCount} ITEMS
             </span>
           </div>
@@ -152,7 +152,7 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
             <select
               value={selectedCustomerId || ""}
               onChange={(e) => setSelectedCustomerId && setSelectedCustomerId(e.target.value)}
-              className="w-full bg-background border border-border rounded-md px-2 py-1 text-xs font-semibold text-foreground focus:ring-1 focus:ring-primary truncate cursor-pointer"
+              className="w-full bg-background border border-border rounded px-2 py-1 text-xs font-medium text-foreground focus:ring-1 focus:ring-primary truncate cursor-pointer"
             >
               <option value="">👤 Walk-in Guest (General)</option>
               {customers.map((c: any) => (
@@ -166,7 +166,7 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
             <button
               type="button"
               onClick={onOpenCreateCustomerModal}
-              className="px-2 py-1 bg-primary text-primary-foreground hover:bg-primary/90 text-2xs font-extrabold rounded-md transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs"
+              className="px-2 py-1 bg-primary text-primary-foreground hover:bg-primary/90 text-2xs font-semibold rounded transition-colors flex items-center gap-1 shrink-0 cursor-pointer"
               title="Register New Customer Profile"
             >
               <UserPlus size={11} />
@@ -180,10 +180,10 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
           <button
             type="button"
             onClick={() => setOrderMode("dine_in")}
-            className={`py-1 px-1.5 rounded-md text-xs font-semibold flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+            className={`py-1 px-1.5 rounded text-xs font-medium flex items-center justify-center gap-1 border transition-colors cursor-pointer ${
               orderMode === "dine_in"
-                ? "bg-primary text-primary-foreground border-primary shadow-2xs"
-                : "bg-muted/40 border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-background border-border text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
           >
             <UtensilsCrossed size={12} />
@@ -192,10 +192,10 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
           <button
             type="button"
             onClick={() => setOrderMode("takeaway")}
-            className={`py-1 px-1.5 rounded-md text-xs font-semibold flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+            className={`py-1 px-1.5 rounded text-xs font-medium flex items-center justify-center gap-1 border transition-colors cursor-pointer ${
               orderMode === "takeaway"
-                ? "bg-amber-600 text-white border-amber-600 shadow-2xs"
-                : "bg-muted/40 border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-background border-border text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
           >
             <ShoppingBag size={12} />
@@ -204,10 +204,10 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
           <button
             type="button"
             onClick={() => setOrderMode("delivery")}
-            className={`py-1 px-1.5 rounded-md text-xs font-semibold flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+            className={`py-1 px-1.5 rounded text-xs font-medium flex items-center justify-center gap-1 border transition-colors cursor-pointer ${
               orderMode === "delivery"
-                ? "bg-primary text-primary-foreground border-primary shadow-2xs"
-                : "bg-muted/40 border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-background border-border text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
           >
             <Truck size={12} />
@@ -494,9 +494,9 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
             type="button"
             onClick={onHoldBill}
             disabled={isSubmitting || cartItems.length === 0}
-            className="h-8 bg-muted hover:bg-muted/80 text-foreground border border-border font-semibold text-xs rounded-md flex items-center justify-center gap-1 cursor-pointer"
+            className="h-8 bg-muted hover:bg-muted/80 text-foreground border border-border font-medium text-xs rounded flex items-center justify-center gap-1 cursor-pointer"
           >
-            <span className="px-1 py-0.2 rounded-sm bg-muted-foreground/20 font-mono text-[9px] text-muted-foreground">F1</span>
+            <span className="px-1 py-0.2 rounded bg-background border border-border font-mono text-[9px] text-muted-foreground">F1</span>
             <Pause size={12} />
             <span>Hold</span>
           </Button>
@@ -505,9 +505,9 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
             type="button"
             onClick={onPlaceOrderKOT}
             disabled={isSubmitting || cartItems.length === 0}
-            className="h-8 bg-primary hover:opacity-90 text-primary-foreground font-semibold text-xs rounded-md flex items-center justify-center gap-1 cursor-pointer shadow-2xs border border-primary/20"
+            className="h-8 bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs rounded flex items-center justify-center gap-1 cursor-pointer"
           >
-            <span className="px-1 py-0.2 rounded-sm bg-white/20 font-mono text-[9px]">F2</span>
+            <span className="px-1 py-0.2 rounded bg-primary-foreground/20 font-mono text-[9px]">F2</span>
             <span>Send KOT</span>
             <ChevronRight size={12} />
           </Button>
@@ -517,9 +517,9 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
           type="button"
           onClick={onCompleteAndSettle}
           disabled={isSubmitting || cartItems.length === 0}
-          className="w-full h-9 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider rounded-md shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full h-9 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs uppercase tracking-wider rounded flex items-center justify-center gap-2 cursor-pointer shadow-xs"
         >
-          <span className="px-1.5 py-0.2 rounded-sm bg-white/20 font-mono text-[10px]">F3</span>
+          <span className="px-1.5 py-0.2 rounded bg-primary-foreground/20 font-mono text-[10px]">F3</span>
           <CheckCircle2 size={15} />
           <span>{isSubmitting ? "Settling..." : `PAY & PRINT ₹${netAmount}`}</span>
         </Button>

@@ -1,6 +1,6 @@
 # Technology Stack & Selection Justifications
 
-> **Last Reviewed**: August 2026
+> **Last Reviewed**: September 2026
 
 This document lists every technology used in **The ssrone** ecosystem and the architectural rationale for its selection.
 

@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import { LayoutGrid, Plus, Users, Edit2, Trash2 } from "lucide-react";
-import { Button } from "@ssrone/ui";
+import { Button, PageHeader, PageContainer } from "@ssrone/ui";
 import { POSTable } from "../../../types";
 
 interface TableListPageProps {
   tables: POSTable[];
   onOpenCreate: () => void;
   onOpenEdit: (table: POSTable) => void;
-  onDeleteTable?: (tableId: number | str) => void;
+  onDeleteTable?: (tableId: number | string) => void;
   isLoading?: boolean;
 }
 
@@ -31,166 +31,156 @@ export const TableListPage: React.FC<TableListPageProps> = ({
     : tables.filter((t) => t.section === selectedSection);
 
   return (
-    <div className="space-y-4">
-      {/* Top KPI Cards */}
+    <PageContainer>
+      {/* Standardized Enterprise Page Header */}
+      <PageHeader
+        title="Dining Floor & Table Layout Master"
+        description="Configure floor sections, table numbers, seating capacities, and floor status"
+        icon={<LayoutGrid size={18} />}
+        badge={`${tables.length} Tables`}
+        actions={
+          <Button
+            onClick={onOpenCreate}
+            size="sm"
+            className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
+          >
+            <Plus size={14} /> Add Table
+          </Button>
+        }
+      />
+
+      {/* Top KPI Cards Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-card flex items-center justify-between">
-          <div>
-            <p className="text-3xs uppercase font-bold tracking-wider text-muted-foreground">Total Tables</p>
-            <h4 className="font-display font-black text-xl text-foreground mt-0.5">{tables.length}</h4>
+        <div className="bg-card border border-border rounded-md p-3.5 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Total Tables</span>
+            <div className="p-1 rounded bg-muted text-muted-foreground"><LayoutGrid size={15} /></div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
-            <LayoutGrid size={18} />
-          </div>
+          <div className="text-xl font-bold font-mono text-foreground">{tables.length}</div>
         </div>
 
-        <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-card flex items-center justify-between">
-          <div>
-            <p className="text-3xs uppercase font-bold tracking-wider text-muted-foreground">Total Seating</p>
-            <h4 className="font-display font-black text-xl text-emerald-500 mt-0.5">{totalCapacity} Guests</h4>
+        <div className="bg-card border border-border rounded-md p-3.5 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Total Seating</span>
+            <div className="p-1 rounded bg-muted text-muted-foreground"><Users size={15} /></div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold">
-            <Users size={18} />
-          </div>
+          <div className="text-xl font-bold font-mono text-foreground">{totalCapacity} Guests</div>
         </div>
 
-        <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-card flex items-center justify-between">
-          <div>
-            <p className="text-3xs uppercase font-bold tracking-wider text-muted-foreground">Free / Available</p>
-            <h4 className="font-display font-black text-xl text-emerald-600 mt-0.5">{freeTables}</h4>
+        <div className="bg-card border border-border rounded-md p-3.5 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Free / Available</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
           </div>
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
-            ⚡
-          </div>
+          <div className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">{freeTables}</div>
         </div>
 
-        <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-card flex items-center justify-between">
-          <div>
-            <p className="text-3xs uppercase font-bold tracking-wider text-muted-foreground">Occupied / Billing</p>
-            <h4 className="font-display font-black text-xl text-amber-500 mt-0.5">{occupiedTables}</h4>
+        <div className="bg-card border border-border rounded-md p-3.5 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Occupied / Billing</span>
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
           </div>
-          <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold">
-            🔥
-          </div>
+          <div className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">{occupiedTables}</div>
         </div>
       </div>
 
-      {/* Table Master List Container */}
-      <div className="bg-card border border-border rounded-2xl p-5 shadow-card space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border pb-4">
-          <div>
-            <h3 className="font-display font-extrabold text-base text-foreground uppercase tracking-wider flex items-center gap-2">
-              <LayoutGrid size={18} className="text-primary" />
-              Dining Floor & Table Layout Master ({tables.length})
-            </h3>
-            <p className="text-3xs text-muted-foreground">
-              Configure floor sections, table numbers, seating capacities, and active floor status
-            </p>
-          </div>
+      {/* Section Filter Pills */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+        <button
+          onClick={() => setSelectedSection("ALL")}
+          className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors cursor-pointer shrink-0 ${
+            selectedSection === "ALL"
+              ? "bg-primary text-primary-foreground border-primary"
+              : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+          }`}
+        >
+          All Sections ({tables.length})
+        </button>
+        {sections.map((sec) => {
+          const count = tables.filter((t) => t.section === sec).length;
+          return (
+            <button
+              key={sec}
+              onClick={() => setSelectedSection(sec)}
+              className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors cursor-pointer shrink-0 ${
+                selectedSection === sec
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              {sec} ({count})
+            </button>
+          );
+        })}
+      </div>
 
-          <Button
-            onClick={onOpenCreate}
-            className="bg-primary hover:bg-primary/90 text-white font-bold text-xs px-4 py-2 rounded-xl uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-primary/20"
-          >
-            <Plus size={16} /> + Add Table
-          </Button>
+      {/* Empty State */}
+      {filteredTables.length === 0 && (
+        <div className="text-center py-8 border border-dashed border-border rounded-md space-y-2">
+          <LayoutGrid size={28} className="mx-auto text-muted-foreground/50" />
+          <p className="font-semibold text-xs text-foreground">No dining tables found</p>
+          <p className="text-[11px] text-muted-foreground max-w-xs mx-auto">
+            Click "+ Add Table" above to add your first dining table or select a different floor section.
+          </p>
         </div>
+      )}
 
-        {/* Section Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          <button
-            onClick={() => setSelectedSection("ALL")}
-            className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all ${
-              selectedSection === "ALL"
-                ? "bg-primary text-white border-primary shadow-xs"
-                : "bg-muted/40 text-muted-foreground border-border hover:bg-muted"
-            }`}
-          >
-            All Sections ({tables.length})
-          </button>
-          {sections.map((sec) => {
-            const count = tables.filter((t) => t.section === sec).length;
-            return (
-              <button
-                key={sec}
-                onClick={() => setSelectedSection(sec)}
-                className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all ${
-                  selectedSection === sec
-                    ? "bg-primary text-white border-primary shadow-xs"
-                    : "bg-muted/40 text-muted-foreground border-border hover:bg-muted"
-                }`}
-              >
-                {sec} ({count})
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Empty State */}
-        {filteredTables.length === 0 && (
-          <div className="text-center py-10 border border-dashed border-border rounded-2xl space-y-2">
-            <LayoutGrid size={32} className="mx-auto text-muted-foreground/50" />
-            <p className="font-bold text-sm text-foreground">No dining tables found</p>
-            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-              Click "+ Add Table" above to add your first dining table or select a different floor section.
-            </p>
-          </div>
-        )}
-
-        {/* Table Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
-          {filteredTables.map((table) => (
+      {/* Table Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+        {filteredTables.map((table) => {
+          const isFree = table.status === "free" || !table.status;
+          return (
             <div
               key={table.id}
-              className="bg-card border border-border hover:border-primary/50 rounded-2xl p-4 flex flex-col justify-between h-28 transition-all shadow-card hover:shadow-card-hover group relative overflow-hidden"
+              className="bg-card border border-border hover:border-primary/40 rounded-md p-3 flex flex-col justify-between h-24 transition-colors"
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <span className="font-display font-black text-base text-foreground group-hover:text-primary transition-colors">
+                  <span className="font-semibold text-sm text-foreground">
                     {table.table_number}
                   </span>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
+                  <p className="text-[10px] text-muted-foreground uppercase font-mono">
                     {table.section || "Main Dining"}
                   </p>
                 </div>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase border ${
-                  table.status === "occupied" || table.status === "billing"
-                    ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                    : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${
+                  isFree
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
                 }`}>
                   {table.status || "Free"}
                 </span>
               </div>
 
-              <div className="flex items-center justify-between text-xs font-bold text-muted-foreground pt-2 border-t border-border/50">
-                <span className="flex items-center gap-1.5 text-foreground">
-                  <Users size={14} className="text-primary" />
+              <div className="flex items-center justify-between text-xs text-muted-foreground pt-1.5 border-t border-border">
+                <span className="flex items-center gap-1 text-foreground font-medium text-[11px]">
+                  <Users size={13} className="text-muted-foreground" />
                   {table.capacity} Seater
                 </span>
 
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => onOpenEdit(table)}
-                    className="p-1 rounded-lg text-primary hover:bg-primary/10 transition-colors"
+                    className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer border-none bg-transparent"
                     title="Edit Table"
                   >
-                    <Edit2 size={14} />
+                    <Edit2 size={13} />
                   </button>
                   {onDeleteTable && (
                     <button
                       onClick={() => onDeleteTable(table.id)}
-                      className="p-1 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors"
+                      className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted transition-colors cursor-pointer border-none bg-transparent"
                       title="Delete Table"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={13} />
                     </button>
                   )}
                 </div>
               </div>
             </div>
-          ))}
-        </div>
+          );
+        })}
       </div>
-    </div>
+    </PageContainer>
   );
 };

@@ -40,33 +40,22 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
   ];
 
   return (
-    <aside 
-      style={{
-        width: '16.5rem',
-        backgroundColor: isDark ? '#0b0f19' : '#ffffff',
-        borderRight: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        padding: '1rem',
-        userSelect: 'none'
-      }}
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+    <aside className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200/80 dark:border-slate-800/80 flex flex-col justify-between p-4 select-none shrink-0">
+      <div className="flex flex-col gap-4">
         
         {/* Operator Profile */}
-        <div style={{ background: isDark ? '#111827' : '#f8fafc', border: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`, borderRadius: '0.625rem', padding: '0.875rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-          <div style={{ fontSize: '0.625rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: isDark ? '#94a3b8' : '#64748b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'monospace' }}>
+        <div className="bg-slate-50/90 dark:bg-slate-950/80 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-3.5 flex flex-col gap-1 shadow-2xs">
+          <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex justify-between items-center">
             <span>Superadmin Workspace</span>
-            <Lock style={{ width: '0.75rem', height: '0.75rem', color: '#6366f1' }} />
+            <Lock className="w-3 h-3 text-sky-600 dark:text-sky-400" />
           </div>
-          <p style={{ fontSize: '0.8125rem', fontWeight: 800, color: isDark ? '#ffffff' : '#0f172a', margin: 0 }}>SSR IT Master Operator</p>
-          <p style={{ fontSize: '0.625rem', color: isDark ? '#64748b' : '#94a3b8', fontFamily: 'monospace', margin: 0 }}>ID: sys-admin-master-01</p>
+          <p className="text-xs font-extrabold text-slate-900 dark:text-white">SSR IT Master Operator</p>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">ID: sys-admin-master-01</p>
         </div>
 
         {/* Navigation Group */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-          <div style={{ paddingLeft: '0.5rem', paddingRight: '0.5rem', fontSize: '0.625rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: isDark ? '#475569' : '#94a3b8', fontFamily: 'monospace', marginBottom: '0.25rem' }}>
+        <div className="flex flex-col gap-1">
+          <div className="px-2 text-[10px] font-mono font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
             PLATFORM GOVERNANCE
           </div>
           {navItems.map((nav) => {
@@ -76,29 +65,20 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
               <button
                 key={nav.id}
                 onClick={() => setActiveNav(nav.id as any)}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.625rem 0.875rem',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.75rem',
-                  fontWeight: isActive ? 800 : 600,
-                  border: isActive ? `1px solid ${isDark ? 'rgba(99, 102, 241, 0.5)' : '#c7d2fe'}` : '1px solid transparent',
-                  background: isActive ? (isDark ? 'rgba(99, 102, 241, 0.15)' : '#e0e7ff') : 'transparent',
-                  color: isActive ? (isDark ? '#818cf8' : '#4338ca') : (isDark ? '#94a3b8' : '#475569'),
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 150ms ease'
-                }}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                  isActive
+                    ? "bg-sky-600 text-white shadow-2xs border border-sky-500/30"
+                    : "bg-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white"
+                }`}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-                  <Icon style={{ width: '1rem', height: '1rem', color: isActive ? '#6366f1' : (isDark ? '#64748b' : '#94a3b8') }} />
+                <div className="flex items-center gap-2.5">
+                  <Icon className={`w-4 h-4 ${isActive ? "text-white" : "text-slate-400 dark:text-slate-500"}`} />
                   <span>{nav.label}</span>
                 </div>
                 {nav.count !== undefined && (
-                  <span style={{ padding: '0.125rem 0.5rem', borderRadius: '0.375rem', fontSize: '0.625rem', fontWeight: 800, fontFamily: 'monospace', background: isActive ? '#6366f1' : (isDark ? '#1f2937' : '#f1f5f9'), color: isActive ? '#ffffff' : (isDark ? '#94a3b8' : '#64748b') }}>
+                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-extrabold ${
+                    isActive ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+                  }`}>
                     {nav.count}
                   </span>
                 )}
@@ -109,18 +89,18 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
       </div>
 
       {/* Cluster Quick Status */}
-      <div style={{ borderTop: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, paddingTop: '0.875rem' }}>
-        <div style={{ background: isDark ? '#111827' : '#f8fafc', padding: '0.75rem', borderRadius: '0.625rem', border: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`, fontSize: '0.6875rem', fontFamily: 'monospace', color: isDark ? '#94a3b8' : '#475569', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="border-t border-slate-200/80 dark:border-slate-800/80 pt-3">
+        <div className="bg-slate-50/90 dark:bg-slate-950/80 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 text-[11px] font-mono text-slate-600 dark:text-slate-400 flex flex-col gap-1.5 shadow-2xs">
+          <div className="flex justify-between items-center">
             <span>Cluster Status:</span>
-            <span style={{ color: '#10b981', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-              <span style={{ width: '0.375rem', height: '0.375rem', borderRadius: '50%', background: '#10b981' }} />
-              100% Operational
+            <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-2xs animate-pulse" />
+              100% OK
             </span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="flex justify-between items-center">
             <span>Total Outlets:</span>
-            <span style={{ color: isDark ? '#ffffff' : '#0f172a', fontWeight: 800 }}>{outletCount} Active</span>
+            <span className="text-slate-900 dark:text-white font-bold">{outletCount} Active</span>
           </div>
         </div>
       </div>

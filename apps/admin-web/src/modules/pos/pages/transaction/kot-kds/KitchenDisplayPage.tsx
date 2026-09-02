@@ -1,33 +1,105 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { ChefHat, Clock, Check, RefreshCw, Flame, User, MessageSquare, Utensils, AlertTriangle } from "lucide-react";
-import { Button } from "@ssrone/ui";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import {
+  ChefHat,
+  Clock,
+  Check,
+  RefreshCw,
+  Flame,
+  User,
+  AlertTriangle,
+  Volume2,
+  VolumeX,
+  CheckCircle2,
+  Maximize2,
+  Minimize2,
+  Filter
+} from "lucide-react";
+import { Button, PageHeader } from "@ssrone/ui";
 import { api } from "@ssrone/api-client";
 import { toast } from "sonner";
 import { POSOrder } from "../../../types";
+
+interface KitchenStationItem {
+  id: number | string;
+  name: string;
+  code: string;
+  printer_name?: string;
+  station_type?: string;
+  is_active?: boolean;
+}
 
 interface KitchenDisplayPageProps {
   orders?: POSOrder[];
   onRefresh?: () => void;
 }
 
+// Web Audio API KOT Chime Synthesizer
+const playKitchenChime = () => {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15);
+
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.4);
+  } catch (e) {
+    // Audio Context fallback
+  }
+};
+
 export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
   orders: propOrders = [],
   onRefresh
 }) => {
   const [stationFilter, setStationFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ACTIVE" | "PREPARING" | "READY" | "HISTORY">("ACTIVE");
+  const [dbStations, setDbStations] = useState<KitchenStationItem[]>([]);
   const [fetchedOrders, setFetchedOrders] = useState<POSOrder[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [bumpingId, setBumpingId] = useState<number | string | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const previousOrderCountRef = useRef<number>(0);
 
-  const stations = ["ALL", "Main Kitchen", "Chinese & Tandoor", "Beverages & Bar", "Bakery & Desserts"];
+  // Fetch dynamic kitchen stations from PostgreSQL DB
+  const loadKitchenStations = async () => {
+    try {
+      const res = await api.get<KitchenStationItem[]>("/restaurant/kitchen-stations");
+      if (Array.isArray(res)) {
+        setDbStations(res.filter((s) => s.is_active !== false));
+      }
+    } catch (err) {
+      console.error("Failed to fetch kitchen stations:", err);
+    }
+  };
 
+  // Fetch live KOT orders in FIFO creation order
   const loadKDSOrders = async () => {
     setIsLoading(true);
     try {
       const activeBranchId = localStorage.getItem("active_branch_id");
-      const url = activeBranchId ? `/orders?branch_id=${activeBranchId}` : "/orders";
+      const url = activeBranchId
+        ? `/orders?branch_id=${activeBranchId}&sort_order=asc&page_size=100`
+        : "/orders?sort_order=asc&page_size=100";
       const res = await api.get<any>(url);
       const list = Array.isArray(res) ? res : res?.items || [];
+
+      if (!isMuted && list.length > previousOrderCountRef.current && previousOrderCountRef.current > 0) {
+        playKitchenChime();
+        toast("New KOT Order Received", { description: "Kitchen ticket queue updated." });
+      }
+      previousOrderCountRef.current = list.length;
       setFetchedOrders(list);
     } catch (err) {
       console.error("Failed to load KDS orders from server", err);
@@ -37,12 +109,13 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
   };
 
   useEffect(() => {
+    loadKitchenStations();
     loadKDSOrders();
-    const interval = setInterval(loadKDSOrders, 4000); // 4s auto live refresh
+    const interval = setInterval(loadKDSOrders, 4000);
     return () => clearInterval(interval);
   }, []);
 
-  // Merge prop orders and fetched orders with strict deduplication by order_number or id
+  // Deduplicate orders
   const allOrdersMap = new Map<string, POSOrder>();
   [...fetchedOrders, ...propOrders].forEach((o) => {
     if (o && (o.id || o.order_number)) {
@@ -52,28 +125,79 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
       }
     }
   });
-  const allOrders = Array.from(allOrdersMap.values());
 
-  // Filter active preparation tickets (exclude completed & cancelled)
-  const kitchenOrders = useMemo(() => {
-    return allOrders.filter((o) => {
-      const st = (o.status || "").toLowerCase();
-      return st !== "completed" && st !== "cancelled" && st !== "paid" && st !== "served";
-    });
-  }, [allOrders]);
+  // Strict FIFO queue sorting by creation timestamp
+  const allOrders = Array.from(allOrdersMap.values()).sort((a, b) => {
+    const tA = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const tB = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return tA - tB;
+  });
+
+  // Filter orders and split line items per station
+  const filteredOrders = useMemo(() => {
+    return allOrders
+      .map((o) => {
+        const st = (o.status || "").toLowerCase();
+        const isCompleted = st === "completed" || st === "served" || st === "paid" || st === "cancelled";
+
+        if (statusFilter === "ACTIVE" && isCompleted) return null;
+        if (statusFilter === "PREPARING" && st !== "in_kitchen" && st !== "preparing") return null;
+        if (statusFilter === "READY" && st !== "ready") return null;
+        if (statusFilter === "HISTORY" && !isCompleted) return null;
+
+        if (stationFilter !== "ALL") {
+          const targetStationLower = stationFilter.toLowerCase();
+          const matchingItems = (o.items || []).filter((it: any) => {
+            const itemStation = (it.kds_station || it.kdsStation || "").toLowerCase();
+            return !itemStation || itemStation.includes(targetStationLower) || targetStationLower.includes(itemStation);
+          });
+
+          if (matchingItems.length === 0) return null;
+
+          return {
+            ...o,
+            items: matchingItems
+          };
+        }
+
+        return o;
+      })
+      .filter((o): o is POSOrder => o !== null);
+  }, [allOrders, statusFilter, stationFilter]);
+
+  // Keyboard bump shortcut (Space or 1 key)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code === "Space" || e.key === "1") {
+        e.preventDefault();
+        if (filteredOrders.length > 0) {
+          const topOrder = filteredOrders[0];
+          const st = (topOrder.status || "").toLowerCase();
+          if (st === "ready") {
+            handleCompleteOrder(topOrder.id, topOrder.order_number);
+          } else if (st === "in_kitchen" || st === "preparing") {
+            handleBumpOrder(topOrder.id, topOrder.order_number);
+          } else {
+            handleStartPrep(topOrder.id, topOrder.order_number);
+          }
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [filteredOrders]);
 
   const handleStartPrep = async (orderId: number | string, orderNum: string) => {
     setBumpingId(orderId);
     try {
       const numId = parseInt(String(orderId).replace(/\D/g, ""), 10);
       await api.patch(`/orders/${numId || orderId}/status?status=in_kitchen`);
-      toast.info(`KOT Ticket #${orderNum} is now IN KITCHEN preparation!`);
+      toast.info(`Ticket #${orderNum} marked In Kitchen`);
       await loadKDSOrders();
       if (onRefresh) onRefresh();
     } catch (err: any) {
-      console.error("Failed to start prep:", err);
-      const detail = err?.response?.data?.detail || err?.message || "Failed to update ticket status";
-      toast.error(detail);
+      toast.error(err?.response?.data?.detail || "Failed to update status");
     } finally {
       setBumpingId(null);
     }
@@ -84,73 +208,196 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
     try {
       const numId = parseInt(String(orderId).replace(/\D/g, ""), 10);
       await api.patch(`/orders/${numId || orderId}/status?status=ready`);
-      toast.success(`KOT Ticket #${orderNum} marked READY FOR SERVING!`);
+      toast.success(`Ticket #${orderNum} marked Ready`);
       await loadKDSOrders();
       if (onRefresh) onRefresh();
     } catch (err: any) {
-      console.error("Failed to bump order:", err);
-      const detail = err?.response?.data?.detail || err?.message || "Failed to update ticket status";
-      toast.error(detail);
+      toast.error(err?.response?.data?.detail || "Failed to update status");
     } finally {
       setBumpingId(null);
     }
   };
 
-  return (
-    <div className="bg-card border border-border rounded-2xl p-6 shadow-card space-y-5">
-      {/* Header & Station Toolbar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-border pb-4">
-        <div>
-          <h3 className="font-display font-black text-base text-foreground uppercase tracking-wider flex items-center gap-2">
-            <ChefHat size={20} className="text-primary" />
-            Kitchen Operating System (Live KDS Stream)
-          </h3>
-          <p className="text-xs text-muted-foreground font-medium mt-0.5">
-            Realtime preparation tickets routed dynamically to kitchen stations • PostgreSQL DB Live Stream
-          </p>
-        </div>
+  const handleCompleteOrder = async (orderId: number | string, orderNum: string) => {
+    setBumpingId(orderId);
+    try {
+      const numId = parseInt(String(orderId).replace(/\D/g, ""), 10);
+      await api.patch(`/orders/${numId || orderId}/status?status=completed`);
+      toast.success(`Ticket #${orderNum} Completed`);
+      await loadKDSOrders();
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Failed to complete order");
+    } finally {
+      setBumpingId(null);
+    }
+  };
 
-        <div className="flex items-center gap-2">
-          {/* Station Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto bg-muted/60 p-1 rounded-xl border border-border">
-            {stations.map((s) => (
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+        setIsFullscreen(false);
+      }
+    }
+  };
+
+  const activeQueueCount = allOrders.filter((o) => {
+    const st = (o.status || "").toLowerCase();
+    return st !== "completed" && st !== "cancelled" && st !== "paid" && st !== "served";
+  }).length;
+
+  const preparingCount = allOrders.filter((o) => {
+    const st = (o.status || "").toLowerCase();
+    return st === "in_kitchen" || st === "preparing";
+  }).length;
+
+  const readyCount = allOrders.filter((o) => {
+    const st = (o.status || "").toLowerCase();
+    return st === "ready";
+  }).length;
+
+  return (
+    <div className="bg-background text-foreground space-y-4 p-2 sm:p-4">
+      {/* Standardized Enterprise Page Header */}
+      <PageHeader
+        title="Kitchen Display Stream (KDS)"
+        description="FIFO timestamp queue • Station-wise item split routing"
+        icon={<ChefHat size={18} />}
+        badge="FIFO Queue"
+        actions={
+          <>
+            {/* Status Filters */}
+            <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5 text-xs">
               <button
-                key={s}
-                onClick={() => setStationFilter(s)}
-                className={`px-3 py-1.5 rounded-lg text-2xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                  stationFilter === s ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+                onClick={() => setStatusFilter("ACTIVE")}
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                  statusFilter === "ACTIVE" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {s}
+                Active ({activeQueueCount})
               </button>
-            ))}
-          </div>
+              <button
+                onClick={() => setStatusFilter("PREPARING")}
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                  statusFilter === "PREPARING" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Cooking ({preparingCount})
+              </button>
+              <button
+                onClick={() => setStatusFilter("READY")}
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                  statusFilter === "READY" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Ready ({readyCount})
+              </button>
+              <button
+                onClick={() => setStatusFilter("HISTORY")}
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                  statusFilter === "HISTORY" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Recall
+              </button>
+            </div>
 
+            <button
+              onClick={() => setIsMuted(!isMuted)}
+              className="p-1.5 rounded border border-border bg-background hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
+              title={isMuted ? "Unmute sound" : "Mute sound"}
+            >
+              {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+            </button>
+
+            <button
+              onClick={() => {
+                loadKitchenStations();
+                loadKDSOrders();
+              }}
+              disabled={isLoading}
+              className="p-1.5 rounded border border-border bg-background hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
+              title="Refresh"
+            >
+              <RefreshCw size={15} className={isLoading ? "animate-spin" : ""} />
+            </button>
+
+            <button
+              onClick={toggleFullscreen}
+              className="p-1.5 rounded border border-border bg-background hover:bg-muted text-muted-foreground transition-colors cursor-pointer hidden sm:block"
+              title="Toggle Fullscreen"
+            >
+              {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            </button>
+          </>
+        }
+      />
+
+      {/* ── Kitchen Station Navigation Tabs ───────────────────────────── */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs border-b border-border/50">
+        <span className="text-muted-foreground font-medium text-[11px] flex items-center gap-1 shrink-0">
+          <Filter size={12} /> Station:
+        </span>
+        <button
+          onClick={() => setStationFilter("ALL")}
+          className={`px-2.5 py-1 rounded text-xs font-medium border cursor-pointer transition-all ${
+            stationFilter === "ALL"
+              ? "bg-primary text-primary-foreground border-primary"
+              : "bg-background border-border text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          All Stations
+        </button>
+
+        {dbStations.length > 0 ? (
+          dbStations.map((st) => {
+            const isActive = stationFilter === st.name;
+            return (
+              <button
+                key={st.id}
+                onClick={() => setStationFilter(st.name)}
+                className={`px-2.5 py-1 rounded text-xs font-medium border cursor-pointer transition-all ${
+                  isActive
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {st.name}
+              </button>
+            );
+          })
+        ) : (
           <button
-            onClick={loadKDSOrders}
-            disabled={isLoading}
-            className="p-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
-            title="Refresh KDS Tickets"
+            onClick={() => setStationFilter("Main Kitchen")}
+            className={`px-2.5 py-1 rounded text-xs font-medium border cursor-pointer transition-all ${
+              stationFilter === "Main Kitchen"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-background border-border text-muted-foreground hover:text-foreground"
+            }`}
           >
-            <RefreshCw size={15} className={isLoading ? "animate-spin text-primary" : ""} />
+            Main Kitchen
           </button>
-        </div>
+        )}
       </div>
 
-      {/* Live KOT Grid */}
-      {kitchenOrders.length === 0 ? (
-        <div className="py-20 text-center border-2 border-dashed border-border rounded-2xl space-y-3">
-          <ChefHat size={38} className="mx-auto text-muted-foreground/50" />
-          <div>
-            <h4 className="font-black text-sm text-foreground uppercase tracking-wider">KITCHEN QUEUE CLEAR</h4>
-            <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1">
-              All active KOT tickets have been prepared and served. Orders dispatched from POS Billing or Waiter Pads will stream here live.
-            </p>
-          </div>
+      {/* ── KOT Order Grid Stream ──────────────────────────────────────── */}
+      {filteredOrders.length === 0 ? (
+        <div className="py-16 text-center border border-dashed border-border rounded-lg space-y-2 bg-muted/20">
+          <ChefHat size={32} className="mx-auto text-muted-foreground/50" />
+          <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">Kitchen Queue Clear</h4>
+          <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+            {statusFilter === "HISTORY"
+              ? "No completed orders in history."
+              : `No active orders matching station "${stationFilter}". Incoming orders will stream here automatically.`}
+          </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4">
-          {kitchenOrders.map((order) => {
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {filteredOrders.map((order, orderIdx) => {
             const isBumping = String(bumpingId) === String(order.id);
             const notesText = order.notes || order.special_instructions;
 
@@ -159,112 +406,163 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
             const isOverdue = elapsedMins >= 10;
             const isWarning = elapsedMins >= 5 && elapsedMins < 10;
             const isPreparing = (order.status || "").toLowerCase() === "in_kitchen" || (order.status || "").toLowerCase() === "preparing";
+            const isReady = (order.status || "").toLowerCase() === "ready";
 
-            let headerBg = "bg-slate-800 text-white";
-            if (isOverdue) headerBg = "bg-red-600 text-white animate-pulse";
-            else if (isWarning) headerBg = "bg-amber-600 text-white";
-            else if (isPreparing) headerBg = "bg-blue-600 text-white";
+            // Clean, simple card header & badge styles
+            let headerBg = "bg-muted/50 text-foreground border-border";
+            let statusText = "Pending";
+            let statusBadge = "bg-muted text-muted-foreground border-border";
+
+            if (isOverdue && !isReady) {
+              headerBg = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20";
+              statusText = "Overdue";
+              statusBadge = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20 font-mono";
+            } else if (isWarning && !isReady) {
+              headerBg = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20";
+              statusText = "Priority";
+              statusBadge = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 font-mono";
+            } else if (isPreparing) {
+              headerBg = "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20";
+              statusText = "Cooking";
+              statusBadge = "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20 font-mono";
+            } else if (isReady) {
+              headerBg = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
+              statusText = "Ready";
+              statusBadge = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-mono";
+            }
+
+            const orderTypeLabel = order.order_type
+              ? order.order_type.replace("_", " ").toUpperCase()
+              : (order.table_name || order.table_number ? "Dine In" : "Takeaway");
+
+            const channelLabel = order.source_channel === "customer_web"
+              ? "QR Code"
+              : order.source_channel === "staff_portal"
+              ? "Waiter Pad"
+              : "POS Counter";
 
             return (
               <div
                 key={order.id || order.order_number}
-                className="bg-card border-2 border-border hover:border-primary/50 rounded-2xl overflow-hidden shadow-card flex flex-col justify-between transition-all"
+                className="bg-card border border-border rounded-md overflow-hidden flex flex-col justify-between shadow-2xs transition-colors hover:border-primary/40"
               >
-                {/* Ticket Top Header */}
-                <div className={`p-3.5 ${headerBg} flex items-center justify-between`}>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-black text-sm uppercase tracking-wide">
-                        {order.table_name ? `Table T${order.table_name}` : (order.table_number ? `Table ${order.table_number}` : "Takeaway")}
+                {/* Header Bar */}
+                <div className={`px-3 py-2 ${headerBg} border-b space-y-1`}>
+                  <div className="flex items-center justify-between gap-1 text-xs">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-[10px] font-mono font-semibold bg-background px-1.5 py-0.2 rounded border border-border text-foreground">
+                        #{orderIdx + 1}
                       </span>
-                      <span className="text-[9px] font-mono font-bold bg-black/20 px-2 py-0.5 rounded uppercase">
-                        {order.source_channel === "customer_web" ? "QR Order" : order.source_channel === "staff_portal" ? "Waiter Pad" : "POS Billing"}
+                      <span className="font-semibold truncate text-foreground">
+                        {order.table_name ? `Table ${order.table_name}` : (order.table_number ? `Table ${order.table_number}` : orderTypeLabel)}
                       </span>
                     </div>
-                    <p className="font-mono text-[10px] opacity-80 font-bold mt-0.5">{order.order_number}</p>
+
+                    <span className={`text-[10px] font-mono font-medium px-1.5 py-0.2 rounded border ${statusBadge}`}>
+                      {statusText}
+                    </span>
                   </div>
 
-                  <div className="flex items-center gap-1 font-mono text-xs font-bold">
-                    <Clock size={13} />
-                    <span>{elapsedMins > 0 ? `${elapsedMins}m ago` : "Just now"}</span>
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground font-mono">
+                    <span className="truncate">{order.order_number}</span>
+                    <span className="shrink-0">{elapsedMins > 0 ? `${elapsedMins}m ago` : "Just now"}</span>
                   </div>
                 </div>
 
-                {/* Ticket Content */}
-                <div className="p-4 space-y-3 flex-1">
-                  {/* Waiter & Customer Info */}
-                  {(order.customer_name || order.waiter_name) && (
-                    <div className="flex items-center justify-between text-2xs font-bold text-muted-foreground bg-muted/40 px-2.5 py-1 rounded-lg border border-border/60">
-                      {order.customer_name && <span className="flex items-center gap-1"><User size={11} /> {order.customer_name}</span>}
-                      {order.waiter_name && <span className="flex items-center gap-1"><ChefHat size={11} /> {order.waiter_name}</span>}
-                    </div>
-                  )}
+                {/* Content Body */}
+                <div className="p-3 space-y-2.5 flex-1 text-xs">
+                  {/* Channel info */}
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground bg-muted/40 px-2 py-1 rounded border border-border/50 font-medium">
+                    <span>{channelLabel}</span>
+                    {order.customer_name ? (
+                      <span className="truncate text-foreground font-medium">{order.customer_name}</span>
+                    ) : order.waiter_name ? (
+                      <span className="truncate text-foreground font-medium">Waiter: {order.waiter_name}</span>
+                    ) : null}
+                  </div>
 
-                  {/* Preparation Notes */}
+                  {/* Notes */}
                   {notesText && (
-                    <div className="bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs font-bold p-2 rounded-xl flex items-start gap-1.5">
+                    <div className="bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-[11px] p-2 rounded flex items-start gap-1 font-medium">
                       <AlertTriangle size={13} className="shrink-0 text-amber-600 mt-0.5" />
                       <span>Note: {notesText}</span>
                     </div>
                   )}
 
-                  {/* Items List */}
-                  <div className="space-y-2">
+                  {/* Line Items */}
+                  <div className="space-y-1.5 divide-y divide-border/40">
                     {order.items?.map((item: any, idx: number) => {
                       const itemName = item.product_name || item.name || item.item_name || "Dish Item";
-                      const variantName = item.variant_name || (item.selected_variant ? item.selected_variant.name : undefined);
-                      const addonsList = Array.isArray(item.selected_addons) ? item.selected_addons.map((a: any) => typeof a === "string" ? a : a.name) : [];
+                      const variantName = item.variant_name || (item.selected_variant ? (typeof item.selected_variant === "string" ? item.selected_variant : item.selected_variant.name) : undefined);
+                      const addonsList = Array.isArray(item.selected_addons)
+                        ? item.selected_addons.map((a: any) => (typeof a === "string" ? a : a.name))
+                        : [];
 
                       return (
-                        <div key={idx} className="flex items-start justify-between text-xs font-bold text-foreground bg-muted/20 p-2.5 rounded-xl border border-border/50">
-                          <div className="flex items-start gap-2 min-w-0">
-                            <span className="font-mono font-black text-xs px-2 py-0.5 bg-card border border-border rounded-md shrink-0 text-primary">
-                              {item.quantity}x
+                        <div key={idx} className="pt-1.5 first:pt-0 space-y-0.5">
+                          <div className="flex items-start justify-between gap-1 text-xs">
+                            <span className="font-semibold text-foreground">
+                              {item.quantity}x {itemName}
                             </span>
-                            <div>
-                              <span className="block font-bold text-foreground leading-snug">{itemName}</span>
-                              {variantName && (
-                                <span className="text-[10px] text-blue-600 dark:text-blue-400 block font-mono font-bold">
-                                  Option: {variantName}
-                                </span>
-                              )}
-                              {addonsList.length > 0 && (
-                                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block font-mono font-bold">
-                                  + {addonsList.join(", ")}
-                                </span>
-                              )}
-                              {item.preparation_notes && (
-                                <span className="text-[10px] text-amber-600 dark:text-amber-400 block italic">
-                                  "{item.preparation_notes}"
-                                </span>
-                              )}
-                            </div>
+                            {item.kds_station && (
+                              <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1 rounded border border-border">
+                                {item.kds_station}
+                              </span>
+                            )}
                           </div>
+
+                          {variantName && (
+                            <p className="text-[11px] text-muted-foreground font-medium">
+                              • Option: {variantName}
+                            </p>
+                          )}
+                          {addonsList.length > 0 && (
+                            <p className="text-[11px] text-muted-foreground font-medium">
+                              • Addons: {addonsList.join(", ")}
+                            </p>
+                          )}
+                          {item.preparation_notes && (
+                            <p className="text-[11px] text-amber-600 dark:text-amber-400 italic">
+                              "{item.preparation_notes}"
+                            </p>
+                          )}
                         </div>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* Bump Action Buttons */}
-                <div className="p-3 bg-muted/20 border-t border-border grid grid-cols-2 gap-2">
-                  <Button
-                    disabled={isBumping || isPreparing}
+                {/* Footer Action Bar */}
+                <div className="p-2 bg-muted/20 border-t border-border grid grid-cols-2 gap-2 text-xs">
+                  <button
+                    disabled={isBumping || isPreparing || isReady}
                     onClick={() => handleStartPrep(order.id, order.order_number)}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black text-2xs uppercase py-2.5 rounded-xl flex items-center justify-center gap-1 shadow-sm cursor-pointer disabled:opacity-50"
+                    className={`py-1 px-2 rounded font-medium text-xs border cursor-pointer transition-colors ${
+                      isPreparing
+                        ? "bg-muted text-muted-foreground border-border cursor-not-allowed"
+                        : "bg-primary text-primary-foreground hover:bg-primary/90 border-primary"
+                    }`}
                   >
-                    <Flame size={13} />
-                    <span>{isPreparing ? "COOKING" : "START PREP"}</span>
-                  </Button>
+                    {isPreparing ? "Cooking" : "Start Prep"}
+                  </button>
 
-                  <Button
-                    disabled={isBumping}
-                    onClick={() => handleBumpOrder(order.id, order.order_number)}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-2xs uppercase py-2.5 rounded-xl flex items-center justify-center gap-1 shadow-sm cursor-pointer"
-                  >
-                    <Check size={13} />
-                    <span>{isBumping ? "BUMPING..." : "MARK READY"}</span>
-                  </Button>
+                  {isReady ? (
+                    <button
+                      disabled={isBumping}
+                      onClick={() => handleCompleteOrder(order.id, order.order_number)}
+                      className="py-1 px-2 rounded font-medium text-xs bg-muted text-foreground hover:bg-muted/80 border border-border cursor-pointer transition-colors"
+                    >
+                      {isBumping ? "Closing..." : "Close Ticket"}
+                    </button>
+                  ) : (
+                    <button
+                      disabled={isBumping}
+                      onClick={() => handleBumpOrder(order.id, order.order_number)}
+                      className="py-1 px-2 rounded font-medium text-xs bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-600 cursor-pointer transition-colors"
+                    >
+                      {isBumping ? "Updating..." : "Mark Ready"}
+                    </button>
+                  )}
                 </div>
               </div>
             );

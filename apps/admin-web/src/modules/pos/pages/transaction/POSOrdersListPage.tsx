@@ -3,7 +3,7 @@ import {
   Receipt, Search, Filter, Clock, ChefHat, CheckCircle2, 
   XCircle, Edit3, ArrowRight, RefreshCw, Plus, Printer, Trash2
 } from "lucide-react";
-import { Button } from "@ssrone/ui";
+import { Button, PageHeader, PageContainer } from "@ssrone/ui";
 import { api } from "@ssrone/api-client";
 import { toast } from "sonner";
 import { POSOrder } from "../../types";
@@ -136,40 +136,40 @@ export const POSOrdersListPage: React.FC = () => {
       case "PENDING":
       case "OPEN":
         return (
-          <span className="inline-flex items-center gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase">
-            <Clock size={11} /> KOT Sent
+          <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded border bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 uppercase">
+            KOT Sent
           </span>
         );
       case "IN_KITCHEN":
       case "PREPARING":
         return (
-          <span className="inline-flex items-center gap-1 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase">
-            <ChefHat size={11} /> In Kitchen
+          <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded border bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20 uppercase">
+            In Kitchen
           </span>
         );
       case "READY":
       case "SERVED":
         return (
-          <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase">
-            <CheckCircle2 size={11} /> Ready / Served
+          <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 uppercase">
+            Ready / Served
           </span>
         );
       case "COMPLETED":
       case "PAID":
         return (
-          <span className="inline-flex items-center gap-1 bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase">
-            <CheckCircle2 size={11} /> Settled
+          <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded border bg-muted text-muted-foreground border-border uppercase">
+            Settled
           </span>
         );
       case "CANCELLED":
         return (
-          <span className="inline-flex items-center gap-1 bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase">
-            <XCircle size={11} /> Cancelled
+          <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded border bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20 uppercase">
+            Cancelled
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 bg-slate-500/10 text-slate-500 border border-slate-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase">
+          <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded border bg-muted text-muted-foreground border-border uppercase">
             {status || "Active"}
           </span>
         );
@@ -177,39 +177,36 @@ export const POSOrdersListPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 p-4 max-w-7xl mx-auto">
-      {/* Top Header & Search Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div>
-          <h2 className="font-display font-black text-xl text-slate-900 dark:text-white flex items-center gap-2">
-            <Receipt size={24} className="text-primary" />
-            Live Orders & Bill Management
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Real-time tracking of open dining orders, kitchen prep statuses, and bill settlements.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={fetchOrders}
-            className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-200 transition-colors cursor-pointer"
-            title="Refresh Order List"
-          >
-            <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
-          </button>
-          <button
-            onClick={() => navigate({ to: "/pos/transaction/billing" })}
-            className="px-4 py-2 bg-primary text-primary-foreground font-black text-xs rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer hover:bg-primary/90 transition-all"
-          >
-            <Plus size={16} /> New Counter Order
-          </button>
-        </div>
-      </div>
+    <PageContainer>
+      {/* Standardized Enterprise Page Header */}
+      <PageHeader
+        title="Live Orders & Bill Management"
+        description="Real-time tracking of open dining orders, kitchen prep statuses, and bill settlements"
+        icon={<Receipt size={18} />}
+        badge={`${orders.length} Orders`}
+        actions={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchOrders}
+              className="p-1.5 rounded border border-border bg-background hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
+              title="Refresh Order List"
+            >
+              <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+            </button>
+            <Button
+              onClick={() => navigate({ to: "/pos/transaction/billing" })}
+              size="sm"
+              className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Plus size={14} /> New Counter Order
+            </Button>
+          </div>
+        }
+      />
 
       {/* Filter Tabs & Search */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 scrollbar-none">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-card border border-border rounded-md p-3">
+        <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 scrollbar-none text-xs">
           {[
             { id: "ALL", label: "All Orders", count: orders.length },
             { id: "OPEN", label: "Open / KOT Sent", count: orders.filter((o) => matchStatus(o.status, "OPEN")).length },
@@ -221,111 +218,111 @@ export const POSOrdersListPage: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setStatusFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+              className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors cursor-pointer shrink-0 ${
                 statusFilter === tab.id
-                  ? "bg-primary text-primary-foreground shadow-md"
-                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
               }`}
             >
               <span>{tab.label}</span>
-              <span className="font-mono bg-black/10 dark:bg-white/10 px-1.5 py-0.2 rounded-md text-[10px]">
-                {tab.count}
+              <span className="font-mono text-[10px] ml-1 opacity-80">
+                ({tab.count})
               </span>
             </button>
           ))}
         </div>
 
-        <div className="relative w-full md:w-64">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <div className="relative w-full md:w-56 shrink-0">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search Order #, Customer, Table..."
-            className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+            placeholder="Search Order #, Customer..."
+            className="w-full pl-8 pr-2.5 py-1 text-xs font-medium bg-background border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
 
       {/* Orders Table */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
+      <div className="bg-card border border-border rounded-md overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-[11px] font-black text-slate-400 uppercase tracking-wider">
-                <th className="py-3 px-4">Order #</th>
-                <th className="py-3 px-4">Mode / Table</th>
-                <th className="py-3 px-4">Customer</th>
-                <th className="py-3 px-4">Dishes & Menu Items</th>
-                <th className="py-3 px-4">Waiter</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Net Amount</th>
-                <th className="py-3 px-4 text-center">Actions</th>
+              <tr className="bg-muted/50 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <th className="py-2.5 px-3">Order #</th>
+                <th className="py-2.5 px-3">Mode / Table</th>
+                <th className="py-2.5 px-3">Customer</th>
+                <th className="py-2.5 px-3">Dishes & Menu Items</th>
+                <th className="py-2.5 px-3">Waiter</th>
+                <th className="py-2.5 px-3">Status</th>
+                <th className="py-2.5 px-3 text-right">Net Amount</th>
+                <th className="py-2.5 px-3 text-center">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-xs">
+            <tbody className="divide-y divide-border text-xs">
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400 font-bold">
+                  <td colSpan={8} className="py-8 text-center text-muted-foreground font-medium">
                     No orders found matching criteria.
                   </td>
                 </tr>
               ) : (
                 filteredOrders.map((ord) => (
-                  <tr key={ord.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-black text-primary">
+                  <tr key={ord.id} className="hover:bg-muted/40 transition-colors">
+                    <td className="py-2.5 px-3 font-mono font-semibold text-foreground">
                       #{ord.order_number}
                     </td>
-                    <td className="py-3.5 px-4 font-bold text-slate-700 dark:text-slate-300">
+                    <td className="py-2.5 px-3 font-medium text-foreground">
                       {ord.order_mode ? ord.order_mode.toUpperCase() : ord.order_type || "DINE_IN"} 
-                      {ord.table_name && <span className="ml-1 text-slate-500 font-mono">({ord.table_name})</span>}
+                      {ord.table_name && <span className="ml-1 text-muted-foreground font-mono">({ord.table_name})</span>}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 font-medium">
+                    <td className="py-2.5 px-3 text-muted-foreground font-medium">
                       {ord.customer_name || "Walk-in Guest"}
                     </td>
-                    <td className="py-3.5 px-4 max-w-xs">
+                    <td className="py-2.5 px-3 max-w-xs">
                       <div className="flex flex-wrap gap-1">
                         {ord.items && ord.items.length > 0 ? (
                           ord.items.map((item: any, i: number) => (
                             <span
                               key={i}
-                              className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-2 py-0.5 rounded-md text-[11px] font-extrabold border border-slate-200 dark:border-slate-700"
+                              className="inline-flex items-center gap-1 bg-muted text-foreground px-1.5 py-0.2 rounded text-[11px] font-medium border border-border"
                             >
                               <span>{item.name || item.product_name || item.item_name || "Item"}</span>
                               {item.variant_name && (
-                                <span className="text-[9px] font-mono text-primary bg-primary/10 px-1 rounded-xs">
+                                <span className="text-[9px] font-mono text-muted-foreground">
                                   [{item.variant_name}]
                                 </span>
                               )}
-                              <span className="font-mono text-emerald-600 dark:text-emerald-400 font-black">
+                              <span className="font-mono text-muted-foreground">
                                 ×{item.quantity}
                               </span>
                             </span>
                           ))
                         ) : (
-                          <span className="text-slate-400 italic text-[11px]">No item details</span>
+                          <span className="text-muted-foreground italic text-[11px]">No item details</span>
                         )}
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400">
+                    <td className="py-2.5 px-3 text-muted-foreground">
                       {ord.waiter_name || "-"}
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-2.5 px-3">
                       {getStatusBadge(ord.status)}
                     </td>
-                    <td className="py-3.5 px-4 text-right font-mono font-black text-slate-900 dark:text-white">
+                    <td className="py-2.5 px-3 text-right font-mono font-semibold text-foreground">
                       ₹{safeNum(ord.net_amount || ord.grand_total || ord.total_amount).toFixed(2)}
                     </td>
-                    <td className="py-3.5 px-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
+                    <td className="py-2.5 px-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
                         {/* Edit Order (Only allowed for active/open orders) */}
                         {!["completed", "paid", "cancelled"].includes((ord.status || "").toLowerCase()) && (
                           <button
                             onClick={() => handleEditOrderInCart(ord)}
-                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors cursor-pointer"
+                            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer border-none bg-transparent"
                             title="Edit Order in Cart"
                           >
-                            <Edit3 size={14} />
+                            <Edit3 size={13} />
                           </button>
                         )}
 
@@ -333,13 +330,13 @@ export const POSOrdersListPage: React.FC = () => {
                         {!["completed", "paid", "cancelled"].includes((ord.status || "").toLowerCase()) && (ord.payment_status || "").toLowerCase() !== "paid" ? (
                           <button
                             onClick={() => handleOpenSettleModal(ord)}
-                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-lg text-[10px] flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                            className="px-2 py-0.5 bg-primary text-primary-foreground font-semibold rounded text-[11px] transition-colors cursor-pointer"
                           >
-                            <Receipt size={12} /> Settle Bill
+                            Settle Bill
                           </button>
                         ) : (
-                          <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-400 font-extrabold rounded-lg text-[10px] flex items-center gap-1 border border-slate-200 dark:border-slate-700">
-                            <CheckCircle2 size={11} className="text-emerald-500" /> Settled
+                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded border bg-muted text-muted-foreground border-border">
+                            Settled
                           </span>
                         )}
 
@@ -362,20 +359,20 @@ export const POSOrdersListPage: React.FC = () => {
                             });
                             setIsReceiptModalOpen(true);
                           }}
-                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors cursor-pointer"
+                          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer border-none bg-transparent"
                           title="Print Receipt"
                         >
-                          <Printer size={14} />
+                          <Printer size={13} />
                         </button>
 
                         {/* Cancel Order */}
                         {ord.status !== "CANCELLED" && ord.status !== "COMPLETED" && (
                           <button
                             onClick={() => handleCancelOrder(ord.id, ord.order_number)}
-                            className="p-1.5 rounded-lg bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 transition-colors cursor-pointer"
+                            className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted transition-colors cursor-pointer border-none bg-transparent"
                             title="Cancel Order"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={13} />
                           </button>
                         )}
                       </div>
@@ -407,6 +404,6 @@ export const POSOrdersListPage: React.FC = () => {
         onClose={() => setIsReceiptModalOpen(false)}
         receiptData={receiptData}
       />
-    </div>
+    </PageContainer>
   );
 };

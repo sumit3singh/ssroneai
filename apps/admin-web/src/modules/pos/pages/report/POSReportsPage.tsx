@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { BarChart3, TrendingUp, Printer } from "lucide-react";
-import { Button } from "@ssrone/ui";
+import { Button, PageHeader, PageContainer } from "@ssrone/ui";
 import { DailySalesReport } from "./DailySalesReport";
 import { ItemSalesReport } from "./ItemSalesReport";
 import { CashierSettlementReport } from "./CashierSettlementReport";
@@ -15,58 +15,53 @@ export const POSReportsPage: React.FC<POSReportsPageProps> = ({ orders }) => {
   const [activeReportTab, setActiveReportTab] = useState<"daily" | "items" | "settlement" | "gst">("daily");
 
   return (
-    <div className="space-y-6">
-      {/* Header Toolbar */}
-      <div className="bg-card border border-border rounded-2xl p-5 shadow-card flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div>
-          <h2 className="font-display font-extrabold text-base text-foreground uppercase tracking-wider flex items-center gap-2">
-            <BarChart3 size={18} className="text-primary" />
-            POS Realtime Analytics & Reports Center
-          </h2>
-          <p className="text-3xs text-muted-foreground">
-            Computed dynamically from transactional PostgreSQL database queries (Golden Rule #13)
-          </p>
-        </div>
-
-        {/* Report Sub-Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto bg-muted/60 p-1 rounded-xl border border-border">
-          <button
-            onClick={() => setActiveReportTab("daily")}
-            className={`px-3 py-1.5 rounded-lg text-2xs font-extrabold uppercase transition-all ${
-              activeReportTab === "daily" ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Daily Sales
-          </button>
-          <button
-            onClick={() => setActiveReportTab("items")}
-            className={`px-3 py-1.5 rounded-lg text-2xs font-extrabold uppercase transition-all ${
-              activeReportTab === "items" ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Dish Sales
-          </button>
-          <button
-            onClick={() => setActiveReportTab("settlement")}
-            className={`px-3 py-1.5 rounded-lg text-2xs font-extrabold uppercase transition-all ${
-              activeReportTab === "settlement" ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Cashier Settlement
-          </button>
-          <button
-            onClick={() => setActiveReportTab("gst")}
-            className={`px-3 py-1.5 rounded-lg text-2xs font-extrabold uppercase transition-all ${
-              activeReportTab === "gst" ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            GST & Tax Summary
-          </button>
-        </div>
-      </div>
+    <PageContainer>
+      {/* Standardized Enterprise Page Header */}
+      <PageHeader
+        title="POS Realtime Analytics & Reports Center"
+        description="Computed dynamically from transactional PostgreSQL database queries"
+        icon={<BarChart3 size={18} />}
+        badge="Realtime Analytics"
+        actions={
+          <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5 text-xs">
+            <button
+              onClick={() => setActiveReportTab("daily")}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                activeReportTab === "daily" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Daily Sales
+            </button>
+            <button
+              onClick={() => setActiveReportTab("items")}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                activeReportTab === "items" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Dish Sales
+            </button>
+            <button
+              onClick={() => setActiveReportTab("settlement")}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                activeReportTab === "settlement" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Cashier Settlement
+            </button>
+            <button
+              onClick={() => setActiveReportTab("gst")}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                activeReportTab === "gst" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              GST & Tax Summary
+            </button>
+          </div>
+        }
+      />
 
       {/* Main Report Sub-Module Render */}
-      <div className="bg-card border border-border rounded-2xl p-6 shadow-card">
+      <div className="bg-card border border-border rounded-md p-4 space-y-4">
         {activeReportTab === "daily" ? (
           <DailySalesReport orders={orders} />
         ) : activeReportTab === "items" ? (
@@ -77,6 +72,6 @@ export const POSReportsPage: React.FC<POSReportsPageProps> = ({ orders }) => {
           <GSTTaxSummaryReport orders={orders} />
         )}
       </div>
-    </div>
+    </PageContainer>
   );
 };

@@ -3,7 +3,7 @@
 > **MANDATORY INSTRUCTION FOR ALL DEVELOPERS & AI ASSISTANTS**:  
 > Read this document first. **One topic = One file.** Before creating any new documentation, search this index to edit existing documents rather than creating duplicate files.
 
-> **Last Reviewed**: August 2026
+> **Last Reviewed**: September 2026
 
 ---
 
@@ -35,7 +35,7 @@
 - **[02-architecture/PLATFORM_ADMIN_BLUEPRINT.md](file:///e:/2026/ssr_one_ai/.agents/02-architecture/PLATFORM_ADMIN_BLUEPRINT.md)**: Superadmin tenant provisioning, licensing keys, and platform audit logs.
 - **[02-architecture/ROUTE_MAP.md](file:///e:/2026/ssr_one_ai/.agents/02-architecture/ROUTE_MAP.md)**: Canonical list of frontend application routes and backend API endpoints.
 - **[02-architecture/API_VERSIONING_GUIDE.md](file:///e:/2026/ssr_one_ai/.agents/02-architecture/API_VERSIONING_GUIDE.md)**: API versioning URI scheme, deprecation RFC headers, and SDK migration guidelines.
-- **[02-architecture/DECISIONS/](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/)**: Architectural Decision Records (ADRs) including [ADR-0004](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0004-structure-migration-complete.md) documenting monorepo consolidation, [ADR-0005](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0005-category-master-root-cause-and-governance.md) documenting Category Master fix & SSOT rules, and [ADR-0007](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0007-startup-ddl-lock-purge-and-pure-ssot-auth-context.md) documenting lifespan DDL lock elimination and pure database SSOT context architecture.
+- **[02-architecture/DECISIONS/](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/)**: Architectural Decision Records (ADRs) including [ADR-0004](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0004-structure-migration-complete.md) documenting monorepo consolidation, [ADR-0005](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0005-category-master-root-cause-and-governance.md) documenting Category Master fix & SSOT rules, [ADR-0007](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0007-startup-ddl-lock-purge-and-pure-ssot-auth-context.md) documenting lifespan DDL lock elimination and pure database SSOT context architecture, and [ADR-0008](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0008-ui-modernization-and-domain-functionality-transition.md) documenting UI modernization completion and transition to deep domain functionality integration.
 
 ---
 

@@ -95,6 +95,7 @@ class OrderItemResponse(BaseModel):
     tax_amount: Decimal | float = Decimal("0")
     line_total: Decimal | float = Decimal("0")
     kds_status: str = "pending"
+    kds_station: str | None = None
     modifiers: list[Any] = Field(default_factory=list)
     selected_addons: list[Any] = Field(default_factory=list)
     variant_name: str | None = None
@@ -312,8 +313,9 @@ async def create_order(
 async def list_orders(
     branch_id: int | None = None,
     status: str | None = None,
+    sort_order: str = Query(default="asc"),
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=25, ge=1, le=100),
+    page_size: int = Query(default=100, ge=1, le=200),
     current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> OrderListResponse:
@@ -323,8 +325,12 @@ async def list_orders(
         select(Order)
         .where(Order.tenant_id == tenant_id, (Order.is_deleted == False) | (Order.is_deleted.is_(None)))
         .options(selectinload(Order.items))
-        .order_by(Order.created_at.desc())
     )
+
+    if sort_order == "asc":
+        query = query.order_by(Order.created_at.asc(), Order.id.asc())
+    else:
+        query = query.order_by(Order.created_at.desc(), Order.id.desc())
 
     if branch_id:
         query = query.where(Order.branch_id == branch_id)

@@ -32,7 +32,7 @@ export const LicenseWizardModal: React.FC<LicenseWizardModalProps> = ({
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPhone, setAdminPhone] = useState('');
-  const [adminPassword, setAdminPassword] = useState('Sumit@1320');
+  const [adminPassword, setAdminPassword] = useState('Admin@123');
   const [dbStrategy, setDbStrategy] = useState<'Shared Schema RLS' | 'Dedicated Database'>('Shared Schema RLS');
 
   // STEP 2: Subscription & Payment Verification
@@ -84,7 +84,7 @@ export const LicenseWizardModal: React.FC<LicenseWizardModalProps> = ({
         adminName: adminName.trim() || `${name.trim()} Admin`,
         adminEmail: adminEmail.trim() || `admin@${slug}.com`,
         adminPhone: adminPhone.trim() || '+91 98765 43210',
-        adminPassword: adminPassword || 'Sumit@1320',
+        adminPassword: adminPassword || 'Admin@123',
         tier,
         dbStrategy,
         maxOutlets,
@@ -195,6 +195,73 @@ export const LicenseWizardModal: React.FC<LicenseWizardModalProps> = ({
                   <span style={{ background: isDark ? '#1e293b' : '#e2e8f0', color: isDark ? '#94a3b8' : '#64748b', padding: '0.5rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, borderRadius: '0 0.5rem 0.5rem 0', fontFamily: 'monospace' }}>
                     .ssrone.ai
                   </span>
+                </div>
+              </div>
+
+              {/* Tenant Superadmin Account Setup Section */}
+              <div style={{ borderTop: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, paddingTop: '1rem', marginTop: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <User style={{ width: '1rem', height: '1rem', color: '#6366f1' }} />
+                  <span style={{ fontSize: '0.8125rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: isDark ? '#6366f1' : '#4f46e5' }}>
+                    Tenant Super Admin Account Setup
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b', display: 'block', marginBottom: '0.25rem' }}>
+                      Super Admin Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Sumit Singh"
+                      value={adminName}
+                      onChange={(e) => setAdminName(e.target.value)}
+                      style={{ width: '100%', background: isDark ? '#090d16' : '#f8fafc', border: `1px solid ${isDark ? '#1e293b' : '#cbd5e1'}`, borderRadius: '0.5rem', padding: '0.5rem 0.75rem', fontSize: '0.875rem', color: isDark ? '#ffffff' : '#0f172a', outline: 'none' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b', display: 'block', marginBottom: '0.25rem' }}>
+                      Super Admin Email *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="admin@baithakcafe.com"
+                      value={adminEmail}
+                      onChange={(e) => setAdminEmail(e.target.value)}
+                      style={{ width: '100%', background: isDark ? '#090d16' : '#f8fafc', border: `1px solid ${isDark ? '#1e293b' : '#cbd5e1'}`, borderRadius: '0.5rem', padding: '0.5rem 0.75rem', fontSize: '0.875rem', color: isDark ? '#ffffff' : '#0f172a', outline: 'none' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b', display: 'block', marginBottom: '0.25rem' }}>
+                      Contact Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="+91 98765 43210"
+                      value={adminPhone}
+                      onChange={(e) => setAdminPhone(e.target.value)}
+                      style={{ width: '100%', background: isDark ? '#090d16' : '#f8fafc', border: `1px solid ${isDark ? '#1e293b' : '#cbd5e1'}`, borderRadius: '0.5rem', padding: '0.5rem 0.75rem', fontSize: '0.875rem', color: isDark ? '#ffffff' : '#0f172a', outline: 'none' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b', display: 'block', marginBottom: '0.25rem' }}>
+                      Initial Password *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="e.g. Admin@123"
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      style={{ width: '100%', background: isDark ? '#090d16' : '#f8fafc', border: `1px solid ${isDark ? '#1e293b' : '#cbd5e1'}`, borderRadius: '0.5rem', padding: '0.5rem 0.75rem', fontSize: '0.875rem', color: isDark ? '#ffffff' : '#0f172a', outline: 'none' }}
+                    />
+                  </div>
                 </div>
               </div>
 

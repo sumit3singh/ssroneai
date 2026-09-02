@@ -2,7 +2,7 @@
 
 > **Owner & Provider**: SSR IT Industry  
 > **Product**: SSR One AI – Full Hospitality & Accommodation ERP Platform  
-> **Last Reviewed**: August 2026
+> **Last Reviewed**: September 2026
 
 ---
 

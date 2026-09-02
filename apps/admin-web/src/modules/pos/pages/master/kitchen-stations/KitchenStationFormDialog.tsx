@@ -115,32 +115,15 @@ export const KitchenStationFormDialog: React.FC<KitchenStationFormDialogProps> =
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-2xs uppercase font-bold text-muted-foreground">Station Code *</label>
-              <Input
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="e.g. MAIN, BAR, PIZZA"
-                required
-                className="h-10 text-xs font-bold font-mono uppercase"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-2xs uppercase font-bold text-muted-foreground">Station Category</label>
-              <select
-                value={stationType}
-                onChange={(e) => setStationType(e.target.value)}
-                className="w-full h-10 bg-muted/40 border border-border rounded-xl px-3 text-xs font-bold text-foreground focus:ring-1 focus:ring-primary focus:outline-none"
-              >
-                {STATION_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="space-y-1">
+            <label className="text-2xs uppercase font-bold text-muted-foreground">Station Code *</label>
+            <Input
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="e.g. MAIN, BAR, PIZZA"
+              required
+              className="h-10 text-xs font-bold font-mono uppercase"
+            />
           </div>
 
           <div className="space-y-1">

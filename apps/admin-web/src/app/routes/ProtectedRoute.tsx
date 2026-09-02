@@ -23,7 +23,12 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   }, [isAuthenticated, navigate]);
 
   if (!isAuthenticated) {
-    return null;
+    return (
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#FAF9F5] text-slate-700">
+        <div className="w-8 h-8 border-4 border-violet-600 border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Redirecting to Authentication...</p>
+      </div>
+    );
   }
 
   return <AppShell>{children}</AppShell>;

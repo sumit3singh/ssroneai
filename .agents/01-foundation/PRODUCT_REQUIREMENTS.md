@@ -1,6 +1,6 @@
 # Product & Functional Requirements Specification
 
-> **Last Reviewed**: August 2026
+> **Last Reviewed**: September 2026
 
 This document defines the functional and product requirements for **The ssrone** enterprise operating system.
 

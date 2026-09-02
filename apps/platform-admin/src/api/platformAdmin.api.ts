@@ -98,6 +98,7 @@ export const platformAdminApi = {
           adminName: t.admin_name || t.contact_person || t.settings?.admin_name || "",
           adminEmail: t.admin_email || t.email || t.settings?.admin_email || "",
           adminPhone: t.admin_phone || t.settings?.admin_phone || "",
+          adminPassword: t.admin_password || t.settings?.admin_password || "Admin@123",
           tier: planTier as Tenant["tier"],
           status: computedStatus as Tenant["status"],
           dbStrategy: (t.db_strategy || t.settings?.db_strategy || "Shared Schema RLS") as Tenant["dbStrategy"],

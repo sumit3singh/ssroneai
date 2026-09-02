@@ -126,16 +126,16 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
   return (
     <div className="space-y-2.5 flex flex-col h-[calc(100vh-4.25rem)] overflow-hidden select-none">
       {/* Ultra-Compact Top Control Bar */}
-      <div className="bg-card border border-border rounded-xl p-2.5 shadow-2xs shrink-0 space-y-2">
+      <div className="bg-card border border-border rounded-md p-2.5 shadow-2xs shrink-0 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           {/* Header Title */}
           <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-lg border border-rose-500/20">
+            <div className="p-1.5 bg-muted text-foreground rounded border border-border">
               <LayoutGrid size={16} />
             </div>
             <div>
-              <h2 className="font-display font-black text-sm text-foreground leading-none">
-                Table Floor Grid
+              <h2 className="font-semibold text-xs text-foreground leading-none">
+                Table Floor Grid & Live Tracker
               </h2>
               <p className="text-[10px] text-muted-foreground mt-0.5">
                 Click any table box to take order or edit active cart.
@@ -145,18 +145,18 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
 
           {/* Stats Badges & Actions */}
           <div className="flex items-center gap-1.5">
-            <div className="flex items-center gap-1 text-[11px] font-bold">
-              <span className="px-2 py-0.5 bg-muted rounded-md text-muted-foreground border border-border">
+            <div className="flex items-center gap-1 text-[11px]">
+              <span className="px-2 py-0.5 bg-muted text-muted-foreground rounded border border-border">
                 Total: <strong className="text-foreground">{tables.length}</strong>
               </span>
-              <span className="px-2 py-0.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-md border border-rose-500/30">
+              <span className="px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded border border-amber-500/20 font-mono">
                 Occupied: <strong>{occupiedCount}</strong>
               </span>
-              <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-md border border-emerald-500/30">
+              <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded border border-emerald-500/20 font-mono">
                 Free: <strong>{freeCount}</strong>
               </span>
-              <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-md border border-indigo-500/30 font-mono">
-                Active: <strong>₹{activeRevenueTotal.toLocaleString("en-IN")}</strong>
+              <span className="px-2 py-0.5 bg-muted text-muted-foreground rounded border border-border font-mono">
+                Active: <strong className="text-foreground">₹{activeRevenueTotal.toLocaleString("en-IN")}</strong>
               </span>
             </div>
 
@@ -165,7 +165,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={onRefresh}
-                className="h-7 text-2xs font-bold rounded-md px-2"
+                className="h-7 text-xs font-medium rounded px-2 cursor-pointer"
               >
                 <RefreshCw size={12} />
               </Button>
@@ -174,7 +174,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
               variant="default"
               size="sm"
               onClick={() => navigate({ to: "/pos/transaction/billing" })}
-              className="h-7 gap-1 text-2xs font-bold rounded-md cursor-pointer px-2.5"
+              className="h-7 gap-1 text-xs font-semibold rounded cursor-pointer px-2.5 shadow-xs"
             >
               <UtensilsCrossed size={12} /> POS Terminal
             </Button>
@@ -187,10 +187,10 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
           <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none shrink-0">
             <button
               onClick={() => setSelectedSection("ALL")}
-              className={`px-2 py-0.5 rounded-md text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
                 selectedSection === "ALL"
-                  ? "bg-primary text-primary-foreground shadow-2xs"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground border border-border hover:bg-muted hover:text-foreground"
               }`}
             >
               All ({tables.length})
@@ -199,10 +199,10 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
               <button
                 key={sec}
                 onClick={() => setSelectedSection(sec)}
-                className={`px-2 py-0.5 rounded-md text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
                   selectedSection.toLowerCase() === sec.toLowerCase()
-                    ? "bg-primary text-primary-foreground shadow-2xs"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background text-muted-foreground border border-border hover:bg-muted hover:text-foreground"
                 }`}
               >
                 {sec} ({sectionMap[sec]?.length || 0})
@@ -217,7 +217,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search table or order #..."
               icon={<Search size={12} className="text-muted-foreground" />}
-              className="h-7 text-[11px] font-semibold bg-background border-border rounded-md"
+              className="h-7 text-xs font-medium bg-background border-border rounded"
             />
           </div>
         </div>
@@ -226,9 +226,9 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
       {/* Main Floor Square Grid Container */}
       <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-3 scrollbar-thin">
         {displaySections.length === 0 ? (
-          <div className="bg-card border border-border rounded-xl p-6 text-center text-muted-foreground space-y-1">
+          <div className="bg-card border border-border rounded-md p-6 text-center text-muted-foreground space-y-1">
             <AlertCircle size={24} className="mx-auto text-muted-foreground/50" />
-            <p className="font-bold text-xs">No dining tables found.</p>
+            <p className="font-semibold text-xs text-foreground">No dining tables found.</p>
           </div>
         ) : (
           displaySections.map((secName) => {
@@ -247,11 +247,11 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
             return (
               <div key={secName} className="space-y-1.5">
                 {/* Section Header */}
-                <div className="flex items-center justify-between border-b border-border pb-0.5">
-                  <h3 className="font-display font-black text-[11px] uppercase tracking-wider text-foreground flex items-center gap-1">
+                <div className="flex items-center justify-between border-b border-border pb-1">
+                  <h3 className="font-semibold text-xs text-foreground flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block"></span>
                     {secName}
-                    <span className="text-[9px] font-bold px-1 rounded bg-muted text-muted-foreground">
+                    <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded bg-muted text-muted-foreground border border-border">
                       {filteredTables.length}
                     </span>
                   </h3>
@@ -268,19 +268,19 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                         key={table.id}
                         onClick={() => handleTableClick(table, activeOrd)}
                         title={isOccupied && activeOrd ? `Click to edit Order #${activeOrd.order_number}` : `Click to take order for Table ${table.table_number}`}
-                        className={`group aspect-square rounded-xl border-2 p-2 flex flex-col justify-between items-center text-center transition-all duration-150 cursor-pointer shadow-2xs hover:scale-[1.04] ${
+                        className={`group aspect-square rounded-md border p-2 flex flex-col justify-between items-center text-center transition-colors cursor-pointer ${
                           isOccupied
-                            ? "bg-gradient-to-b from-rose-500/20 to-rose-500/5 border-rose-500 hover:border-rose-600 ring-2 ring-rose-500/20"
-                            : "bg-card hover:bg-emerald-500/15 border-emerald-500/40 hover:border-emerald-500"
+                            ? "bg-amber-500/10 border-amber-500/30 hover:border-amber-500"
+                            : "bg-card border-border hover:border-primary/40"
                         }`}
                       >
                         {/* Top: Table Name & Status Dot */}
                         <div className="w-full flex items-center justify-between gap-0.5 shrink-0">
-                          <span className="font-display font-black text-xs text-foreground truncate max-w-[80%] leading-none">
+                          <span className="font-semibold text-xs text-foreground truncate max-w-[80%] leading-none">
                             {table.table_number}
                           </span>
                           {isOccupied ? (
-                            <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping inline-block" title="Occupied"></span>
+                            <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" title="Occupied"></span>
                           ) : (
                             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" title="Available"></span>
                           )}
@@ -289,19 +289,19 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                         {/* Middle: Live Order Info or Seating Capacity */}
                         {isOccupied && activeOrd ? (
                           <div className="my-auto space-y-0.5 w-full">
-                            <div className="bg-rose-600/90 text-white rounded px-1 py-0.5 text-[9px] font-mono font-black truncate shadow-2xs">
+                            <div className="bg-muted text-foreground border border-border rounded px-1 py-0.2 text-[9px] font-mono font-medium truncate">
                               #{activeOrd.order_number.replace(/^ORD-/, "").slice(-6)}
                             </div>
-                            <p className="text-[10px] font-mono font-black text-rose-600 dark:text-rose-400 truncate">
+                            <p className="text-[10px] font-mono font-semibold text-amber-600 dark:text-amber-400 truncate">
                               ₹{Number(activeOrd.net_amount || activeOrd.subtotal || 0).toLocaleString("en-IN")}
                             </p>
                           </div>
                         ) : (
                           <div className="my-auto text-center space-y-0.5">
-                            <p className="text-[10px] font-extrabold text-muted-foreground leading-none">
+                            <p className="text-[10px] font-medium text-muted-foreground leading-none">
                               {table.capacity || 4} Seats
                             </p>
-                            <p className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tight">
+                            <p className="text-[9px] font-mono text-emerald-600 dark:text-emerald-400 uppercase">
                               FREE
                             </p>
                           </div>
@@ -310,12 +310,12 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                         {/* Bottom Action Footer */}
                         <div className="w-full shrink-0">
                           {isOccupied && activeOrd ? (
-                            <div className="flex items-center justify-between w-full bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded group-hover:bg-rose-700 transition-colors">
+                            <div className="flex items-center justify-between w-full bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[9px] font-medium px-1.5 py-0.5 rounded transition-colors">
                               <span>Edit Cart</span>
                               <Edit3 size={9} />
                             </div>
                           ) : (
-                            <div className="w-full bg-emerald-500/10 group-hover:bg-emerald-500 text-emerald-700 dark:text-emerald-300 group-hover:text-white border border-emerald-500/20 text-[9px] font-black px-1 py-0.5 rounded transition-colors text-center">
+                            <div className="w-full bg-muted group-hover:bg-primary group-hover:text-primary-foreground text-muted-foreground border border-border text-[9px] font-medium px-1 py-0.5 rounded transition-colors text-center">
                               + Take Order
                             </div>
                           )}

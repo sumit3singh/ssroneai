@@ -1,6 +1,6 @@
 import React from "react";
 import { Users, UserCheck, ArrowRight, ShieldCheck } from "lucide-react";
-import { Button } from "@ssrone/ui";
+import { Button, PageHeader, PageContainer } from "@ssrone/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { POSWaiter } from "../../../types";
 
@@ -17,72 +17,78 @@ export const WaiterListPage: React.FC<WaiterListPageProps> = ({
   const navigate = useNavigate();
 
   return (
-    <div className="space-y-4">
+    <PageContainer>
+      {/* Standardized Enterprise Page Header */}
+      <PageHeader
+        title="Waiters & Service Staff Master"
+        description="Authorized floor servers available for KOT taking and table assignment"
+        icon={<Users size={18} />}
+        badge={`${waiters.length} Staff`}
+        actions={
+          <Button
+            onClick={() => navigate({ to: "/hr" as any })}
+            size="sm"
+            className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
+          >
+            Manage Staff in HR <ArrowRight size={14} />
+          </Button>
+        }
+      />
+
       {/* SSOT Governance Banner */}
-      <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-        <div className="flex items-start gap-3">
-          <div className="p-2 rounded-xl bg-primary text-white font-bold mt-0.5 sm:mt-0">
-            <ShieldCheck size={18} />
+      <div className="bg-muted/40 border border-border rounded-md p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="p-1 rounded bg-primary/10 text-primary shrink-0">
+            <ShieldCheck size={16} />
           </div>
           <div>
-            <h4 className="font-extrabold text-xs text-foreground uppercase tracking-wide">
-              Single Source of Truth (SSOT): HR & Payroll Staff Master
+            <h4 className="font-semibold text-foreground uppercase tracking-wider text-xs">
+              Single Source of Truth: HR & Staff Master
             </h4>
-            <p className="text-3xs text-muted-foreground mt-0.5">
-              All staff members, waiters, cashiers, and managers are managed centrally under the <strong>HR & Staff Roster Module</strong> (<code className="text-primary">/hr</code>). Staff created in HR automatically gain POS order-taking authorization.
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Staff created in HR automatically gain POS order-taking authorization.
             </p>
           </div>
         </div>
 
         <Button
           onClick={() => navigate({ to: "/hr" as any })}
-          className="bg-primary hover:bg-primary/90 text-white font-bold text-xs px-4 py-2 rounded-xl uppercase tracking-wider flex items-center gap-2 shadow-md shadow-primary/20 whitespace-nowrap self-stretch sm:self-auto justify-center"
+          variant="outline"
+          size="sm"
+          className="text-xs font-medium shrink-0"
         >
-          Manage Staff in HR <ArrowRight size={14} />
+          Open HR Module
         </Button>
       </div>
 
       {/* Waiters List Container */}
-      <div className="bg-card border border-border rounded-2xl p-5 shadow-card space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border pb-4">
-          <div>
-            <h3 className="font-display font-extrabold text-base text-foreground uppercase tracking-wider flex items-center gap-2">
-              <Users size={18} className="text-primary" />
-              Active Waiters & Service Staff ({waiters.length})
-            </h3>
-            <p className="text-3xs text-muted-foreground">
-              Authorized floor servers available for KOT taking and table assignment
-            </p>
-          </div>
+      {waiters.length === 0 ? (
+        <div className="text-center py-8 border border-dashed border-border rounded-md space-y-2">
+          <Users size={28} className="mx-auto text-muted-foreground/50" />
+          <p className="font-semibold text-xs text-foreground">No active service staff found</p>
+          <p className="text-[11px] text-muted-foreground max-w-xs mx-auto">
+            Staff members created in the HR Module with Waiter/Service role will automatically populate here.
+          </p>
+          <Button
+            onClick={() => navigate({ to: "/hr" as any })}
+            variant="outline"
+            size="sm"
+            className="text-xs font-medium mt-1"
+          >
+            Go to HR Module
+          </Button>
         </div>
-
-        {waiters.length === 0 && (
-          <div className="text-center py-10 border border-dashed border-border rounded-2xl space-y-2">
-            <Users size={32} className="mx-auto text-muted-foreground/50" />
-            <p className="font-bold text-sm text-foreground">No active service staff found</p>
-            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-              Staff members created in the HR Module with Waiter/Service role will automatically populate here.
-            </p>
-            <Button
-              onClick={() => navigate({ to: "/hr" as any })}
-              variant="outline"
-              className="text-xs font-bold mt-2"
-            >
-              Go to HR Module to Add Staff
-            </Button>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           {waiters.map((w) => (
-            <div key={w.id} className="bg-card border border-border/80 hover:border-primary/50 rounded-2xl p-4 flex items-center justify-between transition-all shadow-card hover:shadow-card-hover group">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary font-black text-xs flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-colors">
+            <div key={w.id} className="bg-card border border-border hover:border-primary/40 rounded-md p-3 flex items-center justify-between transition-colors">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded bg-muted text-foreground font-mono font-semibold text-xs flex items-center justify-center border border-border shrink-0">
                   {w.code || `W${w.id}`}
                 </div>
-                <div>
-                  <h4 className="font-extrabold text-xs text-foreground group-hover:text-primary transition-colors">{w.name}</h4>
-                  <span className="text-[10px] text-emerald-600 font-bold uppercase flex items-center gap-1 mt-0.5">
+                <div className="min-w-0">
+                  <h4 className="font-semibold text-xs text-foreground truncate">{w.name}</h4>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono flex items-center gap-1 mt-0.5">
                     <UserCheck size={11} /> Authorized Floor Staff
                   </span>
                 </div>
@@ -90,7 +96,7 @@ export const WaiterListPage: React.FC<WaiterListPageProps> = ({
             </div>
           ))}
         </div>
-      </div>
-    </div>
+      )}
+    </PageContainer>
   );
 };

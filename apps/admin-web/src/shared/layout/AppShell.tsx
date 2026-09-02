@@ -204,28 +204,27 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden select-none">
-      {/* ONE UNIFIED ENTERPRISE TOP HEADER BAR ACROSS ENTIRE APPLICATION */}
-      <header className="flex items-center justify-between h-13 px-3.5 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 shadow-2xs z-30 shrink-0 select-none">
+      <header className="flex items-center justify-between h-11 px-3 bg-card border-b border-border z-30 shrink-0 select-none">
         {/* Left Side: Navigation / Logo */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {!isHomePage && (
             <button
-              className="md:hidden p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors"
+              className="md:hidden p-1 rounded hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
               onClick={() => setMobileOpen(true)}
             >
-              <Menu size={16} />
+              <Menu size={15} />
             </button>
           )}
 
-          <Link to="/" className="flex items-center gap-2.5 group cursor-pointer no-underline">
-            <div className="h-7 w-7 rounded-md bg-primary text-primary-foreground flex items-center justify-center font-bold text-xs shadow-2xs">
+          <Link to="/" className="flex items-center gap-2 group cursor-pointer no-underline">
+            <div className="h-5 w-5 rounded bg-primary/10 text-primary flex items-center justify-center font-bold text-[11px]">
               ∞
             </div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-xs tracking-tight text-slate-900 dark:text-slate-100 font-mono">
+            <div className="flex items-center gap-1.5">
+              <span className="font-semibold text-xs text-foreground">
                 SSR ONE AI
               </span>
-              <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 text-[9px] font-mono font-medium px-1.5 py-0.2 rounded-sm uppercase tracking-wider">
+              <span className="bg-muted text-muted-foreground border border-border text-[10px] font-mono font-medium px-1.5 py-0.2 rounded">
                 v2.0
               </span>
             </div>
@@ -240,11 +239,11 @@ export function AppShell({ children }: AppShellProps) {
               const event = new KeyboardEvent("keydown", { key: "k", ctrlKey: true });
               window.dispatchEvent(event);
             }}
-            className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-md bg-slate-100/90 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 font-medium hover:border-slate-300 dark:hover:border-slate-700 transition-all cursor-pointer"
+            className="hidden sm:flex items-center gap-2 px-2 py-1 rounded border border-border bg-background text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
-            <Search size={13} className="text-slate-400" />
+            <Search size={13} className="text-muted-foreground" />
             <span>Search</span>
-            <kbd className="font-mono text-[9px] bg-white dark:bg-slate-950 px-1 py-0.2 rounded-sm border border-slate-200 dark:border-slate-800 text-slate-400">
+            <kbd className="font-mono text-[9px] bg-muted px-1 py-0.2 rounded border border-border text-muted-foreground">
               Ctrl+K
             </kbd>
           </button>
@@ -253,30 +252,30 @@ export function AppShell({ children }: AppShellProps) {
           <div className="relative" ref={branchDropdownRef}>
             <button
               onClick={() => setBranchDropdownOpen(!branchDropdownOpen)}
-              className="flex items-center gap-2 px-3 py-1 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 text-slate-900 dark:text-slate-100 text-xs font-semibold hover:border-indigo-400 transition-all cursor-pointer shadow-2xs"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded border border-border bg-background text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
               title="Click to select unit"
             >
-              <Building2 size={13} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
-              <div className="flex items-center gap-1.5 text-xs font-mono">
-                <span className="font-bold text-indigo-700 dark:text-indigo-300 truncate max-w-[160px]">
+              <Building2 size={13} className="text-muted-foreground shrink-0" />
+              <div className="flex items-center gap-1 text-xs">
+                <span className="font-semibold text-foreground truncate max-w-[150px]">
                   {activeCompanyName}
                 </span>
-                <span className="text-slate-400 dark:text-slate-600 font-normal">/</span>
-                <span className="font-medium text-slate-700 dark:text-slate-300 truncate max-w-[140px]">
+                <span className="text-muted-foreground font-normal">/</span>
+                <span className="text-muted-foreground truncate max-w-[130px]">
                   {activeBranchName}
                 </span>
               </div>
-              <ChevronDown size={11} className={cn("text-indigo-500 transition-transform duration-200", branchDropdownOpen && "rotate-180")} />
+              <ChevronDown size={12} className={cn("text-muted-foreground transition-transform duration-200", branchDropdownOpen && "rotate-180")} />
             </button>
 
             {branchDropdownOpen && (
-              <div className="absolute right-0 top-full mt-2 w-72 bg-card text-foreground border border-border rounded-2xl p-2 shadow-xl z-50 space-y-1">
-                <div className="p-2 border-b border-border">
-                  <p className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Select Unit / Branch</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{activeCompanyName}</p>
+              <div className="absolute right-0 top-full mt-1.5 w-64 bg-card text-foreground border border-border rounded-md p-1.5 shadow-md z-50 space-y-1">
+                <div className="p-1.5 border-b border-border">
+                  <p className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Select Branch Unit</p>
+                  <p className="text-[11px] text-muted-foreground truncate mt-0.5">{activeCompanyName}</p>
                 </div>
 
-                <div className="max-h-60 overflow-y-auto space-y-1 pt-1 pr-0.5">
+                <div className="max-h-56 overflow-y-auto space-y-0.5 pt-1">
                   {branches.length > 0 ? (
                     branches.map((b) => {
                       const isSelected = selected_branch?.id === b.id;
@@ -291,24 +290,24 @@ export function AppShell({ children }: AppShellProps) {
                             }
                           }}
                           className={cn(
-                            "w-full p-2.5 rounded-xl text-left text-xs font-medium flex items-center justify-between transition-all cursor-pointer border-none bg-transparent",
+                            "w-full p-2 rounded text-left text-xs font-medium flex items-center justify-between transition-colors cursor-pointer border-none bg-transparent",
                             isSelected
-                              ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold"
-                              : "text-foreground hover:bg-muted/70"
+                              ? "bg-primary/10 text-primary font-semibold"
+                              : "text-foreground hover:bg-muted"
                           )}
                         >
                           <div>
-                            <p className="font-bold text-xs">{b.name}</p>
-                            <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                            <p className="font-semibold text-xs">{b.name}</p>
+                            <p className="text-[10px] text-muted-foreground font-mono">
                               {b.code || `BR-${b.id}`}
                             </p>
                           </div>
-                          {isSelected && <Check size={16} className="text-indigo-600 dark:text-indigo-400 shrink-0" />}
+                          {isSelected && <Check size={14} className="text-primary shrink-0" />}
                         </button>
                       );
                     })
                   ) : (
-                    <div className="p-3 text-center text-xs text-muted-foreground">
+                    <div className="p-2 text-center text-xs text-muted-foreground">
                       {activeBranchName}
                     </div>
                   )}
@@ -320,7 +319,7 @@ export function AppShell({ children }: AppShellProps) {
           {/* Quick POS Billing Link */}
           <Link
             to="/pos/transaction/billing"
-            className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-all no-underline cursor-pointer shadow-2xs"
+            className="hidden lg:flex items-center gap-1 px-2.5 py-1 rounded bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-medium transition-colors no-underline cursor-pointer"
           >
             <Receipt size={13} />
             <span>POS Billing</span>
@@ -329,25 +328,24 @@ export function AppShell({ children }: AppShellProps) {
           {/* Theme Toggle Button */}
           <button
             onClick={toggleTheme}
-            className="p-1.5 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-slate-200/80 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-900 cursor-pointer shadow-2xs"
+            className="p-1.5 rounded border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             title="Toggle Light/Dark Theme"
           >
-            {theme === "dark" ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-indigo-600" />}
+            {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
           </button>
 
           {/* Notifications Bell */}
           <div className="relative" ref={notifRef}>
             <button
               onClick={() => setNotificationsOpen(!notificationsOpen)}
-              className="p-1.5 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-slate-200/80 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-900 relative cursor-pointer shadow-2xs"
+              className="p-1.5 rounded border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground transition-colors relative cursor-pointer"
             >
-              <Bell size={15} />
-              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-indigo-500 animate-ping" />
-              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-indigo-600" />
+              <Bell size={14} />
+              <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-primary" />
             </button>
 
             {notificationsOpen && (
-              <div className="absolute right-0 top-full mt-2 w-72 bg-card text-foreground border border-border rounded-lg p-3 shadow-md z-50 space-y-2">
+              <div className="absolute right-0 top-full mt-1.5 w-64 bg-card text-foreground border border-border rounded-md p-2 shadow-md z-50 space-y-1">
                 <div className="flex items-center justify-between border-b border-border pb-2">
                   <span className="font-bold text-xs text-foreground uppercase tracking-wider">
                     System Notifications
@@ -434,33 +432,31 @@ export function AppShell({ children }: AppShellProps) {
         )}
       </div>
 
-      {/* ULTRA-MINIMAL ENTERPRISE IDE-STYLE STATUS BAR FOOTER (Dashboard / Platform Home Only) */}
-      {isHomePage && (
-        <footer className="h-6 px-3 bg-slate-100 text-slate-700 dark:bg-slate-950 dark:text-slate-200 border-t border-slate-200 dark:border-slate-800 text-[10px] font-mono flex items-center justify-between z-40 shrink-0 select-none">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              PostgreSQL Active
-            </span>
-            <span className="text-slate-300 dark:text-slate-700">|</span>
-            <span>Branch: <strong className="text-slate-900 dark:text-slate-100">{activeBranchName}</strong></span>
-            <span className="text-slate-300 dark:text-slate-700">|</span>
-            <span>Tenant: <strong className="text-slate-900 dark:text-slate-100">{displayTenantName}</strong></span>
-          </div>
+      {/* ULTRA-MINIMAL ENTERPRISE IDE-STYLE STATUS BAR FOOTER */}
+      <footer className="h-6 px-3 bg-card text-muted-foreground border-t border-border text-[10px] font-mono flex items-center justify-between z-40 shrink-0 select-none">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            PostgreSQL Active
+          </span>
+          <span className="text-border">|</span>
+          <span>Branch: <strong className="text-foreground font-semibold">{activeBranchName}</strong></span>
+          <span className="text-border">|</span>
+          <span>Tenant: <strong className="text-foreground font-semibold">{displayTenantName}</strong></span>
+        </div>
 
-          <div className="hidden md:flex items-center gap-3">
-            <span className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">v2.0 Enterprise</span>
-            <span className="text-slate-300 dark:text-slate-700">|</span>
-            <span>Connected Apps: <strong className="text-slate-900 dark:text-slate-100">4 Portals (3000-8084)</strong></span>
-          </div>
+        <div className="hidden md:flex items-center gap-3">
+          <span className="text-muted-foreground font-medium uppercase tracking-wider">v2.0 Enterprise</span>
+          <span className="text-border">|</span>
+          <span>Connected Apps: <strong className="text-foreground font-semibold">4 Portals (3000-8084)</strong></span>
+        </div>
 
-          <div className="flex items-center gap-3">
-            <span>User: <strong className="text-slate-900 dark:text-slate-100">{userName}</strong></span>
-            <span className="text-slate-300 dark:text-slate-700">|</span>
-            <span className="text-slate-500 dark:text-slate-400 font-semibold">Ctrl+K Palette</span>
-          </div>
-        </footer>
-      )}
+        <div className="flex items-center gap-3">
+          <span>User: <strong className="text-foreground font-semibold">{userName}</strong></span>
+          <span className="text-border">|</span>
+          <span className="text-muted-foreground font-medium">Ctrl+K Palette</span>
+        </div>
+      </footer>
 
       {/* Confirmation Modal when switching Branch */}
       {showBranchConfirmModal && pendingBranch && (

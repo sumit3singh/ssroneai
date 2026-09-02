@@ -261,9 +261,18 @@ async def provision_superadmin(
     clean_slug = body.tenant_slug.strip().lower()
     clean_email = body.email.strip().lower()
 
-    # 1. Fetch tenant by slug
-    result = await db.execute(select(Tenant).where(Tenant.slug == clean_slug))
-    tenant = result.scalar_one_or_none()
+    # 1. Fetch tenant by slug (with hyphen-resilient fallback and domain fallback)
+    from sqlalchemy import or_
+    slug_variants = [clean_slug, clean_slug.replace("-", ""), clean_slug.replace("_", ""), f"{clean_slug}-cafe"]
+    result = await db.execute(
+        select(Tenant).where(
+            or_(
+                Tenant.slug.in_(slug_variants),
+                Tenant.domain.ilike(f"%{clean_slug}%")
+            )
+        )
+    )
+    tenant = result.scalars().first()
     if not tenant:
         raise HTTPException(status_code=404, detail=f"Tenant '{clean_slug}' not found.")
 
@@ -294,11 +303,25 @@ async def provision_superadmin(
     branch = br_res.scalars().first()
     branch_id = branch.id if branch else None
 
+    # Fetch or create SUPER_ADMIN role
+    role_res = await db.execute(select(Role).where(Role.tenant_id == tenant.id, Role.code == "super_admin"))
+    role = role_res.scalars().first()
+    if not role:
+        role = Role(
+            tenant_id=tenant.id,
+            name="SUPER_ADMIN",
+            code="super_admin",
+            description="Super Admin Role",
+            is_system_role=True,
+            permissions={"*": ["*"]}
+        )
+        db.add(role)
+        await db.flush()
+
     new_user = User(
         tenant_id=tenant.id,
-        company_id=comp_id,
-        branch_id=branch_id,
         email=clean_email,
+        display_name=f"{body.first_name} {body.last_name}".strip(),
         first_name=body.first_name,
         last_name=body.last_name,
         phone=body.phone,
@@ -308,6 +331,17 @@ async def provision_superadmin(
         is_verified=True
     )
     db.add(new_user)
+    await db.flush()
+
+    # Bind UserRole
+    user_role = UserRole(
+        tenant_id=tenant.id,
+        user_id=new_user.id,
+        role_id=role.id,
+        company_id=comp_id,
+        branch_id=branch_id
+    )
+    db.add(user_role)
     await db.commit()
     await db.refresh(new_user)
 

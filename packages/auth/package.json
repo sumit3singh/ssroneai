@@ -6,6 +6,6 @@
   "types": "./src/index.ts",
   "dependencies": {
     "@ssrone/api-client": "workspace:*",
-    "zustand": "^4.5.2"
+    "zustand": "^5.0.0"
   }
 }

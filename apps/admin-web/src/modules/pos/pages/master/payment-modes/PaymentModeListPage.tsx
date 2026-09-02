@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { CreditCard, Plus, Edit2, Trash2, RefreshCw, CheckCircle2, QrCode } from "lucide-react";
-import { Button } from "@ssrone/ui";
+import { Button, PageHeader, PageContainer } from "@ssrone/ui";
 import { api } from "@ssrone/api-client";
 import { toast } from "sonner";
 import { PaymentModeFormDialog, PaymentModeData } from "./PaymentModeFormDialog";
@@ -64,143 +64,132 @@ export const PaymentModeListPage: React.FC = () => {
   const upiCount = modes.filter((m) => m.payment_type === "upi").length;
 
   return (
-    <div className="space-y-4">
-      {/* Top KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-card flex items-center justify-between">
-          <div>
-            <p className="text-3xs uppercase font-bold tracking-wider text-muted-foreground">Total Payment Modes</p>
-            <h4 className="font-display font-black text-xl text-foreground mt-0.5">{modes.length}</h4>
-          </div>
-          <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
-            <CreditCard size={18} />
-          </div>
-        </div>
-
-        <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-card flex items-center justify-between">
-          <div>
-            <p className="text-3xs uppercase font-bold tracking-wider text-muted-foreground">Active Methods</p>
-            <h4 className="font-display font-black text-xl text-emerald-500 mt-0.5">{activeCount} Enabled</h4>
-          </div>
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold">
-            <CheckCircle2 size={18} />
-          </div>
-        </div>
-
-        <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-card flex items-center justify-between">
-          <div>
-            <p className="text-3xs uppercase font-bold tracking-wider text-muted-foreground">Digital / UPI Gateways</p>
-            <h4 className="font-display font-black text-xl text-violet-500 mt-0.5">{upiCount} Gateways</h4>
-          </div>
-          <div className="w-9 h-9 rounded-xl bg-violet-500/10 text-violet-500 flex items-center justify-center font-bold">
-            <QrCode size={18} />
-          </div>
-        </div>
-      </div>
-
-      {/* Main List Container */}
-      <div className="bg-card border border-border rounded-2xl p-5 shadow-card space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border pb-4">
-          <div>
-            <h3 className="font-display font-extrabold text-base text-foreground uppercase tracking-wider flex items-center gap-2">
-              <CreditCard size={18} className="text-primary" />
-              Payment Modes Master ({modes.length})
-            </h3>
-            <p className="text-3xs text-muted-foreground">
-              Configure settlement methods, merchant QR codes, and card gateway integrations
-            </p>
-          </div>
-
+    <PageContainer>
+      {/* Standardized Enterprise Page Header */}
+      <PageHeader
+        title="Payment Modes Master"
+        description="Configure settlement methods, merchant QR codes, and card gateway integrations"
+        icon={<CreditCard size={18} />}
+        badge={`${modes.length} Modes`}
+        actions={
           <div className="flex items-center gap-2">
             <button
               onClick={fetchModes}
               disabled={isLoading}
-              className="p-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground transition-colors"
+              className="p-1.5 rounded border border-border bg-background hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
               title="Refresh Payment Modes"
             >
-              <RefreshCw size={15} className={isLoading ? "animate-spin text-primary" : ""} />
+              <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
             </button>
             <Button
               onClick={() => {
                 setEditingMode(null);
                 setIsDialogOpen(true);
               }}
-              className="bg-primary hover:bg-primary/90 text-white font-bold text-xs px-4 py-2 rounded-xl uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-primary/20"
+              size="sm"
+              className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
             >
-              <Plus size={16} /> + Add Payment Mode
+              <Plus size={14} /> Add Payment Mode
             </Button>
           </div>
+        }
+      />
+
+      {/* Top KPI Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-card border border-border rounded-md p-3.5 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Total Payment Modes</span>
+            <div className="p-1 rounded bg-muted text-muted-foreground"><CreditCard size={15} /></div>
+          </div>
+          <div className="text-xl font-bold font-mono text-foreground">{modes.length}</div>
         </div>
 
-        {/* Empty State */}
-        {modes.length === 0 && (
-          <div className="text-center py-10 border border-dashed border-border rounded-2xl space-y-2">
-            <CreditCard size={32} className="mx-auto text-muted-foreground/50" />
-            <p className="font-bold text-sm text-foreground">No payment modes created yet</p>
-            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-              Click "+ Add Payment Mode" above to create your first settlement method.
-            </p>
+        <div className="bg-card border border-border rounded-md p-3.5 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Active Methods</span>
+            <div className="p-1 rounded bg-muted text-muted-foreground"><CheckCircle2 size={15} /></div>
           </div>
-        )}
+          <div className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">{activeCount} Enabled</div>
+        </div>
 
-        {/* Payment Modes Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
-          {modes.map((m) => (
-            <div
-              key={m.id || m.code}
-              className="bg-card border border-border hover:border-primary/50 rounded-2xl p-4 flex flex-col justify-between h-28 transition-all shadow-card hover:shadow-card-hover group relative"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{m.icon || "💳"}</span>
-                  <div>
-                    <h4 className="font-display font-black text-sm text-foreground group-hover:text-primary transition-colors">
-                      {m.name}
-                    </h4>
-                    <span className="text-[10px] font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md inline-block mt-0.5 uppercase">
-                      {m.code}
-                    </span>
-                  </div>
+        <div className="bg-card border border-border rounded-md p-3.5 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Digital / UPI Gateways</span>
+            <div className="p-1 rounded bg-muted text-muted-foreground"><QrCode size={15} /></div>
+          </div>
+          <div className="text-xl font-bold font-mono text-foreground">{upiCount} Gateways</div>
+        </div>
+      </div>
+
+      {/* Empty State */}
+      {modes.length === 0 && (
+        <div className="text-center py-8 border border-dashed border-border rounded-md space-y-2">
+          <CreditCard size={28} className="mx-auto text-muted-foreground/50" />
+          <p className="font-semibold text-xs text-foreground">No payment modes created yet</p>
+          <p className="text-[11px] text-muted-foreground max-w-xs mx-auto">
+            Click "+ Add Payment Mode" above to create your first settlement method.
+          </p>
+        </div>
+      )}
+
+      {/* Payment Modes Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+        {modes.map((m) => (
+          <div
+            key={m.id || m.code}
+            className="bg-card border border-border hover:border-primary/40 rounded-md p-3 flex flex-col justify-between h-24 transition-colors"
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{m.icon || "💳"}</span>
+                <div>
+                  <h4 className="font-semibold text-xs text-foreground truncate">
+                    {m.name}
+                  </h4>
+                  <span className="text-[9px] font-mono text-muted-foreground bg-muted px-1.5 py-0.2 rounded border border-border inline-block uppercase">
+                    {m.code}
+                  </span>
                 </div>
-                <span
-                  className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase border ${
-                    m.is_active !== false
-                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                      : "bg-rose-500/10 text-rose-600 border-rose-500/20"
-                  }`}
-                >
-                  {m.is_active !== false ? "Active" : "Inactive"}
-                </span>
               </div>
+              <span
+                className={`text-[9px] font-mono px-1.5 py-0.2 rounded border uppercase ${
+                  m.is_active !== false
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                    : "bg-muted text-muted-foreground border-border"
+                }`}
+              >
+                {m.is_active !== false ? "Active" : "Inactive"}
+              </span>
+            </div>
 
-              <div className="flex items-center justify-between text-2xs font-mono text-muted-foreground pt-2 border-t border-border/50">
-                <span className="text-3xs font-bold text-muted-foreground uppercase">
-                  {m.payment_type || "Cash"}
-                </span>
+            <div className="flex items-center justify-between text-xs text-muted-foreground pt-1.5 border-t border-border">
+              <span className="text-[10px] font-mono text-muted-foreground uppercase">
+                {m.payment_type || "Cash"}
+              </span>
 
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => {
-                      setEditingMode(m);
-                      setIsDialogOpen(true);
-                    }}
-                    className="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors"
-                    title="Edit Payment Mode"
-                  >
-                    <Edit2 size={13} />
-                  </button>
-                  <button
-                    onClick={() => m.id && handleDeleteMode(m.id, m.name)}
-                    className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors"
-                    title="Delete Payment Mode"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    setEditingMode(m);
+                    setIsDialogOpen(true);
+                  }}
+                  className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer border-none bg-transparent"
+                  title="Edit Payment Mode"
+                >
+                  <Edit2 size={13} />
+                </button>
+                <button
+                  onClick={() => m.id && handleDeleteMode(m.id, m.name)}
+                  className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted transition-colors cursor-pointer border-none bg-transparent"
+                  title="Delete Payment Mode"
+                >
+                  <Trash2 size={13} />
+                </button>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
 
       {/* Form Dialog */}
@@ -210,6 +199,6 @@ export const PaymentModeListPage: React.FC = () => {
         onSave={handleSaveMode}
         editingMode={editingMode}
       />
-    </div>
+    </PageContainer>
   );
 };

@@ -4,7 +4,7 @@ import {
   Hotel, Search, Bed, X, ClipboardList, ShieldAlert, Users, 
   Calendar, CheckSquare, BarChart3, TrendingUp, DollarSign, ArrowRight, Trash2, Plus, RefreshCw, Save
 } from "lucide-react";
-import { Button } from "@ssrone/ui";
+import { Button, PageHeader, PageContainer } from "@ssrone/ui";
 import { Input } from "@ssrone/ui";
 import { Badge } from "@ssrone/ui";
 import { cn } from "@/shared/utils/cn";
@@ -24,13 +24,13 @@ interface Room {
   check_out?: string;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  available: { label: "Available", color: "#10B981", bg: "#10B98112" },
-  occupied: { label: "Occupied", color: "#8B5CF6", bg: "#8B5CF612" },
-  checked_out: { label: "Checked Out", color: "#6B7280", bg: "#6B728012" },
-  maintenance: { label: "Maintenance", color: "#EF4444", bg: "#EF444412" },
-  cleaning: { label: "Cleaning", color: "#3B82F6", bg: "#3B82F612" },
-  blocked: { label: "Blocked", color: "#F59E0B", bg: "#F59E0B12" }
+const STATUS_CONFIG: Record<string, { label: string; badge: string }> = {
+  available: { label: "Available", badge: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" },
+  occupied: { label: "Occupied", badge: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20" },
+  checked_out: { label: "Checked Out", badge: "bg-muted text-muted-foreground border-border" },
+  maintenance: { label: "Maintenance", badge: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20" },
+  cleaning: { label: "Cleaning", badge: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" },
+  blocked: { label: "Blocked", badge: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" }
 };
 
 export function HotelPage() {
@@ -109,81 +109,75 @@ export function HotelPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Header & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-6 rounded-3xl border border-border shadow-card">
-        <div className="space-y-1">
+    <PageContainer>
+      {/* Standardized Enterprise Page Header */}
+      <PageHeader
+        title="Hotel & Room PMS Master Workspace"
+        description="Room inventory, live occupancy grid, tariff plans, and guest check-ins"
+        icon={<Hotel size={18} />}
+        badge={`${rooms.length} Rooms`}
+        actions={
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600">
-              <Hotel size={20} />
-            </div>
-            <h1 className="font-display font-black text-xl text-foreground uppercase tracking-wider">
-              Hotel & Room PMS Master Workspace
-            </h1>
+            <button
+              onClick={fetchRooms}
+              className="p-1.5 rounded border border-border bg-background hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
+              title="Refresh Room Inventory"
+            >
+              <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+            </button>
+
+            <Button
+              onClick={() => setShowAddModal(true)}
+              size="sm"
+              className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Plus size={14} /> Add Room Master
+            </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Room inventory, live occupancy grid, tariff plans, and guest check-ins
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={fetchRooms}
-            className="p-2.5 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground"
-          >
-            <RefreshCw size={15} className={isLoading ? "animate-spin" : ""} />
-          </button>
-
-          <Button
-            onClick={() => setShowAddModal(true)}
-            className="font-extrabold flex items-center gap-2"
-          >
-            <Plus size={16} />
-            <span>Add Room Master</span>
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Realtime Room Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-card border border-border p-5 rounded-2xl shadow-xs space-y-1">
-          <span className="text-3xs font-extrabold text-muted-foreground uppercase tracking-wider block">Total Rooms</span>
-          <span className="font-mono font-black text-xl text-foreground">{rooms.length} Rooms</span>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="bg-card border border-border p-3.5 rounded-md space-y-1">
+          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">Total Rooms</span>
+          <span className="font-mono font-bold text-xl text-foreground">{rooms.length} Rooms</span>
         </div>
 
-        <div className="bg-card border border-border p-5 rounded-2xl shadow-xs space-y-1">
-          <span className="text-3xs font-extrabold text-muted-foreground uppercase tracking-wider block">Vacant & Ready</span>
-          <span className="font-mono font-black text-xl text-emerald-500">{availableCount} Available</span>
+        <div className="bg-card border border-border p-3.5 rounded-md space-y-1">
+          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">Vacant & Ready</span>
+          <span className="font-mono font-bold text-xl text-emerald-600 dark:text-emerald-400">{availableCount} Available</span>
         </div>
 
-        <div className="bg-card border border-border p-5 rounded-2xl shadow-xs space-y-1">
-          <span className="text-3xs font-extrabold text-muted-foreground uppercase tracking-wider block">Currently Occupied</span>
-          <span className="font-mono font-black text-xl text-purple-500">{occupiedCount} Occupied</span>
+        <div className="bg-card border border-border p-3.5 rounded-md space-y-1">
+          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">Currently Occupied</span>
+          <span className="font-mono font-bold text-xl text-foreground">{occupiedCount} Occupied</span>
         </div>
       </div>
 
       {/* Search & Category Filter Toolbar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="relative w-full sm:w-72">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card border border-border rounded-md p-3">
+        <div className="relative w-full sm:w-64">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search room number or guest..."
-            className="w-full bg-card border border-border rounded-xl pl-9 pr-4 py-2 text-xs font-bold text-foreground focus:ring-1 focus:ring-primary focus:outline-none"
+            className="w-full pl-8 pr-2.5 py-1 text-xs font-medium bg-background border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto">
+        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 scrollbar-none text-xs">
           {["All", "Standard", "Deluxe", "Executive Suite", "Presidential Suite"].map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={cn(
-                "px-3 py-1.5 rounded-xl text-2xs font-extrabold border transition-all shrink-0 uppercase",
-                activeCategory === cat ? "bg-primary text-white border-primary" : "bg-card border-border text-muted-foreground"
-              )}
+              className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors cursor-pointer shrink-0 ${
+                activeCategory === cat
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+              }`}
             >
               {cat}
             </button>
@@ -192,79 +186,82 @@ export function HotelPage() {
       </div>
 
       {/* Room Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {filtered.map((room) => {
-          const cfg = STATUS_CONFIG[room.status] || STATUS_CONFIG.available;
-          return (
-            <div key={room.id} className="bg-card border border-border rounded-3xl p-5 space-y-3 shadow-card hover:border-primary/40 transition-colors">
-              <div className="flex items-center justify-between">
-                <span className="font-mono font-black text-lg text-foreground">Room {room.room_number}</span>
-                <span
-                  className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full"
-                  style={{ backgroundColor: cfg.bg, color: cfg.color }}
-                >
-                  {cfg.label}
-                </span>
-              </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        {filtered.length === 0 ? (
+          <div className="col-span-full py-12 text-center border border-dashed border-border rounded-md bg-muted/20 text-muted-foreground font-medium text-xs">
+            No rooms found matching search criteria.
+          </div>
+        ) : (
+          filtered.map((room) => {
+            const cfg = STATUS_CONFIG[room.status] || STATUS_CONFIG.available;
+            return (
+              <div key={room.id} className="bg-card border border-border rounded-md p-4 space-y-2.5 hover:border-primary/40 transition-colors shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono font-bold text-base text-foreground">Room {room.room_number}</span>
+                  <span className={`text-[10px] font-mono font-medium px-1.5 py-0.2 rounded border uppercase ${cfg.badge}`}>
+                    {cfg.label}
+                  </span>
+                </div>
 
-              <div className="space-y-1 text-xs text-muted-foreground font-bold border-t border-b border-border/60 py-2">
-                <p className="text-foreground font-black">{room.type}</p>
-                <p>{room.floor || "1st Floor"}</p>
-                {room.guest && <p className="text-purple-600 font-extrabold">Guest: {room.guest}</p>}
-              </div>
+                <div className="space-y-0.5 text-xs text-muted-foreground border-t border-b border-border py-2">
+                  <p className="text-foreground font-semibold">{room.type}</p>
+                  <p className="text-[11px]">{room.floor || "1st Floor"}</p>
+                  {room.guest && <p className="text-primary font-medium text-[11px]">Guest: {room.guest}</p>}
+                </div>
 
-              <div className="flex items-center justify-between pt-1 font-mono font-black text-xs">
-                <span className="text-muted-foreground">Tariff Rate</span>
-                <span className="text-emerald-500">{formatCurrency(room.rate)} / night</span>
+                <div className="flex items-center justify-between pt-0.5 font-mono text-xs">
+                  <span className="text-muted-foreground text-[11px]">Tariff Rate</span>
+                  <span className="text-foreground font-bold">{formatCurrency(room.rate)} / night</span>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
 
       {/* Add Room Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-3xl w-full max-w-md p-6 space-y-4 shadow-modal">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-display font-black text-base text-foreground uppercase">Add Room Master</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-muted-foreground hover:text-foreground">
-                <X size={18} />
+          <div className="bg-card border border-border rounded-md w-full max-w-md p-5 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between border-b border-border pb-2.5">
+              <h3 className="font-semibold text-xs text-foreground uppercase tracking-wider">Add Room Master</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-muted-foreground hover:text-foreground cursor-pointer">
+                <X size={16} />
               </button>
             </div>
 
-            <form onSubmit={handleAddSubmit} className="space-y-3 text-xs font-bold">
+            <form onSubmit={handleAddSubmit} className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-muted-foreground mb-1">Room Number *</label>
+                  <label className="block text-muted-foreground font-medium mb-1">Room Number *</label>
                   <input
                     type="text"
                     required
                     value={newRoom.room_number}
                     onChange={(e) => setNewRoom({ ...newRoom, room_number: e.target.value })}
                     placeholder="e.g. 104"
-                    className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-foreground font-mono focus:ring-1 focus:ring-primary focus:outline-none"
+                    className="w-full bg-background border border-border rounded px-3 py-1.5 text-foreground font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
                 <div>
-                  <label className="block text-muted-foreground mb-1">Floor</label>
+                  <label className="block text-muted-foreground font-medium mb-1">Floor</label>
                   <input
                     type="text"
                     value={newRoom.floor}
                     onChange={(e) => setNewRoom({ ...newRoom, floor: e.target.value })}
                     placeholder="1st Floor"
-                    className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-foreground focus:ring-1 focus:ring-primary focus:outline-none"
+                    className="w-full bg-background border border-border rounded px-3 py-1.5 text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-muted-foreground mb-1">Room Category</label>
+                  <label className="block text-muted-foreground font-medium mb-1">Room Category</label>
                   <select
                     value={newRoom.type}
                     onChange={(e) => setNewRoom({ ...newRoom, type: e.target.value })}
-                    className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-foreground focus:ring-1 focus:ring-primary focus:outline-none font-bold"
+                    className="w-full bg-background border border-border rounded px-2.5 py-1.5 text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary font-medium"
                   >
                     <option value="Standard">Standard</option>
                     <option value="Deluxe">Deluxe</option>
@@ -273,21 +270,21 @@ export function HotelPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-muted-foreground mb-1">Tariff Rate (₹)</label>
+                  <label className="block text-muted-foreground font-medium mb-1">Tariff Rate (₹)</label>
                   <input
                     type="number"
                     value={newRoom.rate}
                     onChange={(e) => setNewRoom({ ...newRoom, rate: Number(e.target.value) })}
-                    className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-foreground font-mono focus:ring-1 focus:ring-primary focus:outline-none"
+                    className="w-full bg-background border border-border rounded px-3 py-1.5 text-foreground font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
               </div>
 
               <div className="pt-3 border-t border-border flex items-center justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setShowAddModal(false)}>
+                <Button type="button" variant="outline" size="sm" onClick={() => setShowAddModal(false)} className="text-xs">
                   Cancel
                 </Button>
-                <Button type="submit" className="font-extrabold flex items-center gap-1.5">
+                <Button type="submit" size="sm" className="text-xs font-semibold gap-1.5">
                   <Save size={14} />
                   <span>Save Room</span>
                 </Button>
@@ -296,6 +293,6 @@ export function HotelPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

@@ -31,26 +31,26 @@ export const CashierSettlementReport: React.FC<CashierSettlementReportProps> = (
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-extrabold text-sm text-foreground uppercase tracking-wider">
+        <h3 className="font-semibold text-xs text-foreground uppercase tracking-wider">
           Cashier & Payment Mode Settlement Report
         </h3>
-        <Button size="sm" variant="outline" className="font-bold text-xs gap-1" onClick={() => window.print()}>
+        <Button size="sm" variant="outline" className="text-xs font-semibold gap-1.5 cursor-pointer" onClick={() => window.print()}>
           <Printer size={13} /> Print Settlement
         </Button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-muted/30 border border-border p-3 rounded-xl">
-          <span className="text-3xs uppercase font-bold text-muted-foreground block">Cash Collected</span>
-          <span className="font-mono font-black text-base text-foreground">₹{cashSales.toFixed(2)}</span>
+        <div className="bg-card border border-border p-3.5 rounded-md space-y-1">
+          <span className="text-[11px] uppercase font-semibold text-muted-foreground block">Cash Collected</span>
+          <span className="font-mono font-bold text-lg text-foreground">₹{cashSales.toFixed(2)}</span>
         </div>
-        <div className="bg-muted/30 border border-border p-3 rounded-xl">
-          <span className="text-3xs uppercase font-bold text-muted-foreground block">UPI / QR Realization</span>
-          <span className="font-mono font-black text-base text-blue-600 dark:text-blue-400">₹{upiSales.toFixed(2)}</span>
+        <div className="bg-card border border-border p-3.5 rounded-md space-y-1">
+          <span className="text-[11px] uppercase font-semibold text-muted-foreground block">UPI / QR Realization</span>
+          <span className="font-mono font-bold text-lg text-foreground">₹{upiSales.toFixed(2)}</span>
         </div>
-        <div className="bg-muted/30 border border-border p-3 rounded-xl">
-          <span className="text-3xs uppercase font-bold text-muted-foreground block">Card Realization</span>
-          <span className="font-mono font-black text-base text-purple-600 dark:text-purple-400">₹{cardSales.toFixed(2)}</span>
+        <div className="bg-card border border-border p-3.5 rounded-md space-y-1">
+          <span className="text-[11px] uppercase font-semibold text-muted-foreground block">Card Realization</span>
+          <span className="font-mono font-bold text-lg text-foreground">₹{cardSales.toFixed(2)}</span>
         </div>
       </div>
     </div>

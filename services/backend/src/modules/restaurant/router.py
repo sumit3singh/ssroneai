@@ -229,11 +229,7 @@ async def list_waiters(
             )
             for u in users
         ]
-    return [
-        WaiterResponse(id=1, name="Suman Lata", code="W1", is_active=True),
-        WaiterResponse(id=2, name="Vijay Singh", code="W2", is_active=True),
-        WaiterResponse(id=3, name="Ramesh Kumar", code="W3", is_active=True),
-    ]
+    return []
 
 
 @router.patch("/tables/{table_id}/status")
@@ -388,43 +384,27 @@ async def list_kitchen_stations(
     current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[KitchenStationResponseSchema]:
-    tenant_id = current_user.tenant_id if current_user else 1
-    parsed_branch_id = await _resolve_branch_id(branch_id, current_user, db) or 1
+    try:
+        tenant_id = current_user.tenant_id if current_user else 1
+        parsed_branch_id = await _resolve_branch_id(branch_id, current_user, db) or 1
 
-    query = select(KDSStation).where(
-        KDSStation.tenant_id == tenant_id,
-        (KDSStation.branch_id == parsed_branch_id) | (KDSStation.branch_id.is_(None))
-    )
-    result = await db.execute(query)
-    stations = result.scalars().all()
+        query = select(KDSStation).where(
+            (KDSStation.tenant_id == tenant_id) | (KDSStation.tenant_id.is_(None)),
+            (KDSStation.branch_id == parsed_branch_id) | (KDSStation.branch_id.is_(None))
+        )
+        result = await db.execute(query)
+        stations = result.scalars().all()
 
-    # If no kitchen stations exist for tenant, seed default stations into PostgreSQL DB automatically
-    if not stations:
-        defaults = [
-            {"name": "Main Kitchen", "code": "MAIN", "printer_name": "192.168.1.101", "station_type": "main", "sort_order": 1},
-            {"name": "Chinese & Tandoor", "code": "CHINESE", "printer_name": "192.168.1.102", "station_type": "chinese", "sort_order": 2},
-            {"name": "Beverages & Bar", "code": "BAR", "printer_name": "192.168.1.103", "station_type": "bar", "sort_order": 3},
-            {"name": "Bakery & Desserts", "code": "BAKERY", "printer_name": "192.168.1.104", "station_type": "bakery", "sort_order": 4},
-        ]
-        created_list = []
-        for d in defaults:
-            st = KDSStation(
-                tenant_id=tenant_id,
-                branch_id=parsed_branch_id,
-                name=d["name"],
-                code=d["code"],
-                printer_name=d["printer_name"],
-                station_type=d["station_type"],
-                sort_order=d["sort_order"],
-                is_active=True,
-                categories=[]
-            )
-            db.add(st)
-            created_list.append(st)
-        await db.commit()
-        return [KitchenStationResponseSchema.model_validate(s) for s in created_list]
-
-    return [KitchenStationResponseSchema.model_validate(s) for s in stations]
+        res_items = []
+        for s in stations:
+            try:
+                res_items.append(KitchenStationResponseSchema.model_validate(s))
+            except Exception as val_err:
+                logger.error("Skipping kitchen station schema validation", station_id=getattr(s, "id", None), error=str(val_err))
+        return res_items
+    except Exception as err:
+        logger.error("Failed to list kitchen stations from database", error=str(err))
+        return []
 
 
 @router.post("/kitchen-stations", response_model=KitchenStationResponseSchema, status_code=201)
@@ -537,31 +517,6 @@ async def list_payment_modes(
     ).order_by(PaymentMode.sort_order)
     result = await db.execute(query)
     modes = result.scalars().all()
-
-    # If no payment modes exist for tenant in DB, seed default payment modes automatically
-    if not modes:
-        defaults = [
-            {"name": "Cash Payment", "code": "CASH", "icon": "💵", "payment_type": "cash", "sort_order": 1},
-            {"name": "UPI / PhonePe / Paytm", "code": "UPI", "icon": "📱", "payment_type": "upi", "sort_order": 2},
-            {"name": "Credit / Debit Card", "code": "CARD", "icon": "💳", "payment_type": "card", "sort_order": 3},
-            {"name": "Pay Later / Customer Credit", "code": "DUE", "icon": "📋", "payment_type": "credit", "sort_order": 4},
-        ]
-        created_list = []
-        for d in defaults:
-            pm = PaymentMode(
-                tenant_id=tenant_id,
-                branch_id=parsed_branch_id,
-                name=d["name"],
-                code=d["code"],
-                icon=d["icon"],
-                payment_type=d["payment_type"],
-                sort_order=d["sort_order"],
-                is_active=True,
-            )
-            db.add(pm)
-            created_list.append(pm)
-        await db.commit()
-        return [PaymentModeResponseSchema.model_validate(m) for m in created_list]
 
     return [PaymentModeResponseSchema.model_validate(m) for m in modes]
 
@@ -1268,54 +1223,6 @@ async def list_menu_items(
         result = await db.execute(query)
         items = result.scalars().all()
 
-        # If zero menu items exist in PostgreSQL for branch, auto-seed premium menu items
-        if len(items) == 0:
-            target_b = parsed_branch_id or 1
-            t_id = tenant_id or 1
-
-            # Ensure categories exist
-            cat_res = await db.execute(select(MenuCategory).where(MenuCategory.is_deleted == False))
-            existing_cats = cat_res.scalars().all()
-            if not existing_cats:
-                default_cats = [
-                    MenuCategory(tenant_id=t_id, branch_id=target_b, name="Special Chai & Tea", icon="☕", slug="special-chai-tea", sort_order=1),
-                    MenuCategory(tenant_id=t_id, branch_id=target_b, name="Artisanal Coffee", icon="☕", slug="artisanal-coffee", sort_order=2),
-                    MenuCategory(tenant_id=t_id, branch_id=target_b, name="Quick Bites & Snacks", icon="🥪", slug="quick-bites-snacks", sort_order=3),
-                    MenuCategory(tenant_id=t_id, branch_id=target_b, name="Baithak Special Burgers", icon="🍔", slug="baithak-special-burgers", sort_order=4),
-                    MenuCategory(tenant_id=t_id, branch_id=target_b, name="Woodfired Pizzas", icon="🍕", slug="woodfired-pizzas", sort_order=5),
-                ]
-                for dc in default_cats:
-                    db.add(dc)
-                await db.commit()
-                cat_res = await db.execute(select(MenuCategory).where(MenuCategory.is_deleted == False))
-                existing_cats = cat_res.scalars().all()
-
-            cat_map = {c.name.lower(): c.id for c in existing_cats}
-            cat1 = existing_cats[0].id if existing_cats else 1
-            cat2 = existing_cats[1].id if len(existing_cats) > 1 else cat1
-            cat3 = existing_cats[2].id if len(existing_cats) > 2 else cat1
-            cat4 = existing_cats[3].id if len(existing_cats) > 3 else cat1
-            cat5 = existing_cats[4].id if len(existing_cats) > 4 else cat1
-
-            seed_dishes = [
-                MenuItem(tenant_id=t_id, branch_id=target_b, category_id=cat1, name="Kulhad Masala Chai", description="Authentic spiced Assam tea served in traditional clay kulhad", price=40.0, is_veg=True, is_popular=True, image_url="https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=400", sort_order=1),
-                MenuItem(tenant_id=t_id, branch_id=target_b, category_id=cat1, name="Ginger Cardamom Tea", description="Fresh ginger infused black tea brewed with crushed cardamom", price=35.0, is_veg=True, image_url="https://images.unsplash.com/photo-1597481499750-3e6b22637e12?w=400", sort_order=2),
-                MenuItem(tenant_id=t_id, branch_id=target_b, category_id=cat2, name="Classic Cold Coffee", description="Rich espresso blended with chilled milk and chocolate drizzle", price=120.0, is_veg=True, is_popular=True, image_url="https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=400", sort_order=3),
-                MenuItem(tenant_id=t_id, branch_id=target_b, category_id=cat2, name="Hazelnut Cold Coffee", description="Creamy espresso shake flavored with roasted hazelnut syrup", price=150.0, is_veg=True, image_url="https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400", sort_order=4),
-                MenuItem(tenant_id=t_id, branch_id=target_b, category_id=cat3, name="Paneer Tikka Sandwich", description="Grilled sourdough stuffed with spiced cottage cheese & mint chutney", price=160.0, is_veg=True, is_popular=True, image_url="https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=400", sort_order=5),
-                MenuItem(tenant_id=t_id, branch_id=target_b, category_id=cat3, name="Crispy Cheese Fries", description="Golden peri-peri fries smothered in melted cheddar cheese", price=130.0, is_veg=True, image_url="https://images.unsplash.com/photo-1576107232684-1279f390859f?w=400", sort_order=6),
-                MenuItem(tenant_id=t_id, branch_id=target_b, category_id=cat4, name="Classic Veg Supreme Burger", description="Crispy potato-corn patty with cheese slice & special house sauce", price=150.0, is_veg=True, is_popular=True, image_url="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400", sort_order=7),
-                MenuItem(tenant_id=t_id, branch_id=target_b, category_id=cat4, name="Spicy Paneer Crunch Burger", description="Crispy fried paneer patty loaded with spicy harissa mayo", price=190.0, is_veg=True, image_url="https://images.unsplash.com/photo-1550547660-d9450f859349?w=400", sort_order=8),
-                MenuItem(tenant_id=t_id, branch_id=target_b, category_id=cat5, name="Margherita Pizza 9\"", description="Classic San Marzano tomato sauce, fresh mozzarella & basil leaves", price=240.0, is_veg=True, is_popular=True, image_url="https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400", sort_order=9),
-                MenuItem(tenant_id=t_id, branch_id=target_b, category_id=cat5, name="Farmhouse Veggie Overload 9\"", description="Loaded with capsicum, onion, mushroom, babycorn & extra cheese", price=320.0, is_veg=True, image_url="https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?w=400", sort_order=10),
-            ]
-            for sd in seed_dishes:
-                db.add(sd)
-            await db.commit()
-
-            result = await db.execute(query)
-            items = result.scalars().all()
-        
         response_items = []
         for item in items:
             try:
@@ -1686,57 +1593,7 @@ async def get_current_shift(
     shift = res.scalar_one_or_none()
 
     if not shift:
-        # Auto-seed initial open shift for demo
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc)
-        shift_num = f"SH-{now.strftime('%Y%m%d')}-001"
-        shift = PosShift(
-            tenant_id=tenant_id,
-            branch_id=branch_id or 1,
-            shift_number=shift_num,
-            cashier_name="Baithak Admin",
-            status="open",
-            opening_cash=2000.0,
-            expected_cash=7280.0,
-            cash_sales=5480.0,
-            upi_sales=8920.0,
-            card_sales=3150.0,
-            total_sales=17550.0,
-            pay_ins=500.0,
-            pay_outs=200.0,
-            opened_at=now,
-        )
-        db.add(shift)
-        await db.flush()
-
-        # Seed initial transactions
-        t1 = PosShiftTransaction(
-            tenant_id=tenant_id,
-            shift_id=shift.id,
-            type="OPENING",
-            amount=2000.0,
-            reason="Opening Float",
-            performed_by="Baithak Admin"
-        )
-        t2 = PosShiftTransaction(
-            tenant_id=tenant_id,
-            shift_id=shift.id,
-            type="PAY_IN",
-            amount=500.0,
-            reason="Petty cash top-up for change float",
-            performed_by="Baithak Admin"
-        )
-        t3 = PosShiftTransaction(
-            tenant_id=tenant_id,
-            shift_id=shift.id,
-            type="PAY_OUT",
-            amount=200.0,
-            reason="Vendor cash payout for milk delivery",
-            performed_by="Baithak Admin"
-        )
-        db.add_all([t1, t2, t3])
-        await db.commit()
-        await db.refresh(shift, ["transactions"])
+        raise HTTPException(status_code=404, detail="No active POS shift currently open for this branch.")
 
     return PosShiftResponseSchema.model_validate(shift)
 

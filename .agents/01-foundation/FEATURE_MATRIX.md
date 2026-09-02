@@ -1,6 +1,6 @@
 # Feature Matrix & Licensing Tiers
 
-> **Last Reviewed**: August 2026
+> **Last Reviewed**: September 2026
 
 This document maps feature availability across subscription tiers for **The ssrone Platform**.
 

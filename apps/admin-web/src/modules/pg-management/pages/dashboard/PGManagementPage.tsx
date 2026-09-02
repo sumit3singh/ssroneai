@@ -13,6 +13,9 @@ import { PGSettingsSection } from "../settings/PGSettingsSection";
 
 import { pgApi, PGDashboardKPIs } from "../../api/pg.api";
 
+import { PageHeader, PageContainer } from "@ssrone/ui";
+import { Home } from "lucide-react";
+
 export function PGManagementPage() {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
@@ -97,7 +100,14 @@ export function PGManagementPage() {
   const activeSection = getActiveSection();
 
   return (
-    <div className="p-6 space-y-6 bg-slate-50 dark:bg-slate-950 min-h-screen">
+    <PageContainer>
+      {/* Standardized Enterprise Page Header */}
+      <PageHeader
+        title="PG & Hostels Workspace"
+        description="Hostel occupancy, tenant onboarding, rent collection, and agreement lifecycle"
+        icon={<Home size={18} />}
+        badge="PG & Hostel Management"
+      />
       {/* Active Section Rendering */}
       {activeSection === "dashboard" && (
         <PGDashboardPage
@@ -298,7 +308,7 @@ export function PGManagementPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }
 

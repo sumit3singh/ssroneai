@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { FolderPlus, Search, Utensils, Edit2, Power, CheckCircle2, Sparkles } from "lucide-react";
-import { Button, Input } from "@ssrone/ui";
+import { Button, Input, PageHeader, PageContainer } from "@ssrone/ui";
 import { POSCategory } from "../../../types";
 
 interface CategoryListPageProps {
@@ -28,63 +28,54 @@ export const CategoryListPage: React.FC<CategoryListPageProps> = ({
   );
 
   return (
-    <div className="backdrop-blur-xl bg-white/75 dark:bg-slate-900/75 border border-slate-200/80 dark:border-slate-800/80 rounded-3xl p-6 shadow-xl shadow-slate-200/40 dark:shadow-slate-950/60 space-y-4">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-200/80 dark:border-slate-800/80 pb-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
-            <Utensils size={22} />
-          </div>
-          <div>
-            <h3 className="font-display font-extrabold text-base md:text-lg text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-              Menu Categories Master ({categories.length})
-            </h3>
-            <p className="text-xs text-slate-400 font-medium">
-              Architectural #1 Master: Configure dish categories, sort order, and icons before menu items
-            </p>
-          </div>
-        </div>
-
-        <Button
-          onClick={onOpenCreate}
-          variant="primary"
-          size="md"
-          className="text-xs uppercase tracking-wider gap-1.5 cursor-pointer shadow-lg shadow-indigo-500/25"
-        >
-          <FolderPlus size={16} /> Add New Category
-        </Button>
-      </div>
+    <PageContainer>
+      {/* Standardized Enterprise Page Header */}
+      <PageHeader
+        title="Menu Categories Master"
+        description="Configure dish categories, sort order, and display icons"
+        icon={<FolderPlus size={18} />}
+        badge={`${categories.length} Categories`}
+        actions={
+          <Button
+            onClick={onOpenCreate}
+            size="sm"
+            className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
+          >
+            <FolderPlus size={14} /> Add New Category
+          </Button>
+        }
+      />
 
       {/* Search Toolbar */}
-      <div className="relative max-w-md">
+      <div className="relative max-w-sm">
         <Input
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Search category name..."
-          icon={<Search size={16} />}
-          className="h-10 text-xs md:text-sm font-bold"
+          icon={<Search size={14} />}
+          className="h-9 text-xs"
         />
       </div>
 
       {/* Categories Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="h-24 bg-slate-200/60 dark:bg-slate-800/60 animate-pulse rounded-2xl" />
+            <div key={i} className="h-20 bg-muted animate-pulse rounded-md" />
           ))}
         </div>
       ) : filteredCategories.length === 0 ? (
-        <div className="p-12 text-center border border-dashed border-slate-300 dark:border-slate-800 rounded-3xl space-y-4">
-          <div className="p-3 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 inline-block">
-            <Utensils size={32} />
+        <div className="p-8 text-center border border-dashed border-border rounded-md space-y-3">
+          <div className="p-2.5 rounded-md bg-muted text-muted-foreground inline-block">
+            <Utensils size={24} />
           </div>
           <div>
-            <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">No Categories in PostgreSQL Database</h4>
-            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto font-medium">Create your first dish category manually or seed standard menu categories with 1 click.</p>
+            <h4 className="font-semibold text-xs text-foreground">No Categories Found</h4>
+            <p className="text-[11px] text-muted-foreground mt-0.5 max-w-xs mx-auto">Create your first dish category manually or seed standard menu categories with 1 click.</p>
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-            <Button onClick={onOpenCreate} size="sm" variant="primary" className="gap-1.5">
-              <FolderPlus size={14} /> Create Category
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+            <Button onClick={onOpenCreate} size="sm" className="gap-1.5 text-xs">
+              <FolderPlus size={13} /> Create Category
             </Button>
             {onCreateCategory && (
               <Button
@@ -109,59 +100,59 @@ export const CategoryListPage: React.FC<CategoryListPageProps> = ({
                 disabled={isSeeding}
                 size="sm"
                 variant="outline"
-                className="gap-1.5"
+                className="gap-1.5 text-xs"
               >
-                <Sparkles size={14} /> {isSeeding ? "Seeding to Database..." : "Seed Default Categories into DB"}
+                <Sparkles size={13} /> {isSeeding ? "Seeding..." : "Seed Default Categories"}
               </Button>
             )}
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           {filteredCategories.map((cat) => (
             <div
               key={cat.id}
-              className="group backdrop-blur-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-4 flex items-center justify-between hover:border-indigo-500/50 shadow-xs hover:shadow-xl transition-all duration-300"
+              className="bg-card border border-border rounded-md p-3 flex items-center justify-between hover:border-primary/40 transition-colors"
             >
-              <div className="flex items-center gap-3">
-                <span className="text-xl p-2.5 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="text-lg p-2 rounded bg-muted/60 text-foreground shrink-0 border border-border">
                   {cat.icon || "🍛"}
                 </span>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-extrabold text-sm text-slate-900 dark:text-white leading-tight">{cat.name}</h4>
-                    <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                      <CheckCircle2 size={10} /> Active
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="font-semibold text-xs text-foreground truncate">{cat.name}</h4>
+                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
+                      Active
                     </span>
                   </div>
-                  <span className="text-[10px] text-slate-400 font-mono">slug: {cat.slug || cat.name.toLowerCase()}</span>
+                  <p className="text-[10px] text-muted-foreground font-mono truncate">slug: {cat.slug || cat.name.toLowerCase()}</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => onOpenEdit(cat)}
                   title="Edit Category"
-                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors border-none bg-transparent cursor-pointer"
+                  className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border-none bg-transparent cursor-pointer"
                 >
-                  <Edit2 size={15} />
+                  <Edit2 size={14} />
                 </button>
                 <button
                   onClick={() => {
-                    if (confirm(`Deactivate/Close Category "${cat.name}"? (Soft status update in database)`)) {
+                    if (confirm(`Deactivate/Close Category "${cat.name}"?`)) {
                       onDelete(cat.id);
                     }
                   }}
-                  title="Close / Deactivate Category"
-                  className="p-2 hover:bg-amber-500/10 rounded-xl text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors border-none bg-transparent cursor-pointer"
+                  title="Deactivate Category"
+                  className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted transition-colors border-none bg-transparent cursor-pointer"
                 >
-                  <Power size={15} />
+                  <Power size={14} />
                 </button>
               </div>
             </div>
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 };

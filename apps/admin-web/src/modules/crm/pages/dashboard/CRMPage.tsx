@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { Users, Database, Receipt, BarChart3, Plus, RefreshCw, Award, HeartHandshake } from "lucide-react";
-import { Button } from "@ssrone/ui";
+import { Button, PageHeader, PageContainer } from "@ssrone/ui";
 import { toast } from "sonner";
 import { api } from "@ssrone/api-client";
 import { CRMMasterSection } from "../master/CRMMasterSection";
@@ -28,9 +28,13 @@ export function CRMPage() {
 
   // Sync active section from router path if present
   useEffect(() => {
-    if (currentPath.includes("/master")) setActiveTab("master");
-    else if (currentPath.includes("/transaction")) setActiveTab("transaction");
-    else if (currentPath.includes("/report")) setActiveTab("report");
+    if (currentPath.includes("/master") || currentPath.includes("/customers") || currentPath.includes("/tiers")) {
+      setActiveTab("master");
+    } else if (currentPath.includes("/transaction") || currentPath.includes("/points") || currentPath.includes("/interactions")) {
+      setActiveTab("transaction");
+    } else if (currentPath.includes("/report") || currentPath.includes("/ledger") || currentPath.includes("/tier-distribution")) {
+      setActiveTab("report");
+    }
   }, [currentPath]);
 
   // Fetch customers directly from PostgreSQL API
@@ -74,7 +78,7 @@ export function CRMPage() {
         email: newCustomer.email || null,
         city: newCustomer.city || null,
       });
-      toast.success(`Guest ${newCustomer.first_name} saved to PostgreSQL!`);
+      toast.success(`Guest ${newCustomer.first_name} saved successfully!`);
       setShowAddModal(false);
       setNewCustomer({ first_name: "", last_name: "", phone: "", email: "", city: "" });
       fetchCustomers();
@@ -84,77 +88,33 @@ export function CRMPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-        <div className="space-y-1">
+    <PageContainer>
+      {/* Standardized Enterprise Page Header */}
+      <PageHeader
+        title="CRM & Guest Loyalty Workspace"
+        description="Single source of truth for guest master profiles, loyalty points, and feedback"
+        icon={<HeartHandshake size={18} />}
+        badge={`${customers.length} Guests`}
+        actions={
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-pink-500/10 text-pink-600">
-              <HeartHandshake className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="font-bold text-xl text-slate-900 dark:text-white flex items-center gap-2">
-                CRM & Guest Loyalty Workspace
-              </h1>
-              <p className="text-xs text-slate-500">
-                PostgreSQL database single source of truth for guest master profiles, loyalty points, and feedback.
-              </p>
-            </div>
+            <button
+              onClick={fetchCustomers}
+              className="p-1.5 rounded border border-border bg-background hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
+              title="Refresh Guest Database"
+            >
+              <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+            </button>
+
+            <Button
+              onClick={() => setShowAddModal(true)}
+              size="sm"
+              className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Plus size={14} /> Add Guest Profile
+            </Button>
           </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={fetchCustomers}
-            className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-          </button>
-
-          <Button onClick={() => setShowAddModal(true)} className="bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs gap-1.5">
-            <Plus className="w-4 h-4" /> Add Guest Profile
-          </Button>
-        </div>
-      </div>
-
-      {/* Main 3-Tier Enterprise Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
-        <button
-          onClick={() => setActiveTab("master")}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${
-            activeTab === "master"
-              ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-850"
-          }`}
-        >
-          <Database className="w-4 h-4 text-pink-500" />
-          MASTER
-        </button>
-
-        <button
-          onClick={() => setActiveTab("transaction")}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${
-            activeTab === "transaction"
-              ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-850"
-          }`}
-        >
-          <Receipt className="w-4 h-4 text-pink-500" />
-          TRANSACTION
-        </button>
-
-        <button
-          onClick={() => setActiveTab("report")}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${
-            activeTab === "report"
-              ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-850"
-          }`}
-        >
-          <BarChart3 className="w-4 h-4 text-pink-500" />
-          REPORT
-        </button>
-      </div>
+        }
+      />
 
       {/* ── Active Section Render ── */}
       {activeTab === "master" && (
@@ -244,6 +204,6 @@ export function CRMPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

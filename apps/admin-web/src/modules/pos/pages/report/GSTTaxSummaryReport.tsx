@@ -22,26 +22,26 @@ export const GSTTaxSummaryReport: React.FC<GSTTaxSummaryReportProps> = ({ orders
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-extrabold text-sm text-foreground uppercase tracking-wider">
+        <h3 className="font-semibold text-xs text-foreground uppercase tracking-wider">
           GST & Tax Compliance Summary Report
         </h3>
-        <Button size="sm" variant="outline" className="font-bold text-xs gap-1" onClick={() => window.print()}>
+        <Button size="sm" variant="outline" className="text-xs font-semibold gap-1.5 cursor-pointer" onClick={() => window.print()}>
           <Printer size={13} /> Print Tax Report
         </Button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-muted/30 border border-border p-3 rounded-xl">
-          <span className="text-3xs uppercase font-bold text-muted-foreground block">Total Taxable Value</span>
-          <span className="font-mono font-black text-base text-foreground">₹{totalTaxable.toFixed(2)}</span>
+        <div className="bg-card border border-border p-3.5 rounded-md space-y-1">
+          <span className="text-[11px] uppercase font-semibold text-muted-foreground block">Total Taxable Value</span>
+          <span className="font-mono font-bold text-lg text-foreground">₹{totalTaxable.toFixed(2)}</span>
         </div>
-        <div className="bg-muted/30 border border-border p-3 rounded-xl">
-          <span className="text-3xs uppercase font-bold text-muted-foreground block">CGST (2.5%)</span>
-          <span className="font-mono font-black text-base text-foreground">₹{cgst.toFixed(2)}</span>
+        <div className="bg-card border border-border p-3.5 rounded-md space-y-1">
+          <span className="text-[11px] uppercase font-semibold text-muted-foreground block">CGST (2.5%)</span>
+          <span className="font-mono font-bold text-lg text-foreground">₹{cgst.toFixed(2)}</span>
         </div>
-        <div className="bg-muted/30 border border-border p-3 rounded-xl">
-          <span className="text-3xs uppercase font-bold text-muted-foreground block">SGST (2.5%)</span>
-          <span className="font-mono font-black text-base text-foreground">₹{sgst.toFixed(2)}</span>
+        <div className="bg-card border border-border p-3.5 rounded-md space-y-1">
+          <span className="text-[11px] uppercase font-semibold text-muted-foreground block">SGST (2.5%)</span>
+          <span className="font-mono font-bold text-lg text-foreground">₹{sgst.toFixed(2)}</span>
         </div>
       </div>
     </div>

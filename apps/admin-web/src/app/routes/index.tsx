@@ -15,6 +15,7 @@ import { POSPage, KDSScreen, POSOrdersListPage } from "@/modules/pos";
 import { ConnectedAppsLauncher } from "@/shared/layout/ConnectedAppsLauncher";
 import { ConnectedAppPage } from "@/shared/layout/ConnectedAppPage";
 import { PlatformRedirectPage } from "@/shared/pages/PlatformRedirectPage";
+import { ComingSoonPage } from "@/shared/components/ComingSoonPage";
 
 import { HotelPage } from "@/modules/hotel";
 import { PGManagementPage } from "@/modules/pg-management";
@@ -504,6 +505,66 @@ const crmReportLedgerRoute = createRoute({
   ),
 });
 
+const crmLedgerShortRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/crm/ledger",
+  component: () => (
+    <ProtectedRoute>
+      <CRMPage />
+    </ProtectedRoute>
+  ),
+});
+
+const crmTierDistributionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/crm/report/tier-distribution",
+  component: () => (
+    <ProtectedRoute>
+      <CRMPage />
+    </ProtectedRoute>
+  ),
+});
+
+const crmCustomersShortRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/crm/customers",
+  component: () => (
+    <ProtectedRoute>
+      <CRMPage />
+    </ProtectedRoute>
+  ),
+});
+
+const crmTiersShortRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/crm/tiers",
+  component: () => (
+    <ProtectedRoute>
+      <CRMPage />
+    </ProtectedRoute>
+  ),
+});
+
+const crmPointsShortRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/crm/points",
+  component: () => (
+    <ProtectedRoute>
+      <CRMPage />
+    </ProtectedRoute>
+  ),
+});
+
+const crmInteractionsShortRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/crm/interactions",
+  component: () => (
+    <ProtectedRoute>
+      <CRMPage />
+    </ProtectedRoute>
+  ),
+});
+
 const crmSettingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/crm/settings",
@@ -513,6 +574,8 @@ const crmSettingsRoute = createRoute({
     </ProtectedRoute>
   ),
 });
+
+
 
 const reservationsRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -554,16 +617,6 @@ const financeRoute = createRoute({
   ),
 });
 
-const crmRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/crm",
-  component: () => (
-    <ProtectedRoute>
-      <CRMPage />
-    </ProtectedRoute>
-  ),
-});
-
 const hrRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/hr",
@@ -589,7 +642,7 @@ const hrEmployeesMasterRoute = createRoute({
   path: "/hr/master/employees",
   component: () => (
     <ProtectedRoute>
-      <EmployeeDirectoryPage />
+      <HRPage />
     </ProtectedRoute>
   ),
 });
@@ -599,7 +652,7 @@ const hrDepartmentsRoute = createRoute({
   path: "/hr/departments",
   component: () => (
     <ProtectedRoute>
-      <DepartmentMasterPage />
+      <HRPage />
     </ProtectedRoute>
   ),
 });
@@ -609,7 +662,7 @@ const hrMasterDepartmentsRoute = createRoute({
   path: "/hr/master/departments",
   component: () => (
     <ProtectedRoute>
-      <DepartmentMasterPage />
+      <HRPage />
     </ProtectedRoute>
   ),
 });
@@ -619,7 +672,7 @@ const hrDesignationsRoute = createRoute({
   path: "/hr/designations",
   component: () => (
     <ProtectedRoute>
-      <DesignationMasterPage />
+      <HRPage />
     </ProtectedRoute>
   ),
 });
@@ -629,7 +682,7 @@ const hrMasterDesignationsRoute = createRoute({
   path: "/hr/master/designations",
   component: () => (
     <ProtectedRoute>
-      <DesignationMasterPage />
+      <HRPage />
     </ProtectedRoute>
   ),
 });
@@ -639,7 +692,7 @@ const hrAttendanceRoute = createRoute({
   path: "/hr/attendance",
   component: () => (
     <ProtectedRoute>
-      <AttendancePunchPage />
+      <HRPage />
     </ProtectedRoute>
   ),
 });
@@ -649,7 +702,7 @@ const hrAttendanceTransRoute = createRoute({
   path: "/hr/transaction/attendance",
   component: () => (
     <ProtectedRoute>
-      <AttendancePunchPage />
+      <HRPage />
     </ProtectedRoute>
   ),
 });
@@ -659,7 +712,7 @@ const hrPayrollRoute = createRoute({
   path: "/hr/payroll",
   component: () => (
     <ProtectedRoute>
-      <PayrollGenerationPage />
+      <HRPage />
     </ProtectedRoute>
   ),
 });
@@ -669,7 +722,7 @@ const hrPayrollTransRoute = createRoute({
   path: "/hr/transaction/payroll",
   component: () => (
     <ProtectedRoute>
-      <PayrollGenerationPage />
+      <HRPage />
     </ProtectedRoute>
   ),
 });
@@ -679,7 +732,7 @@ const hrPayslipRoute = createRoute({
   path: "/hr/payslip",
   component: () => (
     <ProtectedRoute>
-      <SalarySlipReportPage />
+      <HRPage />
     </ProtectedRoute>
   ),
 });
@@ -689,7 +742,17 @@ const hrReportsRoute = createRoute({
   path: "/hr/reports",
   component: () => (
     <ProtectedRoute>
-      <SalarySlipReportPage />
+      <HRPage />
+    </ProtectedRoute>
+  ),
+});
+
+const hrWildcardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/hr/$",
+  component: () => (
+    <ProtectedRoute>
+      <HRPage />
     </ProtectedRoute>
   ),
 });
@@ -1722,6 +1785,12 @@ const routeTree = rootRoute.addChildren([
   crmTransPointsRoute,
   crmTransInteractionsRoute,
   crmReportLedgerRoute,
+  crmLedgerShortRoute,
+  crmTierDistributionRoute,
+  crmCustomersShortRoute,
+  crmTiersShortRoute,
+  crmPointsShortRoute,
+  crmInteractionsShortRoute,
   crmSettingsRoute,
   pgRoomsRoute,
   pgBedsRoute,
@@ -1742,10 +1811,6 @@ const routeTree = rootRoute.addChildren([
   financeChartRoute,
   financeJournalRoute,
   financePLRoute,
-  crmRoute,
-  crmTiersRoute,
-  crmPointsRoute,
-  crmLedgerRoute,
   hrRoute,
   hrEmployeesRoute,
   hrEmployeesMasterRoute,
@@ -1825,10 +1890,13 @@ const routeTree = rootRoute.addChildren([
   appsAdminRoute,
   appsAdminConfigRoute,
   appsAdminMonitorRoute,
-  appsAdminSecurityRoute,
+  hrWildcardRoute,
 ]);
 
-export const router = createRouter({ routeTree });
+export const router = createRouter({
+  routeTree,
+  defaultNotFoundComponent: ComingSoonPage,
+});
 
 declare module "@tanstack/react-router" {
   interface Register {

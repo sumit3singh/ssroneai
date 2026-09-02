@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Phone, Lock, KeyRound, User, ArrowRight, Check, ShieldCheck, Sparkles, UserPlus, HelpCircle } from "lucide-react";
+import { motion } from "framer-motion";
+import { Phone, Lock, KeyRound, User, ArrowRight, Check, ShieldCheck, Sparkles, UserPlus } from "lucide-react";
 import { useAuthStore } from "@ssrone/auth";
 import { useI18n } from "@/stores/i18nStore";
 import { sendOtp, verifyOtp, checkCustomerPhone, registerCustomerAccount, resetCustomerPassword } from "@ssrone/api-client";
@@ -14,7 +14,7 @@ interface CustomerAuthGuardProps {
 }
 
 export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }) => {
-  const { isLoggedIn, user, deliveryAddress, login, setLoyalty } = useAuthStore();
+  const { isLoggedIn, login, setLoyalty } = useAuthStore();
   const { tenantSlug, branchCode, branches } = useTenantBranchContext();
   const { t } = useI18n();
   const { toast } = useToast();
@@ -39,7 +39,7 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
   const [unregisteredMsg, setUnregisteredMsg] = useState(false);
   const [alreadyRegisteredMsg, setAlreadyRegisteredMsg] = useState(false);
 
-  // If already logged in, render child routes (and offer CustomerProfileModal if user opens it)
+  // If already logged in, render child routes
   if (isLoggedIn) {
     return (
       <>
@@ -70,7 +70,6 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
     setVerifying(true);
 
     try {
-      // 1. Check if customer exists under tenant
       const check = await checkCustomerPhone(phone, tenantSlug);
       if (!check.exists && !isRegister) {
         setUnregisteredMsg(true);
@@ -79,7 +78,6 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
         return;
       }
 
-      // 2. Send OTP
       const result = await sendOtp(phone);
       if (result.success) {
         setOtpSent(true);
@@ -150,7 +148,6 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
 
     try {
       if (isRegister) {
-        // 1. Check if user already exists
         const check = await checkCustomerPhone(phone, tenantSlug);
         if (check.exists) {
           setAlreadyRegisteredMsg(true);
@@ -159,7 +156,6 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
           return;
         }
 
-        // 2. Register New Customer in DB
         const regRes = await registerCustomerAccount({ name, phone, password, tenantSlug });
         handlePostLoginFlow({
           id: regRes.user.id,
@@ -169,7 +165,6 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
         setLoyalty("BRONZE", 100);
         toast({ title: "Account Created! 🎉", description: `Welcome ${name}!` });
       } else {
-        // Check if user exists
         const check = await checkCustomerPhone(phone, tenantSlug);
         if (!check.exists) {
           setUnregisteredMsg(true);
@@ -223,48 +218,48 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
   };
 
   return (
-    <div className="relative h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between items-center overflow-hidden p-4 sm:p-6 select-none bg-background">
-      {/* Background Image & Gradient */}
+    <div className="relative h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between items-center overflow-hidden p-4 sm:p-6 select-none bg-slate-950 font-sans">
+      {/* Rich Inviting Food Background Image (Preserved) */}
       <div
-        className="absolute inset-0 bg-cover bg-center"
+        className="absolute inset-0 bg-cover bg-center transition-transform duration-700"
         style={{ backgroundImage: `url(${heroFood})` }}
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-foreground/80 via-foreground/65 to-foreground/90" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/55 to-black/85 backdrop-blur-[2px]" />
 
       {/* Header Branding */}
       <div className="relative z-10 w-full max-w-sm text-center pt-2">
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/20 border border-primary/40 text-primary text-3xl mb-2 backdrop-blur shadow-lg mx-auto"
+          className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/20 border border-white/30 text-white text-3xl mb-2 backdrop-blur-md shadow-lg mx-auto"
         >
           🍽️
         </motion.div>
-        <h1 className="text-xl sm:text-2xl font-display font-bold text-primary-foreground leading-tight">
+        <h1 className="text-xl sm:text-2xl font-sans font-extrabold text-white leading-tight tracking-tight">
           {storeTitle}
         </h1>
-        <p className="text-xs text-primary-foreground/75 mt-0.5 flex items-center justify-center gap-1">
-          <ShieldCheck className="w-3.5 h-3.5 text-primary" /> Mandatory Mobile Login Required to Access
+        <p className="text-xs text-amber-300 font-semibold mt-1 flex items-center justify-center gap-1">
+          <ShieldCheck className="w-3.5 h-3.5 text-amber-300" /> Mandatory Mobile Login Required to Access
         </p>
       </div>
 
-      {/* Main Authentication Gateway Card */}
+      {/* Premium Glassmorphism Login Gateway Card */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="relative z-10 w-full max-w-sm my-auto bg-popover/95 backdrop-blur-xl border border-border/80 rounded-2xl p-5 sm:p-6 shadow-2xl overflow-hidden text-popover-foreground"
+        transition={{ duration: 0.4 }}
+        className="relative z-10 w-full max-w-sm my-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-white/50 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xl overflow-hidden text-slate-900 dark:text-white"
       >
         {/* Toggle Login Method Tabs */}
         {!isRegister && authMethod !== "forgot" && (
-          <div className="flex bg-muted/80 p-1 rounded-xl mb-4 text-xs font-semibold">
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-4 text-xs font-bold border border-slate-200/80 dark:border-slate-700">
             <button
               type="button"
               onClick={() => { setAuthMethod("otp"); setError(""); setOtpSent(false); setUnregisteredMsg(false); setAlreadyRegisteredMsg(false); }}
-              className={`flex-1 py-1.5 rounded-lg transition flex items-center justify-center gap-1 ${
+              className={`flex-1 min-h-[38px] py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 ${
                 authMethod === "otp"
-                  ? "bg-primary text-primary-foreground shadow"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-sky-600 text-white shadow-2xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
               }`}
             >
               <Phone className="w-3.5 h-3.5" /> Mobile + OTP
@@ -272,10 +267,10 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
             <button
               type="button"
               onClick={() => { setAuthMethod("password"); setError(""); setUnregisteredMsg(false); setAlreadyRegisteredMsg(false); }}
-              className={`flex-1 py-1.5 rounded-lg transition flex items-center justify-center gap-1 ${
+              className={`flex-1 min-h-[38px] py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 ${
                 authMethod === "password"
-                  ? "bg-primary text-primary-foreground shadow"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-sky-600 text-white shadow-2xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
               }`}
             >
               <Lock className="w-3.5 h-3.5" /> Mobile + Password
@@ -283,8 +278,8 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
           </div>
         )}
 
-        <div className="mb-3 text-center">
-          <h2 className="text-lg font-bold">
+        <div className="mb-4 text-center">
+          <h2 className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
             {isRegister
               ? "Register New Customer Account"
               : authMethod === "forgot"
@@ -293,7 +288,7 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
               ? (otpSent ? "Enter Verification OTP" : "Login with Mobile OTP")
               : "Login with Mobile & Password"}
           </h2>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             {isRegister
               ? "Register your details to order food & access menu"
               : authMethod === "forgot"
@@ -313,16 +308,16 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
                 handleVerifyOtp();
               }
             }}
-            className="space-y-3"
+            className="space-y-3.5"
           >
             {!otpSent ? (
               <>
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
                     Mobile Number
                   </label>
                   <div className="relative flex items-center">
-                    <span className="absolute left-3 text-xs font-semibold text-muted-foreground border-r border-border pr-2">
+                    <span className="absolute left-3.5 text-xs font-extrabold text-slate-500 border-r border-slate-200 dark:border-slate-700 pr-2.5">
                       +91
                     </span>
                     <input
@@ -330,7 +325,7 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
                       placeholder="9876543210"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                      className="w-full pl-14 pr-3 py-2.5 rounded-xl bg-background border border-border text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="w-full pl-16 pr-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                       autoFocus
                     />
                   </div>
@@ -338,12 +333,12 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
 
                 {error && (
                   <div className="space-y-2">
-                    <p className="text-destructive text-xs text-center font-medium">{error}</p>
+                    <p className="text-rose-600 text-xs text-center font-bold">{error}</p>
                     {unregisteredMsg && (
                       <button
                         type="button"
                         onClick={() => { setIsRegister(true); setAuthMethod("password"); setError(""); setUnregisteredMsg(false); setAlreadyRegisteredMsg(false); }}
-                        className="w-full py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-primary/20 transition"
+                        className="w-full py-2 bg-sky-50 text-sky-700 border border-sky-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-sky-100 transition"
                       >
                         <UserPlus className="w-3.5 h-3.5" /> Register New Account Now
                       </button>
@@ -354,16 +349,16 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
                 <button
                   type="submit"
                   disabled={verifying}
-                  className="btn-order w-full py-3 text-center font-bold text-sm flex items-center justify-center gap-1.5"
+                  className="w-full min-h-[44px] py-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50 active:scale-[0.99]"
                 >
                   {verifying ? "Checking Account..." : "Send OTP & Unlock App"} <ArrowRight className="w-4 h-4" />
                 </button>
 
-                <div className="text-center pt-2">
+                <div className="text-center pt-1">
                   <button
                     type="button"
                     onClick={() => { setIsRegister(true); setAuthMethod("password"); setError(""); setUnregisteredMsg(false); setAlreadyRegisteredMsg(false); }}
-                    className="text-xs text-primary hover:underline font-semibold"
+                    className="text-xs text-sky-600 hover:text-sky-700 hover:underline font-extrabold"
                   >
                     New Customer? Register New Account
                   </button>
@@ -372,37 +367,37 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
             ) : (
               <>
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1 text-center">
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1 text-center">
                     4-Digit OTP Code
                   </label>
                   <div className="relative">
-                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
                       type="text"
                       placeholder="1234"
                       value={otp}
                       onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                      className="w-full text-center tracking-[0.5em] font-mono text-lg py-2.5 rounded-xl bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="w-full text-center tracking-[0.5em] font-mono font-black text-lg py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                       autoFocus
                     />
                   </div>
                 </div>
 
-                {error && <p className="text-destructive text-xs text-center">{error}</p>}
+                {error && <p className="text-rose-600 text-xs text-center font-bold">{error}</p>}
 
                 <button
                   type="submit"
                   disabled={verifying}
-                  className="btn-order w-full py-3 text-center font-bold text-sm flex items-center justify-center gap-1.5"
+                  className="w-full min-h-[44px] py-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50 active:scale-[0.99]"
                 >
                   {verifying ? "Verifying..." : "Verify OTP & Access Store"} <Check className="w-4 h-4" />
                 </button>
 
-                <div className="flex items-center justify-between text-xs pt-1">
+                <div className="flex items-center justify-between text-xs pt-1 font-semibold">
                   <button
                     type="button"
                     onClick={() => setOtpSent(false)}
-                    className="text-muted-foreground hover:text-foreground"
+                    className="text-slate-500 hover:text-slate-900"
                   >
                     Change Number
                   </button>
@@ -410,7 +405,7 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
                     type="button"
                     onClick={handleSendOtp}
                     disabled={resendTimer > 0}
-                    className="text-primary hover:underline font-medium disabled:opacity-40"
+                    className="text-sky-600 hover:underline font-bold disabled:opacity-40"
                   >
                     {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend OTP"}
                   </button>
@@ -422,20 +417,20 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
 
         {/* METHOD 2: PASSWORD / REGISTER AUTHENTICATION */}
         {(authMethod === "password" || isRegister) && (
-          <form onSubmit={handlePasswordLoginOrRegister} className="space-y-3">
+          <form onSubmit={handlePasswordLoginOrRegister} className="space-y-3.5">
             {isRegister && (
               <div>
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
                   Full Name
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     type="text"
                     placeholder="e.g. Rahul Sharma"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                     required
                   />
                 </div>
@@ -443,11 +438,11 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
             )}
 
             <div>
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
                 Mobile Number
               </label>
               <div className="relative flex items-center">
-                <span className="absolute left-3 text-xs font-semibold text-muted-foreground border-r border-border pr-2">
+                <span className="absolute left-3.5 text-xs font-extrabold text-slate-500 border-r border-slate-200 dark:border-slate-700 pr-2.5">
                   +91
                 </span>
                 <input
@@ -455,7 +450,7 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
                   placeholder="9876543210"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  className="w-full pl-14 pr-3 py-2.5 rounded-xl bg-background border border-border text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full pl-16 pr-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                   required
                 />
               </div>
@@ -463,27 +458,27 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">
                   {isRegister ? "Set Password / PIN" : "Password / PIN"}
                 </label>
                 {!isRegister && (
                   <button
                     type="button"
                     onClick={() => { setAuthMethod("forgot"); setError(""); setOtpSent(false); }}
-                    className="text-[11px] text-primary hover:underline font-semibold"
+                    className="text-[11px] text-sky-600 hover:underline font-bold"
                   >
-                    Forgot / Change Password?
+                    Forgot Password?
                   </button>
                 )}
               </div>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                   required
                 />
               </div>
@@ -491,12 +486,12 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
 
             {error && (
               <div className="space-y-2">
-                <p className="text-destructive text-xs text-center font-medium">{error}</p>
+                <p className="text-rose-600 text-xs text-center font-bold">{error}</p>
                 {unregisteredMsg && (
                   <button
                     type="button"
                     onClick={() => { setIsRegister(true); setError(""); setUnregisteredMsg(false); setAlreadyRegisteredMsg(false); }}
-                    className="w-full py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-primary/20 transition"
+                    className="w-full py-2 bg-sky-50 text-sky-700 border border-sky-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-sky-100 transition"
                   >
                     <UserPlus className="w-3.5 h-3.5" /> Register New Account Now
                   </button>
@@ -506,16 +501,9 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
                     <button
                       type="button"
                       onClick={() => { setAuthMethod("otp"); setIsRegister(false); setError(""); setAlreadyRegisteredMsg(false); setUnregisteredMsg(false); }}
-                      className="w-full py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-primary/20 transition"
+                      className="w-full py-2 bg-sky-50 text-sky-700 border border-sky-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-sky-100 transition"
                     >
                       <Phone className="w-3.5 h-3.5" /> Login with OTP Now
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setAuthMethod("forgot"); setIsRegister(false); setError(""); setAlreadyRegisteredMsg(false); setUnregisteredMsg(false); }}
-                      className="w-full py-2 bg-muted text-muted-foreground border border-border rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 hover:text-foreground transition text-center"
-                    >
-                      <KeyRound className="w-3.5 h-3.5" /> Reset / Forgot Password
                     </button>
                   </div>
                 )}
@@ -525,7 +513,7 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
             <button
               type="submit"
               disabled={verifying}
-              className="btn-order w-full py-3 text-center font-bold text-sm flex items-center justify-center gap-1.5"
+              className="w-full min-h-[44px] py-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50 active:scale-[0.99]"
             >
               {verifying
                 ? "Authenticating..."
@@ -539,7 +527,7 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
               <button
                 type="button"
                 onClick={() => { setIsRegister(!isRegister); setError(""); setUnregisteredMsg(false); setAlreadyRegisteredMsg(false); }}
-                className="text-xs text-primary hover:underline font-semibold"
+                className="text-xs text-sky-600 hover:underline font-extrabold"
               >
                 {isRegister
                   ? "Already registered? Sign In Here"
@@ -549,16 +537,15 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
           </form>
         )}
 
-
         {/* METHOD 3: FORGOT / RESET PASSWORD */}
         {authMethod === "forgot" && !isRegister && (
-          <form onSubmit={handleResetPasswordSubmit} className="space-y-3">
+          <form onSubmit={handleResetPasswordSubmit} className="space-y-3.5">
             <div>
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
                 Registered Mobile Number
               </label>
               <div className="relative flex items-center">
-                <span className="absolute left-3 text-xs font-semibold text-muted-foreground border-r border-border pr-2">
+                <span className="absolute left-3.5 text-xs font-extrabold text-slate-500 border-r border-slate-200 dark:border-slate-700 pr-2.5">
                   +91
                 </span>
                 <input
@@ -566,7 +553,7 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
                   placeholder="9876543210"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  className="w-full pl-14 pr-3 py-2.5 rounded-xl bg-background border border-border text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full pl-16 pr-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                   required
                 />
               </div>
@@ -576,14 +563,14 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
               <button
                 type="button"
                 onClick={handleSendOtp}
-                className="btn-order w-full py-2.5 text-center font-bold text-xs flex items-center justify-center gap-1.5"
+                className="w-full min-h-[44px] py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
               >
                 Send Reset OTP Code <ArrowRight className="w-3.5 h-3.5" />
               </button>
             ) : (
               <>
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1 text-center">
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1 text-center">
                     4-Digit OTP Code
                   </label>
                   <input
@@ -591,13 +578,13 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
                     placeholder="1234"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                    className="w-full text-center tracking-[0.5em] font-mono text-base py-2 rounded-xl bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full text-center tracking-[0.5em] font-mono font-black text-base py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
                     New Password / PIN
                   </label>
                   <input
@@ -605,7 +592,7 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
                     placeholder="••••••••"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                     required
                   />
                 </div>
@@ -613,20 +600,20 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
                 <button
                   type="submit"
                   disabled={verifying}
-                  className="btn-order w-full py-3 text-center font-bold text-sm flex items-center justify-center gap-1.5"
+                  className="w-full min-h-[44px] py-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
                 >
                   {verifying ? "Updating Password..." : "Update Password & Login"} <Check className="w-4 h-4" />
                 </button>
               </>
             )}
 
-            {error && <p className="text-destructive text-xs text-center">{error}</p>}
+            {error && <p className="text-rose-600 text-xs text-center font-bold">{error}</p>}
 
             <div className="text-center pt-1">
               <button
                 type="button"
                 onClick={() => { setAuthMethod("password"); setError(""); }}
-                className="text-xs text-primary hover:underline font-semibold"
+                className="text-xs text-sky-600 hover:underline font-extrabold"
               >
                 Back to Sign In
               </button>
@@ -636,9 +623,9 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
       </motion.div>
 
       {/* Footer Branding */}
-      <div className="relative z-10 text-center">
-        <p className="text-primary-foreground/60 text-[11px] flex items-center justify-center gap-1">
-          <Sparkles className="w-3 h-3 text-primary" /> {storeTitle} · Secure PWA Ordering & Dining
+      <div className="relative z-10 text-center pb-2">
+        <p className="text-white/80 text-xs font-semibold flex items-center justify-center gap-1">
+          <Sparkles className="w-3.5 h-3.5 text-amber-300" /> {storeTitle} · Secure PWA Ordering & Dining
         </p>
       </div>
     </div>

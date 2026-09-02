@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from "react";
 import { X, Utensils, Plus, Trash2, Layers, Tag, Package, Sparkles } from "lucide-react";
 import { Button, Input } from "@ssrone/ui";
+import { api } from "@ssrone/api-client";
 import { POSMenuItem, POSCategory, POSVariantGroup, POSAddonGroup } from "../../../types";
 
 interface MenuItemDialogProps {
@@ -103,6 +104,7 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
   const [packagingCharge, setPackagingCharge] = useState<number>(0);
   const [categoryId, setCategoryId] = useState<number>(categories[0]?.id || 1);
   const [kdsStation, setKdsStation] = useState("Main Kitchen");
+  const [kdsStationsList, setKdsStationsList] = useState<{ id: number | string; name: string }[]>([]);
   const [imageUrl, setImageUrl] = useState("");
   const [isVeg, setIsVeg] = useState(true);
   const [description, setDescription] = useState("");
@@ -124,6 +126,22 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
         .catch(() => {});
     }
   }, [isOpen, categories]);
+
+  useEffect(() => {
+    if (isOpen) {
+      api.get<any[]>("/restaurant/kitchen-stations")
+        .then((res) => {
+          const list = Array.isArray(res) ? res : [];
+          if (list.length > 0) {
+            setKdsStationsList(list.map((s) => ({ id: s.id, name: s.name })));
+            if (!editingItem && list[0]?.name) {
+              setKdsStation(list[0].name);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (localCategories.length > 0 && !categoryId) {
@@ -502,12 +520,15 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
                     onChange={(e) => setKdsStation(e.target.value)}
                     className="w-full h-10 bg-white/80 dark:bg-slate-900/80 border border-slate-300/80 dark:border-slate-700/80 rounded-xl px-3 text-xs md:text-sm font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/30"
                   >
-                    <option value="Main Kitchen">Main Kitchen</option>
-                    <option value="Tandoor">Tandoor Station</option>
-                    <option value="Chinese & Wok">Chinese & Wok</option>
-                    <option value="Beverages & Bar">Beverages & Bar</option>
-                    <option value="Bakery & Desserts">Bakery & Desserts</option>
-                    <option value="Pantry & Cold Station">Pantry & Cold Station</option>
+                    {kdsStationsList.length > 0 ? (
+                      kdsStationsList.map((st) => (
+                        <option key={st.id || st.name} value={st.name}>
+                          {st.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="Main Kitchen">Main Kitchen</option>
+                    )}
                   </select>
                 </div>
               </div>
