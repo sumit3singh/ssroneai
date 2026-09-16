@@ -1,8 +1,4 @@
-/**
- * The ssrone – Protected Route Wrapper
- * Redirects unauthenticated users to login.
- */
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, Suspense } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useAuthStore } from "@ssrone/auth";
 import { AppShell } from "@/shared/layout/AppShell";
@@ -31,5 +27,20 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AppShell>
+      <Suspense
+        fallback={
+          <div className="flex-1 w-full h-full min-h-[350px] flex flex-col items-center justify-center p-8 text-muted-foreground animate-in fade-in duration-150 select-none">
+            <div className="w-7 h-7 border-3 border-primary border-t-transparent rounded-full animate-spin mb-3" />
+            <span className="text-xs font-mono font-semibold tracking-wider uppercase opacity-70">
+              Loading Module Workspace...
+            </span>
+          </div>
+        }
+      >
+        {children}
+      </Suspense>
+    </AppShell>
+  );
 }

@@ -1,5 +1,5 @@
 import { apiClient } from "@ssrone/api-client";
-import { Tenant, CreateTenantDTO, UpdateTenantLicenseDTO, AuditLog, Company, Branch } from "../types";
+import { Tenant, CreateTenantDTO, UpdateTenantLicenseDTO, AuditLog, Company, Branch, LeadInquiry } from "../types";
 
 /**
  * Calculates days remaining between today and subscription expiry date
@@ -393,5 +393,35 @@ export const platformAdminApi = {
     } catch {
       return [];
     }
+  },
+
+  /**
+   * Fetch marketing lead inquiries & live demo requests from PostgreSQL DB.
+   */
+  async getLeadInquiries(statusFilter: string = 'ALL'): Promise<LeadInquiry[]> {
+    try {
+      const res = await apiClient.get<any>(`/marketing/leads?status=${statusFilter}`);
+      return parseArrayResponse(res);
+    } catch (err) {
+      console.warn("Failed to fetch marketing leads:", err);
+      return [];
+    }
+  },
+
+  /**
+   * Update lead inquiry follow-up status & operator notes in PostgreSQL DB.
+   */
+  async updateLeadStatus(leadId: number, status: string, operatorNotes?: string): Promise<LeadInquiry | null> {
+    try {
+      const res = await apiClient.patch<any>(`/marketing/leads/${leadId}/status`, {
+        status,
+        operator_notes: operatorNotes
+      });
+      return res?.data || res;
+    } catch (err) {
+      console.error("Failed to update lead status:", err);
+      return null;
+    }
   }
 };
+

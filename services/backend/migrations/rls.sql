@@ -109,7 +109,13 @@ CREATE POLICY menu_addon_options_isolation ON menu_addon_options
     FOR ALL USING (is_superadmin() OR tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::bigint);
 
 -- 11. Orders & POS Operations
+ALTER TABLE daily_order_sequences ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS daily_order_sequences_isolation ON daily_order_sequences;
+CREATE POLICY daily_order_sequences_isolation ON daily_order_sequences
+    FOR ALL USING (is_superadmin() OR tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::bigint);
+
 ALTER TABLE dining_tables ENABLE ROW LEVEL SECURITY;
+
 DROP POLICY IF EXISTS dining_tables_isolation ON dining_tables;
 CREATE POLICY dining_tables_isolation ON dining_tables
     FOR ALL USING (is_superadmin() OR tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::bigint);

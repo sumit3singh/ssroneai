@@ -16,14 +16,12 @@ import {
   MessageSquare
 } from "lucide-react";
 import EmployeeDirectory from "@/components/EmployeeDirectory";
-import SeedManager from "@/components/SeedManager";
 import StaffItemCustomizeModal from "@/components/StaffItemCustomizeModal";
 import TableFloorGrid, { TableInfo } from "@/components/TableFloorGrid";
 import ActiveOrdersTracker, { RunningOrder } from "@/components/ActiveOrdersTracker";
 import StaffLoginModal from "@/components/StaffLoginModal";
 import ActiveTableModal from "@/components/ActiveTableModal";
 import { getAuth, logout } from "@ssrone/auth";
-import { seedEmployees } from "@/utils/seedEmployees";
 import { api } from "@ssrone/api-client";
 import { fetchCategories, fetchMenuItems } from "@/utils/menuApi";
 
@@ -53,13 +51,7 @@ export function App() {
 
   const [auth, setAuthState] = useState(() => getAuth());
   const [showDirectory, setShowDirectory] = useState(false);
-  const [showSeedManager, setShowSeedManager] = useState(false);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
-
-  // Ensure sample employees exist
-  useEffect(() => {
-    seedEmployees();
-  }, []);
 
   useEffect(() => {
     const onStorage = () => setAuthState(getAuth());
@@ -368,9 +360,8 @@ export function App() {
         />
       )}
 
-      {/* Directory & Seed Modals */}
+      {/* Directory Modal */}
       {showDirectory && <EmployeeDirectory onClose={() => setShowDirectory(false)} />}
-      {showSeedManager && <SeedManager onClose={() => setShowSeedManager(false)} />}
 
       {/* Rule 17: Top Fixed Header Navbar */}
       <header className="sticky top-0 z-40 px-4 sm:px-6 py-3 bg-white/95 dark:bg-slate-900/95 border-b border-slate-200/80 dark:border-slate-800 backdrop-blur-md shadow-2xs flex items-center justify-between gap-3">

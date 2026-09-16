@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { X, Utensils, Plus, Trash2, Layers, Tag, Package, Sparkles } from "lucide-react";
+import { X, Utensils, Plus, Trash2, Layers, Tag, Package, Sparkles, Zap } from "lucide-react";
 import { Button, Input } from "@ssrone/ui";
 import { api } from "@ssrone/api-client";
 import { POSMenuItem, POSCategory, POSVariantGroup, POSAddonGroup } from "../../../types";
@@ -100,15 +100,18 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
   const [localCategories, setLocalCategories] = useState<POSCategory[]>(categories || []);
   const [activeTab, setActiveTab] = useState<"general" | "variants" | "addons">("general");
   const [name, setName] = useState("");
+  const [itemCode, setItemCode] = useState("");
   const [price, setPrice] = useState<number>(0);
   const [packagingCharge, setPackagingCharge] = useState<number>(0);
   const [categoryId, setCategoryId] = useState<number>(categories[0]?.id || 1);
   const [kdsStation, setKdsStation] = useState("Main Kitchen");
-  const [kdsStationsList, setKdsStationsList] = useState<{ id: number | string; name: string }[]>([]);
+  const [kdsStationsList, setKdsStationsList] = useState<{ id: number | string; name: string; code?: string }[]>([]);
   const [imageUrl, setImageUrl] = useState("");
   const [isVeg, setIsVeg] = useState(true);
+  const [isPopular, setIsPopular] = useState(false);
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCodeUserEdited, setIsCodeUserEdited] = useState(false);
   const [variantGroups, setVariantGroups] = useState<POSVariantGroup[]>([]);
   const [addonGroups, setAddonGroups] = useState<POSAddonGroup[]>([]);
 
@@ -133,15 +136,20 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
         .then((res) => {
           const list = Array.isArray(res) ? res : [];
           if (list.length > 0) {
-            setKdsStationsList(list.map((s) => ({ id: s.id, name: s.name })));
-            if (!editingItem && list[0]?.name) {
-              setKdsStation(list[0].name);
+            const formatted = list.map((s) => ({ id: s.id, name: s.name, code: s.code }));
+            setKdsStationsList(formatted);
+            const rawKds = editingItem?.kds_station || (editingItem as any)?.kdsStation;
+            if (rawKds) {
+              const matched = formatted.find((s) => s.name.toLowerCase() === rawKds.toLowerCase());
+              setKdsStation(matched ? matched.name : formatted[0].name);
+            } else {
+              setKdsStation(formatted[0].name);
             }
           }
         })
         .catch(() => {});
     }
-  }, [isOpen]);
+  }, [isOpen, editingItem]);
 
   useEffect(() => {
     if (localCategories.length > 0 && !categoryId) {
@@ -150,35 +158,52 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
   }, [localCategories, categoryId]);
 
   useEffect(() => {
+    if (!isOpen) return;
     const defaultCatId = categories.length > 0 ? Number(categories[0].id) : 1;
     if (editingItem) {
       setName(editingItem.name || "");
+      const existingCode = editingItem.item_code || (editingItem as any).itemCode || "";
+      setItemCode(existingCode);
+      setIsCodeUserEdited(Boolean(existingCode));
       setPrice(Number(editingItem.selling_price || editingItem.base_price || editingItem.price || 0));
       setPackagingCharge(Number(editingItem.packaging_charge || 0));
       
       const matchCat = categories.find(c => String(c.id) === String(editingItem.category_id));
       setCategoryId(matchCat ? Number(matchCat.id) : (editingItem.category_id ? Number(editingItem.category_id) : defaultCatId));
       
-      setKdsStation(editingItem.kds_station || "Main Kitchen");
+      const rawKds = editingItem.kds_station || (editingItem as any).kdsStation || "";
+      if (kdsStationsList.length > 0) {
+        const matched = kdsStationsList.find((s) => s.name.toLowerCase() === rawKds.toLowerCase());
+        setKdsStation(matched ? matched.name : kdsStationsList[0].name);
+      } else if (rawKds) {
+        setKdsStation(rawKds);
+      }
+
       setImageUrl(editingItem.image_url || "");
       setIsVeg(editingItem.is_veg ?? true);
+      setIsPopular(Boolean(editingItem.is_popular || (editingItem as any)?.is_bestseller));
       setDescription(editingItem.description || "");
       setVariantGroups(editingItem.variant_groups || []);
       setAddonGroups(editingItem.addon_groups || []);
     } else {
       setName("");
+      setItemCode("");
+      setIsCodeUserEdited(false);
       setPrice(0);
       setPackagingCharge(0);
       setCategoryId(defaultCatId);
-      setKdsStation("Main Kitchen");
+      if (kdsStationsList.length > 0) {
+        setKdsStation(kdsStationsList[0].name);
+      }
       setImageUrl("");
       setIsVeg(true);
+      setIsPopular(false);
       setDescription("");
       setVariantGroups([]);
       setAddonGroups([]);
     }
     setActiveTab("general");
-  }, [editingItem, categories, isOpen]);
+  }, [editingItem, isOpen]);
 
   useEffect(() => {
     if (categories.length > 0) {
@@ -363,11 +388,13 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
       await onSave({
         id: editingItem?.id,
         name: name.trim(),
+        item_code: itemCode.trim() || undefined,
         base_price: Number(price),
         selling_price: Number(price),
         packaging_charge: Number(packagingCharge),
         category_id: targetCatId,
         is_veg: isVeg,
+        is_popular: isPopular,
         is_available: true,
         kds_station: kdsStation,
         image_url: imageUrl.trim() || undefined,
@@ -439,19 +466,51 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4">
           {activeTab === "general" && (
             <div className="space-y-4">
-              <div>
-                <label className="text-2xs font-extrabold uppercase tracking-wider text-slate-500 font-mono block mb-1.5">Dish / Item Name</label>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Veg Loaded Pizza / Kadai Paneer / Chai"
-                  required
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="text-2xs font-extrabold uppercase tracking-wider text-slate-500 font-mono block mb-1.5 flex items-center gap-1">
+                    <span>Dish / Item Name</span>
+                    <span className="text-rose-500 font-bold">*</span>
+                  </label>
+                  <Input
+                    value={name}
+                    onChange={(e) => {
+                      const newName = e.target.value;
+                      setName(newName);
+                      if (!editingItem && !isCodeUserEdited) {
+                        const clean = newName.replace(/[^a-zA-Z0-9]/g, "").substring(0, 4).toUpperCase();
+                        setItemCode(clean ? `${clean}-01` : "");
+                      }
+                    }}
+                    placeholder="e.g. Veg Loaded Pizza / Kadai Paneer / Chai"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-2xs font-extrabold uppercase tracking-wider text-slate-500 font-mono block mb-1.5 flex items-center gap-1">
+                    <span>Item / Dish Code</span>
+                    <span className="text-rose-500 font-bold">*</span>
+                  </label>
+                  <Input
+                    value={itemCode}
+                    onChange={(e) => {
+                      setItemCode(e.target.value.toUpperCase());
+                      setIsCodeUserEdited(true);
+                    }}
+                    placeholder="e.g. P1, BEV-01, BURGER-01"
+                    className="h-10 text-xs font-bold font-mono uppercase"
+                    required
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-2xs font-extrabold uppercase tracking-wider text-slate-500 font-mono block mb-1.5">Base Selling Price (₹)</label>
+                  <label className="text-2xs font-extrabold uppercase tracking-wider text-slate-500 font-mono block mb-1.5 flex items-center gap-1">
+                    <span>Base Selling Price (₹)</span>
+                    <span className="text-rose-500 font-bold">*</span>
+                  </label>
                   <Input
                     type="number"
                     value={price || ""}
@@ -471,7 +530,10 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="text-2xs font-extrabold uppercase tracking-wider text-slate-500 font-mono block mb-1.5">Category</label>
+                  <label className="text-2xs font-extrabold uppercase tracking-wider text-slate-500 font-mono block mb-1.5 flex items-center gap-1">
+                    <span>Category</span>
+                    <span className="text-rose-500 font-bold">*</span>
+                  </label>
                   <select
                     value={String(categoryId || "")}
                     onChange={(e) => setCategoryId(Number(e.target.value))}
@@ -490,7 +552,10 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-2xs font-extrabold uppercase tracking-wider text-slate-500 font-mono block mb-1.5">Diet Type</label>
+                  <label className="text-2xs font-extrabold uppercase tracking-wider text-slate-500 font-mono block mb-1.5 flex items-center gap-1">
+                    <span>Diet Type</span>
+                    <span className="text-rose-500 font-bold">*</span>
+                  </label>
                   <div className="flex gap-4 p-2.5 bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-slate-200/80 dark:border-slate-800/80">
                     <label className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
                       <input
@@ -514,20 +579,29 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-2xs font-extrabold uppercase tracking-wider text-slate-500 font-mono block mb-1.5">KDS Kitchen Station</label>
+                  <label className="text-2xs font-extrabold uppercase tracking-wider text-slate-500 font-mono block mb-1.5 flex items-center gap-1">
+                    <span>KDS Kitchen Station</span>
+                    <span className="text-rose-500 font-bold">*</span>
+                  </label>
                   <select
                     value={kdsStation}
                     onChange={(e) => setKdsStation(e.target.value)}
                     className="w-full h-10 bg-white/80 dark:bg-slate-900/80 border border-slate-300/80 dark:border-slate-700/80 rounded-xl px-3 text-xs md:text-sm font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/30"
+                    required
                   >
                     {kdsStationsList.length > 0 ? (
-                      kdsStationsList.map((st) => (
-                        <option key={st.id || st.name} value={st.name}>
-                          {st.name}
-                        </option>
-                      ))
+                      <>
+                        {kdsStationsList.map((st) => (
+                          <option key={st.id || st.name} value={st.name}>
+                            {st.name} {st.code ? `(${st.code})` : ""}
+                          </option>
+                        ))}
+                        {kdsStation && !kdsStationsList.some((st) => st.name.toLowerCase() === kdsStation.toLowerCase()) && (
+                          <option value={kdsStation}>{kdsStation}</option>
+                        )}
+                      </>
                     ) : (
-                      <option value="Main Kitchen">Main Kitchen</option>
+                      <option value={kdsStation || "Main Kitchen"}>{kdsStation || "Main Kitchen"}</option>
                     )}
                   </select>
                 </div>
@@ -546,6 +620,35 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
                     <img src={imageUrl} alt="Preview" className="h-9 w-9 rounded-xl object-cover border border-slate-200 dark:border-slate-800" />
                   )}
                 </div>
+              </div>
+
+              {/* Express Bestseller Hotbar Toggle */}
+              <div className="flex items-center justify-between p-3 bg-amber-500/10 dark:bg-amber-950/30 rounded-xl border border-amber-500/30">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                    <Zap size={16} className="fill-amber-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <span>Express Bestseller Hotbar</span>
+                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                        Shift+F1–F12
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Display on top 12 fast-moving hotbar on the POS Billing screen
+                    </p>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isPopular}
+                    onChange={(e) => setIsPopular(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                </label>
               </div>
 
               <div>

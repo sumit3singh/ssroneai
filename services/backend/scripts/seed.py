@@ -39,7 +39,7 @@ from src.modules.auth.models import Company, Branch  # noqa: F401
 from src.modules.restaurant.models import (  # noqa: F401
     MenuCategory, MenuItem, MenuVariantGroup, MenuVariantOption, MenuAddonGroup, MenuAddonOption,
 )
-from src.core.form_builder.models import (  # noqa: F401
+from src.engines.form_builder.models import (  # noqa: F401
     FormMaster, FormFieldModel, FieldValidationModel, FormSubmission,
 )
 

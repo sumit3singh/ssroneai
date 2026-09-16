@@ -41,7 +41,9 @@ import { AddBranchModal } from './components/AddBranchModal';
 import { AddUserModal } from './components/AddUserModal';
 import { ProvisionSuperadminModal } from './components/ProvisionSuperadminModal';
 import { ClusterTelemetryView } from './components/ClusterTelemetryView';
+import { SalesLeadsView } from './components/SalesLeadsView';
 import { PlatformAdminLogin } from './components/PlatformAdminLogin';
+import { LeadInquiry } from './types';
 
 export function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -61,17 +63,17 @@ export function App() {
   };
 
   // Synchronize navigation state with browser URL bar (e.g. http://localhost:5174/#telemetry)
-  const getInitialNav = (): 'overview' | 'tenants' | 'hierarchy' | 'licensing' | 'billing' | 'telemetry' | 'audit' => {
+  const getInitialNav = (): 'overview' | 'tenants' | 'hierarchy' | 'licensing' | 'billing' | 'telemetry' | 'audit' | 'leads' => {
     const hash = window.location.hash.replace('#', '');
-    if (['overview', 'tenants', 'hierarchy', 'licensing', 'billing', 'telemetry', 'audit'].includes(hash)) {
+    if (['overview', 'tenants', 'hierarchy', 'licensing', 'billing', 'telemetry', 'audit', 'leads'].includes(hash)) {
       return hash as any;
     }
     return 'overview';
   };
 
-  const [activeNav, setActiveNavState] = useState<'overview' | 'tenants' | 'hierarchy' | 'licensing' | 'billing' | 'telemetry' | 'audit'>(getInitialNav());
+  const [activeNav, setActiveNavState] = useState<'overview' | 'tenants' | 'hierarchy' | 'licensing' | 'billing' | 'telemetry' | 'audit' | 'leads'>(getInitialNav());
 
-  const setActiveNav = (nav: 'overview' | 'tenants' | 'hierarchy' | 'licensing' | 'billing' | 'telemetry' | 'audit') => {
+  const setActiveNav = (nav: 'overview' | 'tenants' | 'hierarchy' | 'licensing' | 'billing' | 'telemetry' | 'audit' | 'leads') => {
     setActiveNavState(nav);
     window.history.pushState(null, '', `/#${nav}`);
   };
@@ -79,7 +81,7 @@ export function App() {
   useEffect(() => {
     const handlePopState = () => {
       const hash = window.location.hash.replace('#', '');
-      if (['overview', 'tenants', 'hierarchy', 'licensing', 'billing', 'telemetry', 'audit'].includes(hash)) {
+      if (['overview', 'tenants', 'hierarchy', 'licensing', 'billing', 'telemetry', 'audit', 'leads'].includes(hash)) {
         setActiveNavState(hash as any);
       }
     };
@@ -111,6 +113,7 @@ export function App() {
   // Single Source of Truth (SSOT): Database state loaded live via API
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [leads, setLeads] = useState<LeadInquiry[]>([]);
   const [isLoadingTenants, setIsLoadingTenants] = useState(false);
 
   const isDark = theme === 'dark';
@@ -129,7 +132,7 @@ export function App() {
     }
   }, [isDark]);
 
-  // Load Tenants & Audit Logs from PostgreSQL Database
+  // Load Tenants, Audit Logs & Marketing Leads from PostgreSQL Database
   const loadPlatformData = async () => {
     setIsLoadingTenants(true);
     try {
@@ -137,6 +140,8 @@ export function App() {
       setTenants(dbTenants);
       const dbLogs = await platformAdminApi.getAuditLogs();
       setAuditLogs(dbLogs);
+      const dbLeads = await platformAdminApi.getLeadInquiries();
+      setLeads(dbLeads);
     } catch (err) {
       console.error("Failed to load platform data from database", err);
     } finally {
@@ -332,11 +337,21 @@ export function App() {
           tenantCount={tenants.length}
           companyCount={totalCompanies}
           outletCount={totalOutlets}
+          newLeadCount={leads.filter(l => l.status === 'NEW').length}
           theme={theme}
         />
 
         {/* Right Main Canvas */}
         <main className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#FAF9F5] dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
+
+          {/* SALES INQUIRIES & LEADS PANEL */}
+          {activeNav === 'leads' && (
+            <SalesLeadsView
+              leads={leads}
+              onRefresh={loadPlatformData}
+              isLoading={isLoadingTenants}
+            />
+          )}
 
           {/* OVERVIEW PANEL */}
           {activeNav === 'overview' && (

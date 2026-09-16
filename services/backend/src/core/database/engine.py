@@ -125,6 +125,9 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
+get_db = get_db_session
+
+
 async def get_db_connection() -> AsyncGenerator[AsyncConnection, None]:
     """Yields a raw async connection for bulk operations."""
     async with engine.begin() as conn:

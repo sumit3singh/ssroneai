@@ -9,45 +9,150 @@ import { POSMasterSection } from "../master/POSMasterSection";
 import { POSTransactionSection } from "../transaction/POSTransactionSection";
 import { POSReportsPage } from "../report/POSReportsPage";
 import { POSSettingsPage } from "../settings/POSSettingsPage";
+import { syncLocalOrderSequenceWithOrders } from "../../utils/order-sequence";
 
 export const POSPage: React.FC = () => {
   const routerState = useRouterState();
   const currentPath = routerState?.location?.pathname || "/pos";
 
-  // Domain Data State initialized strictly from PostgreSQL DB API
-  const [categories, setCategories] = useState<POSCategory[]>([]);
-  const [menuItems, setMenuItems] = useState<POSMenuItem[]>([]);
-  const [tables, setTables] = useState<POSTable[]>([]);
-  const [waiters, setWaiters] = useState<POSWaiter[]>([]);
-  const [orders, setOrders] = useState<POSOrder[]>([]);
+  // Domain Data State initialized with instant 0ms sessionStorage cache + PostgreSQL DB sync
+  const [categories, setCategories] = useState<POSCategory[]>(() => {
+    try {
+      const cached = sessionStorage.getItem("pos_cache_categories");
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  const [menuItems, setMenuItems] = useState<POSMenuItem[]>(() => {
+    try {
+      const cached = sessionStorage.getItem("pos_cache_menu_items");
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  const [tables, setTables] = useState<POSTable[]>(() => {
+    try {
+      const cached = sessionStorage.getItem("pos_cache_tables");
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  const [waiters, setWaiters] = useState<POSWaiter[]>(() => {
+    try {
+      const cached = sessionStorage.getItem("pos_cache_waiters");
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  const [orders, setOrders] = useState<POSOrder[]>(() => {
+    try {
+      const cached = sessionStorage.getItem("pos_cache_orders");
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
 
   const selectedBranch = useAuthStore((s: any) => s.selected_branch);
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchPOSDomainData = async () => {
-    setIsLoading(true);
+  const fetchPOSDomainData = async (isSilent = false, fullCatalog = false) => {
+    if (!isSilent && menuItems.length === 0) setIsLoading(true);
     try {
       const bId = selectedBranch?.id ? Number(selectedBranch.id) : null;
       const bParam = bId ? `?branch_id=${bId}` : "";
-      const [catsRes, itemsRes, tablesRes, waitersRes, ordersRes] = await Promise.all([
-        api.get<any>(`/restaurant/categories${bParam}`).catch(() => []),
-        api.get<any>(`/restaurant/menu-items${bParam}`).catch(() => []),
-        api.get<any>(`/restaurant/tables${bParam}`).catch(() => []),
-        api.get<any>(`/restaurant/waiters${bParam}`).catch(() => []),
-        api.get<any>(`/orders${bParam}`).catch(() => [])
-      ]);
 
-      const loadedCats = Array.isArray(catsRes) ? catsRes : (catsRes?.data || catsRes?.categories || []);
-      const loadedItems = Array.isArray(itemsRes) ? itemsRes : (itemsRes?.data || itemsRes?.items || []);
+      // Ultra-Fast Zero-Wait Polling: Always poll live tables & orders
+      const fetchPromises: Promise<any>[] = [
+        api.get<any>(`/restaurant/tables${bParam}`).catch(() => []),
+        api.get<any>(`/orders${bParam}`).catch(() => [])
+      ];
+
+      // Only fetch catalog (categories, menu items, waiters) on initial load, window focus, or explicit full refresh
+      const shouldFetchCatalog = fullCatalog || categories.length === 0 || menuItems.length === 0;
+      if (shouldFetchCatalog) {
+        fetchPromises.push(
+          api.get<any>(`/restaurant/categories${bParam}`).catch(() => []),
+          api.get<any>(`/restaurant/menu-items${bParam}`).catch(() => []),
+          api.get<any>(`/restaurant/waiters${bParam}`).catch(() => [])
+        );
+      }
+
+      const results = await Promise.all(fetchPromises);
+      const tablesRes = results[0];
+      const ordersRes = results[1];
+      const catsRes = shouldFetchCatalog ? results[2] : null;
+      const itemsRes = shouldFetchCatalog ? results[3] : null;
+      const waitersRes = shouldFetchCatalog ? results[4] : null;
+
+      if (shouldFetchCatalog) {
+        const loadedCats = Array.isArray(catsRes) ? catsRes : (catsRes?.data || catsRes?.categories || []);
+        const loadedItems = Array.isArray(itemsRes) ? itemsRes : (itemsRes?.data || itemsRes?.items || []);
+        const wList = Array.isArray(waitersRes) ? waitersRes : (waitersRes?.data || []);
+
+        if (loadedCats && loadedCats.length > 0) {
+          setCategories(loadedCats);
+          try { sessionStorage.setItem("pos_cache_categories", JSON.stringify(loadedCats)); } catch (e) {}
+        }
+        if (loadedItems && loadedItems.length > 0) {
+          setMenuItems(loadedItems);
+          try { sessionStorage.setItem("pos_cache_menu_items", JSON.stringify(loadedItems)); } catch (e) {}
+        }
+        if (wList && wList.length > 0) {
+          setWaiters(wList);
+          try { sessionStorage.setItem("pos_cache_waiters", JSON.stringify(wList)); } catch (e) {}
+        }
+      }
+
       const tList = Array.isArray(tablesRes) ? tablesRes : (tablesRes?.data || []);
-      const wList = Array.isArray(waitersRes) ? waitersRes : (waitersRes?.data || []);
       const oList = Array.isArray(ordersRes) ? ordersRes : (ordersRes?.items || ordersRes?.data || []);
 
-      setCategories(loadedCats);
-      setMenuItems(loadedItems);
-      setTables(tList);
-      setWaiters(wList);
-      setOrders(oList);
+      if (oList && oList.length > 0) {
+        syncLocalOrderSequenceWithOrders(oList);
+      }
+
+      // Reconcile Orders: Merge server orders with local pending optimistic orders (id: "local-...")
+      setOrders((prev) => {
+        const serverOrderNumbers = new Set(oList.map((o: any) => o.order_number));
+        const serverOrderIds = new Set(oList.map((o: any) => String(o.id)));
+
+        // Keep any active optimistic orders that have not yet appeared in server oList
+        const pendingOptimistic = prev.filter(
+          (p) =>
+            String(p.id).startsWith("local-") &&
+            !serverOrderNumbers.has(p.order_number) &&
+            !serverOrderIds.has(String(p.id))
+        );
+
+        const mergedOrders = [...pendingOptimistic, ...oList];
+        try {
+          sessionStorage.setItem("pos_cache_orders", JSON.stringify(mergedOrders));
+        } catch (e) {}
+        return mergedOrders;
+      });
+
+      // Reconcile Tables: PostgreSQL DB is Single Source of Truth (SSOT)!
+      setTables((prev) => {
+        const activeLocalOrders = prev.filter(
+          (p: any) =>
+            String(p.id).startsWith("local-") &&
+            !["completed", "paid", "cancelled"].includes((p.status || "").toLowerCase())
+        );
+
+        const reconciled = tList.map((serverT: POSTable) => {
+          // If there's an in-flight optimistic local order on this table, keep occupied until server syncs
+          const hasLocalPending = activeLocalOrders.some(
+            (lo: any) =>
+              (lo.table_id && String(lo.table_id) === String(serverT.id)) ||
+              (lo.table_name && String(lo.table_name).trim().toLowerCase() === String(serverT.table_number).trim().toLowerCase())
+          );
+          if (hasLocalPending) {
+            return { ...serverT, status: "occupied" as const };
+          }
+
+          // Otherwise PostgreSQL is SSOT: serverT.status is authoritative (never stick on old client occupied state)
+          return serverT;
+        });
+
+        try {
+          sessionStorage.setItem("pos_cache_tables", JSON.stringify(reconciled));
+        } catch (e) {}
+        return reconciled;
+      });
     } catch (err: any) {
       console.error("Failed to load PostgreSQL POS data", err);
     } finally {
@@ -56,26 +161,49 @@ export const POSPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchPOSDomainData();
+    // Initial fetch with full catalog on mount or branch change
+    fetchPOSDomainData(false, true);
+
+    // Superfast 3-Second Real-Time Auto-Polling (Tables & Orders only: 60% less network overhead)
+    const interval = setInterval(() => {
+      fetchPOSDomainData(true, false);
+    }, 3000);
+
+    // Instant Sync with full catalog on Window/Tab Focus
+    const handleFocus = () => {
+      fetchPOSDomainData(true, true);
+    };
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, [selectedBranch?.id]);
 
-  // Strict Branch Scoping Filter: Display only records matching active branch
+  // Strict Branch Scoping Filter: Display only records matching active branch (with fallback if branch has 0 items)
   const activeBranchId = selectedBranch?.id ? String(selectedBranch.id) : null;
-  const filteredMenuItems = activeBranchId
+
+  const branchMatchingItems = activeBranchId && activeBranchId !== "0"
     ? menuItems.filter(m => !m.branch_id || String(m.branch_id) === activeBranchId)
     : menuItems;
 
-  const filteredCategories = activeBranchId
+  const filteredMenuItems = branchMatchingItems.length > 0 ? branchMatchingItems : menuItems;
+
+  const branchMatchingCategories = activeBranchId && activeBranchId !== "0"
     ? categories.filter(c => !c.branch_id || String(c.branch_id) === activeBranchId)
     : categories;
 
-  const filteredTables = activeBranchId
-    ? tables.filter(t => !t.branch_id || String(t.branch_id) === activeBranchId)
+  const filteredCategories = branchMatchingCategories.length > 0 ? branchMatchingCategories : categories;
+
+  const filteredTables = activeBranchId && activeBranchId !== "0"
+    ? (tables.filter(t => !t.branch_id || String(t.branch_id) === activeBranchId).length > 0 ? tables.filter(t => !t.branch_id || String(t.branch_id) === activeBranchId) : tables)
     : tables;
 
-  const filteredWaiters = activeBranchId
-    ? waiters.filter(w => !w.branch_id || String(w.branch_id) === activeBranchId)
+  const filteredWaiters = activeBranchId && activeBranchId !== "0"
+    ? (waiters.filter(w => !w.branch_id || String(w.branch_id) === activeBranchId).length > 0 ? waiters.filter(w => !w.branch_id || String(w.branch_id) === activeBranchId) : waiters)
     : waiters;
+
 
   // Handler mutations strictly enforcing PostgreSQL DB as Single Source of Truth (SSOT)
   const handleSaveMenuItem = async (itemData: Partial<POSMenuItem>) => {
@@ -274,11 +402,22 @@ export const POSPage: React.FC = () => {
 
   const handleCreateOrder = async (newOrder: Partial<POSOrder>) => {
     try {
+      const modeStr = (newOrder.order_mode || newOrder.order_type || "dine_in").toLowerCase();
+      const isTakeaway = modeStr.includes("take") || modeStr.includes("pickup");
+      const isDelivery = modeStr.includes("deliv");
+      const typeStr = isTakeaway ? "TAKEAWAY" : (isDelivery ? "DELIVERY" : "DINE_IN");
+      const isDineIn = typeStr === "DINE_IN";
+
       const payload = {
+        order_number: newOrder.order_number || undefined,
         branch_id: selectedBranch?.id ? Number(selectedBranch.id) : 1,
-        order_type: newOrder.order_type || "DINE_IN",
-        table_id: newOrder.table_id || null,
-        waiter_id: newOrder.waiter_id || null,
+        order_type: typeStr,
+        order_mode: isTakeaway ? "takeaway" : (isDelivery ? "delivery" : "dine_in"),
+        customer_id: newOrder.customer_id ? Number(newOrder.customer_id) : null,
+        table_id: isDineIn && newOrder.table_id ? Number(newOrder.table_id) : null,
+        table_name: isDineIn ? (newOrder.table_name || undefined) : undefined,
+        waiter_id: isDineIn && newOrder.waiter_id ? Number(newOrder.waiter_id) : null,
+        waiter_name: isDineIn ? (newOrder.waiter_name || undefined) : undefined,
         items: newOrder.items || [],
         subtotal: newOrder.subtotal || 0,
         packaging_charge: newOrder.packaging_charge || 0,
@@ -293,18 +432,99 @@ export const POSPage: React.FC = () => {
       if (!res || !res.id) {
         throw new Error("Failed to create order in PostgreSQL Database");
       }
-      await fetchPOSDomainData();
+      setOrders(prev => [res, ...prev.filter(o => String(o.id) !== String(res.id))]);
+      return res;
     } catch (err: any) {
-      console.error("Order creation error", err);
-      const detail = err?.response?.data?.detail || err?.message || "Failed to save order to PostgreSQL Database";
-      toast.error(`Order Failed: ${detail}`);
+      console.error("Order creation error in PostgreSQL", err);
       throw err;
     }
   };
 
+  const handleOptimisticOrderCreate = (
+    optimisticOrder: POSOrder,
+    tableUpdate?: { tableId: number | string; status: POSTable["status"] }
+  ) => {
+    setOrders((prev) => [
+      optimisticOrder,
+      ...prev.filter(
+        (o) =>
+          o.order_number !== optimisticOrder.order_number &&
+          String(o.id) !== String(optimisticOrder.id)
+      ),
+    ]);
+    if (tableUpdate) {
+      setTables((prev) =>
+        prev.map((t) =>
+          String(t.id) === String(tableUpdate.tableId) ||
+          String(t.table_number).toLowerCase() === String(tableUpdate.tableId).toLowerCase()
+            ? { ...t, status: tableUpdate.status }
+            : t
+        )
+      );
+    }
+    try {
+      const updatedOrders = [
+        optimisticOrder,
+        ...orders.filter(
+          (o) =>
+            o.order_number !== optimisticOrder.order_number &&
+            String(o.id) !== String(optimisticOrder.id)
+        ),
+      ];
+      sessionStorage.setItem("pos_cache_orders", JSON.stringify(updatedOrders));
+    } catch {}
+  };
+
+  const handleOptimisticOrderSettle = (orderNumber: string, tableId?: number | string) => {
+    const targetTableId = tableId !== undefined && tableId !== null ? String(tableId) : "";
+    let updatedOrdersList: POSOrder[] = [];
+
+    setOrders((prev) => {
+      updatedOrdersList = prev.map((o) =>
+        o.order_number === orderNumber
+          ? { ...o, status: "completed", payment_status: "paid" }
+          : o
+      );
+      try {
+        sessionStorage.setItem("pos_cache_orders", JSON.stringify(updatedOrdersList));
+      } catch {}
+      return updatedOrdersList;
+    });
+
+    if (tableId) {
+      setTables((prev) => {
+        // Check if another active order is still running on this table
+        const hasOtherActiveOrder = updatedOrdersList.some(
+          (o) =>
+            o.order_number !== orderNumber &&
+            !["completed", "paid", "cancelled"].includes((o.status || "").toLowerCase()) &&
+            (String(o.table_id) === targetTableId ||
+              (o.table_name && targetTableId && String(o.table_name).trim().toLowerCase() === targetTableId.toLowerCase()))
+        );
+
+        const updatedTables = prev.map((t) => {
+          const isMatch =
+            String(t.id) === targetTableId ||
+            String(t.table_number).toLowerCase() === targetTableId.toLowerCase();
+          if (!isMatch) return t;
+
+          if (hasOtherActiveOrder) {
+            return { ...t, status: "occupied" as const };
+          }
+          return { ...t, status: "free" as const, current_order_id: null };
+        });
+
+        try {
+          sessionStorage.setItem("pos_cache_tables", JSON.stringify(updatedTables));
+        } catch {}
+        return updatedTables;
+      });
+    }
+  };
+
   // Determine active view from URL path
-  const isMasterView = currentPath.includes("/pos/master") || currentPath.includes("/pos/categories") || currentPath.includes("/pos/menu-items") || currentPath.includes("/pos/tables") || currentPath.includes("/pos/waiters") || currentPath.includes("/pos/payment-modes") || currentPath.includes("/pos/kitchen-stations");
-  const isTransactionView = currentPath.includes("/pos/transaction") || currentPath.includes("/pos/billing") || currentPath.includes("/pos/kds");
+  const isMasterView = currentPath.includes("/pos/master");
+  const isTransactionView = currentPath.includes("/pos/transaction") || currentPath.includes("/pos/billing") || currentPath.includes("/pos/kds") || currentPath.includes("/pos/orders");
   const isReportsView = currentPath.includes("/pos/reports") || currentPath.includes("/pos/report");
   const isSettingsView = currentPath.includes("/pos/settings");
 
@@ -338,10 +558,34 @@ export const POSPage: React.FC = () => {
           waiters={filteredWaiters}
           orders={orders}
           onCreateOrder={handleCreateOrder}
+          onOptimisticOrderCreate={handleOptimisticOrderCreate}
+          onOptimisticOrderSettle={handleOptimisticOrderSettle}
+          onRefresh={(serverOrder) => {
+            if (serverOrder && serverOrder.order_number) {
+              setOrders((prev) => [
+                serverOrder,
+                ...prev.filter(
+                  (o) =>
+                    o.order_number !== serverOrder.order_number &&
+                    String(o.id) !== String(serverOrder.id)
+                ),
+              ]);
+            }
+            fetchPOSDomainData(true);
+          }}
           isLoading={isLoading}
         />
       ) : isReportsView ? (
-        <POSReportsPage orders={orders} />
+        <POSReportsPage
+          orders={orders}
+          categories={filteredCategories}
+          menuItems={filteredMenuItems}
+          tables={filteredTables}
+          waiters={filteredWaiters}
+          selectedBranch={selectedBranch}
+          onRefresh={fetchPOSDomainData}
+          isLoading={isLoading}
+        />
       ) : isSettingsView ? (
         <POSSettingsPage />
       ) : (

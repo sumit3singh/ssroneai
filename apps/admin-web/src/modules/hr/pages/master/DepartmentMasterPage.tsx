@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Building2, Plus, Trash2, RefreshCw, X, Save } from "lucide-react";
-import { Button } from "@ssrone/ui";
+import { Building2, Plus, Trash2, Edit2, RefreshCw, X, Save } from "lucide-react";
+import { Button, PageHeader } from "@ssrone/ui";
 import { useAuthStore } from "@ssrone/auth";
 import { hrService } from "../../services/hr.service";
 import { Department } from "../../types/hr.types";
@@ -13,6 +13,7 @@ export function DepartmentMasterPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingDept, setEditingDept] = useState<Department | null>(null);
   const [deptName, setDeptName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -32,7 +33,19 @@ export function DepartmentMasterPage() {
     fetchDepartments();
   }, [activeBranchId]);
 
-  const handleCreateDepartment = async (e: React.FormEvent) => {
+  const handleOpenAdd = () => {
+    setEditingDept(null);
+    setDeptName("");
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEdit = (dept: Department) => {
+    setEditingDept(dept);
+    setDeptName(dept.name);
+    setIsModalOpen(true);
+  };
+
+  const handleSaveDepartment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!deptName.trim()) {
       toast.error("Department Name is required");
@@ -41,13 +54,19 @@ export function DepartmentMasterPage() {
 
     setIsSubmitting(true);
     try {
-      await hrService.createDepartment(deptName, activeBranchId);
-      toast.success(`Department '${deptName}' created successfully!`);
+      if (editingDept) {
+        await hrService.updateDepartment(editingDept.id, deptName, activeBranchId);
+        toast.success(`Department '${deptName}' updated successfully!`);
+      } else {
+        await hrService.createDepartment(deptName, activeBranchId);
+        toast.success(`Department '${deptName}' created successfully!`);
+      }
       setDeptName("");
+      setEditingDept(null);
       setIsModalOpen(false);
       fetchDepartments();
     } catch (err: any) {
-      toast.error("Failed to create department: " + (err.response?.data?.detail || err.message));
+      toast.error("Failed to save department: " + (err.response?.data?.detail || err.message));
     } finally {
       setIsSubmitting(false);
     }
@@ -65,39 +84,29 @@ export function DepartmentMasterPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-6 rounded-3xl border border-border shadow-card">
-        <div className="space-y-1">
+    <div className="space-y-4">
+      {/* Standardized Enterprise Page Header */}
+      <PageHeader
+        title="Department Master Center"
+        description="Manage organizational departments and functional divisions directly in PostgreSQL"
+        icon={<Building2 size={18} />}
+        badge={`${departments.length} Departments`}
+        actions={
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-primary/10 text-primary">
-              <Building2 size={20} />
-            </div>
-            <div>
-              <h1 className="font-display font-black text-xl text-foreground uppercase tracking-wider">
-                Department Master Center
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                Manage organizational departments and functional divisions directly in PostgreSQL
-              </p>
-            </div>
+            <button
+              onClick={fetchDepartments}
+              className="p-1.5 rounded border border-border bg-background hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
+              title="Refresh Departments"
+            >
+              <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+            </button>
+
+            <Button onClick={handleOpenAdd} size="sm" className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs">
+              <Plus size={14} /> Add Department
+            </Button>
           </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={fetchDepartments}
-            className="p-2.5 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground cursor-pointer"
-          >
-            <RefreshCw size={15} className={isLoading ? "animate-spin" : ""} />
-          </button>
-
-          <Button onClick={() => setIsModalOpen(true)} className="font-extrabold flex items-center gap-2 cursor-pointer">
-            <Plus size={16} />
-            <span>Add Department</span>
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Departments Directory Table */}
       <div className="bg-card border border-border rounded-3xl p-6 shadow-card space-y-4">
@@ -119,13 +128,22 @@ export function DepartmentMasterPage() {
                   <td className="py-3.5 font-display font-black text-foreground text-sm">{dept.name}</td>
                   <td className="py-3.5 text-muted-foreground">Branch #{dept.branch_id || activeBranchId}</td>
                   <td className="py-3.5 text-center">
-                    <button
-                      onClick={() => handleDelete(dept.id)}
-                      className="p-1.5 rounded-lg border border-rose-500/20 hover:bg-rose-500/10 text-rose-500 cursor-pointer"
-                      title="Delete Department"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    <div className="flex items-center justify-center gap-1.5">
+                      <button
+                        onClick={() => handleOpenEdit(dept)}
+                        className="p-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                        title="Edit Department"
+                      >
+                        <Edit2 size={13} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(dept.id)}
+                        className="p-1.5 rounded-lg border border-rose-500/20 hover:bg-rose-500/10 text-rose-500 cursor-pointer"
+                        title="Delete Department"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -141,20 +159,25 @@ export function DepartmentMasterPage() {
         </div>
       </div>
 
-      {/* Add Department Modal */}
+      {/* Add / Edit Department Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-3xl w-full max-w-md p-6 space-y-4 shadow-modal">
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-display font-black text-base text-foreground uppercase">Add Department Master</h3>
+              <h3 className="font-display font-black text-base text-foreground uppercase">
+                {editingDept ? "Edit Department Master" : "Add Department Master"}
+              </h3>
               <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground cursor-pointer">
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateDepartment} className="space-y-4 text-xs font-bold">
+            <form onSubmit={handleSaveDepartment} className="space-y-4 text-xs font-bold">
               <div>
-                <label className="block text-muted-foreground mb-1">Department Name *</label>
+                <label className="block text-muted-foreground mb-1">
+                  <span>Department Name</span>
+                  <span className="text-rose-500 font-bold ml-1">*</span>
+                </label>
                 <input
                   type="text"
                   required
@@ -179,7 +202,7 @@ export function DepartmentMasterPage() {
                   className="px-5 py-2 rounded-xl bg-primary text-primary-foreground font-black flex items-center gap-1.5 cursor-pointer hover:opacity-90 transition-all shadow-md active:scale-95 text-xs disabled:opacity-50"
                 >
                   <Save size={14} />
-                  <span>{isSubmitting ? "Saving..." : "Save Department"}</span>
+                  <span>{isSubmitting ? "Saving..." : editingDept ? "Update Department" : "Save Department"}</span>
                 </button>
               </div>
             </form>

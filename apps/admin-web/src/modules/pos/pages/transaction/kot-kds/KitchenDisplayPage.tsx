@@ -12,12 +12,14 @@ import {
   CheckCircle2,
   Maximize2,
   Minimize2,
-  Filter
+  Filter,
+  BellRing
 } from "lucide-react";
 import { Button, PageHeader } from "@ssrone/ui";
 import { api } from "@ssrone/api-client";
 import { toast } from "sonner";
 import { POSOrder } from "../../../types";
+import { renderSafeString } from "../../../utils/renderSafeString";
 
 interface KitchenStationItem {
   id: number | string;
@@ -148,8 +150,24 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
         if (stationFilter !== "ALL") {
           const targetStationLower = stationFilter.toLowerCase();
           const matchingItems = (o.items || []).filter((it: any) => {
-            const itemStation = (it.kds_station || it.kdsStation || "").toLowerCase();
-            return !itemStation || itemStation.includes(targetStationLower) || targetStationLower.includes(itemStation);
+            const itemStation = (it.kds_station || it.kdsStation || it.station || "").toLowerCase();
+            const itemName = (it.product_name || it.item_name || it.name || "").toLowerCase();
+            const targetLower = stationFilter.toLowerCase();
+
+            if (itemStation) {
+              return itemStation.includes(targetLower) || targetLower.includes(itemStation);
+            }
+            // Smart category keyword fallback if kds_station was not explicitly set on order item
+            if (targetLower.includes("italian") || targetLower.includes("pizza")) {
+              return itemName.includes("pizza") || itemName.includes("pasta") || itemName.includes("bread") || itemName.includes("italian");
+            }
+            if (targetLower.includes("drink") || targetLower.includes("beverage") || targetLower.includes("bar")) {
+              return itemName.includes("chai") || itemName.includes("coffee") || itemName.includes("tea") || itemName.includes("drink") || itemName.includes("shake") || itemName.includes("beverage") || itemName.includes("coke") || itemName.includes("pepsi");
+            }
+            if (targetLower.includes("main") || targetLower.includes("kitchen")) {
+              return !itemName.includes("pizza") && !itemName.includes("chai") && !itemName.includes("coffee") && !itemName.includes("tea");
+            }
+            return false;
           });
 
           if (matchingItems.length === 0) return null;
@@ -396,7 +414,7 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {filteredOrders.map((order, orderIdx) => {
             const isBumping = String(bumpingId) === String(order.id);
             const notesText = order.notes || order.special_instructions;
@@ -474,11 +492,13 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
                   {/* Channel info */}
                   <div className="flex items-center justify-between text-[11px] text-muted-foreground bg-muted/40 px-2 py-1 rounded border border-border/50 font-medium">
                     <span>{channelLabel}</span>
-                    {order.customer_name ? (
-                      <span className="truncate text-foreground font-medium">{order.customer_name}</span>
-                    ) : order.waiter_name ? (
-                      <span className="truncate text-foreground font-medium">Waiter: {order.waiter_name}</span>
-                    ) : null}
+                    {(() => {
+                      const cName = renderSafeString(order.customer_name);
+                      const wName = renderSafeString(order.waiter_name);
+                      if (cName) return <span className="truncate text-foreground font-medium">{cName}</span>;
+                      if (wName) return <span className="truncate text-foreground font-medium">Waiter: {wName}</span>;
+                      return null;
+                    })()}
                   </div>
 
                   {/* Notes */}
@@ -494,9 +514,11 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
                     {order.items?.map((item: any, idx: number) => {
                       const itemName = item.product_name || item.name || item.item_name || "Dish Item";
                       const variantName = item.variant_name || (item.selected_variant ? (typeof item.selected_variant === "string" ? item.selected_variant : item.selected_variant.name) : undefined);
-                      const addonsList = Array.isArray(item.selected_addons)
-                        ? item.selected_addons.map((a: any) => (typeof a === "string" ? a : a.name))
+                      const rawAddons = item.addons || item.selected_addons || item.addon_options || [];
+                      const addonsList = Array.isArray(rawAddons)
+                        ? rawAddons.map((a: any) => (typeof a === "string" ? a : (a?.name || a?.title || a?.addon_name || a?.label || ""))).filter(Boolean)
                         : [];
+
 
                       return (
                         <div key={idx} className="pt-1.5 first:pt-0 space-y-0.5">
@@ -521,10 +543,11 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
                               • Addons: {addonsList.join(", ")}
                             </p>
                           )}
-                          {item.preparation_notes && (
-                            <p className="text-[11px] text-amber-600 dark:text-amber-400 italic">
-                              "{item.preparation_notes}"
-                            </p>
+                          {(item.notes || item.preparation_notes || item.special_instructions) && (
+                            <div className="text-[11px] font-black text-slate-900 dark:text-white bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-2 py-0.5 rounded mt-1 font-mono tracking-wide uppercase inline-flex items-center gap-1 shadow-2xs">
+                              <span>⚡ REMARK:</span>
+                              <span>{String(item.notes || item.preparation_notes || item.special_instructions).toUpperCase()}</span>
+                            </div>
                           )}
                         </div>
                       );
@@ -532,37 +555,35 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
                   </div>
                 </div>
 
-                {/* Footer Action Bar */}
-                <div className="p-2 bg-muted/20 border-t border-border grid grid-cols-2 gap-2 text-xs">
-                  <button
-                    disabled={isBumping || isPreparing || isReady}
-                    onClick={() => handleStartPrep(order.id, order.order_number)}
-                    className={`py-1 px-2 rounded font-medium text-xs border cursor-pointer transition-colors ${
-                      isPreparing
-                        ? "bg-muted text-muted-foreground border-border cursor-not-allowed"
-                        : "bg-primary text-primary-foreground hover:bg-primary/90 border-primary"
-                    }`}
-                  >
-                    {isPreparing ? "Cooking" : "Start Prep"}
-                  </button>
+                {/* Supervisor Action Bar */}
+                <div className="p-2 bg-muted/20 border-t border-border flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+                    <span className={`w-2 h-2 rounded-full ${isReady ? "bg-emerald-500" : isPreparing ? "bg-indigo-500" : "bg-amber-500 animate-pulse"}`} />
+                    <span>{isReady ? "Kitchen Ready" : isPreparing ? "Cooking in Kitchen" : "Pending in Queue"}</span>
+                  </div>
 
-                  {isReady ? (
-                    <button
-                      disabled={isBumping}
-                      onClick={() => handleCompleteOrder(order.id, order.order_number)}
-                      className="py-1 px-2 rounded font-medium text-xs bg-muted text-foreground hover:bg-muted/80 border border-border cursor-pointer transition-colors"
-                    >
-                      {isBumping ? "Closing..." : "Close Ticket"}
-                    </button>
-                  ) : (
-                    <button
-                      disabled={isBumping}
-                      onClick={() => handleBumpOrder(order.id, order.order_number)}
-                      className="py-1 px-2 rounded font-medium text-xs bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-600 cursor-pointer transition-colors"
-                    >
-                      {isBumping ? "Updating..." : "Mark Ready"}
-                    </button>
-                  )}
+                  <button
+                    onClick={async () => {
+                      try {
+                        const numId = parseInt(String(order.id).replace(/\D/g, ""), 10);
+                        if (!isNaN(numId)) {
+                          await api.post(`/orders/${numId}/alert`, {});
+                          playKitchenChime();
+                          toast.success("Expedite Alert Dispatched!", {
+                            description: `Order #${order.order_number} is now blinking with sound alert on Kitchen KDS terminal!`
+                          });
+                          loadKDSOrders();
+                        }
+                      } catch (err) {
+                        toast.error("Failed to send kitchen alert");
+                      }
+                    }}
+                    className="py-1 px-3 rounded font-bold text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 cursor-pointer transition-all flex items-center gap-1.5 shadow-2xs"
+                    title="Dispatch sound & visual alert to Kitchen Display App"
+                  >
+                    <BellRing size={14} className="animate-bounce" />
+                    <span>Alert Kitchen</span>
+                  </button>
                 </div>
               </div>
             );

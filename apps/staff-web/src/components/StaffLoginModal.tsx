@@ -54,6 +54,7 @@ export const StaffLoginModal: React.FC<StaffLoginModalProps> = ({
         identifier: cleanCode,
         pin_code: cleanPin,
         tenant_slug: tenantSlug.trim(),
+        app_target: requiredAccess,
       });
 
       if (!response || !response.employee) {

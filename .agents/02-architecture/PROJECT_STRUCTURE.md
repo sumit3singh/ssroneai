@@ -55,10 +55,12 @@
 | **FastAPI Backend API** | `8000` | Python 3.12 / FastAPI / SQLAlchemy / AsyncPG | Single Source of Truth Async API Gateway & Multi-Tenant RLS |
 | **Admin ERP Web (`admin-web`)** | `5173` | React 19 / Vite / TanStack Router | Tenant ERP Workspace (POS, Hotel, HR, CRM, Inventory, Finance) |
 | **Platform Admin (`platform-admin`)** | `5174` | React 19 / Vite / Tailwind / Lucide | SaaS Superadmin Portal (Tenants, Licensing Keys, DB Telemetry) |
+| **Kitchen Display (`kds-web`)** | `8083` | React 19 / Vite | 5-Mode Kitchen Operations System (Cook, Batch, EXPO, Packing, SLA) |
+| **Queue Token Web (`token-order-web`)** | `3003` | React 19 / Vite / Tailwind | Mobile Fast-Order & Queue-Buster 3-Digit Token Generation (`#104`) |
 | **Customer Food Web (`customer-food-web`)** | `3000` | React 19 / Vite | Digital Food Ordering & QR Menu Web App |
 | **Customer Stay Web (`customer-stay-web`)** | `3001` | React 19 / Vite | Hotel Room Stay, Digital Check-in & Guest Services |
-| **Kitchen Display (`kds-web`)** | `8083` | React 19 / Vite | Live Kitchen Order Display System for Chefs |
-| **Staff & Waiter Portal (`staff-web`)** | `8084` | React 19 / Vite | Mobile POS App for Restaurant Captains & Waiters |
+| **Staff & Waiter Portal (`staff-web`)** | `8084` | React 19 / Vite | Mobile Staff Operations (Housekeeping, Room Service, KOT) |
+| **Marketing Web (`marketing-web`)** | `3002` | React 19 / Vite / GSAP | Character-Guided Motion-Path Scrollytelling & Lead Ingestion |
 
 ---
 
@@ -78,6 +80,13 @@ ssr_one_ai
 │   │   │   ├── ADR-0002-multi-tenancy-rls.md
 │   │   │   ├── ADR-0003-monorepo-package-boundaries.md
 │   │   │   ├── ADR-0004-structure-migration-complete.md
+│   │   │   ├── ADR-0005-category-master-root-cause-and-governance.md
+│   │   │   ├── ADR-0006-universal-multi-tenant-context-architecture.md
+│   │   │   ├── ADR-0007-startup-ddl-lock-purge-and-pure-ssot-auth-context.md
+│   │   │   ├── ADR-0008-ui-modernization-and-domain-functionality-transition.md
+│   │   │   ├── ADR-0009-pos-kiosk-billing-and-order-edit-architecture.md
+│   │   │   ├── ADR-0010-zero-wait-pos-architecture-and-dual-in-memory-mounted-layout.md
+│   │   │   ├── ADR-0011-marketing-web-character-guided-motion-path-architecture.md
 │   │   │   └── template.md
 │   │   ├── AI_ARCHITECTURE.md              # AI Copilot, RAG Retrieval & OCR Specs
 │   │   ├── API_VERSIONING_GUIDE.md         # API Versioning URI Scheme & RFC Specs
@@ -88,7 +97,8 @@ ssr_one_ai
 │   │   ├── MULTI_TENANCY.md                # PostgreSQL Row-Level Security (RLS) Standards
 │   │   ├── PLATFORM_ADMIN_BLUEPRINT.md     # Platform Superadmin Onboarding Blueprint
 │   │   ├── PROJECT_STRUCTURE.md            # Recursive Monorepo File Tree Map
-│   │   └── ROUTE_MAP.md                    # Frontend SPA Routes & Backend API Endpoint Map
+│   │   ├── ROUTE_MAP.md                    # Frontend SPA Routes & Backend API Endpoint Map
+│   │   └── ZERO_WAIT_POS_BLUEPRINT.md      # Zero-Wait POS Master Architecture Blueprint
 │   ├── 03-standards/                       # Quality & Design Standards
 │   │   ├── API_STANDARDS.md                # REST Verbs, Status Codes & WebSocket Payloads
 │   │   ├── CODING_STANDARDS.md             # TypeScript, React, Python Code Rules
@@ -130,7 +140,7 @@ ssr_one_ai
 │   ├── DO_NOT.md                           # Inventory of Critical Anti-Patterns
 │   └── PROJECT_BRIEF.md                    # Platform Overview Brief
 │
-├── apps/                                   # Client Applications (7 Sub-Apps)
+├── apps/                                   # Client Applications (8 Frontends)
 │   ├── admin-web/                          # [Port 5173] Tenant ERP Workspace Suite
 │   │   ├── src/
 │   │   │   ├── app/                        # Main Layout & TanStack Router Configuration
@@ -179,14 +189,26 @@ ssr_one_ai
 │   │   ├── package.json
 │   │   └── vite.config.ts
 │   │
-│   ├── kds-web/                            # [Port 8083] Kitchen Display System (KDS) Screen
-│   │   ├── src/                            # Live Kitchen Order Screen UI
+│   ├── kds-web/                            # [Port 8083] 5-Mode Kitchen Operations System (KOS)
+│   │   ├── src/                            # Cook Station, Batch Prep, EXPO, Packing, SLA Manager
 │   │   ├── index.html
 │   │   ├── package.json
 │   │   └── vite.config.ts
 │   │
-│   └── staff-web/                          # [Port 8084] Waiter Captain & Mobile POS App
-│       ├── src/                            # Restaurant Captain POS Interface
+│   ├── token-order-web/                    # [Port 3003] Mobile Fast-Order & Queue-Buster Token Web
+│   │   ├── src/                            # Fast Order Assembly & 3-Digit Token (#104) Generator
+│   │   ├── index.html
+│   │   ├── package.json
+│   │   └── vite.config.ts
+│   │
+│   ├── staff-web/                          # [Port 8084] Waiter Captain & Mobile POS App
+│   │   ├── src/                            # Restaurant Captain POS Interface
+│   │   ├── index.html
+│   │   ├── package.json
+│   │   └── vite.config.ts
+│   │
+│   └── marketing-web/                      # [Port 3002] Character-Guided Motion-Path Scrollytelling
+│       ├── src/                            # 7 Story Beats, SVG Emerald Motion Path, Lead Ingestion
 │       ├── index.html
 │       ├── package.json
 │       └── vite.config.ts
@@ -214,7 +236,7 @@ ssr_one_ai
 │       │   ├── ai/                         # GenAI LLM & Demand Forecast Engines
 │       │   ├── api/                        # REST API Router Endpoints (v1)
 │       │   ├── core/                       # Database Session, Config, Security & Event Bus
-│       │   ├── engines/                    # Workflow, Notification, Audit & Print Engines
+│       │   ├── engines/                    # 14 Enterprise Engines (Workflow, Notification, Audit, Print, Licensing, Tax, etc.)
 │       │   ├── integrations/               # Payment Gateways, WhatsApp & SMS Integrations
 │       │   ├── modules/                    # Business Microservice Modules (auth, restaurant, hotel, crm, hr, finance, etc.)
 │       │   ├── shared/                     # Cloud & Local Storage Abstraction

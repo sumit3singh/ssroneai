@@ -43,6 +43,23 @@ export function AddEmployeeModal({
     can_access_kds_web: false,
   });
 
+  const [dbDepartments, setDbDepartments] = useState<any[]>([]);
+  const [dbDesignations, setDbDesignations] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      Promise.all([
+        hrService.getDepartments(activeBranchId),
+        hrService.getDesignations(activeBranchId),
+      ]).then(([depts, desigs]) => {
+        setDbDepartments(depts || []);
+        setDbDesignations(desigs || []);
+      }).catch((err) => {
+        console.error("Failed to load departments/designations for modal:", err);
+      });
+    }
+  }, [isOpen, activeBranchId]);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
 
@@ -50,15 +67,15 @@ export function AddEmployeeModal({
     setErrorDetails(null);
     if (editingEmp) {
       setFormState({
-        name: editingEmp.name,
-        employee_code: editingEmp.employee_code,
-        designation: editingEmp.designation || editingEmp.role,
-        role: editingEmp.role,
-        department: editingEmp.department || "Service",
-        salary: editingEmp.salary || 20000,
+        name: editingEmp.name || (editingEmp as any).full_name || "",
+        employee_code: editingEmp.employee_code || "",
+        designation: editingEmp.designation || editingEmp.role || "",
+        role: editingEmp.role || editingEmp.designation || "",
+        department: editingEmp.department || (editingEmp as any).department_name || "Service",
+        salary: (editingEmp as any).basic_salary || editingEmp.salary || 20000,
         allowances: editingEmp.allowances || 0,
         deductions: editingEmp.deductions || 0,
-        contact: editingEmp.contact || "",
+        contact: editingEmp.contact || (editingEmp as any).phone || "",
         email: editingEmp.email || "",
         pin_code: editingEmp.pin_code || "1234",
         can_access_staff_web: Boolean(editingEmp.can_access_staff_web),
@@ -68,9 +85,9 @@ export function AddEmployeeModal({
       setFormState({
         name: "",
         employee_code: `EMP-${1001 + existingCount}`,
-        designation: "Server",
-        role: "Server",
-        department: "Service",
+        designation: dbDesignations[0]?.title || "Server",
+        role: dbDesignations[0]?.title || "Server",
+        department: dbDepartments[0]?.name || "Service",
         salary: 20000,
         allowances: 0,
         deductions: 0,
@@ -170,7 +187,10 @@ export function AddEmployeeModal({
         <form onSubmit={handleSubmit} className="space-y-3.5 text-xs font-bold">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-muted-foreground mb-1">Employee Full Name *</label>
+              <label className="block text-muted-foreground mb-1">
+                <span>Employee Full Name</span>
+                <span className="text-rose-500 font-bold ml-1">*</span>
+              </label>
               <input
                 type="text"
                 required
@@ -181,7 +201,10 @@ export function AddEmployeeModal({
               />
             </div>
             <div>
-              <label className="block text-muted-foreground mb-1">Staff Code / ID *</label>
+              <label className="block text-muted-foreground mb-1">
+                <span>Staff Code / ID</span>
+                <span className="text-rose-500 font-bold ml-1">*</span>
+              </label>
               <input
                 type="text"
                 required
@@ -195,34 +218,66 @@ export function AddEmployeeModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-muted-foreground mb-1">Designation / Role Title</label>
-              <input
-                type="text"
+              <label className="block text-muted-foreground mb-1">
+                <span>Designation / Role Title</span>
+                <span className="text-rose-500 font-bold ml-1">*</span>
+              </label>
+              <select
                 value={formState.designation}
                 onChange={(e) => setFormState({ ...formState, designation: e.target.value, role: e.target.value })}
-                placeholder="e.g. Senior Waiter / Head Chef"
-                className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-foreground focus:ring-1 focus:ring-primary focus:outline-none"
-              />
+                className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-foreground focus:ring-1 focus:ring-primary focus:outline-none font-bold"
+              >
+                {dbDesignations.length === 0 ? (
+                  <>
+                    <option value="Server">Server / Waiter</option>
+                    <option value="Chef">Head Chef / Cook</option>
+                    <option value="Manager">Store Manager</option>
+                    <option value="Cashier">POS Cashier</option>
+                  </>
+                ) : (
+                  dbDesignations.map((d: any) => (
+                    <option key={d.id} value={d.title}>
+                      {d.title}
+                    </option>
+                  ))
+                )}
+              </select>
             </div>
             <div>
-              <label className="block text-muted-foreground mb-1">Department</label>
+              <label className="block text-muted-foreground mb-1">
+                <span>Department</span>
+                <span className="text-rose-500 font-bold ml-1">*</span>
+              </label>
               <select
                 value={formState.department}
                 onChange={(e) => setFormState({ ...formState, department: e.target.value })}
                 className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-foreground focus:ring-1 focus:ring-primary focus:outline-none font-bold"
               >
-                <option value="Service">Service & Dining</option>
-                <option value="Kitchen">Kitchen & Cooking</option>
-                <option value="FrontDesk">Front Desk & Reception</option>
-                <option value="Housekeeping">Housekeeping & Maintenance</option>
-                <option value="Management">Management & Accounting</option>
+                {dbDepartments.length === 0 ? (
+                  <>
+                    <option value="Service & Dining">Service & Dining</option>
+                    <option value="Kitchen & Cooking">Kitchen & Cooking</option>
+                    <option value="Front Desk & Reception">Front Desk & Reception</option>
+                    <option value="Housekeeping & Maintenance">Housekeeping & Maintenance</option>
+                    <option value="Management & Accounting">Management & Accounting</option>
+                  </>
+                ) : (
+                  dbDepartments.map((dept: any) => (
+                    <option key={dept.id} value={dept.name}>
+                      {dept.name}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-muted-foreground mb-1">Contact Phone Number *</label>
+              <label className="block text-muted-foreground mb-1">
+                <span>Contact Phone Number</span>
+                <span className="text-rose-500 font-bold ml-1">*</span>
+              </label>
               <input
                 type="text"
                 required
@@ -233,7 +288,10 @@ export function AddEmployeeModal({
               />
             </div>
             <div>
-              <label className="block text-muted-foreground mb-1">Login PIN / Password *</label>
+              <label className="block text-muted-foreground mb-1">
+                <span>Login PIN / Password</span>
+                <span className="text-rose-500 font-bold ml-1">*</span>
+              </label>
               <input
                 type="text"
                 required
@@ -351,7 +409,7 @@ export function AddEmployeeModal({
               className="px-5 py-2 rounded-xl bg-primary text-primary-foreground font-black flex items-center gap-1.5 cursor-pointer hover:opacity-90 transition-all shadow-md active:scale-95 text-xs disabled:opacity-50"
             >
               <Save size={14} />
-              <span>{isSubmitting ? "Saving..." : "Save Staff Member"}</span>
+              <span>{isSubmitting ? "Saving..." : editingEmp ? "Update Staff Member" : "Save Staff Member"}</span>
             </button>
           </div>
         </form>

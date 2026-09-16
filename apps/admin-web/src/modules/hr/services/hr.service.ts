@@ -43,6 +43,11 @@ export const hrService = {
     return res;
   },
 
+  async updateDepartment(id: string | number, name: string, branch_id?: number): Promise<any> {
+    const res = await api.put<any>(`/hr/departments/${id}`, { name, branch_id });
+    return res;
+  },
+
   async deleteDepartment(id: string | number): Promise<any> {
     const res = await api.delete<any>(`/hr/departments/${id}`);
     return res;
@@ -55,6 +60,11 @@ export const hrService = {
 
   async createDesignation(title: string, department_id?: string | number, branch_id?: number): Promise<any> {
     const res = await api.post<any>("/hr/designations", { title, department_id: department_id ? Number(department_id) : null, branch_id });
+    return res;
+  },
+
+  async updateDesignation(id: string | number, title: string, department_id?: string | number, branch_id?: number): Promise<any> {
+    const res = await api.put<any>(`/hr/designations/${id}`, { title, department_id: department_id ? Number(department_id) : null, branch_id });
     return res;
   },
 

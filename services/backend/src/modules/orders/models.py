@@ -7,7 +7,7 @@ from decimal import Decimal
 from enum import StrEnum
 
 from sqlalchemy import (
-    BigInteger, ForeignKey, Integer, Numeric, String, Text, Boolean, DateTime, UniqueConstraint
+    BigInteger, ForeignKey, Integer, Numeric, String, Text, Boolean, DateTime, UniqueConstraint, Index
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -89,9 +89,9 @@ class Order(TenantBaseModel):
     order_number: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     token_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
     branch_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("branches.id"), nullable=False, index=True)
-    customer_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("customers.id", ondelete="SET NULL"), nullable=True)
-    table_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("dining_tables.id", ondelete="SET NULL"), nullable=True)
-    waiter_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True)
+    customer_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("customers.id", ondelete="SET NULL"), nullable=True, index=True)
+    table_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("dining_tables.id", ondelete="SET NULL"), nullable=True, index=True)
+    waiter_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, index=True)
 
     guest_count: Mapped[int] = mapped_column(Integer, default=1)
     order_type: Mapped[str] = mapped_column(String(30), default=OrderType.DINE_IN)
@@ -127,6 +127,11 @@ class Order(TenantBaseModel):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancellation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("ix_orders_tenant_branch_status", "tenant_id", "branch_id", "status"),
+        Index("ix_orders_tenant_branch_created", "tenant_id", "branch_id", "created_at"),
+    )
 
     # Relationships
     items: Mapped[list["OrderItem"]] = relationship(
@@ -194,15 +199,19 @@ class OrderPayment(TenantBaseModel):
     """Payment transaction against an order."""
     __tablename__ = "order_payments"
 
-    order_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("orders.id"), nullable=False)
-    payment_method: Mapped[str] = mapped_column(String(50), nullable=False)
+    order_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("orders.id"), nullable=False, index=True)
+    payment_mode: Mapped[str] = mapped_column(String(50), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    reference_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    gateway: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    gateway_response: Mapped[dict] = mapped_column(JSONB, default=dict)
-    status: Mapped[str] = mapped_column(String(20), default="success")
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    collected_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="success")
+    transaction_reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    @property
+    def payment_method(self) -> str:
+        return self.payment_mode
+
+    @property
+    def reference_number(self) -> str | None:
+        return self.transaction_reference
 
     order: Mapped["Order"] = relationship("Order", back_populates="payments")
 
@@ -326,6 +335,9 @@ class KDSExpoOrder(TenantBaseModel):
     ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+
+
+
 class KDSPackingOrder(TenantBaseModel):
     """Packing station checklist order model."""
     __tablename__ = "kds_packing_orders"
@@ -335,5 +347,41 @@ class KDSPackingOrder(TenantBaseModel):
     packing_required: Mapped[bool] = mapped_column(Boolean, default=True)
     checklist: Mapped[list] = mapped_column(JSONB, default=list)
     packed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class DailyOrderSequence(TenantBaseModel):
+    """Stores daily incrementing order sequence counter per tenant & branch.
+    Format: YYMMDD001, YYMMDD002, YYMMDD003... Resets automatically each day.
+    """
+    __tablename__ = "daily_order_sequences"
+
+    branch_id: Mapped[int] = mapped_column(BigInteger, default=1, index=True)
+    sequence_date: Mapped[str] = mapped_column(String(10), nullable=False)  # 'YYYY-MM-DD'
+    last_seq: Mapped[int] = mapped_column(Integer, default=0)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "branch_id", "sequence_date", name="uq_tenant_branch_date_seq"),
+    )
+
+
+class QueueToken(TenantBaseModel):
+    """Queue-Buster: Pre-order cart token generated on mobile QR / kiosk,
+    claimed at POS counter terminal.
+    """
+    __tablename__ = "queue_tokens"
+
+    branch_id: Mapped[int] = mapped_column(BigInteger, default=1, index=True)
+    token_code: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    customer_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    customer_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    table_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    cart_items: Mapped[list] = mapped_column(JSONB, default=list)
+    subtotal: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=Decimal("0.00"))
+    is_claimed: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    claimed_by_order_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 
 

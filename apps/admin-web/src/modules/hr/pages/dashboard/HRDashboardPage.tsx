@@ -7,6 +7,8 @@ import { Employee } from "../../types/hr.types";
 import { hrService } from "../../services/hr.service";
 import { AddEmployeeModal } from "../../components/AddEmployeeModal";
 import { HRMasterSection } from "../master/HRMasterSection";
+import { DepartmentMasterPage } from "../master/DepartmentMasterPage";
+import { DesignationMasterPage } from "../master/DesignationMasterPage";
 import { HRTransactionSection } from "../transaction/HRTransactionSection";
 import { HRReportSection } from "../report/HRReportSection";
 
@@ -52,6 +54,25 @@ export function HRDashboardPage() {
   useEffect(() => {
     fetchEmployees();
   }, [activeTenantId, activeCompanyId, activeBranchId]);
+
+  const isDepartments = currentPath.includes("/departments");
+  const isDesignations = currentPath.includes("/designations");
+
+  if (isDepartments) {
+    return (
+      <PageContainer>
+        <DepartmentMasterPage />
+      </PageContainer>
+    );
+  }
+
+  if (isDesignations) {
+    return (
+      <PageContainer>
+        <DesignationMasterPage />
+      </PageContainer>
+    );
+  }
 
   return (
     <PageContainer>
@@ -115,7 +136,12 @@ export function HRDashboardPage() {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           onSuccess={fetchEmployees}
-          initialData={editingEmp || undefined}
+          editingEmp={editingEmp}
+          activeTenantId={user?.tenant_id ? Number(user.tenant_id) : 2}
+          activeCompanyId={user?.company_id ? Number(user.company_id) : 1}
+          activeBranchId={activeBranchId}
+          branchName={selected_branch?.name}
+          existingCount={employees.length}
         />
       )}
     </PageContainer>

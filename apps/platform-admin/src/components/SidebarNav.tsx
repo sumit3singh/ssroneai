@@ -7,15 +7,17 @@ import {
   Activity, 
   Terminal, 
   Lock, 
-  Cpu
+  Cpu,
+  MessageSquare
 } from 'lucide-react';
 
 interface SidebarNavProps {
   activeNav: string;
-  setActiveNav: (nav: 'overview' | 'tenants' | 'hierarchy' | 'licensing' | 'billing' | 'telemetry' | 'audit') => void;
+  setActiveNav: (nav: 'overview' | 'tenants' | 'hierarchy' | 'licensing' | 'billing' | 'telemetry' | 'audit' | 'leads') => void;
   tenantCount: number;
   companyCount: number;
   outletCount: number;
+  newLeadCount?: number;
   theme?: 'light' | 'dark';
 }
 
@@ -25,12 +27,14 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
   tenantCount,
   companyCount,
   outletCount,
+  newLeadCount = 0,
   theme = 'light'
 }) => {
   const isDark = theme === 'dark';
 
   const navItems = [
     { id: 'overview', label: 'Platform Telemetry', icon: Activity },
+    { id: 'leads', label: 'Sales Inquiries & Leads', icon: MessageSquare, count: newLeadCount, highlight: newLeadCount > 0 },
     { id: 'tenants', label: 'Multi-Tenant Directory', icon: Building2, count: tenantCount },
     { id: 'hierarchy', label: 'Company & Outlets Tree', icon: GitBranch, count: companyCount },
     { id: 'licensing', label: 'Licensing & Tiers', icon: Key },
@@ -77,7 +81,11 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                 </div>
                 {nav.count !== undefined && (
                   <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-extrabold ${
-                    isActive ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+                    isActive
+                      ? "bg-white/20 text-white"
+                      : nav.highlight
+                        ? "bg-amber-500 text-white shadow-2xs animate-pulse"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
                   }`}>
                     {nav.count}
                   </span>

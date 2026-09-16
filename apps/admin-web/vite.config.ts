@@ -63,7 +63,8 @@ export default defineConfig({
   },
   build: {
     target: "es2022",
-    sourcemap: true,
+    sourcemap: false,
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
         manualChunks: {
@@ -71,9 +72,20 @@ export default defineConfig({
           router: ["@tanstack/react-router"],
           query: ["@tanstack/react-query"],
           charts: ["recharts"],
-          ui: ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu"],
+          dexie: ["dexie", "dexie-react-hooks"],
+          ui: [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-popover",
+            "@radix-ui/react-select",
+            "@radix-ui/react-tabs",
+            "@radix-ui/react-tooltip",
+          ],
         },
       },
     },
+  },
+  esbuild: {
+    drop: process.env.NODE_ENV === "production" ? ["console", "debugger"] : [],
   },
 });

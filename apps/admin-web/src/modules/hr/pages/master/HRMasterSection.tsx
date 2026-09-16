@@ -13,6 +13,8 @@ interface HRMasterSectionProps {
 }
 
 import { useRouterState } from "@tanstack/react-router";
+import { DepartmentMasterPage } from "./DepartmentMasterPage";
+import { DesignationMasterPage } from "./DesignationMasterPage";
 
 export const HRMasterSection: React.FC<HRMasterSectionProps> = ({
   employees,
@@ -24,7 +26,11 @@ export const HRMasterSection: React.FC<HRMasterSectionProps> = ({
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
 
-  const masterTab = currentPath.includes("/departments") ? "designations" : "directory";
+  const masterTab = currentPath.includes("/departments")
+    ? "departments"
+    : currentPath.includes("/designations")
+    ? "designations"
+    : "directory";
 
   return (
     <div className="space-y-4">
@@ -59,25 +65,11 @@ export const HRMasterSection: React.FC<HRMasterSectionProps> = ({
         </div>
       )}
 
-      {/* ── TAB 2: Designations Master ── */}
-      {masterTab === "designations" && (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 space-y-4 shadow-xs">
-          <h3 className="font-bold text-sm text-slate-900 dark:text-white">Departmental Structure & Access Roles</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            {[
-              { dept: "Kitchen & KDS Ops", role: "Head Chef / Line Cook", access: "KDS App Access" },
-              { dept: "Service & Billing", role: "Captains / Waiters", access: "Mobile Waiter POS" },
-              { dept: "Management & HR", role: "Store Manager", access: "Full ERP Admin" },
-            ].map((item, idx) => (
-              <div key={idx} className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 space-y-2">
-                <p className="font-bold text-slate-900 dark:text-white">{item.dept}</p>
-                <p className="text-slate-500">Designation: <strong>{item.role}</strong></p>
-                <Badge variant="success">{item.access}</Badge>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* ── TAB 2: Department Master ── */}
+      {masterTab === "departments" && <DepartmentMasterPage />}
+
+      {/* ── TAB 3: Designation Master ── */}
+      {masterTab === "designations" && <DesignationMasterPage />}
     </div>
   );
 };

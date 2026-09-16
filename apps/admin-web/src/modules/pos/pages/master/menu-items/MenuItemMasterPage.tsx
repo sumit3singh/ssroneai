@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Plus, Search, Utensils, Edit2, Trash2, Layers, Package, Sparkles, ChevronDown, ChevronUp, Tag, AlertCircle, CheckCircle2, X } from "lucide-react";
+import { Plus, Search, Utensils, Edit2, Trash2, Layers, Package, Sparkles, ChevronDown, ChevronUp, Tag, AlertCircle, CheckCircle2, X, Zap } from "lucide-react";
 import { Button, Input, PageHeader, PageContainer } from "@ssrone/ui";
 import { POSMenuItem, POSCategory } from "../../../types";
 
@@ -10,6 +10,7 @@ interface MenuItemMasterPageProps {
   onOpenEdit: (item: POSMenuItem) => void;
   onDelete: (id: number) => Promise<void>;
   onToggleAvailability: (item: POSMenuItem) => Promise<void>;
+  onTogglePopular?: (item: POSMenuItem) => Promise<void>;
   isLoading?: boolean;
 }
 
@@ -20,6 +21,7 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
   onOpenEdit,
   onDelete,
   onToggleAvailability,
+  onTogglePopular,
   isLoading = false
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -38,6 +40,8 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
   const filteredItems = menuItems.filter((item) => {
     const matchesSearch =
       item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.item_code && item.item_code.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      ((item as any).itemCode && (item as any).itemCode.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()));
     if (!matchesSearch) return false;
     if (selectedCatId && String(item.category_id) !== String(selectedCatId)) return false;
@@ -224,6 +228,7 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
               <thead>
                 <tr className="bg-muted/40 border-b border-border text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   <th className="p-2.5 w-8"></th>
+                  <th className="p-2.5">Item Code</th>
                   <th className="p-2.5">Dish Name</th>
                   <th className="p-2.5">Category</th>
                   <th className="p-2.5">Diet Type</th>
@@ -238,14 +243,14 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
               {isLoading ? (
                 [1, 2, 3, 4, 5].map((i) => (
                   <tr key={i}>
-                    <td colSpan={9} className="p-4">
+                    <td colSpan={10} className="p-4">
                       <div className="h-6 bg-slate-200/60 dark:bg-slate-800/60 animate-pulse rounded-xl" />
                     </td>
                   </tr>
                 ))
               ) : filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="p-12 text-center text-slate-400 font-bold">
+                  <td colSpan={10} className="p-12 text-center text-slate-400 font-bold">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Utensils size={36} className="text-slate-300 dark:text-slate-700" />
                       <p className="text-xs text-slate-500 font-bold">No menu items found matching search & filter criteria.</p>
@@ -274,6 +279,7 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                   const price = item.selling_price || item.base_price;
                   const cat = categories.find((c) => String(c.id) === String(item.category_id));
                   const isExpanded = expandedItemId === item.id;
+                  const displayCode = item.item_code || (item as any).itemCode || `P${item.id}`;
 
                   return (
                     <React.Fragment key={item.id}>
@@ -291,6 +297,11 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                               {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                             </button>
                           )}
+                        </td>
+                        <td className="p-2.5 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400" onClick={() => toggleExpandRow(item.id)}>
+                          <span className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60">
+                            {displayCode}
+                          </span>
                         </td>
                         <td className="p-2.5 font-medium text-foreground" onClick={() => toggleExpandRow(item.id)}>
                           <div className="flex items-center gap-2">
@@ -311,10 +322,34 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                             )}
                             <div>
                               <div className="flex items-center gap-1.5">
+                                {onTogglePopular && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onTogglePopular(item);
+                                    }}
+                                    title={
+                                      item.is_popular
+                                        ? "Remove from Top 12 Express Bestseller Hotbar"
+                                        : "Pin to Top 12 Express Bestseller Hotbar (Shift+F1–F12)"
+                                    }
+                                    className="cursor-pointer p-0.5 hover:scale-110 transition-transform"
+                                  >
+                                    <Zap
+                                      size={14}
+                                      className={
+                                        item.is_popular
+                                          ? "text-amber-500 fill-amber-500"
+                                          : "text-muted-foreground/30 hover:text-amber-500"
+                                      }
+                                    />
+                                  </button>
+                                )}
                                 <span className="font-semibold text-xs text-foreground">{item.name}</span>
                                 {item.is_popular && (
-                                  <span className="text-[9px] font-medium px-1 py-0.2 rounded uppercase bg-amber-500/10 text-amber-600 border border-amber-500/20">
-                                    Popular
+                                  <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded uppercase bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                                    Hotbar
                                   </span>
                                 )}
                               </div>
@@ -397,7 +432,7 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                       {/* Expanded Row Drawer: Portion Variants & Addons Quick View */}
                       {isExpanded && (
                         <tr className="bg-muted/20 border-b border-border">
-                          <td colSpan={9} className="p-3 pl-10">
+                          <td colSpan={10} className="p-3 pl-10">
                             <div className="bg-card border border-border rounded-md p-3 space-y-2 text-xs">
                               <div className="flex items-center justify-between border-b border-border pb-1.5">
                                 <div className="flex items-center gap-1.5 font-semibold text-foreground">

@@ -17,6 +17,7 @@
     "dev:staff": "pnpm --filter @ssrone/staff-web dev",
     "dev:superadmin": "pnpm --filter @ssrone/platform-admin dev",
     "dev:marketing": "pnpm --filter @ssrone/marketing-web dev",
+    "dev:token": "pnpm --filter @ssrone/token-order-web dev",
     "build": "turbo run build",
     "test": "turbo run test",
     "type-check": "turbo run type-check",

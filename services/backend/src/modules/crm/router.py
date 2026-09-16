@@ -100,6 +100,8 @@ async def create_customer(
     resolved_branch = body.branch_id or getattr(current_user, "branch_id", None)
     full_name = (body.name or f"{body.first_name or ''} {body.last_name or ''}").strip() or "Guest Customer"
     
+    addr_obj = {"fullAddress": body.address} if isinstance(body.address, str) else (body.address or {})
+
     customer = Customer(
         tenant_id=resolved_tenant,
         company_id=resolved_company,
@@ -107,11 +109,29 @@ async def create_customer(
         name=full_name,
         email=body.email,
         phone=body.phone or "",
+        address=addr_obj,
+        city=body.city,
+        pincode=body.pincode,
         loyalty_points=0,
     )
     db.add(customer)
     await db.commit()
     await db.refresh(customer)
+
+    # Save to public.customer_addresses table if address is provided
+    if body.address and isinstance(body.address, str) and body.address.strip():
+        cust_addr = CustomerAddress(
+            tenant_id=resolved_tenant,
+            customer_id=customer.id,
+            label="Default",
+            area_street=body.address.strip(),
+            city=body.city or "General",
+            pincode=body.pincode,
+            is_default=True,
+        )
+        db.add(cust_addr)
+        await db.commit()
+
     return CustomerResponse.model_validate(customer)
 
 

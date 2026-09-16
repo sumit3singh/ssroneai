@@ -120,31 +120,87 @@ def _parse_int_id(val: Any) -> int | None:
         return None
 
 
-async def _resolve_branch_id(branch_id: int | str | None, current_user: User | None, db: AsyncSession) -> int | None:
-    """Dynamically resolve branch ID from numeric int, string branch code (e.g. 'BAITHAK-CUH'), or current user context."""
-    if branch_id is not None and str(branch_id).strip() not in ("", "undefined", "null", "none"):
+async def _get_active_tenant_id(current_user: User | None, db: AsyncSession) -> int:
+    """Dynamically resolve tenant ID from authenticated user context, falling back to default tenant 1."""
+    if current_user and getattr(current_user, "tenant_id", None):
+        return current_user.tenant_id
+    return 1
+
+
+async def _resolve_branch_id(branch_id: int | str | None, current_user: User | None, db: AsyncSession) -> int:
+
+    """Dynamically resolve branch ID from numeric int, string branch code, or current user context, guaranteeing a valid Branch ID in PostgreSQL."""
+    tenant_id = current_user.tenant_id if (current_user and getattr(current_user, "tenant_id", None)) else 1
+    from src.modules.auth.models import Branch, Company, Tenant
+
+    # 1. Check numeric integer branch_id and verify it exists in branches table
+    if branch_id is not None and str(branch_id).strip() not in ("", "undefined", "null", "none", "0"):
         try:
-            return int(branch_id)
+            bid = int(branch_id)
+            res = await db.execute(select(Branch.id).where(Branch.id == bid, (Branch.is_deleted == False) | (Branch.is_deleted.is_(None))))
+            found_bid = res.scalar_one_or_none()
+            if found_bid is not None:
+                return found_bid
         except (ValueError, TypeError):
             pass
 
+        # 2. Check string branch code/name (e.g. 'CUH', 'BAITHAK-CUH', 'GGN01')
         if isinstance(branch_id, str):
             code_str = branch_id.strip()
-            from src.modules.auth.models import Branch
             res = await db.execute(
                 select(Branch.id).where(
                     (Branch.code == code_str) | (Branch.code.ilike(code_str)) | (Branch.name.ilike(code_str)),
-                    Branch.is_deleted == False
+                    (Branch.is_deleted == False) | (Branch.is_deleted.is_(None))
                 )
             )
             found_id = res.scalar_one_or_none()
             if found_id is not None:
                 return found_id
 
+    # 3. Check current user's branch_id
     if current_user and getattr(current_user, "branch_id", None):
-        return current_user.branch_id
+        res = await db.execute(select(Branch.id).where(Branch.id == current_user.branch_id, (Branch.is_deleted == False) | (Branch.is_deleted.is_(None))))
+        user_bid = res.scalar_one_or_none()
+        if user_bid is not None:
+            return user_bid
 
-    return None
+    # 4. Fallback: Query first valid active branch for tenant
+    res = await db.execute(select(Branch.id).where(Branch.tenant_id == tenant_id, (Branch.is_deleted == False) | (Branch.is_deleted.is_(None))).order_by(Branch.id.asc()))
+    first_id = res.scalar_one_or_none()
+    if first_id is not None:
+        return first_id
+
+    # 5. Fallback: Query any branch in table
+    res = await db.execute(select(Branch.id).where((Branch.is_deleted == False) | (Branch.is_deleted.is_(None))).order_by(Branch.id.asc()))
+    any_id = res.scalar_one_or_none()
+    if any_id is not None:
+        return any_id
+
+    # 6. Fallback: Create initial tenant, company, and branch if database was completely wiped
+    t_res = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
+    tenant_obj = t_res.scalar_one_or_none()
+    if not tenant_obj:
+        tenant_obj = Tenant(id=tenant_id, name="Main Demo Tenant", slug="baithak-cafe", is_active=True)
+        db.add(tenant_obj)
+        await db.flush()
+
+    c_res = await db.execute(select(Company).where(Company.tenant_id == tenant_id))
+    company_obj = c_res.scalar_one_or_none()
+    if not company_obj:
+        company_obj = Company(tenant_id=tenant_id, name="SSR One Group", country_code="IN", currency_code="INR", is_active=True)
+        db.add(company_obj)
+        await db.flush()
+
+    new_branch = Branch(
+        tenant_id=tenant_id,
+        company_id=company_obj.id,
+        name="Main Branch",
+        code="BR-001",
+        is_active=True,
+    )
+    db.add(new_branch)
+    await db.flush()
+    return new_branch.id
 
 
 class UpdateTableStatusSchema(BaseModel):
@@ -178,10 +234,32 @@ async def list_tables(
     result = await db.execute(query)
     tables = result.scalars().all()
 
+    # Resolve active table IDs from active orders to guarantee zero ghost/stuck occupied tables
+    active_tbl_ids: set[int] = set()
+    try:
+        from src.modules.orders.models import Order
+        active_orders_stmt = select(Order.table_id).where(
+            Order.tenant_id == tenant_id,
+            Order.status.not_in(["completed", "paid", "cancelled"]),
+            Order.table_id.is_not(None),
+            (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
+        )
+        if parsed_branch_id is not None:
+            active_orders_stmt = active_orders_stmt.where(Order.branch_id == parsed_branch_id)
+        active_res = await db.execute(active_orders_stmt)
+        active_tbl_ids = set(filter(None, active_res.scalars().all()))
+    except Exception as act_err:
+        logger.warning("Failed to query active table IDs in list_tables", error=str(act_err))
+
     valid_tables = []
     for t in tables:
+        eff_status = getattr(t, "status", "free") or "free"
+        if eff_status in ("occupied", "billing") and t.id not in active_tbl_ids:
+            eff_status = "free"
         try:
-            valid_tables.append(TableResponseSchema.model_validate(t))
+            dto = TableResponseSchema.model_validate(t)
+            dto.status = eff_status
+            valid_tables.append(dto)
         except Exception:
             valid_tables.append(
                 TableResponseSchema(
@@ -190,7 +268,7 @@ async def list_tables(
                     capacity=getattr(t, "capacity", 4) or 4,
                     section=getattr(t, "section", "Main Dining") or "Main Dining",
                     floor=getattr(t, "floor", "Ground Floor") or "Ground Floor",
-                    status=getattr(t, "status", "free") or "free",
+                    status=eff_status,
                     is_active=getattr(t, "is_active", True) if getattr(t, "is_active", None) is not None else True,
                     branch_id=getattr(t, "branch_id", 1) or 1,
                     tenant_id=getattr(t, "tenant_id", tenant_id) or tenant_id
@@ -266,7 +344,7 @@ async def create_table(
     try:
         tenant_id = current_user.tenant_id if current_user else 1
         user_id = current_user.id if current_user else 1
-        target_branch_id = body.branch_id or 1
+        target_branch_id = await _resolve_branch_id(body.branch_id, current_user, db)
 
         # Ensure section column exists in PostgreSQL & drop restrictive legacy status check constraint
         try:
@@ -414,10 +492,11 @@ async def create_kitchen_station(
     db: AsyncSession = Depends(get_db_session),
 ) -> KitchenStationResponseSchema:
     try:
-        tenant_id = current_user.tenant_id if current_user else 1
+        tenant_id = current_user.tenant_id if (current_user and getattr(current_user, "tenant_id", None)) else 1
+        target_branch_id = await _resolve_branch_id(body.branch_id, current_user, db)
         st = KDSStation(
             tenant_id=tenant_id,
-            branch_id=body.branch_id or 1,
+            branch_id=target_branch_id,
             name=body.name,
             code=body.code.upper(),
             printer_name=body.printer_name or "192.168.1.101",
@@ -528,10 +607,11 @@ async def create_payment_mode(
     db: AsyncSession = Depends(get_db_session),
 ) -> PaymentModeResponseSchema:
     try:
-        tenant_id = current_user.tenant_id if current_user else 1
+        tenant_id = current_user.tenant_id if (current_user and getattr(current_user, "tenant_id", None)) else 1
+        target_branch_id = await _resolve_branch_id(body.branch_id, current_user, db)
         pm = PaymentMode(
             tenant_id=tenant_id,
-            branch_id=body.branch_id or 1,
+            branch_id=target_branch_id,
             name=body.name,
             code=body.code.upper(),
             icon=body.icon or "💳",
@@ -664,15 +744,14 @@ def _build_menu_item_response(item: MenuItem) -> dict:
 
     # Variant groups
     vg_list = []
-    rel_vgs = item_dict.get("variant_groups_rel")
-    if rel_vgs and isinstance(rel_vgs, (list, tuple)):
+    rel_vgs = getattr(item, "variant_groups_rel", None)
+    if rel_vgs and isinstance(rel_vgs, (list, tuple)) and len(rel_vgs) > 0:
         for vg in rel_vgs:
             try:
                 if not getattr(vg, "is_deleted", False):
-                    vg_dict = getattr(vg, "__dict__", {})
                     opts = []
-                    rel_opts = vg_dict.get("options") or []
-                    if isinstance(rel_opts, (list, tuple)):
+                    rel_opts = getattr(vg, "options", None)
+                    if rel_opts and isinstance(rel_opts, (list, tuple)):
                         for opt in rel_opts:
                             if not getattr(opt, "is_deleted", False):
                                 sp = float(getattr(opt, "selling_price", 0.0) or getattr(opt, "price", 0.0) or 0.0)
@@ -700,6 +779,12 @@ def _build_menu_item_response(item: MenuItem) -> dict:
                 pass
     else:
         raw_vgs = item_dict.get("variant_groups")
+        if isinstance(raw_vgs, str):
+            try:
+                import json
+                raw_vgs = json.loads(raw_vgs)
+            except Exception:
+                raw_vgs = []
         if raw_vgs and isinstance(raw_vgs, (list, tuple)):
             for vg in raw_vgs:
                 if isinstance(vg, dict):
@@ -730,15 +815,14 @@ def _build_menu_item_response(item: MenuItem) -> dict:
 
     # Addon groups
     ag_list = []
-    rel_ags = item_dict.get("addon_groups_rel")
-    if rel_ags and isinstance(rel_ags, (list, tuple)):
+    rel_ags = getattr(item, "addon_groups_rel", None)
+    if rel_ags and isinstance(rel_ags, (list, tuple)) and len(rel_ags) > 0:
         for ag in rel_ags:
             try:
                 if not getattr(ag, "is_deleted", False):
-                    ag_dict = getattr(ag, "__dict__", {})
                     opts = []
-                    rel_opts = ag_dict.get("options") or []
-                    if isinstance(rel_opts, (list, tuple)):
+                    rel_opts = getattr(ag, "options", None)
+                    if rel_opts and isinstance(rel_opts, (list, tuple)):
                         for opt in rel_opts:
                             if not getattr(opt, "is_deleted", False):
                                 opts.append({
@@ -763,6 +847,12 @@ def _build_menu_item_response(item: MenuItem) -> dict:
                 pass
     else:
         raw_ags = item_dict.get("addon_groups")
+        if isinstance(raw_ags, str):
+            try:
+                import json
+                raw_ags = json.loads(raw_ags)
+            except Exception:
+                raw_ags = []
         if raw_ags and isinstance(raw_ags, (list, tuple)):
             for ag in raw_ags:
                 if isinstance(ag, dict):
@@ -812,6 +902,7 @@ def _build_menu_item_response(item: MenuItem) -> dict:
         "id": item_dict.get("id", getattr(item, "id", 1)),
         "category_id": item_dict.get("category_id"),
         "name": item_dict.get("name", "Unnamed Dish"),
+        "item_code": item_dict.get("item_code"),
         "description": item_dict.get("description"),
         "short_description": item_dict.get("short_description"),
         "base_price": base_p,
@@ -819,7 +910,7 @@ def _build_menu_item_response(item: MenuItem) -> dict:
         "image_url": item_dict.get("image_url"),
         "images": item_dict.get("images") or [],
         "product_id": item_dict.get("product_id"),
-        "kds_station": item_dict.get("kds_station") or "Main Kitchen",
+        "kds_station": item_dict.get("kds_station"),
         "allergens": item_dict.get("allergens") or [],
         "nutrition": item_dict.get("nutrition") or {},
         "is_veg": bool(item_dict.get("is_veg")) if item_dict.get("is_veg") is not None else True,
@@ -899,10 +990,11 @@ async def create_category(
     db: AsyncSession = Depends(get_db_session),
 ) -> CategoryResponseSchema:
     tenant_id = await _get_active_tenant_id(current_user, db)
+    target_branch_id = await _resolve_branch_id(body.branch_id, current_user, db)
     category = MenuCategory(
         tenant_id=tenant_id,
         company_id=body.company_id or 1,
-        branch_id=body.branch_id or 1,
+        branch_id=target_branch_id,
         name=body.name,
         icon=body.icon or "🍛",
         slug=body.slug or body.name.lower().replace(" ", "-"),
@@ -1042,161 +1134,6 @@ async def list_menu_items(
     db: AsyncSession = Depends(get_db_session),
 ) -> list[MenuItemResponseSchema]:
     try:
-        alter_stmts = [
-            # --- menu_categories ---
-            "ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS company_id BIGINT;",
-            "ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS branch_id BIGINT;",
-            "ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS tenant_id BIGINT DEFAULT 1;",
-            "ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS icon VARCHAR(50);",
-            "ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS slug VARCHAR(100);",
-            "ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS parent_id BIGINT;",
-            "ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS level INT DEFAULT 1;",
-            "ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 1;",
-            "ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS created_by BIGINT;",
-            "ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS updated_by BIGINT;",
-            "ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;",
-
-            # --- menu_tags ---
-            "ALTER TABLE menu_tags ADD COLUMN IF NOT EXISTS company_id BIGINT;",
-            "ALTER TABLE menu_tags ADD COLUMN IF NOT EXISTS branch_id BIGINT;",
-            "ALTER TABLE menu_tags ADD COLUMN IF NOT EXISTS tenant_id BIGINT DEFAULT 1;",
-            "ALTER TABLE menu_tags ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#ef4444';",
-            "ALTER TABLE menu_tags ADD COLUMN IF NOT EXISTS icon VARCHAR(50);",
-            "ALTER TABLE menu_tags ADD COLUMN IF NOT EXISTS created_by BIGINT;",
-            "ALTER TABLE menu_tags ADD COLUMN IF NOT EXISTS updated_by BIGINT;",
-            "ALTER TABLE menu_tags ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;",
-
-            # --- menu_item_tags ---
-            "ALTER TABLE menu_item_tags ADD COLUMN IF NOT EXISTS tenant_id BIGINT DEFAULT 1;",
-            "ALTER TABLE menu_item_tags ADD COLUMN IF NOT EXISTS company_id BIGINT;",
-            "ALTER TABLE menu_item_tags ADD COLUMN IF NOT EXISTS branch_id BIGINT;",
-
-            # --- menu_items ---
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS branch_id BIGINT;",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS company_id BIGINT;",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS tenant_id BIGINT DEFAULT 1;",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS item_code VARCHAR(50);",
-            "ALTER TABLE menu_items ALTER COLUMN item_code DROP NOT NULL;",
-            "ALTER TABLE menu_items ALTER COLUMN item_code SET DEFAULT '';",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS description VARCHAR(500);",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS short_description VARCHAR(200);",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS price FLOAT DEFAULT 0.0;",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS cost_price FLOAT DEFAULT 0.0;",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS tax_rate FLOAT DEFAULT 5.0;",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS image_url VARCHAR(500);",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS product_id BIGINT;",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS kds_station VARCHAR(50);",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS allergens JSONB DEFAULT '[]'::jsonb;",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS nutrition JSONB DEFAULT '{}'::jsonb;",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS is_veg BOOLEAN DEFAULT TRUE;",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS is_popular BOOLEAN DEFAULT FALSE;",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS is_available BOOLEAN DEFAULT TRUE;",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS packaging_charge FLOAT DEFAULT 0.0;",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 1;",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS created_by BIGINT;",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS updated_by BIGINT;",
-            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;",
-
-            # --- menu_variant_groups ---
-            "ALTER TABLE menu_variant_groups ADD COLUMN IF NOT EXISTS branch_id BIGINT;",
-            "ALTER TABLE menu_variant_groups ADD COLUMN IF NOT EXISTS company_id BIGINT;",
-            "ALTER TABLE menu_variant_groups ADD COLUMN IF NOT EXISTS tenant_id BIGINT DEFAULT 1;",
-            "ALTER TABLE menu_variant_groups ADD COLUMN IF NOT EXISTS min_selection INT DEFAULT 1;",
-            "ALTER TABLE menu_variant_groups ADD COLUMN IF NOT EXISTS max_selection INT DEFAULT 1;",
-            "ALTER TABLE menu_variant_groups ADD COLUMN IF NOT EXISTS is_required BOOLEAN DEFAULT TRUE;",
-            "ALTER TABLE menu_variant_groups ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 1;",
-            "ALTER TABLE menu_variant_groups ADD COLUMN IF NOT EXISTS created_by BIGINT;",
-            "ALTER TABLE menu_variant_groups ADD COLUMN IF NOT EXISTS updated_by BIGINT;",
-            "ALTER TABLE menu_variant_groups ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;",
-
-            # --- menu_variant_options ---
-            "ALTER TABLE menu_variant_options ADD COLUMN IF NOT EXISTS branch_id BIGINT;",
-            "ALTER TABLE menu_variant_options ADD COLUMN IF NOT EXISTS company_id BIGINT;",
-            "ALTER TABLE menu_variant_options ADD COLUMN IF NOT EXISTS tenant_id BIGINT DEFAULT 1;",
-            "ALTER TABLE menu_variant_options ADD COLUMN IF NOT EXISTS selling_price FLOAT DEFAULT 0.0;",
-            "ALTER TABLE menu_variant_options ADD COLUMN IF NOT EXISTS price FLOAT DEFAULT 0.0;",
-            "ALTER TABLE menu_variant_options ADD COLUMN IF NOT EXISTS is_default BOOLEAN DEFAULT FALSE;",
-            "ALTER TABLE menu_variant_options ADD COLUMN IF NOT EXISTS is_available BOOLEAN DEFAULT TRUE;",
-            "ALTER TABLE menu_variant_options ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 1;",
-            "ALTER TABLE menu_variant_options ADD COLUMN IF NOT EXISTS created_by BIGINT;",
-            "ALTER TABLE menu_variant_options ADD COLUMN IF NOT EXISTS updated_by BIGINT;",
-            "ALTER TABLE menu_variant_options ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;",
-
-            # --- menu_addon_groups ---
-            "ALTER TABLE menu_addon_groups ADD COLUMN IF NOT EXISTS branch_id BIGINT;",
-            "ALTER TABLE menu_addon_groups ADD COLUMN IF NOT EXISTS company_id BIGINT;",
-            "ALTER TABLE menu_addon_groups ADD COLUMN IF NOT EXISTS tenant_id BIGINT DEFAULT 1;",
-            "ALTER TABLE menu_addon_groups ADD COLUMN IF NOT EXISTS min_selection INT DEFAULT 0;",
-            "ALTER TABLE menu_addon_groups ADD COLUMN IF NOT EXISTS max_selection INT DEFAULT 5;",
-            "ALTER TABLE menu_addon_groups ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 1;",
-            "ALTER TABLE menu_addon_groups ADD COLUMN IF NOT EXISTS created_by BIGINT;",
-            "ALTER TABLE menu_addon_groups ADD COLUMN IF NOT EXISTS updated_by BIGINT;",
-            "ALTER TABLE menu_addon_groups ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;",
-
-            # --- menu_addon_options ---
-            "ALTER TABLE menu_addon_options ADD COLUMN IF NOT EXISTS branch_id BIGINT;",
-            "ALTER TABLE menu_addon_options ADD COLUMN IF NOT EXISTS company_id BIGINT;",
-            "ALTER TABLE menu_addon_options ADD COLUMN IF NOT EXISTS tenant_id BIGINT DEFAULT 1;",
-            "ALTER TABLE menu_addon_options ADD COLUMN IF NOT EXISTS price FLOAT DEFAULT 0.0;",
-            "ALTER TABLE menu_addon_options ADD COLUMN IF NOT EXISTS variant_prices JSONB DEFAULT '{}'::jsonb;",
-            "ALTER TABLE menu_addon_options ADD COLUMN IF NOT EXISTS is_available BOOLEAN DEFAULT TRUE;",
-            "ALTER TABLE menu_addon_options ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 1;",
-            "ALTER TABLE menu_addon_options ADD COLUMN IF NOT EXISTS created_by BIGINT;",
-            "ALTER TABLE menu_addon_options ADD COLUMN IF NOT EXISTS updated_by BIGINT;",
-            "ALTER TABLE menu_addon_options ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;",
-
-            # --- dining_tables ---
-            "ALTER TABLE dining_tables ADD COLUMN IF NOT EXISTS branch_id BIGINT;",
-            "ALTER TABLE dining_tables ADD COLUMN IF NOT EXISTS company_id BIGINT;",
-            "ALTER TABLE dining_tables ADD COLUMN IF NOT EXISTS tenant_id BIGINT DEFAULT 1;",
-            "ALTER TABLE dining_tables ADD COLUMN IF NOT EXISTS capacity INT DEFAULT 4;",
-            "ALTER TABLE dining_tables ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'free';",
-            "ALTER TABLE dining_tables ADD COLUMN IF NOT EXISTS floor VARCHAR(50);",
-            "ALTER TABLE dining_tables ADD COLUMN IF NOT EXISTS section VARCHAR(50);",
-            "ALTER TABLE dining_tables ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 0;",
-            "ALTER TABLE dining_tables ADD COLUMN IF NOT EXISTS position_x INT DEFAULT 0;",
-            "ALTER TABLE dining_tables ADD COLUMN IF NOT EXISTS position_y INT DEFAULT 0;",
-            "ALTER TABLE dining_tables ADD COLUMN IF NOT EXISTS current_order_id BIGINT;",
-            "ALTER TABLE dining_tables ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;",
-            "ALTER TABLE dining_tables ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;",
-
-            # --- kitchen_stations ---
-            "ALTER TABLE kitchen_stations ADD COLUMN IF NOT EXISTS branch_id BIGINT;",
-            "ALTER TABLE kitchen_stations ADD COLUMN IF NOT EXISTS company_id BIGINT;",
-            "ALTER TABLE kitchen_stations ADD COLUMN IF NOT EXISTS tenant_id BIGINT DEFAULT 1;",
-            "ALTER TABLE kitchen_stations ADD COLUMN IF NOT EXISTS code VARCHAR(30);",
-            "ALTER TABLE kitchen_stations ADD COLUMN IF NOT EXISTS printer_name VARCHAR(100);",
-            "ALTER TABLE kitchen_stations ADD COLUMN IF NOT EXISTS station_type VARCHAR(50) DEFAULT 'main';",
-            "ALTER TABLE kitchen_stations ADD COLUMN IF NOT EXISTS categories JSONB DEFAULT '[]'::jsonb;",
-            "ALTER TABLE kitchen_stations ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;",
-            "ALTER TABLE kitchen_stations ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 0;",
-            "ALTER TABLE kitchen_stations ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;",
-        ]
-        try:
-            async with engine.begin() as conn:
-                for stmt in alter_stmts:
-                    try:
-                        await conn.execute(text(stmt))
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-
-        # Auto-sync branch_id from menu_categories to menu_items if missing
-        try:
-            await db.execute(text("""
-                UPDATE menu_items mi
-                SET branch_id = mc.branch_id
-                FROM menu_categories mc
-                WHERE mi.category_id = mc.id
-                  AND mi.branch_id IS NULL
-                  AND mc.branch_id IS NOT NULL;
-            """))
-            await db.commit()
-        except Exception:
-            pass
-
         tenant_id = await _get_active_tenant_id(current_user, db)
         query = select(MenuItem).outerjoin(MenuCategory, MenuItem.category_id == MenuCategory.id).where(
             (MenuItem.is_deleted == False) | (MenuItem.is_deleted.is_(None))
@@ -1223,7 +1160,109 @@ async def list_menu_items(
         result = await db.execute(query)
         items = result.scalars().all()
 
+        if not items:
+            try:
+                cat_bev = MenuCategory(tenant_id=tenant_id or 1, branch_id=1, name="Beverages", sort_order=1)
+                cat_mains = MenuCategory(tenant_id=tenant_id or 1, branch_id=1, name="Main Course", sort_order=2)
+                cat_pizza = MenuCategory(tenant_id=tenant_id or 1, branch_id=1, name="Pizzas & Fast Food", sort_order=3)
+                db.add_all([cat_bev, cat_mains, cat_pizza])
+                await db.flush()
+
+                i1 = MenuItem(
+                    tenant_id=tenant_id or 1,
+                    branch_id=1,
+                    category_id=cat_bev.id,
+                    name="Chai",
+                    item_code="BEV01",
+                    base_price=Decimal("20.00"),
+                    selling_price=Decimal("20.00"),
+                    is_veg=True,
+                    is_available=True,
+                    sort_order=1
+                )
+                i2 = MenuItem(
+                    tenant_id=tenant_id or 1,
+                    branch_id=1,
+                    category_id=cat_mains.id,
+                    name="Kadai Paneer",
+                    item_code="MN01",
+                    base_price=Decimal("130.00"),
+                    selling_price=Decimal("130.00"),
+                    is_veg=True,
+                    is_available=True,
+                    variant_groups=[
+                        {
+                            "name": "Portion Size",
+                            "min_selection": 1,
+                            "max_selection": 1,
+                            "is_required": True,
+                            "options": [
+                                {"name": "Half Portion", "price": 130, "selling_price": 130, "is_default": True},
+                                {"name": "Full Portion", "price": 250, "selling_price": 250, "is_default": False}
+                            ]
+                        }
+                    ],
+                    sort_order=2
+                )
+                i3 = MenuItem(
+                    tenant_id=tenant_id or 1,
+                    branch_id=1,
+                    category_id=cat_pizza.id,
+                    name="Veg Pizza",
+                    item_code="PZ01",
+                    base_price=Decimal("180.00"),
+                    selling_price=Decimal("180.00"),
+                    is_veg=True,
+                    is_available=True,
+                    variant_groups=[
+                        {
+                            "name": "Pizza Size",
+                            "min_selection": 1,
+                            "max_selection": 1,
+                            "is_required": True,
+                            "options": [
+                                {"name": "Small (8\")", "price": 180, "selling_price": 180, "is_default": True},
+                                {"name": "Medium (10\")", "price": 220, "selling_price": 220, "is_default": False},
+                                {"name": "Large (12\")", "price": 270, "selling_price": 270, "is_default": False}
+                            ]
+                        }
+                    ],
+                    addon_groups=[
+                        {
+                            "name": "Extra Toppings",
+                            "min_selection": 0,
+                            "max_selection": 3,
+                            "options": [
+                                {"name": "Cheese Burst", "price": 50},
+                                {"name": "Extra Dip", "price": 20}
+                            ]
+                        }
+                    ],
+                    sort_order=3
+                )
+                i4 = MenuItem(
+                    tenant_id=tenant_id or 1,
+                    branch_id=1,
+                    category_id=cat_bev.id,
+                    name="Cold Coffee",
+                    item_code="BEV02",
+                    base_price=Decimal("80.00"),
+                    selling_price=Decimal("80.00"),
+                    is_veg=True,
+                    is_available=True,
+                    sort_order=4
+                )
+                db.add_all([i1, i2, i3, i4])
+                await db.commit()
+
+                res2 = await db.execute(select(MenuItem).where((MenuItem.is_deleted == False) | (MenuItem.is_deleted.is_(None))).order_by(MenuItem.sort_order.asc(), MenuItem.id.asc()))
+                items = res2.scalars().all()
+            except Exception as seed_err:
+                await db.rollback()
+                logger.error("Auto seed menu items error", error=str(seed_err))
+
         response_items = []
+
         for item in items:
             try:
                 data_dict = _build_menu_item_response(item)
@@ -1274,9 +1313,10 @@ async def create_menu_item(
             clean_prefix = "".join(c for c in body.name if c.isalnum()).upper()[:4] or "DISH"
             raw_item_code = f"{clean_prefix}-{random.randint(100, 999)}"
 
+        item_branch_id = await _resolve_branch_id(body.branch_id, current_user, db)
         item = MenuItem(
             tenant_id=tenant_id,
-            branch_id=body.branch_id if body.branch_id else None,
+            branch_id=item_branch_id,
             category_id=body.category_id,
             item_code=raw_item_code,
             name=body.name,

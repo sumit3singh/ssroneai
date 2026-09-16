@@ -1,31 +1,29 @@
 import { useEffect, useMemo, useState } from 'react';
-import { seedEmployees } from '@/utils/seedEmployees';
 import { getAuth } from '@ssrone/auth';
 import { api, getAccessToken } from '@ssrone/api-client';
 
 export default function EmployeeDirectory({ onClose }: { onClose: () => void }) {
     const [employees, setEmployees] = useState<any[]>([]);
     const [q, setQ] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        seedEmployees();
-        const fetch = async () => {
-            // if user authenticated with backend, prefer backend employees
-            if (getAccessToken()) {
-                try {
+        const fetchEmps = async () => {
+            setIsLoading(true);
+            try {
+                if (getAccessToken()) {
                     const res = await api.get('/hr/employees');
-                    setEmployees(res || []);
-                    return;
-                } catch (e) {
-                    // fallback to local seed
-                    // console.error(e);
+                    setEmployees(Array.isArray(res) ? res : []);
+                } else {
+                    setEmployees([]);
                 }
+            } catch (e) {
+                setEmployees([]);
+            } finally {
+                setIsLoading(false);
             }
-
-            const raw = localStorage.getItem('ssrone_employees');
-            setEmployees(raw ? JSON.parse(raw) : []);
         };
-        void fetch();
+        void fetchEmps();
     }, []);
 
     const filtered = useMemo(() => {
@@ -48,24 +46,32 @@ export default function EmployeeDirectory({ onClose }: { onClose: () => void }) 
                     <input placeholder="Search employees..." className="w-full p-2 rounded border" value={q} onChange={(e) => setQ(e.target.value)} />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1">
-                    {filtered.map(emp => (
-                        <div key={emp.id} className="p-3 border rounded-lg">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="font-bold">{emp.first_name} {emp.last_name}</p>
-                                    <p className="text-xs text-slate-500">Code: {emp.employee_code} • {emp.employment_type}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-sm font-bold">₹{emp.basic_salary}</p>
-                                    <p className="text-xs text-slate-400">Joined: {emp.joining_date}</p>
-                                </div>
-                            </div>
-                            <div className="mt-2 text-[12px] text-slate-600">
-                                <p>Email: {emp.email || '-'}</p>
-                                <p>Phone: {emp.phone || '-'}</p>
-                            </div>
+                    {isLoading ? (
+                        <div className="col-span-2 text-center py-8 text-sm text-slate-500">Loading employees...</div>
+                    ) : filtered.length === 0 ? (
+                        <div className="col-span-2 text-center py-8 text-sm text-slate-500 font-medium">
+                            No employee records found in database.
                         </div>
-                    ))}
+                    ) : (
+                        filtered.map(emp => (
+                            <div key={emp.id} className="p-3 border rounded-lg">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="font-bold">{emp.first_name} {emp.last_name}</p>
+                                        <p className="text-xs text-slate-500">Code: {emp.employee_code} • {emp.employment_type}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-sm font-bold">₹{emp.basic_salary}</p>
+                                        <p className="text-xs text-slate-400">Joined: {emp.joining_date}</p>
+                                    </div>
+                                </div>
+                                <div className="mt-2 text-[12px] text-slate-600">
+                                    <p>Email: {emp.email || '-'}</p>
+                                    <p>Phone: {emp.phone || '-'}</p>
+                                </div>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
         </div>

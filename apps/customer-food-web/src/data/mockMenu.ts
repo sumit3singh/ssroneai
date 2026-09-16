@@ -1,4 +1,8 @@
-// ── ERP-Grade Data Models ──────────────────────────
+/**
+ * Single Source of Truth (SSOT) Domain Models & Helpers.
+ * Live menu items and categories are fetched dynamically from PostgreSQL via API.
+ * Static mock data fallbacks are disabled.
+ */
 
 export interface VariantOption {
   id: string;

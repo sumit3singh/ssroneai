@@ -20,16 +20,21 @@ This document lists canonical client and backend endpoint routes across all appl
 | `apps/admin-web` | `/hr` | Staff Roster, Attendance, Salary Slip Generator |
 | `apps/platform-admin` | `/` | Superadmin Tenant Provisioning, Cluster Status (100% OK) |
 | `apps/platform-admin` | `/outlets` | Multi-Outlet Branch Management & Licensing Keys |
-| `apps/kds-web` | `/` | Kitchen Display System Live Queue & Timer Badges |
+| `apps/platform-admin` | `/#leads` | Superadmin Sales Leads & Demo Follow-Up Console |
+| `apps/kds-web` | `/` | Cook KDS (Station View), Batch Prep, EXPO Pass, Packing, SLA Manager |
+| `apps/token-order-web` | `/` | Mobile Fast-Order & Queue-Buster 3-Digit Token Generation (`#104`) |
 | `apps/staff-web` | `/` | Staff Mobile Operations (Housekeeping, Room Service, KOT) |
 | `apps/customer-food-web` | `/` | QR Digital Food Menu, Cart & Table Checkout |
 | `apps/customer-stay-web` | `/` | Guest Room Booking, Folio Balance & Amenities |
-| `apps/marketing-web` | `/` | Enterprise Landing Page, Pricing Tier Matrix & Demos |
+| `apps/marketing-web` | `/` | Enterprise Landing Page, Pricing Tier Matrix, Demo & Sales Lead Forms |
 
 ---
 
 ## 2. Core Backend API Routes (`services/backend`)
 
+- `/api/v1/orders/kds/live`: Live Kitchen KOT Queue (`GET`), Station Task Status (`PATCH`), Analytics (`GET`).
+- `/api/v1/orders/queue-tokens`: Create Queue Token (`POST`), Query Token Status (`GET`), Cashier Recall/Claim (`POST /{code}/claim`).
+- `/api/v1/marketing/leads`: Public Lead Submission (`POST`), Admin Lead Listing (`GET`), & Status Follow-up (`PATCH`).
 - `/api/v1/auth`: Authentication, JWT Tokens, Tenant Context, License entitlement.
 - `/api/v1/restaurant`: Menu Categories, Item Masters, Tables, KDS WebSocket stream.
 - `/api/v1/orders`: Order Creation, KOT Generation, Split Billing, Payment Processing.
@@ -39,3 +44,4 @@ This document lists canonical client and backend endpoint routes across all appl
 - `/api/v1/inventory`: Products, Stock Movement Ledger, Purchase Orders.
 - `/api/v1/finance`: Chart of Accounts, Journal Vouchers, GST Invoices.
 - `/api/v1/hrms`: Employee Master, Shift Roster, Payroll Generation.
+

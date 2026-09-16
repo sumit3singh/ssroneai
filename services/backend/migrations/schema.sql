@@ -533,7 +533,20 @@ CREATE INDEX IF NOT EXISTS idx_kitchen_stations_tenant ON kitchen_stations(tenan
 -- 5. ORDERS, BILLING & KOT ENGINE
 -- -----------------------------------------------------------------------------
 
+CREATE TABLE IF NOT EXISTS daily_order_sequences (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
+    branch_id BIGINT NOT NULL DEFAULT 1 REFERENCES branches(id) ON DELETE CASCADE,
+    sequence_date VARCHAR(10) NOT NULL,
+    last_seq INTEGER DEFAULT 0 NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT uq_tenant_branch_date_seq UNIQUE (tenant_id, branch_id, sequence_date)
+);
+CREATE INDEX IF NOT EXISTS idx_daily_order_sequences_tenant ON daily_order_sequences(tenant_id, branch_id, sequence_date);
+
 CREATE TABLE IF NOT EXISTS orders (
+
     id BIGSERIAL PRIMARY KEY,
     tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,

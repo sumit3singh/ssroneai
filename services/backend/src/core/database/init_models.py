@@ -26,6 +26,7 @@ def init_sqlalchemy_models() -> None:
     import src.modules.finance.models
     import src.modules.crm.models
     import src.modules.hrms.models
+    import src.modules.marketing.models
     import src.core.database.platform_models
 
     from src.core.database.engine import Base

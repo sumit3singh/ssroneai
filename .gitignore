@@ -39,3 +39,7 @@ services/backend/uploads/
 .pytest_cache/
 .coverage
 coverage/
+
+# Local Dev Wrapper
+powershell.cmd
+

@@ -563,6 +563,29 @@ async def create_department(
         )
 
 
+@router.put("/departments/{dept_id}")
+async def update_department(
+    dept_id: int,
+    body: DepartmentSchema,
+    db: AsyncSession = Depends(get_db_session)
+) -> dict:
+    try:
+        dept = (await db.execute(select(Department).where(Department.id == dept_id, Department.is_deleted == False))).scalar_one_or_none()
+        if not dept:
+            raise HTTPException(status_code=404, detail="Department not found")
+        dept.name = body.name.strip()
+        await db.commit()
+        await db.refresh(dept)
+        return {"id": str(dept.id), "name": dept.name}
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as err:
+        await db.rollback()
+        logger.error(f"Failed to update department: {err}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(err))
+
+
 @router.delete("/departments/{dept_id}")
 async def delete_department(dept_id: int, db: AsyncSession = Depends(get_db_session)) -> dict:
     try:
@@ -623,6 +646,31 @@ async def create_designation(
         )
 
 
+@router.put("/designations/{desig_id}")
+async def update_designation(
+    desig_id: int,
+    body: DesignationSchema,
+    db: AsyncSession = Depends(get_db_session)
+) -> dict:
+    try:
+        desig = (await db.execute(select(Designation).where(Designation.id == desig_id, Designation.is_deleted == False))).scalar_one_or_none()
+        if not desig:
+            raise HTTPException(status_code=404, detail="Designation not found")
+        desig.title = body.title.strip()
+        if body.department_id is not None:
+            desig.department_id = body.department_id
+        await db.commit()
+        await db.refresh(desig)
+        return {"id": str(desig.id), "title": desig.title, "department_id": str(desig.department_id) if desig.department_id else None}
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as err:
+        await db.rollback()
+        logger.error(f"Failed to update designation: {err}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(err))
+
+
 @router.delete("/designations/{desig_id}")
 async def delete_designation(desig_id: int, db: AsyncSession = Depends(get_db_session)) -> dict:
     try:
@@ -641,6 +689,7 @@ class StaffLoginSchema(BaseModel):
     tenant_slug: str | None = "baithak-cafe"
     identifier: str
     pin_code: str | None = "1234"
+    app_target: str | None = None  # "staff_web", "kds_web", "pos"
 
 
 @router.post("/staff/login")
@@ -648,7 +697,7 @@ async def staff_login(
     body: StaffLoginSchema,
     db: AsyncSession = Depends(get_db_session)
 ) -> dict:
-    """Authenticate staff / employee credentials against PostgreSQL database for Staff Web Terminal."""
+    """Authenticate staff / employee credentials against PostgreSQL database for Staff Apps."""
     try:
         clean_identifier = body.identifier.strip()
         slug = (body.tenant_slug or "baithak-cafe").strip()
@@ -681,8 +730,32 @@ async def staff_login(
         if not emp:
             raise HTTPException(
                 status_code=404,
-                detail=f"Staff member '{clean_identifier}' not found in database."
+                detail=f"Staff member '{clean_identifier}' not found in PostgreSQL database."
             )
+
+        # 1. Strict Password / Security PIN Validation
+        input_pin = (body.pin_code or "").strip()
+        db_pin = (emp.pin_code or "1234").strip()
+        if input_pin != db_pin:
+            raise HTTPException(
+                status_code=401,
+                detail=f"Invalid Security PIN / Password for staff member '{emp.full_name}'."
+            )
+
+        # 2. Strict App Entitlement / Permission Validation
+        target = (body.app_target or "").lower().strip()
+        if target in ("staff_web", "staff", "waiter"):
+            if not emp.can_access_staff_web and not emp.is_waiter:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Access Denied: Staff member '{emp.full_name}' does not have permission to access Staff-Web Companion. Please contact HR Admin."
+                )
+        elif target in ("kds_web", "kds", "kitchen"):
+            if not emp.can_access_kds_web and not emp.is_chef:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Access Denied: Staff member '{emp.full_name}' does not have permission to access KDS Kitchen Display. Please contact HR Admin."
+                )
 
         from src.modules.auth.service import AuthService
         auth_service = AuthService()
@@ -703,9 +776,14 @@ async def staff_login(
                 "role_title": emp.designation or "Staff Member",
                 "tenant_id": emp.tenant_id,
                 "branch_id": emp.branch_id or 1,
-                "can_access_staff_web": True
+                "can_access_staff_web": bool(emp.can_access_staff_web),
+                "can_access_kds_web": bool(emp.can_access_kds_web),
+                "is_waiter": bool(emp.is_waiter),
+                "is_chef": bool(emp.is_chef),
             }
         }
+    except HTTPException:
+        raise
     except Exception as err:
         logger.error(f"Failed staff authentication: {err}", exc_info=True)
         raise HTTPException(

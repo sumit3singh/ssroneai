@@ -113,3 +113,23 @@ export interface ClusterNode {
   ramUsage: number;
   latencyMs: number;
 }
+
+export interface LeadInquiry {
+  id: number;
+  full_name: string;
+  company_name: string;
+  phone: string;
+  email: string;
+  vertical: string;
+  outlet_count?: string;
+  preferred_date?: string;
+  preferred_time?: string;
+  inquiry_type: 'DEMO_REQUEST' | 'SALES_INQUIRY';
+  status: 'NEW' | 'CONTACTED' | 'DEMO_SCHEDULED' | 'CONVERTED' | 'ARCHIVED';
+  notes?: string;
+  operator_notes?: string;
+  source?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+

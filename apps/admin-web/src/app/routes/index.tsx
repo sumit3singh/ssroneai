@@ -12,20 +12,38 @@ import {
 import { ProtectedRoute } from "@/app/routes/ProtectedRoute";
 import { LoginPage } from "@/modules/auth";
 import { POSPage, KDSScreen, POSOrdersListPage } from "@/modules/pos";
+import { lazy } from "react";
 import { ConnectedAppsLauncher } from "@/shared/layout/ConnectedAppsLauncher";
 import { ConnectedAppPage } from "@/shared/layout/ConnectedAppPage";
 import { PlatformRedirectPage } from "@/shared/pages/PlatformRedirectPage";
 import { ComingSoonPage } from "@/shared/components/ComingSoonPage";
 
-import { HotelPage } from "@/modules/hotel";
-import { PGManagementPage } from "@/modules/pg-management";
-import { InventoryPage } from "@/modules/inventory";
-import { CRMPage } from "@/modules/crm";
-import { HRPage, EmployeeDirectoryPage, DepartmentMasterPage, DesignationMasterPage, AttendancePunchPage, PayrollGenerationPage, SalarySlipReportPage } from "@/modules/hr";
-import { AICopilotPage } from "@/modules/ai-copilot";
-import { SettingsPage, PlatformStudioPage, MasterStudioPage, WorkflowPage, CommunicationPage, ProjectTrackerPage, EnterpriseRoadmapPage } from "@/modules/settings";
-import { FinancePage } from "@/modules/finance";
-import { FormBuilderPage } from "@/modules/forms";
+// ─── Code-Split Secondary Modules (Lazy Loaded on Navigation) ──
+const HotelPage = lazy(() => import("@/modules/hotel").then(m => ({ default: m.HotelPage })));
+const PGManagementPage = lazy(() => import("@/modules/pg-management").then(m => ({ default: m.PGManagementPage })));
+const InventoryPage = lazy(() => import("@/modules/inventory").then(m => ({ default: m.InventoryPage })));
+const CRMPage = lazy(() => import("@/modules/crm").then(m => ({ default: m.CRMPage })));
+
+const HRPage = lazy(() => import("@/modules/hr").then(m => ({ default: m.HRPage })));
+const EmployeeDirectoryPage = lazy(() => import("@/modules/hr").then(m => ({ default: m.EmployeeDirectoryPage })));
+const DepartmentMasterPage = lazy(() => import("@/modules/hr").then(m => ({ default: m.DepartmentMasterPage })));
+const DesignationMasterPage = lazy(() => import("@/modules/hr").then(m => ({ default: m.DesignationMasterPage })));
+const AttendancePunchPage = lazy(() => import("@/modules/hr").then(m => ({ default: m.AttendancePunchPage })));
+const PayrollGenerationPage = lazy(() => import("@/modules/hr").then(m => ({ default: m.PayrollGenerationPage })));
+const SalarySlipReportPage = lazy(() => import("@/modules/hr").then(m => ({ default: m.SalarySlipReportPage })));
+
+const AICopilotPage = lazy(() => import("@/modules/ai-copilot").then(m => ({ default: m.AICopilotPage })));
+
+const SettingsPage = lazy(() => import("@/modules/settings").then(m => ({ default: m.SettingsPage })));
+const PlatformStudioPage = lazy(() => import("@/modules/settings").then(m => ({ default: m.PlatformStudioPage })));
+const MasterStudioPage = lazy(() => import("@/modules/settings").then(m => ({ default: m.MasterStudioPage })));
+const WorkflowPage = lazy(() => import("@/modules/settings").then(m => ({ default: m.WorkflowPage })));
+const CommunicationPage = lazy(() => import("@/modules/settings").then(m => ({ default: m.CommunicationPage })));
+const ProjectTrackerPage = lazy(() => import("@/modules/settings").then(m => ({ default: m.ProjectTrackerPage })));
+const EnterpriseRoadmapPage = lazy(() => import("@/modules/settings").then(m => ({ default: m.EnterpriseRoadmapPage })));
+
+const FinancePage = lazy(() => import("@/modules/finance").then(m => ({ default: m.FinancePage })));
+const FormBuilderPage = lazy(() => import("@/modules/forms").then(m => ({ default: m.FormBuilderPage })));
 
 
 // ─── Root Route ──────────────────────────────────────────────
@@ -220,7 +238,7 @@ const posTransactionOrdersRoute = createRoute({
   path: "/pos/transaction/orders",
   component: () => (
     <ProtectedRoute>
-      <POSOrdersListPage />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -278,6 +296,36 @@ const posReportsCashierRoute = createRoute({
 const posReportsGSTRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/pos/reports/gst-summary",
+  component: () => (
+    <ProtectedRoute>
+      <POSPage />
+    </ProtectedRoute>
+  ),
+});
+
+const posReportsCategoriesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pos/reports/categories",
+  component: () => (
+    <ProtectedRoute>
+      <POSPage />
+    </ProtectedRoute>
+  ),
+});
+
+const posReportsDebtRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pos/reports/debt",
+  component: () => (
+    <ProtectedRoute>
+      <POSPage />
+    </ProtectedRoute>
+  ),
+});
+
+const posReportsVoidAuditRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pos/reports/void-audit",
   component: () => (
     <ProtectedRoute>
       <POSPage />
@@ -1747,6 +1795,9 @@ const routeTree = rootRoute.addChildren([
   posReportsItemSalesRoute,
   posReportsCashierRoute,
   posReportsGSTRoute,
+  posReportsCategoriesRoute,
+  posReportsDebtRoute,
+  posReportsVoidAuditRoute,
   posSettingsRoute,
   posCategoriesRoute,
   posMenuItemsRoute,

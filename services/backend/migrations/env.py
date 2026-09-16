@@ -15,7 +15,7 @@ from src.modules.auth.models import (  # noqa: F401
     AuditLog, EventStore, FeatureLicense, FeatureMaster,
     Role, Tenant, User, UserRole, UserSession,
 )
-from src.core.form_builder.models import (  # noqa: F401
+from src.engines.form_builder.models import (  # noqa: F401
     FormMaster, FormFieldModel, FieldValidationModel, FormSubmission,
 )
 from src.ai.copilot.models import AIConversation, AIMessage, AIPromptTemplate  # noqa: F401

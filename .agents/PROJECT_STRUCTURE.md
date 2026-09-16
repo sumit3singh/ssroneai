@@ -17,6 +17,13 @@ e:\2026\ssr_one_ai
 │   │   │   ├── ADR-0002-multi-tenancy-rls.md
 │   │   │   ├── ADR-0003-monorepo-package-boundaries.md
 │   │   │   ├── ADR-0004-structure-migration-complete.md
+│   │   │   ├── ADR-0005-category-master-root-cause-and-governance.md
+│   │   │   ├── ADR-0006-universal-multi-tenant-context-architecture.md
+│   │   │   ├── ADR-0007-startup-ddl-lock-purge-and-pure-ssot-auth-context.md
+│   │   │   ├── ADR-0008-ui-modernization-and-domain-functionality-transition.md
+│   │   │   ├── ADR-0009-pos-kiosk-billing-and-order-edit-architecture.md
+│   │   │   ├── ADR-0010-zero-wait-pos-architecture-and-dual-in-memory-mounted-layout.md
+│   │   │   ├── ADR-0011-marketing-web-character-guided-motion-path-architecture.md
 │   │   │   └── template.md
 │   │   ├── ARCHITECTURE.md
 │   │   ├── BACKEND_ARCHITECTURE.md
@@ -25,7 +32,8 @@ e:\2026\ssr_one_ai
 │   │   ├── MULTI_TENANCY.md
 │   │   ├── PLATFORM_ADMIN_BLUEPRINT.md
 │   │   ├── PROJECT_STRUCTURE.md
-│   │   └── ROUTE_MAP.md
+│   │   ├── ROUTE_MAP.md
+│   │   └── ZERO_WAIT_POS_BLUEPRINT.md
 │   ├── 03-standards/
 │   │   ├── API_STANDARDS.md
 │   │   ├── CODING_STANDARDS.md
@@ -46,6 +54,7 @@ e:\2026\ssr_one_ai
 │   │   └── UI_PATTERNS.md
 │   ├── 05-quality/
 │   │   ├── CODE_REVIEW_CHECKLIST.md
+│   │   ├── CURRENT_STATE_SAFEGUARD.md
 │   │   ├── DEFINITION_OF_DONE.md
 │   │   └── FINAL_SIGN_OFF_CHECKLIST.md
 │   ├── 06-governance/
@@ -214,7 +223,25 @@ e:\2026\ssr_one_ai
 │   │   ├── package.json
 │   │   └── vite.config.ts
 │   │
-│   └── staff-web/
+│   ├── staff-web/
+│   │   ├── src/
+│   │   │   ├── App.tsx
+│   │   │   ├── index.css
+│   │   │   └── main.tsx
+│   │   ├── index.html
+│   │   ├── package.json
+│   │   └── vite.config.ts
+│   │
+│   ├── token-order-web/
+│   │   ├── src/
+│   │   │   ├── App.tsx
+│   │   │   ├── index.css
+│   │   │   └── main.tsx
+│   │   ├── index.html
+│   │   ├── package.json
+│   │   └── vite.config.ts
+│   │
+│   └── marketing-web/
 │       ├── src/
 │       │   ├── App.tsx
 │       │   ├── index.css
@@ -344,15 +371,32 @@ e:\2026\ssr_one_ai
 │       │   │   ├── config.py
 │       │   │   ├── database.py
 │       │   │   └── security.py
+│       │   ├── engines/
+│       │   │   ├── approval/
+│       │   │   ├── audit/
+│       │   │   ├── discount/
+│       │   │   ├── form_builder/
+│       │   │   ├── licensing/
+│       │   │   ├── notification/
+│       │   │   ├── pricing/
+│       │   │   ├── print/
+│       │   │   ├── report/
+│       │   │   ├── rules/
+│       │   │   ├── scheduler/
+│       │   │   ├── search/
+│       │   │   ├── tax/
+│       │   │   └── workflow/
 │       │   ├── modules/
 │       │   │   ├── auth/
 │       │   │   │   ├── models.py
 │       │   │   │   ├── router.py
 │       │   │   │   └── service.py
+│       │   │   ├── billing/
 │       │   │   ├── crm/
 │       │   │   │   ├── models.py
 │       │   │   │   ├── router.py
 │       │   │   │   └── service.py
+│       │   │   ├── dashboard/
 │       │   │   ├── finance/
 │       │   │   │   ├── models.py
 │       │   │   │   ├── router.py
@@ -361,18 +405,15 @@ e:\2026\ssr_one_ai
 │       │   │   │   ├── models.py
 │       │   │   │   ├── router.py
 │       │   │   │   └── service.py
-│       │   │   ├── hr/
-│       │   │   │   ├── models.py
-│       │   │   │   ├── router.py
-│       │   │   │   └── service.py
+│       │   │   ├── hrms/
 │       │   │   ├── inventory/
 │       │   │   │   ├── models.py
 │       │   │   │   ├── router.py
 │       │   │   │   └── service.py
-│       │   │   ├── licensing/
-│       │   │   │   ├── engine.py
-│       │   │   │   ├── models.py
-│       │   │   │   └── router.py
+│       │   │   ├── maintenance/
+│       │   │   ├── marketing/
+│       │   │   ├── orders/
+│       │   │   ├── pg_management/
 │       │   │   └── restaurant/
 │       │   │       ├── models.py
 │       │   │       ├── router.py

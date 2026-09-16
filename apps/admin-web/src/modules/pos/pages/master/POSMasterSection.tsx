@@ -128,6 +128,10 @@ export const POSMasterSection: React.FC<POSMasterSectionProps> = ({
           }}
           onDelete={(id: number) => onDeleteMenuItem(id)}
           onToggleAvailability={(item: POSMenuItem) => onToggleAvailability(item)}
+          onTogglePopular={async (item: POSMenuItem) => {
+            const nextStatus = !item.is_popular;
+            await onSaveMenuItem({ ...item, is_popular: nextStatus });
+          }}
         />
       )}
 

@@ -300,6 +300,15 @@ export const placeOrder = async (orderData: unknown): Promise<{ orderId: string;
   }
 };
 
+export interface SavedAddress {
+  id?: string | number;
+  label: string;
+  fullAddress: string;
+  city?: string;
+  pincode?: string;
+  is_default?: boolean;
+}
+
 export const fetchSavedAddresses = async (): Promise<SavedAddress[]> => {
   try {
     return await api.get("/customer/addresses");

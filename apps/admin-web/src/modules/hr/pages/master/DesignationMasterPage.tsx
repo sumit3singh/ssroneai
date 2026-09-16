@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { UserCheck, Plus, Trash2, RefreshCw, X, Save, Building2 } from "lucide-react";
-import { Button } from "@ssrone/ui";
+import { UserCheck, Plus, Trash2, Edit2, RefreshCw, X, Save, Building2 } from "lucide-react";
+import { Button, PageHeader } from "@ssrone/ui";
 import { useAuthStore } from "@ssrone/auth";
 import { hrService } from "../../services/hr.service";
 import { Department, Designation } from "../../types/hr.types";
@@ -14,6 +14,7 @@ export function DesignationMasterPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingDesig, setEditingDesig] = useState<Designation | null>(null);
   
   const [title, setTitle] = useState("");
   const [departmentId, setDepartmentId] = useState<string>("");
@@ -39,7 +40,21 @@ export function DesignationMasterPage() {
     fetchData();
   }, [activeBranchId]);
 
-  const handleCreateDesignation = async (e: React.FormEvent) => {
+  const handleOpenAdd = () => {
+    setEditingDesig(null);
+    setTitle("");
+    setDepartmentId("");
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEdit = (desig: Designation) => {
+    setEditingDesig(desig);
+    setTitle(desig.title);
+    setDepartmentId(desig.department_id || "");
+    setIsModalOpen(true);
+  };
+
+  const handleSaveDesignation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       toast.error("Designation Title is required");
@@ -48,14 +63,20 @@ export function DesignationMasterPage() {
 
     setIsSubmitting(true);
     try {
-      await hrService.createDesignation(title, departmentId || undefined, activeBranchId);
-      toast.success(`Designation '${title}' created successfully!`);
+      if (editingDesig) {
+        await hrService.updateDesignation(editingDesig.id, title, departmentId || undefined, activeBranchId);
+        toast.success(`Designation '${title}' updated successfully!`);
+      } else {
+        await hrService.createDesignation(title, departmentId || undefined, activeBranchId);
+        toast.success(`Designation '${title}' created successfully!`);
+      }
       setTitle("");
       setDepartmentId("");
+      setEditingDesig(null);
       setIsModalOpen(false);
       fetchData();
     } catch (err: any) {
-      toast.error("Failed to create designation: " + (err.response?.data?.detail || err.message));
+      toast.error("Failed to save designation: " + (err.response?.data?.detail || err.message));
     } finally {
       setIsSubmitting(false);
     }
@@ -79,39 +100,29 @@ export function DesignationMasterPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-6 rounded-3xl border border-border shadow-card">
-        <div className="space-y-1">
+    <div className="space-y-4">
+      {/* Standardized Enterprise Page Header */}
+      <PageHeader
+        title="Designation & Role Title Master"
+        description="Manage job designations and staff role titles linked to departments in PostgreSQL"
+        icon={<UserCheck size={18} />}
+        badge={`${designations.length} Designations`}
+        actions={
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600">
-              <UserCheck size={20} />
-            </div>
-            <div>
-              <h1 className="font-display font-black text-xl text-foreground uppercase tracking-wider">
-                Designation & Role Title Master
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                Manage job designations and staff role titles linked to departments in PostgreSQL
-              </p>
-            </div>
+            <button
+              onClick={fetchData}
+              className="p-1.5 rounded border border-border bg-background hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
+              title="Refresh Designations"
+            >
+              <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+            </button>
+
+            <Button onClick={handleOpenAdd} size="sm" className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs">
+              <Plus size={14} /> Add Designation
+            </Button>
           </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={fetchData}
-            className="p-2.5 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground cursor-pointer"
-          >
-            <RefreshCw size={15} className={isLoading ? "animate-spin" : ""} />
-          </button>
-
-          <Button onClick={() => setIsModalOpen(true)} className="font-extrabold flex items-center gap-2 cursor-pointer">
-            <Plus size={16} />
-            <span>Add Designation</span>
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Designations Directory Table */}
       <div className="bg-card border border-border rounded-3xl p-6 shadow-card space-y-4">
@@ -137,13 +148,22 @@ export function DesignationMasterPage() {
                   </td>
                   <td className="py-3.5 text-muted-foreground">Branch #{desig.branch_id || activeBranchId}</td>
                   <td className="py-3.5 text-center">
-                    <button
-                      onClick={() => handleDelete(desig.id)}
-                      className="p-1.5 rounded-lg border border-rose-500/20 hover:bg-rose-500/10 text-rose-500 cursor-pointer"
-                      title="Delete Designation"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    <div className="flex items-center justify-center gap-1.5">
+                      <button
+                        onClick={() => handleOpenEdit(desig)}
+                        className="p-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                        title="Edit Designation"
+                      >
+                        <Edit2 size={13} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(desig.id)}
+                        className="p-1.5 rounded-lg border border-rose-500/20 hover:bg-rose-500/10 text-rose-500 cursor-pointer"
+                        title="Delete Designation"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -159,20 +179,25 @@ export function DesignationMasterPage() {
         </div>
       </div>
 
-      {/* Add Designation Modal */}
+      {/* Add / Edit Designation Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-3xl w-full max-w-md p-6 space-y-4 shadow-modal">
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-display font-black text-base text-foreground uppercase">Add Designation Master</h3>
+              <h3 className="font-display font-black text-base text-foreground uppercase">
+                {editingDesig ? "Edit Designation Master" : "Add Designation Master"}
+              </h3>
               <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground cursor-pointer">
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateDesignation} className="space-y-4 text-xs font-bold">
+            <form onSubmit={handleSaveDesignation} className="space-y-4 text-xs font-bold">
               <div>
-                <label className="block text-muted-foreground mb-1">Designation Title *</label>
+                <label className="block text-muted-foreground mb-1">
+                  <span>Designation Title</span>
+                  <span className="text-rose-500 font-bold ml-1">*</span>
+                </label>
                 <input
                   type="text"
                   required
@@ -213,7 +238,7 @@ export function DesignationMasterPage() {
                   className="px-5 py-2 rounded-xl bg-primary text-primary-foreground font-black flex items-center gap-1.5 cursor-pointer hover:opacity-90 transition-all shadow-md active:scale-95 text-xs disabled:opacity-50"
                 >
                   <Save size={14} />
-                  <span>{isSubmitting ? "Saving..." : "Save Designation"}</span>
+                  <span>{isSubmitting ? "Saving..." : editingDesig ? "Update Designation" : "Save Designation"}</span>
                 </button>
               </div>
             </form>

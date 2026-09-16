@@ -9,12 +9,16 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 # Ensure services/backend root directory is on sys.path for src.* imports
 backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
+
+from src.shared.logger import get_logger
+logger = get_logger(__name__)
 
 # Eagerly initialize all SQLAlchemy ORM models and configure Base.registry
 from src.core.database.init_models import init_sqlalchemy_models
@@ -37,6 +41,7 @@ from src.modules.finance.router import router as finance_router
 from src.modules.dashboard.router import router as dashboard_router
 from src.modules.crm.router import router as crm_router, customers_alias_router, customer_singular_alias_router
 from src.modules.billing.router import router as billing_router
+from src.modules.marketing.router import router as marketing_router
 from src.ai.copilot.router import router as ai_router
 from src.engines.form_builder.router import router as form_builder_router
 from src.engines.notification.router import router as notification_router
@@ -55,8 +60,9 @@ async def lifespan(app: FastAPI):
             MenuAddonGroup, MenuAddonOption, PaymentMode,
             PosShift, PosShiftTransaction
         )
-        from src.modules.orders.models import Order, OrderItem, DiningTable, KitchenStation
+        from src.modules.orders.models import Order, OrderItem, DiningTable, KitchenStation, QueueToken
         from src.modules.crm.models import Customer, CustomerAddress, CustomerInteraction, LoyaltyTransaction
+        from src.modules.marketing.models import LeadInquiry
         from sqlalchemy import select, text
         from passlib.context import CryptContext
         from decimal import Decimal
@@ -99,6 +105,7 @@ app = FastAPI(
 )
 
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # ─── CORS Middleware Setup ────────────────────────────────────
 app.add_middleware(
@@ -106,8 +113,12 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://localhost:3000",
+        "http://localhost:3002",
+        "http://localhost:5174",
+        "http://localhost:8083",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
+        "http://127.0.0.1:3002",
     ],
     allow_origin_regex=r"https?://.*",
     allow_credentials=True,
@@ -137,6 +148,7 @@ app.include_router(crm_router, prefix=v1_prefix)
 app.include_router(customers_alias_router, prefix=v1_prefix)
 app.include_router(customer_singular_alias_router, prefix=v1_prefix)
 app.include_router(billing_router, prefix=v1_prefix)
+app.include_router(marketing_router, prefix=v1_prefix)
 app.include_router(ai_router, prefix=v1_prefix)
 app.include_router(form_builder_router, prefix=v1_prefix)
 app.include_router(notification_router, prefix=v1_prefix)

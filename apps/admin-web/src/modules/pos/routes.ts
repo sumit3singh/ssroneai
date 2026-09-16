@@ -22,8 +22,11 @@ export const posRoutes = {
     root: "/pos/reports",
     dailySales: "/pos/reports/daily-sales",
     itemSales: "/pos/reports/item-sales",
+    categorySales: "/pos/reports/categories",
     cashierSettlement: "/pos/reports/cashier-settlement",
-    gstSummary: "/pos/reports/gst-summary"
+    gstSummary: "/pos/reports/gst-summary",
+    customerDebt: "/pos/reports/debt",
+    voidAudit: "/pos/reports/void-audit"
   },
   settings: "/pos/settings"
 } as const;

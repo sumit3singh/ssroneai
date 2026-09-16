@@ -129,29 +129,26 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       login: async (credentials: any) => {
-        if (credentials && credentials.tenant_slug) {
-          try {
-            const response = await api.post<{ access_token: string; user: UserProfile }>("/auth/login", credentials);
-            setAccessToken(response.access_token);
-            setTenantSlug(credentials.tenant_slug);
-
-            set({
-              user: response.user,
-              access_token: response.access_token,
-              tenant_slug: credentials.tenant_slug,
-              is_authenticated: true,
-              isLoggedIn: true,
-            });
-            return;
-          } catch (e) {
-            console.error("API login error", e);
-          }
+        if (!credentials || !credentials.tenant_slug || !credentials.email || !credentials.password) {
+          throw new Error("Tenant slug, email, and password are required.");
         }
-        set({
-          user: credentials,
-          is_authenticated: true,
-          isLoggedIn: true,
-        });
+        try {
+          const response = await api.post<{ access_token: string; user: UserProfile }>("/auth/login", credentials);
+          setAccessToken(response.access_token);
+          setTenantSlug(credentials.tenant_slug);
+
+          set({
+            user: response.user,
+            access_token: response.access_token,
+            tenant_slug: credentials.tenant_slug,
+            is_authenticated: true,
+            isLoggedIn: true,
+          });
+          return;
+        } catch (e) {
+          console.error("Authentication rejected by database:", e);
+          throw e;
+        }
       },
 
       logout: async () => {
@@ -205,13 +202,14 @@ export const getAuth = () => {
   try {
     const state = useAuthStore.getState();
     const user = state?.user;
+    const isAuth = Boolean(state?.is_authenticated && state?.access_token && user);
     return {
-      isLoggedIn: Boolean(state?.is_authenticated || state?.isLoggedIn || user),
-      user: state?.user || null,
-      role: user?.role || (user ? "employee" : null),
-      name: user?.name || user?.first_name || (user ? "Staff Member" : null),
-      access_token: state?.access_token || null,
-      tenant_slug: state?.tenant_slug || null,
+      isLoggedIn: isAuth,
+      user: isAuth ? user : null,
+      role: isAuth ? (user?.role || "employee") : null,
+      name: isAuth ? (user?.name || user?.first_name || "Staff Member") : null,
+      access_token: isAuth ? state?.access_token : null,
+      tenant_slug: isAuth ? state?.tenant_slug : null,
     };
   } catch {
     return { isLoggedIn: false, user: null, role: null, name: null, access_token: null, tenant_slug: null };

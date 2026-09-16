@@ -6,15 +6,18 @@ import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useRouterState, Link } from "@tanstack/react-router";
 import {
   Bell, Search, LogOut, User, Building2, Menu,
-  Sun, Moon, ChevronDown, Check, Shield, X, Receipt
+  Sun, Moon, ChevronDown, Check, Shield, X, Receipt, HelpCircle, LayoutGrid
 } from "lucide-react";
 import { useAuthStore } from "@ssrone/auth";
 import { api } from "@ssrone/api-client";
 import { CommandPalette, Sidebar } from "@ssrone/navigation";
+import { PageHelpSOPModal } from "../components/universal/PageHelpSOPModal";
+
 
 import { Button } from "@ssrone/ui";
 import { toast } from "sonner";
 import { cn } from "@/shared/utils/cn";
+import { IndianLiveClock } from "@/modules/pos/components/IndianLiveClock";
 
 interface AppShellProps {
   children: ReactNode;
@@ -27,6 +30,8 @@ export function AppShell({ children }: AppShellProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("light");
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+
 
   const { user, selected_branch, branches, setSelectedBranch, setBranches, logout } = useAuthStore();
   const routerState = useRouterState();
@@ -316,14 +321,28 @@ export function AppShell({ children }: AppShellProps) {
             )}
           </div>
 
-          {/* Quick POS Billing Link */}
+          {/* Real-time Indian Date & Time (IST Asia/Kolkata) */}
+          <IndianLiveClock compact className="hidden md:inline-flex" />
+
+          {/* Quick Table Floor Link */}
           <Link
-            to="/pos/transaction/billing"
-            className="hidden lg:flex items-center gap-1 px-2.5 py-1 rounded bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-medium transition-colors no-underline cursor-pointer"
+            to="/pos/transaction/tables"
+            className="flex items-center gap-1.5 px-3 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all no-underline cursor-pointer shadow-xs active:scale-95"
+            title="Open Table Floor & Live Tracker (Auto-Kiosk Fullscreen)"
           >
-            <Receipt size={13} />
-            <span>POS Billing</span>
+            <LayoutGrid size={13} />
+            <span>Table Floor</span>
           </Link>
+
+          {/* Universal Page SOP & Data Flow ? Button */}
+          <button
+            onClick={() => setIsHelpModalOpen(true)}
+            className="px-2 py-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 font-bold transition-all flex items-center gap-1 cursor-pointer"
+            title="Open Page Standard Operating Procedure (SOP) & System Data Flow"
+          >
+            <HelpCircle size={15} />
+            <span className="text-2xs font-mono font-black">SOP</span>
+          </button>
 
           {/* Theme Toggle Button */}
           <button
@@ -333,6 +352,7 @@ export function AppShell({ children }: AppShellProps) {
           >
             {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
           </button>
+
 
           {/* Notifications Bell */}
           <div className="relative" ref={notifRef}>
@@ -501,6 +521,14 @@ export function AppShell({ children }: AppShellProps) {
 
       {/* Global Command Palette (Ctrl+K) */}
       <CommandPalette />
+
+      {/* Universal Page SOP & System Data Flow Modal */}
+      <PageHelpSOPModal
+        isOpen={isHelpModalOpen}
+        onClose={() => setIsHelpModalOpen(false)}
+        currentPath={currentPath}
+      />
     </div>
   );
 }
+

@@ -91,3 +91,16 @@ class OrderStatusLogSchema(BaseModel):
     notes: str | None = None
     created_at: datetime
     model_config = {"from_attributes": True}
+
+
+# ─── KDS Kitchen Operations System Schemas ─────────────────────
+
+class KDSItemStatusUpdateSchema(BaseModel):
+    order_item_id: int = Field(..., description="ID of order line item")
+    status: str = Field(..., description="pending, cooking, ready, completed")
+
+
+class KDS86ItemSchema(BaseModel):
+    menu_item_id: int = Field(..., description="ID of menu item to toggle availability")
+    is_available: bool = Field(..., description="True if in-stock, False if 86 out-of-stock")
+

@@ -17,6 +17,7 @@ export interface POSCartItem {
   addons?: POSAddonOption[];
   notes?: string;
   is_veg: boolean;
+  kds_station?: string;
 }
 
 export interface POSOrder {
@@ -26,6 +27,7 @@ export interface POSOrder {
   table_name?: string;
   waiter_id?: number;
   waiter_name?: string;
+  customer_id?: number | string;
   customer_name?: string;
   customer_phone?: string;
   order_type: OrderType;

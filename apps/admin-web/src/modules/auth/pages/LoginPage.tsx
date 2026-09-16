@@ -228,7 +228,9 @@ export function LoginPage() {
       void navigate({ to: "/" });
     } catch (err: any) {
       console.error("Login error:", err);
-      toast.error("Login failed. Please check your credentials.");
+      const detail = err?.response?.data?.detail || err?.message || "Invalid email or password. Authentication rejected by database.";
+      const message = typeof detail === "string" ? detail : "Login failed. Invalid email or password.";
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }

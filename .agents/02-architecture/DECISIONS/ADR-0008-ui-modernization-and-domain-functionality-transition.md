@@ -52,7 +52,8 @@ With the UI design system, HSL CSS variables, micro-animations, and client-side 
 | **CRM & Loyalty** | Guest tier rewards, campaign triggers, feedback scoring, customer lifetime value analytics. |
 | **HR & Payroll** | Attendance tracking, shift management, salary slip generation, tax compliance deduction. |
 | **Inventory & Finance** | Stock movement ledger, PO approval workflow, automated double-entry journal posting. |
-| **Platform Admin** | Real-time cluster health monitoring, tenant provisioning, automated subscription renewals. |
+| **Platform Admin** | Real-time cluster health monitoring, tenant provisioning, automated subscription renewals, **Sales Leads Console (`#leads`) with WhatsApp follow-up & phone-based deduplication**. |
+| **Marketing Web** | **PostgreSQL SSOT Lead Ingestion (`lead_inquiries`), 10-digit mobile validation (`@field_validator("phone")`), and phone-based upsert engine (updates requested slot/notes without creating duplicate rows)**. |
 
 ---
 

@@ -275,6 +275,7 @@ class MenuItemResponseSchema(BaseModel):
     id: int
     category_id: int | None = 1
     name: str = "Unnamed Dish"
+    item_code: str | None = None
     description: str | None = None
     short_description: str | None = None
     base_price: float = 0.0

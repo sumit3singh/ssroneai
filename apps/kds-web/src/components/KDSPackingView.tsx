@@ -39,22 +39,23 @@ export const KDSPackingView: React.FC<KDSPackingViewProps> = ({
   return (
     <div className="space-y-4">
       {/* Header Banner */}
-      <div className="bg-slate-900 border border-slate-800 text-white rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
+      <div className="bg-gradient-to-r from-[#103B2B] via-[#164e39] to-emerald-950 border border-emerald-800/40 text-white rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm">
         <div>
-          <h2 className="text-sm font-black uppercase tracking-wider flex items-center gap-2">
-            <Package size={18} className="text-emerald-500" />
+          <h2 className="text-sm sm:text-base font-black uppercase tracking-wider flex items-center gap-2 text-white">
+            <Package size={20} className="text-emerald-400" />
             PACKING STATION & TAKEAWAY VERIFICATION
           </h2>
-          <p className="text-xs text-slate-400 font-medium mt-0.5">
+          <p className="text-xs text-emerald-100/90 font-medium mt-0.5">
             Interactive packing checklist for Takeaway & Delivery orders to prevent missing items.
           </p>
         </div>
-        <div className="flex items-center gap-4 text-xs font-mono font-bold">
-          <span className="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
-            Orders to Pack: <strong className="text-emerald-400">{tickets.length}</strong>
+        <div className="flex items-center gap-4 text-xs font-mono font-bold shrink-0">
+          <span className="bg-emerald-950/80 text-emerald-200 px-3.5 py-1.5 rounded-xl border border-emerald-700/50 shadow-2xs">
+            Orders to Pack: <strong className="text-white text-sm ml-1">{tickets.length}</strong>
           </span>
         </div>
       </div>
+
 
       {/* Packing Order Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -80,17 +81,49 @@ export const KDSPackingView: React.FC<KDSPackingViewProps> = ({
               </div>
 
               {/* Items List */}
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <p className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">Dish Items:</p>
-                {ticket.items.map((item, idx) => (
-                  <div key={idx} className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <span className="font-mono font-black text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded">
-                      {item.quantity}x
-                    </span>
-                    <span>{item.name}</span>
-                  </div>
-                ))}
+                {ticket.items.map((item: any, idx: number) => {
+                  const dishName = (item.name || item.product_name || item.item_name || "Dish Item").trim();
+                  
+                  const variantName = typeof item.variant === "string"
+                    ? item.variant
+                    : (item.variant?.name || item.variant_name || "");
+
+                  const rawAddons = item.addons || item.selected_addons || [];
+                  const addonStr = Array.isArray(rawAddons)
+                    ? rawAddons
+                        .map((a: any) => (typeof a === "string" ? a : (a?.name || a?.title || a?.addon_name || a?.label || "")))
+                        .filter(Boolean)
+                        .join(", ")
+                    : "";
+
+                  return (
+                    <div key={idx} className="text-xs font-bold text-slate-900 dark:text-white p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-black text-xs px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white rounded shrink-0">
+                          {item.quantity}x
+                        </span>
+                        <div>
+                          <span>{dishName}</span>
+                          {variantName && (
+                            <span className="ml-1.5 inline-block text-[10px] font-mono font-bold text-sky-600 dark:text-sky-400 bg-sky-500/10 px-1 py-0.2 rounded border border-sky-500/20">
+                              {variantName}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {addonStr && (
+                        <div className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-extrabold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 inline-block">
+                          + Addons: {addonStr}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
+
 
               {/* Interactive Packing Checklist */}
               <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-xl p-3 space-y-2">
