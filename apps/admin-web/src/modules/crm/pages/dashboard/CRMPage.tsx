@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useRouterState } from "@tanstack/react-router";
-import { Users, Database, Receipt, BarChart3, Plus, RefreshCw, Award, HeartHandshake } from "lucide-react";
+import { Users, Database, Receipt, BarChart3, Plus, RefreshCw, Award, HeartHandshake, Megaphone, MessageSquare } from "lucide-react";
 import { Button, PageHeader, PageContainer } from "@ssrone/ui";
 import { toast } from "sonner";
 import { api } from "@ssrone/api-client";
 import { CRMMasterSection } from "../master/CRMMasterSection";
 import { CRMTransactionSection } from "../transaction/CRMTransactionSection";
 import { CRMReportSection } from "../report/CRMReportSection";
+import { CampaignModal } from "../transaction/CampaignModal";
+import { CustomerInteractionModal } from "../transaction/CustomerInteractionModal";
 
 export function CRMPage() {
   const routerState = useRouterState();
@@ -17,6 +19,8 @@ export function CRMPage() {
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
+  const [isInteractionModalOpen, setIsInteractionModalOpen] = useState(false);
 
   const [newCustomer, setNewCustomer] = useState({
     first_name: "",
@@ -28,9 +32,13 @@ export function CRMPage() {
 
   // Sync active section from router path if present
   useEffect(() => {
-    if (currentPath.includes("/master") || currentPath.includes("/customers") || currentPath.includes("/tiers")) {
+    if (currentPath.includes("/campaigns")) {
+      setIsCampaignModalOpen(true);
+    } else if (currentPath.includes("/interactions")) {
+      setIsInteractionModalOpen(true);
+    } else if (currentPath.includes("/master") || currentPath.includes("/customers") || currentPath.includes("/tiers")) {
       setActiveTab("master");
-    } else if (currentPath.includes("/transaction") || currentPath.includes("/points") || currentPath.includes("/interactions")) {
+    } else if (currentPath.includes("/transaction") || currentPath.includes("/points")) {
       setActiveTab("transaction");
     } else if (currentPath.includes("/report") || currentPath.includes("/ledger") || currentPath.includes("/tier-distribution")) {
       setActiveTab("report");
@@ -104,6 +112,24 @@ export function CRMPage() {
             >
               <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
             </button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCampaignModalOpen(true)}
+              className="text-xs font-semibold gap-1.5 cursor-pointer border-pink-500/30 text-pink-600 hover:bg-pink-500/10"
+            >
+              <Megaphone size={14} /> Marketing Campaigns
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsInteractionModalOpen(true)}
+              className="text-xs font-semibold gap-1.5 cursor-pointer border-primary/30 text-primary hover:bg-primary/10"
+            >
+              <MessageSquare size={14} /> Guest Feedback Log
+            </Button>
 
             <Button
               onClick={() => setShowAddModal(true)}
@@ -204,6 +230,19 @@ export function CRMPage() {
           </div>
         </div>
       )}
+
+      {/* Campaign Broadcasts Modal */}
+      <CampaignModal
+        isOpen={isCampaignModalOpen}
+        onClose={() => setIsCampaignModalOpen(false)}
+      />
+
+      {/* Customer Feedback & Support Interaction Modal */}
+      <CustomerInteractionModal
+        isOpen={isInteractionModalOpen}
+        onClose={() => setIsInteractionModalOpen(false)}
+        customers={customers}
+      />
     </PageContainer>
   );
 }

@@ -15,6 +15,7 @@ export default defineConfig({
   },
   plugins: [react()],
   resolve: {
+    dedupe: ["react", "react-dom", "react/jsx-runtime", "@tanstack/react-query"],
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@ssrone/navigation": path.resolve(__dirname, "../../packages/navigation/src"),
@@ -29,11 +30,20 @@ export default defineConfig({
       "@ssrone/api-client": path.resolve(__dirname, "../../packages/api-client/src"),
       "@ssrone/types": path.resolve(__dirname, "../../packages/types/src"),
       "@ssrone/config": path.resolve(__dirname, "../../packages/config/src"),
-      "@tanstack/react-query": path.resolve(__dirname, "../admin-web/node_modules/@tanstack/react-query"),
-      "react-hook-form": path.resolve(__dirname, "../admin-web/node_modules/react-hook-form"),
-      "lucide-react": path.resolve(__dirname, "../admin-web/node_modules/lucide-react"),
-      "clsx": path.resolve(__dirname, "../admin-web/node_modules/clsx"),
-      "tailwind-merge": path.resolve(__dirname, "../admin-web/node_modules/tailwind-merge"),
     },
+  },
+  optimizeDeps: {
+    exclude: [
+      "@ssrone/ui",
+      "@ssrone/auth",
+      "@ssrone/api-client",
+      "@ssrone/navigation",
+      "@ssrone/theme",
+      "@ssrone/hooks",
+      "@ssrone/utils",
+      "@ssrone/icons",
+      "@ssrone/types",
+      "@ssrone/config",
+    ],
   },
 });

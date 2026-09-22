@@ -134,7 +134,7 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
   const [activeAddonsCartId, setActiveAddonsCartId] = React.useState<string | null>(null);
   const [openRemarkCartId, setOpenRemarkCartId] = React.useState<string | null>(null);
   const [armedDeleteCartId, setArmedDeleteCartId] = React.useState<string | null>(null);
-  const armedTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const armedTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Close dropdown popovers on outside click
   React.useEffect(() => {
@@ -832,7 +832,7 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
                       <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold shrink-0">📝 Note:</span>
                       <input
                         id={`pos-item-remark-${c.cart_id}`}
-                        ref={(input) => input && input.focus()}
+                        ref={(input) => { if (input) input.focus(); }}
                         autoFocus
                         type="text"
                         value={c.notes || ""}

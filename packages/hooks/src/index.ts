@@ -71,7 +71,7 @@ export function useOnline(): boolean {
 
 /** Previous value tracker */
 export function usePrevious<T>(value: T): T | undefined {
-    const ref = useRef<T>();
+    const ref = useRef<T | undefined>(undefined);
 
     useEffect(() => {
         ref.current = value;

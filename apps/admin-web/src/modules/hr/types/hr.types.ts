@@ -9,6 +9,7 @@ export interface Employee {
   last_name?: string;
   designation?: string;
   role: string;
+  role_title?: string;
   department: string;
   status: "ACTIVE" | "ON_LEAVE" | "SUSPENDED" | "TERMINATED" | string;
   salary: number;

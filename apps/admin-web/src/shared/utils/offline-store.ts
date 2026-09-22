@@ -12,6 +12,7 @@ export interface OfflineOrder {
   orderData: object;
   createdAt: string;
   synced: boolean;
+  inFlight?: boolean;
   syncAttempts: number;
   error?: string;
 }

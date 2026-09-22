@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect, type FormEvent } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Sparkles, Send, Bot, User, Utensils, Users, DollarSign, Briefcase, Terminal } from "lucide-react";
+import { Sparkles, Send, Bot, User, Utensils, Users, DollarSign, Briefcase, Terminal, Layers } from "lucide-react";
 import { Button } from "@ssrone/ui";
 import { Input } from "@ssrone/ui";
 import { cn } from "@/shared/utils/cn";
 import { api, getAccessToken } from "@ssrone/api-client";
 import { formatCurrency } from "@/shared/utils/formatters";
+import { AIPromptTemplateModal } from "./AIPromptTemplateModal";
 
 interface ChatMsg {
   role: "user" | "assistant";
@@ -24,6 +25,13 @@ const AGENTS = [
 export function AICopilotPage() {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (currentPath.includes("/templates")) {
+      setIsTemplateModalOpen(true);
+    }
+  }, [currentPath]);
 
   if (currentPath === "/ai/config") {
     return (
@@ -174,21 +182,33 @@ export function AICopilotPage() {
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
       {/* Agent Selector */}
-      <div className="border-b border-border bg-surface px-4 py-3 flex gap-2 overflow-x-auto scrollbar-hide flex-shrink-0">
-        {AGENTS.map((agent) => (
-          <button
-            key={agent.id}
-            onClick={() => setActiveAgent(agent.id)}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex-shrink-0",
-              activeAgent === agent.id ? "text-white" : "bg-muted text-muted-foreground hover:bg-muted/70",
-            )}
-            style={activeAgent === agent.id ? { background: "hsl(var(--ai-primary))" } : undefined}
-          >
-            <agent.icon size={13} />
-            {agent.label}
-          </button>
-        ))}
+      <div className="border-b border-border bg-surface px-4 py-3 flex items-center justify-between gap-2 overflow-x-auto scrollbar-hide flex-shrink-0">
+        <div className="flex items-center gap-2">
+          {AGENTS.map((agent) => (
+            <button
+              key={agent.id}
+              onClick={() => setActiveAgent(agent.id)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex-shrink-0",
+                activeAgent === agent.id ? "text-white" : "bg-muted text-muted-foreground hover:bg-muted/70",
+              )}
+              style={activeAgent === agent.id ? { background: "hsl(var(--ai-primary))" } : undefined}
+            >
+              <agent.icon size={13} />
+              {agent.label}
+            </button>
+          ))}
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIsTemplateModalOpen(true)}
+          className="text-xs font-semibold gap-1.5 border-primary/30 text-primary hover:bg-primary/10 flex-shrink-0"
+        >
+          <Sparkles size={13} />
+          <span>Prompt Templates Studio</span>
+        </Button>
       </div>
 
       {/* Messages */}
@@ -240,6 +260,12 @@ export function AICopilotPage() {
           <span>Local Simulation Sandbox Active · Responses dynamic based on local databases</span>
         </div>
       </div>
+
+      {/* AI Prompt Template Studio Modal */}
+      <AIPromptTemplateModal
+        isOpen={isTemplateModalOpen}
+        onClose={() => setIsTemplateModalOpen(false)}
+      />
     </div>
   );
 }

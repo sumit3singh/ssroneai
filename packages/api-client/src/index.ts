@@ -361,4 +361,180 @@ export const deleteAddress = async (userId: string, addressId: string): Promise<
   await api.delete(`/customer/addresses/${addressId}`);
 };
 
+// ═══════════════════════════════════════════
+// TENANT APP CONFIG & CUSTOMIZATION STUDIO
+// ═══════════════════════════════════════════
+
+export interface GlobalBrandingConfig {
+  businessName: string;
+  tagline: string;
+  logoUrl?: string;
+  primaryColor: string;
+  accentColor: string;
+  phone?: string;
+  address?: string;
+  businessHours?: string;
+  socialLinks?: {
+    instagram?: string;
+    whatsapp?: string;
+    googleMaps?: string;
+  };
+}
+
+export interface FoodWebConfig {
+  banner?: {
+    imageUrl?: string;
+    headline?: string;
+    subtext?: string;
+  };
+  features?: {
+    tableQrOrdering?: boolean;
+    takeaway?: boolean;
+    delivery?: boolean;
+    onlinePayment?: boolean;
+  };
+  orderConfirmationMessage?: string;
+  hiddenCategories?: string[];
+  hiddenItems?: string[];
+  featuredItems?: string[];
+}
+
+export interface TenantAppConfigPayload {
+  branding?: GlobalBrandingConfig;
+  banner?: {
+    imageUrl?: string;
+    headline?: string;
+    subtext?: string;
+  };
+  features?: Record<string, boolean>;
+  orderConfirmationMessage?: string;
+  hiddenCategories?: string[];
+  hiddenItems?: string[];
+  featuredItems?: string[];
+  [key: string]: any;
+}
+
+export interface AppConfigAdminResponse {
+  id: string;
+  tenant_id: string;
+  branch_id?: string | null;
+  app_name: string;
+  draft_config: TenantAppConfigPayload;
+  published_config: TenantAppConfigPayload;
+  config_version: number;
+  published_at?: string | null;
+  is_draft_modified: boolean;
+}
+
+export interface PublicAppConfigResponse {
+  tenant_id: string;
+  branch_id?: string | null;
+  app_name: string;
+  config: TenantAppConfigPayload;
+  config_version: number;
+  is_draft: boolean;
+}
+
+export interface DNSInstruction {
+  record_type: string;
+  host: string;
+  target: string;
+  ttl: string;
+  notes: string;
+}
+
+export interface CustomDomainRecord {
+  id: string;
+  tenant_id: string;
+  branch_id?: string | null;
+  app_name: string;
+  domain: string;
+  status: "pending_dns" | "verified" | "failed";
+  record_type: "CNAME" | "A";
+  target_value: string;
+  verified_at?: string | null;
+  last_checked_at?: string | null;
+  error_message?: string | null;
+  dns_instruction: DNSInstruction;
+}
+
+export const fetchPublicTenantConfig = async (
+  tenantSlug: string,
+  branchCode: string,
+  appName: string,
+  isDraft: boolean = false
+): Promise<PublicAppConfigResponse | null> => {
+  try {
+    const draftParam = isDraft ? "?draft=true" : "";
+    return await api.get<PublicAppConfigResponse>(
+      `/tenant-config/by-slug/${tenantSlug}/${branchCode}/${appName}${draftParam}`
+    );
+  } catch {
+    return null;
+  }
+};
+
+export const fetchTenantAppConfig = fetchPublicTenantConfig;
+
+export const fetchAdminAppConfig = async (
+  appName: string,
+  branchId?: string | number
+): Promise<AppConfigAdminResponse> => {
+  const param = branchId ? `?branch_id=${branchId}` : "";
+  return await api.get<AppConfigAdminResponse>(`/tenant-config/admin/${appName}${param}`);
+};
+
+export const saveDraftAppConfig = async (
+  appName: string,
+  draftConfig: Record<string, any>,
+  branchId?: string | number
+): Promise<AppConfigAdminResponse> => {
+  return await api.put<AppConfigAdminResponse>(`/tenant-config/admin/${appName}/draft`, {
+    draft_config: draftConfig,
+    branch_id: branchId ? Number(branchId) : null,
+  });
+};
+
+export const publishAppConfig = async (
+  appName: string,
+  branchId?: string | number
+): Promise<AppConfigAdminResponse> => {
+  return await api.post<AppConfigAdminResponse>(`/tenant-config/admin/${appName}/publish`, {
+    branch_id: branchId ? Number(branchId) : null,
+  });
+};
+
+export const resetDraftAppConfig = async (
+  appName: string,
+  branchId?: string | number
+): Promise<AppConfigAdminResponse> => {
+  return await api.post<AppConfigAdminResponse>(`/tenant-config/admin/${appName}/reset-draft`, {
+    branch_id: branchId ? Number(branchId) : null,
+  });
+};
+
+export const fetchCustomDomains = async (): Promise<CustomDomainRecord[]> => {
+  try {
+    return await api.get<CustomDomainRecord[]>("/custom-domains");
+  } catch {
+    return [];
+  }
+};
+
+export const registerCustomDomain = async (data: {
+  domain: string;
+  app_name?: string;
+  branch_id?: number | null;
+}): Promise<CustomDomainRecord> => {
+  return await api.post<CustomDomainRecord>("/custom-domains", data);
+};
+
+export const verifyCustomDomain = async (domainId: string | number): Promise<CustomDomainRecord> => {
+  return await api.post<CustomDomainRecord>(`/custom-domains/${domainId}/verify`);
+};
+
+export const deleteCustomDomain = async (domainId: string | number): Promise<void> => {
+  await api.delete(`/custom-domains/${domainId}`);
+};
+
 export default apiClient;

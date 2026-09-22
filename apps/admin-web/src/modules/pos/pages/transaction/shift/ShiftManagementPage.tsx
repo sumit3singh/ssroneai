@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Lock, Unlock, DollarSign, CreditCard, Landmark, CheckCircle2, ShieldAlert, ArrowDownRight } from "lucide-react";
 import { Button } from "@ssrone/ui";
 import { Input } from "@ssrone/ui";
-import { POSShiftSummary } from "../../types";
+import { POSShiftSummary } from "../../../types";
 
 import { api } from "@ssrone/api-client";
 

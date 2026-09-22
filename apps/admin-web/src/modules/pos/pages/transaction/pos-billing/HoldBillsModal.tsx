@@ -1,7 +1,7 @@
 import React from "react";
 import { Pause, Play, X, Trash2, Clock, ShoppingBag, UtensilsCrossed } from "lucide-react";
 import { Button } from "@ssrone/ui";
-import { POSCartItem } from "../../types";
+import { POSCartItem } from "../../../types";
 
 export interface HeldBill {
   id: string;

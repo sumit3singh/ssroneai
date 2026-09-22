@@ -33,12 +33,38 @@ class RoomResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class RoomTypeResponse(BaseModel):
+    id: int
+    name: str
+    code: str
+    max_occupancy: int = 2
+    base_rate: Decimal
+    description: str | None = None
+    is_active: bool = True
+
+    model_config = {"from_attributes": True}
+
+
+class GuestResponse(BaseModel):
+    id: int
+    first_name: str
+    last_name: str
+    email: str | None = None
+    phone: str | None = None
+    id_type: str | None = None
+    id_number: str | None = None
+    notes: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
 class RoomTypeCreateSchema(BaseModel):
-    branch_id: int
+    branch_id: int | None = 1
     name: str
     code: str
     max_occupancy: int = 2
     base_rate: Decimal = Field(gt=0)
+    description: str | None = None
 
 
 class RoomCreateSchema(BaseModel):
@@ -104,24 +130,54 @@ async def list_rooms(
     return [RoomResponse.model_validate(r) for r in result.scalars().all()]
 
 
+@router.get("/room-types", response_model=list[RoomTypeResponse])
+async def list_room_types(
+    branch_id: int | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[RoomTypeResponse]:
+    query = select(RoomType).where(RoomType.tenant_id == current_user.tenant_id, RoomType.is_deleted == False)
+    if branch_id:
+        query = query.where(RoomType.branch_id == branch_id)
+    result = await db.execute(query.order_by(RoomType.base_rate.asc()))
+    return [RoomTypeResponse.model_validate(rt) for rt in result.scalars().all()]
+
+
 @router.post("/room-types", status_code=status.HTTP_201_CREATED)
 async def create_room_type(
     body: RoomTypeCreateSchema,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
+    branch_id = body.branch_id or getattr(current_user, "branch_id", None)
     room_type = RoomType(
         tenant_id=current_user.tenant_id,
-        branch_id=body.branch_id,
+        branch_id=branch_id,
         name=body.name,
         code=body.code,
         max_occupancy=body.max_occupancy,
         base_rate=body.base_rate,
+        description=body.description,
         created_by=current_user.id,
     )
     db.add(room_type)
     await db.flush()
-    return {"id": str(room_type.id), "name": room_type.name}
+    return {"id": str(room_type.id), "name": room_type.name, "code": room_type.code, "base_rate": float(room_type.base_rate)}
+
+
+@router.delete("/room-types/{room_type_id}", status_code=status.HTTP_200_OK)
+async def delete_room_type(
+    room_type_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    result = await db.execute(select(RoomType).where(RoomType.id == room_type_id, RoomType.tenant_id == current_user.tenant_id))
+    rt = result.scalar_one_or_none()
+    if not rt:
+        raise HTTPException(status_code=404, detail="Room type not found")
+    rt.is_deleted = True
+    await db.flush()
+    return {"message": f"Room type {rt.name} deleted successfully"}
 
 
 @router.post("/rooms", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
@@ -146,15 +202,37 @@ async def create_room(
 
 # ─── Guests ──────────────────────────────────────────────────
 
+@router.get("/guests", response_model=list[GuestResponse])
+async def list_guests(
+    branch_id: int | None = None,
+    search: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[GuestResponse]:
+    query = select(Guest).where(Guest.tenant_id == current_user.tenant_id, Guest.is_deleted == False)
+    if branch_id:
+        query = query.where(Guest.branch_id == branch_id)
+    if search:
+        s_pat = f"%{search.lower()}%"
+        query = query.where(
+            func.lower(Guest.first_name).like(s_pat)
+            | func.lower(Guest.last_name).like(s_pat)
+            | Guest.phone.like(s_pat)
+        )
+    result = await db.execute(query.order_by(Guest.first_name.asc()))
+    return [GuestResponse.model_validate(g) for g in result.scalars().all()]
+
+
 @router.post("/guests", status_code=status.HTTP_201_CREATED)
 async def create_guest(
     body: GuestCreateSchema,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
+    branch_id = body.branch_id or getattr(current_user, "branch_id", None)
     guest = Guest(
         tenant_id=current_user.tenant_id,
-        branch_id=body.branch_id,
+        branch_id=branch_id,
         first_name=body.first_name,
         last_name=body.last_name,
         email=body.email,
@@ -165,7 +243,22 @@ async def create_guest(
     )
     db.add(guest)
     await db.flush()
-    return {"id": str(guest.id), "name": f"{guest.first_name} {guest.last_name}"}
+    return {"id": str(guest.id), "name": f"{guest.first_name} {guest.last_name}", "phone": guest.phone}
+
+
+@router.delete("/guests/{guest_id}", status_code=status.HTTP_200_OK)
+async def delete_guest(
+    guest_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    result = await db.execute(select(Guest).where(Guest.id == guest_id, Guest.tenant_id == current_user.tenant_id))
+    g = result.scalar_one_or_none()
+    if not g:
+        raise HTTPException(status_code=404, detail="Guest profile not found")
+    g.is_deleted = True
+    await db.flush()
+    return {"message": f"Guest {g.first_name} {g.last_name} deleted successfully"}
 
 
 # ─── Reservations ────────────────────────────────────────────

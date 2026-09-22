@@ -1,9 +1,11 @@
-import React from "react";
-import { Printer, CheckCircle2, X } from "lucide-react";
+import React, { useState } from "react";
+import { Printer, CheckCircle2, X, MessageSquare } from "lucide-react";
 import { Button } from "@ssrone/ui";
+import { toast } from "sonner";
 import { useAuthStore } from "@ssrone/auth";
-import { POSCartItem } from "../../types";
+import { POSCartItem } from "../../../types";
 import { renderSafeString } from "../../../utils/renderSafeString";
+import { safePrintWithFullscreenRestore } from "../../../utils/printUtils";
 
 interface ThermalReceiptModalProps {
   isOpen: boolean;
@@ -33,11 +35,22 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
   receiptData,
 }) => {
   const { selected_branch, selected_company } = useAuthStore();
+  const [phoneInput, setPhoneInput] = useState<string>("");
+  const [showPhoneInput, setShowPhoneInput] = useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (receiptData?.customerPhone) {
+      setPhoneInput(String(receiptData.customerPhone));
+    } else {
+      setPhoneInput("");
+    }
+    setShowPhoneInput(false);
+  }, [receiptData]);
 
   if (!isOpen || !receiptData) return null;
 
   const handlePrint = () => {
-    window.print();
+    safePrintWithFullscreenRestore();
   };
 
   // Dynamic multi-tenant venue details with safe fallbacks
@@ -56,6 +69,26 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
   const orderNumber = renderSafeString(receiptData.orderNumber);
   const orderType = renderSafeString(receiptData.orderType);
   const paymentMethod = renderSafeString(receiptData.paymentMethod);
+
+  const handleSendWhatsApp = () => {
+    const rawPhone = (phoneInput || custPhone || "").replace(/\D/g, "");
+    if (!rawPhone || rawPhone.length < 10) {
+      setShowPhoneInput(true);
+      toast.error("Please enter a valid 10-digit mobile number for WhatsApp");
+      return;
+    }
+    const cleanPhone = rawPhone.length === 10 ? `91${rawPhone}` : rawPhone;
+
+    const itemsSummary = receiptData.items
+      .map((it) => `• ${it.quantity}x ${it.name} — ₹${(it.unit_price * it.quantity).toFixed(0)}`)
+      .join("\n");
+
+    const message = `🍽️ *${venueName.toUpperCase()}*\n━━━━━━━━━━━━━━━━━━━\n*Bill Receipt #${orderNumber}*\nDate: ${receiptData.timestamp}\nType: ${orderType}\n━━━━━━━━━━━━━━━━━━━\n${itemsSummary}\n━━━━━━━━━━━━━━━━━━━\nSubtotal: ₹${receiptData.subtotal}\n${receiptData.discountAmount > 0 ? `Discount: -₹${receiptData.discountAmount}\n` : ""}${receiptData.taxAmount > 0 ? `GST: ₹${receiptData.taxAmount}\n` : ""}*Total Paid: ₹${receiptData.netAmount}*\nPayment: ${paymentMethod}\n━━━━━━━━━━━━━━━━━━━\n🙏 *Thank you for dining with us!* Have a wonderful day!`;
+
+    const encoded = encodeURIComponent(message);
+    window.open(`https://wa.me/${cleanPhone}?text=${encoded}`, "_blank");
+    toast.success(`WhatsApp receipt opened for +${cleanPhone}!`);
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 select-none">
@@ -260,13 +293,50 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
         </div>
 
         {/* Action Buttons (Excluded from physical print via .no-print) */}
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-border no-print">
-          <Button variant="outline" onClick={onClose} className="text-xs cursor-pointer">
-            Close
-          </Button>
-          <Button onClick={handlePrint} className="bg-primary text-white font-bold text-xs gap-1.5 cursor-pointer shadow-xs active:scale-95">
-            <Printer size={14} /> Print 80mm Slip
-          </Button>
+        <div className="flex flex-col gap-2 pt-2 border-t border-border no-print">
+          {showPhoneInput && (
+            <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/30 text-xs animate-in fade-in">
+              <MessageSquare size={14} className="text-emerald-600 shrink-0" />
+              <input
+                type="tel"
+                placeholder="Enter 10-digit mobile number"
+                value={phoneInput}
+                onChange={(e) => setPhoneInput(e.target.value)}
+                className="flex-1 bg-background border border-border rounded px-2 py-1 text-xs font-mono"
+              />
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSendWhatsApp}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] h-7 px-2.5 font-bold"
+              >
+                Send
+              </Button>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-1.5">
+            <Button variant="outline" onClick={onClose} className="text-xs cursor-pointer">
+              Close
+            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                onClick={() => {
+                  if (!custPhone && !phoneInput) {
+                    setShowPhoneInput(true);
+                  } else {
+                    handleSendWhatsApp();
+                  }
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 cursor-pointer shadow-xs active:scale-95"
+              >
+                <MessageSquare size={14} /> WhatsApp Bill
+              </Button>
+              <Button onClick={handlePrint} className="bg-primary text-white font-bold text-xs gap-1.5 cursor-pointer shadow-xs active:scale-95">
+                <Printer size={14} /> Print 80mm Slip
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

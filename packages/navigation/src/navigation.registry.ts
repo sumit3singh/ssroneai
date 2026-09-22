@@ -36,6 +36,7 @@ export const moduleNavigationRegistry: Record<string, ModuleNavConfig> = {
                     { id: "pos-trans-tables", label: "Table Floor & Live Tracker", path: "/pos/transaction/tables", iconName: "LayoutGrid" },
                     { id: "pos-trans-orders", label: "Order Tracking & Edit", path: "/pos/transaction/orders", iconName: "Receipt" },
                     { id: "pos-trans-kds", label: "Kitchen Display (KDS)", path: "/pos/transaction/kds", iconName: "ChefHat" },
+                    { id: "pos-trans-cfd", label: "Customer Display (2nd Screen)", path: "/pos/cfd", iconName: "Tv" },
                     { id: "pos-trans-shift", label: "Shift & Drawer Management", path: "/pos/transaction/shift", iconName: "Lock" }
                 ]
             },
@@ -190,7 +191,9 @@ export const moduleNavigationRegistry: Record<string, ModuleNavConfig> = {
                 title: "TRANSACTION",
                 iconName: "Receipt",
                 items: [
-                    { id: "inv-trans-adj", label: "Stock Adjustments & Waste", path: "/inventory/adjustment", iconName: "RefreshCw" }
+                    { id: "inv-trans-adj", label: "Stock Adjustments & Waste", path: "/inventory/adjustment", iconName: "RefreshCw" },
+                    { id: "inv-trans-grn", label: "Goods Receipt Note (GRN)", path: "/inventory/grn", iconName: "Truck" },
+                    { id: "inv-trans-batches", label: "Daily Production Batches", path: "/inventory/batches", iconName: "Factory" }
                 ]
             },
             {
@@ -230,7 +233,9 @@ export const moduleNavigationRegistry: Record<string, ModuleNavConfig> = {
                 title: "MASTER",
                 iconName: "Database",
                 items: [
-                    { id: "fin-master-chart", label: "Chart of Accounts", path: "/finance/chart", iconName: "Folder" }
+                    { id: "fin-master-chart", label: "Chart of Accounts", path: "/finance/chart", iconName: "Folder" },
+                    { id: "fin-master-fy", label: "Financial Years & Periods", path: "/finance/financial-years", iconName: "Calendar" },
+                    { id: "fin-master-budgets", label: "Annual & Monthly Budgets", path: "/finance/budgets", iconName: "PieChart" }
                 ]
             },
             {
@@ -238,7 +243,8 @@ export const moduleNavigationRegistry: Record<string, ModuleNavConfig> = {
                 title: "TRANSACTION",
                 iconName: "Receipt",
                 items: [
-                    { id: "fin-trans-journal", label: "Journal & Voucher Entry", path: "/finance/journal", iconName: "FileText" }
+                    { id: "fin-trans-journal", label: "Journal & Voucher Entry", path: "/finance/journal", iconName: "FileText" },
+                    { id: "fin-trans-invoices", label: "Corporate Invoices & Billing", path: "/finance/invoices", iconName: "Receipt" }
                 ]
             },
             {
@@ -286,7 +292,9 @@ export const moduleNavigationRegistry: Record<string, ModuleNavConfig> = {
                 title: "TRANSACTION",
                 iconName: "Receipt",
                 items: [
-                    { id: "crm-trans-points", label: "Loyalty Points Redemptions", path: "/crm/points", iconName: "Gift" }
+                    { id: "crm-trans-points", label: "Loyalty Points Redemptions", path: "/crm/points", iconName: "Gift" },
+                    { id: "crm-trans-campaigns", label: "Promotional Campaigns", path: "/crm/campaigns", iconName: "Megaphone" },
+                    { id: "crm-trans-interactions", label: "Guest Feedback & Support", path: "/crm/interactions", iconName: "MessageSquare" }
                 ]
             },
             {
@@ -328,7 +336,9 @@ export const moduleNavigationRegistry: Record<string, ModuleNavConfig> = {
                 items: [
                     { id: "hr-master-employees", label: "Employee Directory", path: "/hr/employees", iconName: "Users" },
                     { id: "hr-master-departments", label: "Department Master", path: "/hr/departments", iconName: "Building2" },
-                    { id: "hr-master-designations", label: "Designation Master", path: "/hr/designations", iconName: "UserCheck" }
+                    { id: "hr-master-designations", label: "Designation Master", path: "/hr/designations", iconName: "UserCheck" },
+                    { id: "hr-master-shifts", label: "Shift Master", path: "/hr/shifts", iconName: "Clock" },
+                    { id: "hr-master-leave-types", label: "Leave Types & Policies", path: "/hr/leave-types", iconName: "Calendar" }
                 ]
             },
             {
@@ -336,8 +346,9 @@ export const moduleNavigationRegistry: Record<string, ModuleNavConfig> = {
                 title: "TRANSACTION",
                 iconName: "Receipt",
                 items: [
-                    { id: "hr-trans-attendance", label: "Daily Attendance Punch", path: "/hr/attendance", iconName: "Clock" },
-                    { id: "hr-trans-payroll", label: "Payroll Slip Generation", path: "/hr/payroll", iconName: "DollarSign" }
+                    { id: "hr-trans-attendance", label: "Daily Attendance & Overrides", path: "/hr/attendance", iconName: "Clock" },
+                    { id: "hr-trans-leaves", label: "Leave Applications & Approvals", path: "/hr/leaves", iconName: "Calendar" },
+                    { id: "hr-trans-payroll", label: "Payroll Execution & Register", path: "/hr/payroll", iconName: "DollarSign" }
                 ]
             },
             {
@@ -425,7 +436,8 @@ export const moduleNavigationRegistry: Record<string, ModuleNavConfig> = {
                 title: "MASTER",
                 iconName: "Database",
                 items: [
-                    { id: "ai-master-config", label: "Copilot Knowledge Base", path: "/ai/config", iconName: "Database" }
+                    { id: "ai-master-config", label: "Copilot Knowledge Base", path: "/ai/config", iconName: "Database" },
+                    { id: "ai-master-templates", label: "Prompt Template Studio", path: "/ai/templates", iconName: "Sparkles" }
                 ]
             },
             {
@@ -561,7 +573,8 @@ export const moduleNavigationRegistry: Record<string, ModuleNavConfig> = {
                 title: "DASHBOARD",
                 iconName: "LayoutDashboard",
                 items: [
-                    { id: "plat-dash-overview", label: "Platform Command Center", path: "/platform", iconName: "LayoutDashboard" }
+                    { id: "plat-dash-overview", label: "Platform Command Center", path: "/platform", iconName: "LayoutDashboard" },
+                    { id: "plat-dash-leads", label: "Sales Inquiries & Leads", path: "/platform#leads", iconName: "Megaphone" }
                 ]
             },
             {
@@ -624,11 +637,15 @@ export const moduleNavigationRegistry: Record<string, ModuleNavConfig> = {
             },
             {
                 id: "set-transaction",
-                title: "AUTOMATION",
+                title: "AUTOMATION & STUDIO",
                 iconName: "Receipt",
                 items: [
                     { id: "set-trans-workflow", label: "Workflow Rules", path: "/workflow", iconName: "GitMerge" },
-                    { id: "set-trans-comm", label: "Communication Alerts", path: "/communication", iconName: "Send" }
+                    { id: "set-trans-comm", label: "Communication Alerts", path: "/communication", iconName: "Send" },
+                    { id: "set-trans-cust", label: "Branding & Customization Studio", path: "/customization", iconName: "Palette" },
+                    { id: "set-trans-domains", label: "Custom Domains & DNS", path: "/customization/domains", iconName: "Globe" },
+                    { id: "set-trans-approvals", label: "Maker-Checker Approvals", path: "/settings/approvals", iconName: "ShieldCheck" },
+                    { id: "set-trans-plugins", label: "Plugin Connectors", path: "/settings/plugins", iconName: "Puzzle" }
                 ]
             },
             {
@@ -637,6 +654,34 @@ export const moduleNavigationRegistry: Record<string, ModuleNavConfig> = {
                 iconName: "BarChart3",
                 items: [
                     { id: "set-rep-audit", label: "System Audit Logs", path: "/settings/audit", iconName: "FileText" }
+                ]
+            }
+        ]
+    },
+
+    customization: {
+        moduleId: "customization",
+        moduleName: "Website & App Customization",
+        moduleIcon: "Palette",
+        groups: [
+            {
+                id: "customization-studio",
+                title: "STUDIO",
+                iconName: "Palette",
+                items: [
+                    { id: "customization-main", label: "Branding & Content Studio", path: "/customization", iconName: "Palette" },
+                    { id: "customization-domains", label: "Custom Domains & DNS", path: "/customization/domains", iconName: "Globe" }
+                ]
+            },
+            {
+                id: "customization-apps",
+                title: "CONNECTED PORTALS",
+                iconName: "Smartphone",
+                items: [
+                    { id: "cust-app-food", label: "Customer Food Ordering App", path: "/apps/food/menu", iconName: "Utensils" },
+                    { id: "cust-app-stay", label: "Guest Hotel Stay App", path: "/apps/stay/config", iconName: "Hotel" },
+                    { id: "cust-app-kds", label: "Kitchen Display (KDS) App", path: "/apps/kds/stations", iconName: "ChefHat" },
+                    { id: "cust-app-staff", label: "Waiter & Staff App", path: "/apps/staff/tasks", iconName: "Users" }
                 ]
             }
         ]

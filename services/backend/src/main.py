@@ -3,6 +3,7 @@ SSR One AI – FastAPI Backend ASGI Entry Point
 Single source of truth REST API Gateway with multi-tenant PostgreSQL Row-Level Security (RLS).
 Trigger Reload: 2026-08-25 21:55 - Fast lifespan without table DDL locks
 """
+import os
 import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -46,6 +47,7 @@ from src.ai.copilot.router import router as ai_router
 from src.engines.form_builder.router import router as form_builder_router
 from src.engines.notification.router import router as notification_router
 from src.engines.search.router import router as search_router
+from src.modules.customization.router import router as customization_router
 
 
 @asynccontextmanager
@@ -91,7 +93,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         return response
 
@@ -108,19 +110,36 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # ─── CORS Middleware Setup ────────────────────────────────────
+cors_origins_env = os.getenv("CORS_ORIGINS", "")
+custom_origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
+
+default_origins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
+    "http://localhost:3003",
+    "http://localhost:3004",
+    "http://localhost:3005",
+    "http://localhost:3006",
+    "http://localhost:3007",
+    "http://localhost:8083",
+    "http://localhost:8084",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3002",
+]
+
+all_allowed_origins = list(set(default_origins + custom_origins))
+cors_regex = os.getenv("CORS_ORIGIN_REGEX", r"https?://.*\.ssrone\.ai(:[0-9]+)?")
+if os.getenv("APP_ENV", "development").lower() == "development":
+    cors_regex = r"https?://.*"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://localhost:3002",
-        "http://localhost:5174",
-        "http://localhost:8083",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3002",
-    ],
-    allow_origin_regex=r"https?://.*",
+    allow_origins=all_allowed_origins,
+    allow_origin_regex=cors_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -153,6 +172,7 @@ app.include_router(ai_router, prefix=v1_prefix)
 app.include_router(form_builder_router, prefix=v1_prefix)
 app.include_router(notification_router, prefix=v1_prefix)
 app.include_router(search_router, prefix=v1_prefix)
+app.include_router(customization_router, prefix=v1_prefix)
 
 
 @app.get("/", tags=["Root"])

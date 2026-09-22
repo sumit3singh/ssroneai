@@ -1,6 +1,6 @@
 import React from "react";
+import ReactDOM from "react-dom";
 import { renderSafeString } from "../utils/renderSafeString";
-import { useAuthStore } from "@ssrone/auth";
 
 export interface StationKOTItem {
   cart_id?: string;
@@ -32,146 +32,101 @@ interface ThermalKOTPrintableAreaProps {
 }
 
 export const ThermalKOTPrintableArea: React.FC<ThermalKOTPrintableAreaProps> = ({ slips }) => {
-  const { selected_branch, selected_company } = useAuthStore();
-  const venueName = selected_branch?.name || selected_company?.name || "RESTAURANT & CAFE";
-
   if (!slips || slips.length === 0) return null;
 
-  return (
-    <div id="thermal-kot-printable-container" className="hidden print:block">
+  const content = (
+    <div id="thermal-kot-printable-container">
       <style>{`
+        @media screen {
+          #thermal-kot-printable-container {
+            display: none !important;
+          }
+        }
         @media print {
           @page {
             size: 80mm auto;
-            margin: 0;
+            margin: 0mm;
           }
-          body * {
-            visibility: hidden !important;
+          /* Hide entire web app and any non-print elements */
+          #root, .no-print {
+            display: none !important;
           }
-          #thermal-kot-printable-container, #thermal-kot-printable-container * {
-            visibility: visible !important;
-          }
-          #thermal-kot-printable-container {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 80mm !important;
-            max-width: 80mm !important;
+          html, body {
             margin: 0 !important;
             padding: 0 !important;
             background: #ffffff !important;
             color: #000000 !important;
-            font-family: 'Courier New', Courier, monospace, sans-serif !important;
-            font-size: 11px !important;
-            line-height: 1.25 !important;
-            border: none !important;
+            width: 80mm !important;
           }
-          .kot-station-slip {
+          #thermal-kot-printable-container {
+            display: block !important;
+            position: static !important;
             width: 80mm !important;
             max-width: 80mm !important;
-            padding: 6px 8px 16px 8px !important;
+            margin: 0 !important;
+            padding: 4mm 3mm !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            font-family: 'Courier New', Courier, monospace, sans-serif !important;
+            font-size: 12px !important;
+            line-height: 1.35 !important;
+            box-sizing: border-box !important;
+          }
+          .kot-station-slip {
+            display: block !important;
+            width: 100% !important;
+            padding-bottom: 6mm !important;
             page-break-after: always !important;
             break-after: page !important;
             box-sizing: border-box !important;
-            border-bottom: 1px dashed #000000 !important;
           }
           .kot-station-slip:last-child {
             page-break-after: auto !important;
             break-after: auto !important;
-            border-bottom: none !important;
-          }
-          .no-print {
-            display: none !important;
+            padding-bottom: 0 !important;
           }
         }
       `}</style>
 
       {slips.map((slip, idx) => {
-        const totalQty = slip.items.reduce((sum, it) => sum + it.quantity, 0);
-        const isUpdate = slip.kotType === "UPDATE";
+        const displayTable = slip.tableName
+          ? (String(slip.tableName).toLowerCase().startsWith("table") ? slip.tableName : `Table ${slip.tableName}`)
+          : (slip.orderType || "N/A");
 
         return (
           <div key={`${slip.stationName}-${slip.orderNumber}-${idx}`} className="kot-station-slip">
-            {/* Header */}
-            <div style={{ textAlign: "center", marginBottom: "4px" }}>
-              <div style={{ fontSize: "10px", fontWeight: "bold", textTransform: "uppercase" }}>
-                {venueName}
-              </div>
-              <div
-                style={{
-                  fontSize: "14px",
-                  fontWeight: "900",
-                  letterSpacing: "0.5px",
-                  marginTop: "2px",
-                  borderTop: "1px dashed #000",
-                  borderBottom: "1px dashed #000",
-                  padding: "3px 0",
-                }}
-              >
-                {isUpdate ? "⚡ RUNNING KOT (ORDER UPDATE) ⚡" : "★ KITCHEN ORDER TICKET (KOT) ★"}
-              </div>
-              <div
-                style={{
-                  fontSize: "13px",
-                  fontWeight: "900",
-                  marginTop: "3px",
-                  background: "#000",
-                  color: "#fff",
-                  padding: "2px 4px",
-                  display: "inline-block",
-                  borderRadius: "2px",
-                }}
-              >
-                STATION: {slip.stationName.toUpperCase()}
-              </div>
-              {slip.printerName && (
-                <div style={{ fontSize: "9px", marginTop: "1px", color: "#333" }}>
-                  PRINTER: {slip.printerName}
-                </div>
-              )}
-            </div>
-
-            {/* Order Details Metadata */}
+            {/* 1. Kitchen Station Name */}
             <div
               style={{
-                fontSize: "10.5px",
-                borderBottom: "1px dashed #000",
-                paddingBottom: "4px",
-                marginBottom: "5px",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span><strong>ORDER #:</strong> {slip.orderNumber}</span>
-                <span><strong>MODE:</strong> {slip.orderType}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1px" }}>
-                <span><strong>TABLE:</strong> {slip.tableName ? `Table ${slip.tableName}` : "N/A"}</span>
-                <span><strong>KOT TYPE:</strong> {isUpdate ? "RUNNING ADD-ON" : "NEW ORDER"}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1px" }}>
-                <span><strong>DATE/TIME:</strong> {slip.timestamp}</span>
-                {slip.waiterName && <span><strong>SERVER:</strong> {slip.waiterName}</span>}
-              </div>
-            </div>
-
-            {/* Items Column Header */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
+                textAlign: "center",
+                fontSize: "16px",
                 fontWeight: "900",
-                fontSize: "10px",
-                borderBottom: "1px solid #000",
-                paddingBottom: "2px",
-                marginBottom: "4px",
+                textTransform: "uppercase",
+                borderBottom: "2px solid #000000",
+                paddingBottom: "4px",
+                marginBottom: "6px",
               }}
             >
-              <span style={{ width: "40px" }}>QTY</span>
-              <span style={{ flex: 1 }}>ITEM / SPECIFICATIONS</span>
+              {slip.stationName}
             </div>
 
-            {/* Station Items List */}
-            <div style={{ marginBottom: "6px" }}>
+            {/* 2. Table Name, 3. Order No, 4. Time */}
+            <div
+              style={{
+                fontSize: "12px",
+                lineHeight: "1.4",
+                borderBottom: "1px dashed #000000",
+                paddingBottom: "5px",
+                marginBottom: "6px",
+              }}
+            >
+              <div><strong>TABLE:</strong> {displayTable}</div>
+              <div><strong>ORDER NO:</strong> {slip.orderNumber}</div>
+              <div><strong>TIME:</strong> {slip.timestamp}</div>
+            </div>
+
+            {/* 5. Menu Items */}
+            <div style={{ fontSize: "12px", lineHeight: "1.3" }}>
               {slip.items.map((it, itemIdx) => {
                 const addonsList = it.addons || [];
                 const addonStr = Array.isArray(addonsList)
@@ -185,104 +140,200 @@ export const ThermalKOTPrintableArea: React.FC<ThermalKOTPrintableAreaProps> = (
                   <div
                     key={`${it.name}-${itemIdx}`}
                     style={{
+                      paddingBottom: "5px",
                       marginBottom: "5px",
-                      paddingBottom: "4px",
-                      borderBottom: "1px dotted #ccc",
+                      borderBottom: itemIdx === slip.items.length - 1 ? "none" : "1px dotted #999",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "flex-start" }}>
-                      {/* Prominent Quantity */}
-                      <div
-                        style={{
-                          width: "36px",
-                          fontWeight: "900",
-                          fontSize: "13px",
-                          lineHeight: "1.1",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {it.quantity} x
-                      </div>
-
-                      {/* Item Name & Details */}
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: "900", fontSize: "12px", lineHeight: "1.2" }}>
-                          {it.name}
-                        </div>
-
-                        {it.variant_name && (
-                          <div style={{ fontSize: "10px", fontStyle: "italic", marginTop: "1px" }}>
-                            ↳ Size/Variant: <strong>{it.variant_name}</strong>
-                          </div>
-                        )}
-
-                        {addonStr && (
-                          <div style={{ fontSize: "9.5px", marginTop: "1px" }}>
-                            ↳ Addons: {addonStr}
-                          </div>
-                        )}
-
-                        {it.notes && it.notes.trim() && (
-                          <div
-                            style={{
-                              fontSize: "10px",
-                              fontWeight: "900",
-                              marginTop: "2px",
-                              padding: "1px 3px",
-                              border: "1px dashed #000",
-                              background: "#eee",
-                            }}
-                          >
-                            *** NOTE: {it.notes.trim().toUpperCase()} ***
-                          </div>
-                        )}
-                      </div>
+                    {/* Item Name & Qty */}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        fontWeight: "900",
+                        fontSize: "13px",
+                      }}
+                    >
+                      <span style={{ flex: 1, paddingRight: "8px" }}>{it.name}</span>
+                      <span style={{ whiteSpace: "nowrap" }}>QTY: {it.quantity}</span>
                     </div>
+
+                    {/* Variant name if have */}
+                    {it.variant_name && (
+                      <div style={{ fontSize: "11px", fontWeight: "600", marginTop: "2px", color: "#111" }}>
+                        Variant: {it.variant_name}
+                      </div>
+                    )}
+
+                    {/* Addons if have */}
+                    {addonStr && (
+                      <div style={{ fontSize: "11px", marginTop: "2px", color: "#222" }}>
+                        Addons: {addonStr}
+                      </div>
+                    )}
+
+                    {/* Remark if have */}
+                    {it.notes && it.notes.trim() && (
+                      <div style={{ fontSize: "11px", fontWeight: "700", marginTop: "2px", color: "#000" }}>
+                        Remark: {it.notes.trim()}
+                      </div>
+                    )}
                   </div>
                 );
               })}
-            </div>
-
-            {/* Footer Summary */}
-            <div
-              style={{
-                borderTop: "1px dashed #000",
-                paddingTop: "4px",
-                textAlign: "center",
-                fontSize: "10px",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold" }}>
-                <span>ITEMS COUNT: {slip.items.length}</span>
-                <span>TOTAL QTY: {totalQty}</span>
-              </div>
-              <div
-                style={{
-                  marginTop: "4px",
-                  fontSize: "10px",
-                  fontWeight: "900",
-                  textTransform: "uppercase",
-                }}
-              >
-                {isUpdate
-                  ? ">>> PREPARE ONLY NEW ADDED ITEMS ABOVE <<<"
-                  : ">>> NEW ORDER: PREPARE IMMEDIATELY <<<"}
-              </div>
-              <div
-                style={{
-                  marginTop: "6px",
-                  fontSize: "8px",
-                  color: "#666",
-                  borderTop: "1px dotted #999",
-                  paddingTop: "2px",
-                }}
-              >
-                - - - - - - - - - - TEAR / CUT HERE - - - - - - - - - -
-              </div>
             </div>
           </div>
         );
       })}
     </div>
   );
+
+  if (typeof document !== "undefined") {
+    return ReactDOM.createPortal(content, document.body);
+  }
+  return content;
 };
+
+/**
+ * Directly prints KOT slips using a dedicated hidden iframe.
+ * Bypasses Chrome/Edge fullscreen and kiosk-mode viewport scaling bugs,
+ * ensuring slips always render at true 80mm width without blank pages or microscopic shrinking.
+ */
+export async function printKOTSlipsDirectly(slips: StationKOTSlip[]) {
+  if (!slips || slips.length === 0) return;
+
+  const slipsHtml = slips.map((slip) => {
+    const displayTable = slip.tableName
+      ? (String(slip.tableName).toLowerCase().startsWith("table") ? slip.tableName : `Table ${slip.tableName}`)
+      : (slip.orderType || "N/A");
+
+    const itemsHtml = slip.items.map((it, itemIdx) => {
+      const addonsList = it.addons || [];
+      const addonStr = Array.isArray(addonsList)
+        ? addonsList
+            .map((a: any) => (typeof a === "string" ? a : renderSafeString(a?.name || a?.title || a?.label)))
+            .filter(Boolean)
+            .join(", ")
+        : "";
+
+      return `
+        <div style="padding-bottom: 5px; margin-bottom: 5px; border-bottom: ${itemIdx === slip.items.length - 1 ? "none" : "1px dotted #888"};">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; font-weight: 900; font-size: 13px;">
+            <span style="flex: 1; padding-right: 8px;">${it.name}</span>
+            <span style="white-space: nowrap;">QTY: ${it.quantity}</span>
+          </div>
+          ${it.variant_name ? `<div style="font-size: 11px; font-weight: 600; margin-top: 2px; color: #111;">Variant: ${it.variant_name}</div>` : ""}
+          ${addonStr ? `<div style="font-size: 11px; margin-top: 2px; color: #222;">Addons: ${addonStr}</div>` : ""}
+          ${it.notes && it.notes.trim() ? `<div style="font-size: 11px; font-weight: 700; margin-top: 2px; color: #000;">Remark: ${it.notes.trim()}</div>` : ""}
+        </div>
+      `;
+    }).join("");
+
+    const totalQty = slip.items.reduce((sum, it) => sum + (it.quantity || 1), 0);
+
+    return `
+      <div class="kot-station-slip">
+        <div style="text-align: center; font-size: 16px; font-weight: 900; text-transform: uppercase; border-bottom: 2px solid #000000; padding-bottom: 4px; margin-bottom: 6px;">
+          ${slip.stationName}
+        </div>
+        <div style="font-size: 12px; line-height: 1.4; border-bottom: 1px dashed #000000; padding-bottom: 5px; margin-bottom: 6px;">
+          <div><strong>TABLE:</strong> ${displayTable}</div>
+          <div><strong>ORDER NO:</strong> ${slip.orderNumber} (${slip.kotType})</div>
+          <div><strong>TIME:</strong> ${slip.timestamp}</div>
+        </div>
+        <div style="font-size: 12px; line-height: 1.3;">
+          ${itemsHtml}
+        </div>
+        <div style="border-top: 1px dashed #000; margin-top: 6px; padding-top: 4px; display: flex; justify-content: space-between; font-weight: bold; font-size: 11px;">
+          <span>ITEMS: ${slip.items.length}</span>
+          <span>TOTAL QTY: ${totalQty}</span>
+        </div>
+        <div style="text-align: center; font-size: 9px; color: #666; margin-top: 8px; letter-spacing: 1px;">
+          - - - - - TEAR / CUT HERE - - - - -
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  let iframe = document.getElementById("thermal-kot-silent-frame") as HTMLIFrameElement;
+  if (!iframe) {
+    iframe = document.createElement("iframe");
+    iframe.id = "thermal-kot-silent-frame";
+    iframe.style.position = "fixed";
+    iframe.style.top = "-9999px";
+    iframe.style.left = "-9999px";
+    iframe.style.width = "80mm";
+    iframe.style.height = "0px";
+    iframe.style.border = "none";
+    iframe.style.visibility = "hidden";
+    document.body.appendChild(iframe);
+  }
+
+  const frameDoc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!frameDoc) {
+    window.print();
+    return;
+  }
+
+  frameDoc.open();
+  frameDoc.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Kitchen Station KOT</title>
+        <style>
+          @page {
+            size: 80mm auto;
+            margin: 0mm;
+          }
+          * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 80mm !important;
+            max-width: 80mm !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            font-family: 'Courier New', Courier, monospace, sans-serif !important;
+            font-size: 12px !important;
+            line-height: 1.35 !important;
+          }
+          .kot-station-slip {
+            display: block !important;
+            width: 80mm !important;
+            max-width: 80mm !important;
+            margin: 0 !important;
+            padding: 4mm 3mm 8mm 3mm !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            box-sizing: border-box !important;
+          }
+          .kot-station-slip:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
+          }
+        </style>
+      </head>
+      <body>
+        ${slipsHtml}
+      </body>
+    </html>
+  `);
+  frameDoc.close();
+
+  setTimeout(() => {
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    } catch (e) {
+      console.warn("Iframe print error, falling back to window.print()", e);
+      window.print();
+    }
+  }, 100);
+}

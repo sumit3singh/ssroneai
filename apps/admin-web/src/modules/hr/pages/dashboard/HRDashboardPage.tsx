@@ -17,8 +17,8 @@ export function HRDashboardPage() {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
 
-  const activeTenantId = user?.tenant_id || selected_branch?.tenant_id || 2;
-  const activeCompanyId = selected_branch?.company_id || user?.company_id || 1;
+  const activeTenantId = user?.tenant_id || (selected_branch as any)?.tenant_id || 2;
+  const activeCompanyId = (selected_branch as any)?.company_id || user?.company_id || 1;
   const activeBranchId = selected_branch?.id || user?.branch_id || 1;
 
   const [activeTab, setActiveTab] = useState<"master" | "transaction" | "report">("master");

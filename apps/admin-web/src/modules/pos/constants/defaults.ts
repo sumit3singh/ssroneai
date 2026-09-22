@@ -1,4 +1,4 @@
-import { OrderType, PaymentMethod } from "./types";
+import { OrderType, PaymentMethod } from "../types";
 
 export const ORDER_TYPES: { type: OrderType; label: string; icon: string }[] = [
   { type: "DINE_IN", label: "Dine In", icon: "🍽️" },

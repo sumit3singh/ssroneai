@@ -343,7 +343,7 @@ class KitchenStationCreateSchema(BaseModel):
     code: str = Field(min_length=1, max_length=30)
     printer_name: str | None = "192.168.1.101"
     station_type: str = "main"
-    categories: list[int] = Field(default_factory=list)
+    categories: list[Any] = Field(default_factory=list)
     is_active: bool = True
     sort_order: int = 0
     branch_id: int | None = 1

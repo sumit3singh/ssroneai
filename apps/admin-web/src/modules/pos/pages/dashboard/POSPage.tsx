@@ -107,18 +107,43 @@ export const POSPage: React.FC = () => {
 
       // Reconcile Orders: Merge server orders with local pending optimistic orders (id: "local-...")
       setOrders((prev) => {
-        const serverOrderNumbers = new Set(oList.map((o: any) => o.order_number));
+        const serverOrderNumbers = new Set(oList.map((o: any) => String(o.order_number || "")));
         const serverOrderIds = new Set(oList.map((o: any) => String(o.id)));
 
         // Keep any active optimistic orders that have not yet appeared in server oList
-        const pendingOptimistic = prev.filter(
-          (p) =>
-            String(p.id).startsWith("local-") &&
-            !serverOrderNumbers.has(p.order_number) &&
-            !serverOrderIds.has(String(p.id))
-        );
+        const now = Date.now();
+        const pendingOptimistic = prev.filter((p) => {
+          if (!String(p.id).startsWith("local-")) return false;
+          const numStr = String(p.order_number || "");
+          if (serverOrderNumbers.has(numStr) || serverOrderIds.has(String(p.id))) {
+            return false;
+          }
+          const st = (p.status || "").toLowerCase();
+          if (["completed", "paid", "cancelled"].includes(st)) {
+            return false;
+          }
+          const parts = String(p.id).split("-");
+          const ts = parts.length > 1 ? Number(parts[1]) : 0;
+          if (ts > 0 && now - ts > 120_000) {
+            return false; // Auto-purge stale local order after 2 minutes
+          }
+          return true;
+        });
 
-        const mergedOrders = [...pendingOptimistic, ...oList];
+        // Deduplicate merged orders by order_number (prefer server orders as SSOT)
+        const orderMap = new Map<string, POSOrder>();
+        for (const o of oList) {
+          if (o && o.order_number) {
+            orderMap.set(String(o.order_number), o);
+          }
+        }
+        for (const p of pendingOptimistic) {
+          if (p && p.order_number && !orderMap.has(String(p.order_number))) {
+            orderMap.set(String(p.order_number), p);
+          }
+        }
+
+        const mergedOrders = Array.from(orderMap.values());
         try {
           sessionStorage.setItem("pos_cache_orders", JSON.stringify(mergedOrders));
         } catch (e) {}
@@ -126,32 +151,11 @@ export const POSPage: React.FC = () => {
       });
 
       // Reconcile Tables: PostgreSQL DB is Single Source of Truth (SSOT)!
-      setTables((prev) => {
-        const activeLocalOrders = prev.filter(
-          (p: any) =>
-            String(p.id).startsWith("local-") &&
-            !["completed", "paid", "cancelled"].includes((p.status || "").toLowerCase())
-        );
-
-        const reconciled = tList.map((serverT: POSTable) => {
-          // If there's an in-flight optimistic local order on this table, keep occupied until server syncs
-          const hasLocalPending = activeLocalOrders.some(
-            (lo: any) =>
-              (lo.table_id && String(lo.table_id) === String(serverT.id)) ||
-              (lo.table_name && String(lo.table_name).trim().toLowerCase() === String(serverT.table_number).trim().toLowerCase())
-          );
-          if (hasLocalPending) {
-            return { ...serverT, status: "occupied" as const };
-          }
-
-          // Otherwise PostgreSQL is SSOT: serverT.status is authoritative (never stick on old client occupied state)
-          return serverT;
-        });
-
+      setTables(() => {
         try {
-          sessionStorage.setItem("pos_cache_tables", JSON.stringify(reconciled));
+          sessionStorage.setItem("pos_cache_tables", JSON.stringify(tList));
         } catch (e) {}
-        return reconciled;
+        return tList;
       });
     } catch (err: any) {
       console.error("Failed to load PostgreSQL POS data", err);
@@ -444,14 +448,20 @@ export const POSPage: React.FC = () => {
     optimisticOrder: POSOrder,
     tableUpdate?: { tableId: number | string; status: POSTable["status"] }
   ) => {
-    setOrders((prev) => [
-      optimisticOrder,
-      ...prev.filter(
-        (o) =>
-          o.order_number !== optimisticOrder.order_number &&
-          String(o.id) !== String(optimisticOrder.id)
-      ),
-    ]);
+    setOrders((prev) => {
+      const next = [
+        optimisticOrder,
+        ...prev.filter(
+          (o) =>
+            String(o.order_number) !== String(optimisticOrder.order_number) &&
+            String(o.id) !== String(optimisticOrder.id)
+        ),
+      ];
+      try {
+        sessionStorage.setItem("pos_cache_orders", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
     if (tableUpdate) {
       setTables((prev) =>
         prev.map((t) =>
@@ -462,17 +472,6 @@ export const POSPage: React.FC = () => {
         )
       );
     }
-    try {
-      const updatedOrders = [
-        optimisticOrder,
-        ...orders.filter(
-          (o) =>
-            o.order_number !== optimisticOrder.order_number &&
-            String(o.id) !== String(optimisticOrder.id)
-        ),
-      ];
-      sessionStorage.setItem("pos_cache_orders", JSON.stringify(updatedOrders));
-    } catch {}
   };
 
   const handleOptimisticOrderSettle = (orderNumber: string, tableId?: number | string) => {
@@ -481,7 +480,7 @@ export const POSPage: React.FC = () => {
 
     setOrders((prev) => {
       updatedOrdersList = prev.map((o) =>
-        o.order_number === orderNumber
+        String(o.order_number) === String(orderNumber)
           ? { ...o, status: "completed", payment_status: "paid" }
           : o
       );
@@ -496,7 +495,7 @@ export const POSPage: React.FC = () => {
         // Check if another active order is still running on this table
         const hasOtherActiveOrder = updatedOrdersList.some(
           (o) =>
-            o.order_number !== orderNumber &&
+            String(o.order_number) !== String(orderNumber) &&
             !["completed", "paid", "cancelled"].includes((o.status || "").toLowerCase()) &&
             (String(o.table_id) === targetTableId ||
               (o.table_name && targetTableId && String(o.table_name).trim().toLowerCase() === targetTableId.toLowerCase()))

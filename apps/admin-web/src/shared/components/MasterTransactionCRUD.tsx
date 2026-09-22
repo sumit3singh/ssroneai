@@ -28,6 +28,7 @@ export function MasterTransactionCRUD({
   ]);
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState<Record<string, unknown>>({});
+  const [loading, setLoading] = useState(false);
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();

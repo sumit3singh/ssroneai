@@ -78,8 +78,6 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
   onRefreshData,
   preSelectedCustomerId,
 }) => {
-  if (!isOpen) return null;
-
   // Debtor list state
   const [debtors, setDebtors] = useState<DebtorSummary[]>([]);
   const [totalOutstandingDebt, setTotalOutstandingDebt] = useState<number>(0);
@@ -88,11 +86,12 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
 
   // Selected customer ledger state
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(
-    preSelectedCustomerId ? Number(preSelectedCustomerId) : null
+    preSelectedCustomerId !== undefined && preSelectedCustomerId !== null ? Number(preSelectedCustomerId) : null
   );
   const [customerLedger, setCustomerLedger] = useState<CustomerDebtLedger | null>(null);
   const [isLoadingLedger, setIsLoadingLedger] = useState(false);
   const [activeLedgerTab, setActiveLedgerTab] = useState<"bills" | "payments">("bills");
+  const [filterTab, setFilterTab] = useState<"debt" | "all">("debt");
 
   // Payment modal state
   const [isSettleModalOpen, setIsSettleModalOpen] = useState(false);
@@ -101,8 +100,20 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
   const [settleRefNumber, setSettleRefNumber] = useState("");
   const [settleNotes, setSettleNotes] = useState("");
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+  const [selectedOrderIdsForSettlement, setSelectedOrderIdsForSettlement] = useState<number[]>([]);
 
-  // Fetch summary of all debtors
+  const openSettleModal = (order?: any) => {
+    if (order) {
+      setSelectedOrderIdsForSettlement([order.id]);
+      setSettleAmount(order.balance_due);
+    } else {
+      setSelectedOrderIdsForSettlement([]);
+      setSettleAmount(customerLedger?.summary?.total_balance_due || 0);
+    }
+    setIsSettleModalOpen(true);
+  };
+
+  // Fetch summary of all debtors directly from PostgreSQL
   const fetchDebtorsSummary = useCallback(async () => {
     setIsLoadingSummary(true);
     try {
@@ -111,14 +122,16 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
         params: {
           search: searchQuery.trim() || undefined,
           branch_id: activeBranchId ? Number(activeBranchId) : undefined,
+          include_all_customers: true,
         },
       });
-      setDebtors(res.debtors || []);
+      const list: DebtorSummary[] = res.debtors || [];
+      setDebtors(list);
       setTotalOutstandingDebt(res.total_outstanding_debt || 0);
 
       // Auto-select first debtor if none selected
-      if (!selectedCustomerId && res.debtors && res.debtors.length > 0) {
-        setSelectedCustomerId(res.debtors[0].customer_id);
+      if (selectedCustomerId === null && list.length > 0) {
+        setSelectedCustomerId(list[0].customer_id);
       }
     } catch (err: any) {
       console.error("Failed to fetch customer debts summary", err);
@@ -145,21 +158,26 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
   }, []);
 
   useEffect(() => {
-    fetchDebtorsSummary();
-  }, [fetchDebtorsSummary]);
+    if (isOpen) {
+      fetchDebtorsSummary();
+    }
+  }, [isOpen, fetchDebtorsSummary]);
 
   useEffect(() => {
-    if (selectedCustomerId) {
-      fetchCustomerLedger(selectedCustomerId);
-    } else {
-      setCustomerLedger(null);
+    if (isOpen) {
+      if (selectedCustomerId !== null && selectedCustomerId !== undefined) {
+        fetchCustomerLedger(selectedCustomerId);
+      } else {
+        setCustomerLedger(null);
+      }
     }
-  }, [selectedCustomerId, fetchCustomerLedger]);
+  }, [isOpen, selectedCustomerId, fetchCustomerLedger]);
 
   // Handle Recording Payment from Customer
   const handleRecordDebtSettlement = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customerLedger || !selectedCustomerId) return;
+    if (isSubmittingPayment) return;
+    if (!customerLedger || selectedCustomerId === null || selectedCustomerId === undefined) return;
     if (settleAmount <= 0) {
       toast.error("Payment amount must be greater than zero!");
       return;
@@ -173,10 +191,11 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
         payment_method: settlePaymentMethod,
         reference_number: settleRefNumber.trim() || undefined,
         notes: settleNotes.trim() || undefined,
+        order_ids: selectedOrderIdsForSettlement.length > 0 ? selectedOrderIdsForSettlement : undefined,
       });
 
       toast.success(
-        `⚡ ₹${settleAmount.toLocaleString("en-IN")} received from ${customerLedger.customer.name}! Remaining Debt: ₹${res.remaining_debt.toLocaleString("en-IN")}`
+        `⚡ ₹${settleAmount.toLocaleString("en-IN")} received from ${customerLedger.customer.name}! Remaining Debt: ₹${(res.remaining_debt ?? 0).toLocaleString("en-IN")}`
       );
 
       // Print debt collection receipt if supported
@@ -198,6 +217,7 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
       setIsSettleModalOpen(false);
       setSettleRefNumber("");
       setSettleNotes("");
+      setSelectedOrderIdsForSettlement([]);
 
       // Refresh data
       await fetchCustomerLedger(selectedCustomerId);
@@ -205,20 +225,37 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
       onRefreshData?.();
     } catch (err: any) {
       console.error("Failed to record debt settlement", err);
-      toast.error(err?.response?.data?.detail || "Failed to record customer debt payment");
+      const detailMsg = err?.response?.data?.detail;
+      if (detailMsg && (detailMsg.includes("no matching outstanding") || detailMsg.includes("no outstanding debt"))) {
+        setIsSettleModalOpen(false);
+        setSelectedOrderIdsForSettlement([]);
+        await fetchCustomerLedger(selectedCustomerId);
+        await fetchDebtorsSummary();
+        toast.info("This debt has already been successfully settled and recorded in PostgreSQL!");
+      } else {
+        toast.error(detailMsg || err?.message || "Failed to record customer debt payment");
+      }
     } finally {
       setIsSubmittingPayment(false);
     }
   };
 
+  const effectiveDueForCalculation = selectedOrderIdsForSettlement.length > 0
+    ? (customerLedger?.orders || [])
+        .filter((o) => selectedOrderIdsForSettlement.includes(o.id))
+        .reduce((acc, o) => acc + o.balance_due, 0)
+    : (customerLedger?.summary?.total_balance_due || 0);
+
   const remainingBalanceAfterPayment = Math.max(
     0,
-    (customerLedger?.summary.total_balance_due || 0) - (settleAmount || 0)
+    effectiveDueForCalculation - (settleAmount || 0)
   );
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150 select-none">
-      <div className="bg-card border border-border rounded-2xl w-full max-w-5xl h-[88vh] max-h-[900px] shadow-2xl overflow-hidden flex flex-col font-sans">
+    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 lg:p-6 animate-in fade-in duration-150 select-none">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-6xl xl:max-w-7xl h-[92vh] max-h-[960px] shadow-2xl overflow-hidden flex flex-col font-sans">
         
         {/* Top Header */}
         <div className="px-4 py-3 border-b border-border flex items-center justify-between shrink-0 bg-muted/20">
@@ -255,7 +292,7 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
               size="sm"
               onClick={() => {
                 fetchDebtorsSummary();
-                if (selectedCustomerId) fetchCustomerLedger(selectedCustomerId);
+                if (selectedCustomerId !== null && selectedCustomerId !== undefined) fetchCustomerLedger(selectedCustomerId);
               }}
               className="h-8 w-8 p-0 cursor-pointer"
               title="Refresh Register"
@@ -276,14 +313,40 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
         <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden divide-y md:divide-y-0 md:divide-x divide-border">
           
           {/* Left Column: Debtor Directory */}
-          <div className="w-full md:w-80 lg:w-96 flex flex-col shrink-0 bg-muted/10">
+          <div className="w-full md:w-72 lg:w-80 flex flex-col shrink-0 bg-muted/10">
+            {/* Filter Toggle: Active Debt vs All Database Customers */}
+            <div className="p-2 border-b border-border bg-card flex items-center gap-1 text-xs shrink-0">
+              <button
+                type="button"
+                onClick={() => setFilterTab("debt")}
+                className={`flex-1 py-1 px-2 rounded-md font-semibold transition-all cursor-pointer text-center text-[11px] ${
+                  filterTab === "debt"
+                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30 shadow-2xs"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                With Debt ({debtors.filter(d => d.total_balance_due > 0).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterTab("all")}
+                className={`flex-1 py-1 px-2 rounded-md font-semibold transition-all cursor-pointer text-center text-[11px] ${
+                  filterTab === "all"
+                    ? "bg-primary/15 text-primary font-bold border border-primary/30 shadow-2xs"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                All Database ({debtors.length})
+              </button>
+            </div>
+
             {/* Search Bar */}
-            <div className="p-3 border-b border-border bg-card shrink-0">
+            <div className="p-2.5 border-b border-border bg-card shrink-0">
               <div className="relative">
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="text"
-                  placeholder="Search debtor by name or phone..."
+                  placeholder="Search customer by name or phone..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-8 h-8 text-xs bg-background"
@@ -294,7 +357,7 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
             {/* Debtor List */}
             <div className="flex-1 overflow-y-auto p-2 space-y-1.5 scrollbar-thin">
               {isLoadingSummary ? (
-                <div className="p-8 text-center text-xs text-muted-foreground">Loading debtors...</div>
+                <div className="p-8 text-center text-xs text-muted-foreground">Loading database records...</div>
               ) : debtors.length === 0 ? (
                 <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
                   <CheckCircle2 size={24} className="mx-auto text-emerald-500/60" />
@@ -302,37 +365,55 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                   <p className="text-[11px]">All customer accounts are settled & paid in full!</p>
                 </div>
               ) : (
-                debtors.map((d) => {
-                  const isSelected = selectedCustomerId === d.customer_id;
-                  return (
-                    <div
-                      key={d.customer_id}
-                      onClick={() => setSelectedCustomerId(d.customer_id)}
-                      className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
-                        isSelected
-                          ? "bg-amber-500/10 border-amber-500/40 shadow-xs"
-                          : "bg-card border-border hover:bg-muted/40"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="font-bold text-foreground truncate">{renderSafeString(d.customer_name)}</p>
-                          <p className="text-[10px] text-muted-foreground font-mono flex items-center gap-1 mt-0.5">
-                            <Phone size={10} /> {renderSafeString(d.customer_phone) || "No Phone"}
-                          </p>
-                        </div>
-                        <div className="text-right shrink-0 font-mono">
-                          <span className="text-xs font-black text-amber-600 dark:text-amber-400 block">
-                            ₹{d.total_balance_due.toLocaleString("en-IN")}
-                          </span>
-                          <span className="text-[9px] text-muted-foreground">
-                            {d.unpaid_orders_count} {d.unpaid_orders_count === 1 ? "bill" : "bills"}
-                          </span>
+                debtors
+                  .filter((d) => (filterTab === "all" || searchQuery.trim() ? true : d.total_balance_due > 0))
+                  .map((d) => {
+                    const isSelected = selectedCustomerId === d.customer_id;
+                    const isUnassigned = d.customer_id === 0;
+
+                    return (
+                      <div
+                        key={d.customer_id}
+                        onClick={() => setSelectedCustomerId(d.customer_id)}
+                        className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                          isSelected
+                            ? "bg-amber-500/10 border-amber-500/40 shadow-xs"
+                            : "bg-card border-border hover:bg-muted/40"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-bold text-foreground truncate flex items-center gap-1.5">
+                              {isUnassigned ? (
+                                <Receipt size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                              ) : (
+                                <User size={13} className="text-muted-foreground shrink-0" />
+                              )}
+                              {renderSafeString(d.customer_name)}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground font-mono flex items-center gap-1 mt-0.5">
+                              {!isUnassigned && <Phone size={10} />}
+                              {renderSafeString(d.customer_phone) || "No Phone"}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0 font-mono">
+                            <span
+                              className={`text-xs font-black block ${
+                                d.total_balance_due > 0
+                                  ? "text-amber-600 dark:text-amber-400"
+                                  : "text-emerald-600 dark:text-emerald-400"
+                              }`}
+                            >
+                              ₹{d.total_balance_due.toLocaleString("en-IN")}
+                            </span>
+                            <span className="text-[9px] text-muted-foreground">
+                              {d.unpaid_orders_count} {d.unpaid_orders_count === 1 ? "bill" : "bills"}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })
+                    );
+                  })
               )}
             </div>
           </div>
@@ -359,15 +440,16 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                     <div>
                       <div className="flex items-center gap-2">
                         <h4 className="font-extrabold text-base text-foreground">
-                          {renderSafeString(customerLedger.customer.name)}
+                          {customerLedger.customer.name}
                         </h4>
                         <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-muted text-muted-foreground border border-border">
-                          ID: #{customerLedger.customer.id}
+                          {customerLedger.customer.id === 0 ? "LIVE OPEN TABS" : `ID: #${customerLedger.customer.id}`}
                         </span>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono mt-1">
                         <span className="flex items-center gap-1">
-                          <Phone size={11} /> {renderSafeString(customerLedger.customer.phone)}
+                          {customerLedger.customer.id === 0 ? <Receipt size={11} /> : <Phone size={11} />}
+                          {renderSafeString(customerLedger.customer.phone)}
                         </span>
                         {customerLedger.customer.city && (
                           <span>• {customerLedger.customer.city}</span>
@@ -378,13 +460,10 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                     {/* Action Button: Settle Debt */}
                     <div className="flex items-center gap-2">
                       <Button
-                        variant="default"
+                        variant="primary"
                         size="sm"
                         disabled={customerLedger.summary.total_balance_due <= 0}
-                        onClick={() => {
-                          setSettleAmount(customerLedger.summary.total_balance_due);
-                          setIsSettleModalOpen(true);
-                        }}
+                        onClick={() => openSettleModal()}
                         className="h-9 gap-1.5 text-xs font-extrabold cursor-pointer px-4 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md rounded-lg"
                       >
                         <DollarSign size={14} /> Settle Debt / Receive Payment
@@ -450,17 +529,18 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                           No order bills found for this customer.
                         </div>
                       ) : (
-                        <div className="border border-border rounded-xl overflow-hidden shadow-2xs">
-                          <table className="w-full text-left text-xs">
+                        <div className="border border-border rounded-xl overflow-x-auto scrollbar-thin shadow-2xs bg-card">
+                          <table className="w-full min-w-[780px] text-left text-xs">
                             <thead className="bg-muted/50 text-[10px] uppercase tracking-wider text-muted-foreground font-mono border-b border-border">
                               <tr>
-                                <th className="p-2.5">Bill / Order #</th>
-                                <th className="p-2.5">Date & Time</th>
+                                <th className="p-2.5 whitespace-nowrap">Bill / Order #</th>
+                                <th className="p-2.5 whitespace-nowrap">Date & Time</th>
                                 <th className="p-2.5">Items Summary</th>
-                                <th className="p-2.5 text-right">Bill Total</th>
-                                <th className="p-2.5 text-right">Paid</th>
-                                <th className="p-2.5 text-right">Balance Due</th>
-                                <th className="p-2.5 text-center">Status</th>
+                                <th className="p-2.5 text-right whitespace-nowrap">Bill Total</th>
+                                <th className="p-2.5 text-right whitespace-nowrap">Paid</th>
+                                <th className="p-2.5 text-right whitespace-nowrap">Balance Due</th>
+                                <th className="p-2.5 text-center whitespace-nowrap">Status</th>
+                                <th className="p-2.5 text-center whitespace-nowrap">Action</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
@@ -473,29 +553,29 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                                       hasDebt ? "bg-amber-500/5 font-medium" : "text-muted-foreground"
                                     }`}
                                   >
-                                    <td className="p-2.5 font-mono font-bold text-foreground">
+                                    <td className="p-2.5 font-mono font-bold text-foreground whitespace-nowrap">
                                       #{ord.order_number}
                                     </td>
                                     <td className="p-2.5 text-[11px] font-mono text-muted-foreground whitespace-nowrap">
                                       {ord.created_at ? new Date(ord.created_at).toLocaleString() : "—"}
                                     </td>
-                                    <td className="p-2.5 text-[11px] truncate max-w-xs" title={ord.items_summary}>
+                                    <td className="p-2.5 text-[11px] truncate max-w-[200px]" title={ord.items_summary}>
                                       {ord.items_summary || `${ord.items_count} items`}
                                     </td>
-                                    <td className="p-2.5 text-right font-mono font-semibold text-foreground">
+                                    <td className="p-2.5 text-right font-mono font-semibold text-foreground whitespace-nowrap">
                                       ₹{ord.grand_total.toLocaleString("en-IN")}
                                     </td>
-                                    <td className="p-2.5 text-right font-mono text-emerald-600 dark:text-emerald-400">
+                                    <td className="p-2.5 text-right font-mono text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                                       ₹{ord.amount_paid.toLocaleString("en-IN")}
                                     </td>
-                                    <td className="p-2.5 text-right font-mono font-bold">
+                                    <td className="p-2.5 text-right font-mono font-bold whitespace-nowrap">
                                       <span className={hasDebt ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}>
                                         ₹{ord.balance_due.toLocaleString("en-IN")}
                                       </span>
                                     </td>
-                                    <td className="p-2.5 text-center">
+                                    <td className="p-2.5 text-center whitespace-nowrap">
                                       <span
-                                        className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase border ${
+                                        className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase border ${
                                           ord.payment_status === "paid"
                                             ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                                             : ord.payment_status === "partial"
@@ -505,6 +585,20 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                                       >
                                         {ord.payment_status || "UNPAID"}
                                       </span>
+                                    </td>
+                                    <td className="p-2.5 text-center whitespace-nowrap">
+                                      {hasDebt ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => openSettleModal(ord)}
+                                          className="h-6 px-2.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-md cursor-pointer transition-colors"
+                                          title={`Settle specific Bill #${ord.order_number}`}
+                                        >
+                                          Pay Bill
+                                        </button>
+                                      ) : (
+                                        <span className="text-[10px] text-muted-foreground font-mono">Paid</span>
+                                      )}
                                     </td>
                                   </tr>
                                 );
@@ -523,16 +617,16 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                           No payment receipts logged yet.
                         </div>
                       ) : (
-                        <div className="border border-border rounded-xl overflow-hidden shadow-2xs">
-                          <table className="w-full text-left text-xs">
+                        <div className="border border-border rounded-xl overflow-x-auto scrollbar-thin shadow-2xs bg-card">
+                          <table className="w-full min-w-[650px] text-left text-xs">
                             <thead className="bg-muted/50 text-[10px] uppercase tracking-wider text-muted-foreground font-mono border-b border-border">
                               <tr>
-                                <th className="p-2.5">Date & Time</th>
-                                <th className="p-2.5">Order Ref</th>
-                                <th className="p-2.5">Payment Mode</th>
-                                <th className="p-2.5 text-right">Amount Received</th>
-                                <th className="p-2.5">Receipt / Reference</th>
-                                <th className="p-2.5">Notes</th>
+                                <th className="p-2.5 whitespace-nowrap">Date & Time</th>
+                                <th className="p-2.5 whitespace-nowrap">Order Ref</th>
+                                <th className="p-2.5 whitespace-nowrap">Payment Mode</th>
+                                <th className="p-2.5 text-right whitespace-nowrap">Amount Received</th>
+                                <th className="p-2.5 whitespace-nowrap">Receipt / Reference</th>
+                                <th className="p-2.5 whitespace-nowrap">Notes</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
@@ -541,21 +635,21 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                                   <td className="p-2.5 text-[11px] font-mono text-muted-foreground whitespace-nowrap">
                                     {p.created_at ? new Date(p.created_at).toLocaleString() : "—"}
                                   </td>
-                                  <td className="p-2.5 font-mono font-bold text-foreground">
+                                  <td className="p-2.5 font-mono font-bold text-foreground whitespace-nowrap">
                                     #{p.order_number}
                                   </td>
-                                  <td className="p-2.5">
+                                  <td className="p-2.5 whitespace-nowrap">
                                     <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-muted border border-border text-foreground">
                                       {p.payment_method}
                                     </span>
                                   </td>
-                                  <td className="p-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                  <td className="p-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                                     ₹{p.amount.toLocaleString("en-IN")}
                                   </td>
-                                  <td className="p-2.5 font-mono text-[11px] text-muted-foreground">
+                                  <td className="p-2.5 font-mono text-[11px] text-muted-foreground whitespace-nowrap">
                                     {p.reference_number || "—"}
                                   </td>
-                                  <td className="p-2.5 text-[11px] text-muted-foreground">
+                                  <td className="p-2.5 text-[11px] text-muted-foreground whitespace-nowrap">
                                     {p.notes || "—"}
                                   </td>
                                 </tr>
@@ -601,11 +695,106 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
             <form onSubmit={handleRecordDebtSettlement} className="space-y-3 text-xs">
               {/* Outstanding Debt Info Banner */}
               <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between font-mono">
-                <span className="text-amber-800 dark:text-amber-300 font-sans text-xs">Total Outstanding Debt:</span>
+                <div>
+                  <span className="text-amber-800 dark:text-amber-300 font-sans text-xs block font-semibold">
+                    {selectedOrderIdsForSettlement.length > 0
+                      ? `Selected Bill (${selectedOrderIdsForSettlement.length}) Due:`
+                      : "Total Outstanding Debt:"}
+                  </span>
+                  {selectedOrderIdsForSettlement.length > 0 && (
+                    <span className="text-[10px] text-amber-700 dark:text-amber-400 font-mono">
+                      Targeting specific bill references
+                    </span>
+                  )}
+                </div>
                 <strong className="text-amber-600 dark:text-amber-400 text-sm">
-                  ₹{customerLedger.summary.total_balance_due.toLocaleString("en-IN")}
+                  ₹{effectiveDueForCalculation.toLocaleString("en-IN")}
                 </strong>
               </div>
+
+              {/* Target Bill Selection / References Checklist */}
+              {customerLedger.orders.filter((o) => o.balance_due > 0).length > 1 && (
+                <div className="space-y-1.5 bg-muted/20 border border-border rounded-xl p-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">
+                      Target Bill References
+                    </label>
+                    <div className="flex items-center gap-1.5 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allUnpaid = customerLedger.orders.filter((o) => o.balance_due > 0);
+                          setSelectedOrderIdsForSettlement(allUnpaid.map((o) => o.id));
+                          setSettleAmount(allUnpaid.reduce((acc, o) => acc + o.balance_due, 0));
+                        }}
+                        className="text-primary hover:underline font-bold cursor-pointer"
+                      >
+                        Select All
+                      </button>
+                      <span className="text-muted-foreground">•</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedOrderIdsForSettlement([]);
+                          setSettleAmount(customerLedger.summary.total_balance_due);
+                        }}
+                        className="text-muted-foreground hover:text-foreground cursor-pointer font-medium"
+                      >
+                        Auto FIFO (All)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="max-h-28 overflow-y-auto space-y-1 pr-1 scrollbar-thin">
+                    {customerLedger.orders.filter((o) => o.balance_due > 0).map((ord) => {
+                      const isChecked = selectedOrderIdsForSettlement.includes(ord.id);
+                      return (
+                        <div
+                          key={ord.id}
+                          onClick={() => {
+                            let next: number[];
+                            if (isChecked) {
+                              next = selectedOrderIdsForSettlement.filter((id) => id !== ord.id);
+                            } else {
+                              next = [...selectedOrderIdsForSettlement, ord.id];
+                            }
+                            setSelectedOrderIdsForSettlement(next);
+                            if (next.length > 0) {
+                              const sumSelected = customerLedger.orders
+                                .filter((o) => next.includes(o.id))
+                                .reduce((acc, o) => acc + o.balance_due, 0);
+                              setSettleAmount(sumSelected);
+                            } else {
+                              setSettleAmount(customerLedger.summary.total_balance_due);
+                            }
+                          }}
+                          className={`p-1.5 rounded-lg border text-xs cursor-pointer flex items-center justify-between transition-colors ${
+                            isChecked
+                              ? "bg-emerald-500/10 border-emerald-500/40 text-foreground font-semibold"
+                              : "bg-background border-border text-muted-foreground hover:bg-muted/40"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              readOnly
+                              className="accent-emerald-600 rounded cursor-pointer shrink-0"
+                            />
+                            <span className="font-mono font-bold text-foreground">#{ord.order_number}</span>
+                            <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">
+                              {ord.items_summary || `${ord.items_count} items`}
+                            </span>
+                          </div>
+                          <span className="font-mono font-bold text-amber-600 dark:text-amber-400 text-xs shrink-0">
+                            ₹{ord.balance_due.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Amount Input & Shortcut Chips */}
               <div className="space-y-1.5">
@@ -616,7 +805,7 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                   type="number"
                   required
                   min={1}
-                  max={customerLedger.summary.total_balance_due}
+                  max={effectiveDueForCalculation}
                   value={settleAmount || ""}
                   onChange={(e) => setSettleAmount(Number(e.target.value))}
                   className="h-9 text-base font-mono font-black text-right"
@@ -627,18 +816,18 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                 <div className="flex items-center gap-1.5 pt-1">
                   <button
                     type="button"
-                    onClick={() => setSettleAmount(customerLedger.summary.total_balance_due)}
+                    onClick={() => setSettleAmount(effectiveDueForCalculation)}
                     className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-muted hover:bg-primary/10 border border-border text-foreground cursor-pointer transition-colors"
                   >
-                    Full Due: ₹{customerLedger.summary.total_balance_due}
+                    Full: ₹{effectiveDueForCalculation}
                   </button>
-                  {customerLedger.summary.total_balance_due > 100 && (
+                  {effectiveDueForCalculation > 100 && (
                     <button
                       type="button"
-                      onClick={() => setSettleAmount(Math.round(customerLedger.summary.total_balance_due / 2))}
+                      onClick={() => setSettleAmount(Math.round(effectiveDueForCalculation / 2))}
                       className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-muted hover:bg-primary/10 border border-border text-foreground cursor-pointer transition-colors"
                     >
-                      50%: ₹{Math.round(customerLedger.summary.total_balance_due / 2)}
+                      50%: ₹{Math.round(effectiveDueForCalculation / 2)}
                     </button>
                   )}
                 </div>
@@ -720,9 +909,9 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                 </Button>
                 <Button
                   type="submit"
-                  disabled={isSubmittingPayment || settleAmount <= 0}
+                  disabled={isSubmittingPayment || settleAmount <= 0 || effectiveDueForCalculation <= 0}
                   size="sm"
-                  className="h-8 text-xs font-extrabold cursor-pointer px-4 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
+                  className="h-8 text-xs font-extrabold cursor-pointer px-4 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmittingPayment ? "Processing..." : "Confirm Payment"} <ArrowRight size={14} className="ml-1" />
                 </Button>

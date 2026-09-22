@@ -8,6 +8,12 @@
     <meta name="theme-color" content="#103B2B" />
     <title>SSR One AI — Operating System</title>
 
+    <!-- PWA Web Manifest -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="SSR One POS" />
+
     <!-- Google Fonts: Inter, Outfit & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,5 +22,12 @@
   <body class="bg-[#FAF9F5] text-slate-900 antialiased font-sans">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js").catch(() => {});
+        });
+      }
+    </script>
   </body>
 </html>

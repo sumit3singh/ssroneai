@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database.engine import get_db_session
-from src.modules.auth.dependencies import get_current_user, get_optional_user
+from src.modules.auth.dependencies import get_current_user
 from src.modules.auth.models import User
 from src.modules.crm.models import Customer, CustomerAddress, CustomerInteraction, LoyaltyTransaction
 from src.shared.logger import get_logger
@@ -58,10 +58,10 @@ async def list_customers(
     company_id: int | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=1, le=500),
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    resolved_tenant = tenant_id or (current_user.tenant_id if current_user else 1)
+    resolved_tenant = tenant_id or current_user.tenant_id
     query = select(Customer).where(
         Customer.tenant_id == resolved_tenant, Customer.is_deleted == False
     )
@@ -92,10 +92,10 @@ async def list_customers(
 @router.post("/customers", response_model=CustomerResponse, status_code=status.HTTP_201_CREATED)
 async def create_customer(
     body: CustomerCreateSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> CustomerResponse:
-    resolved_tenant = body.tenant_id or (current_user.tenant_id if current_user else 1)
+    resolved_tenant = body.tenant_id or current_user.tenant_id
     resolved_company = body.company_id or getattr(current_user, "company_id", None)
     resolved_branch = body.branch_id or getattr(current_user, "branch_id", None)
     full_name = (body.name or f"{body.first_name or ''} {body.last_name or ''}").strip() or "Guest Customer"

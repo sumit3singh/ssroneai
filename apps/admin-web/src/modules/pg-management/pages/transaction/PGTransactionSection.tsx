@@ -7,6 +7,9 @@ import { Badge } from "@ssrone/ui";
 import { toast } from "sonner";
 import { formatCurrency } from "@/shared/utils/formatters";
 import type { Resident } from "../../types";
+import { api } from "@ssrone/api-client";
+import { PGRentAssessmentModal } from "./PGRentAssessmentModal";
+import { PGVisitorLogModal } from "./PGVisitorLogModal";
 
 import { useRouterState } from "@tanstack/react-router";
 
@@ -27,6 +30,26 @@ export const PGTransactionSection: React.FC<PGTransactionSectionProps> = ({
   const transTab = currentPath.includes("/visitors") ? "visitors" : "rent";
   const [visitorLogs, setVisitorLogs] = useState<any[]>([]);
   const [showVisitorModal, setShowVisitorModal] = useState(false);
+  const [showAssessmentModal, setShowAssessmentModal] = useState(false);
+  const [isLoadingVisitors, setIsLoadingVisitors] = useState(false);
+
+  const fetchVisitors = async () => {
+    setIsLoadingVisitors(true);
+    try {
+      const res = await api.get<any[]>("/pg/visitors").catch(() => []);
+      setVisitorLogs(Array.isArray(res) ? res : []);
+    } catch {
+      setVisitorLogs([]);
+    } finally {
+      setIsLoadingVisitors(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (transTab === "visitors") {
+      fetchVisitors();
+    }
+  }, [transTab]);
 
   return (
     <div className="space-y-4">
@@ -42,6 +65,13 @@ export const PGTransactionSection: React.FC<PGTransactionSectionProps> = ({
               </h3>
               <p className="text-[11px] text-muted-foreground">Record daily rent receipts, UPI payments, and generate digital tenant payment vouchers.</p>
             </div>
+            <Button
+              onClick={() => setShowAssessmentModal(true)}
+              size="sm"
+              className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Plus className="w-4 h-4" /> Assess Monthly Rent
+            </Button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -101,30 +131,64 @@ export const PGTransactionSection: React.FC<PGTransactionSectionProps> = ({
                 <tr>
                   <th className="p-2.5">Visitor Name</th>
                   <th className="p-2.5">Phone</th>
-                  <th className="p-2.5">Resident Visited</th>
-                  <th className="p-2.5">Purpose</th>
                   <th className="p-2.5">Check-In Time</th>
+                  <th className="p-2.5">Status</th>
+                  <th className="p-2.5 text-right">Gate Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {visitorLogs.length === 0 ? (
+                {isLoadingVisitors ? (
                   <tr>
                     <td colSpan={5} className="p-8 text-center text-muted-foreground font-medium text-xs">
-                      No visitor check-ins logged today. Click <strong>Log New Visitor</strong> to register a visitor.
+                      Loading visitor logs from database...
+                    </td>
+                  </tr>
+                ) : visitorLogs.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-muted-foreground font-medium text-xs">
+                      No visitor check-ins logged. Click <strong>Log New Visitor</strong> to register a visitor.
                     </td>
                   </tr>
                 ) : (
-                  visitorLogs.map((vl, idx) => (
-                    <tr key={idx} className="hover:bg-muted/20 transition-colors">
-                      <td className="p-2.5 font-semibold text-foreground">{vl.visitor_name}</td>
-                      <td className="p-2.5 text-muted-foreground font-mono">{vl.visitor_phone}</td>
-                      <td className="p-2.5 text-foreground font-medium">{vl.resident_name}</td>
-                      <td className="p-2.5 text-muted-foreground">{vl.purpose}</td>
-                      <td className="p-2.5 font-mono text-[11px] text-muted-foreground flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-primary" /> {vl.check_in_time}
-                      </td>
-                    </tr>
-                  ))
+                  visitorLogs.map((vl) => {
+                    const isCheckedOut = Boolean(vl.check_out_time);
+                    return (
+                      <tr key={vl.id} className="hover:bg-muted/20 transition-colors">
+                        <td className="p-2.5 font-semibold text-foreground">{vl.visitor_name}</td>
+                        <td className="p-2.5 text-muted-foreground font-mono">{vl.visitor_phone}</td>
+                        <td className="p-2.5 font-mono text-[11px] text-muted-foreground">
+                          {new Date(vl.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="p-2.5">
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                            isCheckedOut ? "bg-muted text-muted-foreground border border-border" : "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                          }`}>
+                            {isCheckedOut ? "Exited Gate" : "Inside Premises"}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-right">
+                          {!isCheckedOut ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={async () => {
+                                await api.patch(`/pg/visitors/${vl.id}/checkout`);
+                                toast.success(`Visitor ${vl.visitor_name} checked out`);
+                                fetchVisitors();
+                              }}
+                              className="h-6 text-[11px] px-2"
+                            >
+                              Gate Exit
+                            </Button>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              Out at {new Date(vl.check_out_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -132,84 +196,18 @@ export const PGTransactionSection: React.FC<PGTransactionSectionProps> = ({
         </div>
       )}
 
-      {/* ── Log New Visitor Modal ── */}
-      {showVisitorModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card rounded-md max-w-md w-full p-5 border border-border shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-2.5">
-              <h3 className="font-semibold text-xs text-foreground uppercase tracking-wider">Visitor Check-In Form</h3>
-              <button onClick={() => setShowVisitorModal(false)} className="text-muted-foreground hover:text-foreground cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* PG Visitor Gatepass Modal */}
+      <PGVisitorLogModal
+        isOpen={showVisitorModal}
+        onClose={() => setShowVisitorModal(false)}
+        onVisitorUpdated={fetchVisitors}
+      />
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const form = e.currentTarget;
-                const formData = new FormData(form);
-                const visitor_name = String(formData.get("visitor_name") || "");
-                const visitor_phone = String(formData.get("visitor_phone") || "");
-                const resident_name = String(formData.get("resident_name") || "Rahul Sharma");
-                const purpose = String(formData.get("purpose") || "Personal Visit");
-
-                if (!visitor_name || !visitor_phone) {
-                  toast.error("Visitor Name and Phone are required.");
-                  return;
-                }
-
-                setVisitorLogs((prev) => [
-                  {
-                    visitor_name,
-                    visitor_phone,
-                    resident_name,
-                    purpose,
-                    check_in_time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  },
-                  ...prev,
-                ]);
-
-                toast.success(`Visitor ${visitor_name} logged successfully!`);
-                setShowVisitorModal(false);
-              }}
-              className="space-y-3 text-xs"
-            >
-              <div>
-                <label className="block text-muted-foreground font-medium mb-1">Visitor Full Name *</label>
-                <input name="visitor_name" required placeholder="e.g. Suresh Verma" className="w-full pl-3 pr-2.5 py-1.5 bg-background border border-border rounded text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-
-              <div>
-                <label className="block text-muted-foreground font-medium mb-1">Visitor Phone Number *</label>
-                <input name="visitor_phone" required placeholder="e.g. 9876543210" className="w-full pl-3 pr-2.5 py-1.5 bg-background border border-border rounded text-foreground font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-
-              <div>
-                <label className="block text-muted-foreground font-medium mb-1">Resident Visiting</label>
-                <select name="resident_name" className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border rounded text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary font-medium">
-                  {residents.length > 0 ? (
-                    residents.map((r) => (
-                      <option key={r.id} value={r.name}>{r.name} ({r.room})</option>
-                    ))
-                  ) : (
-                    <option value="General Guest">General Visitor</option>
-                  )}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-muted-foreground font-medium mb-1">Purpose of Visit</label>
-                <input name="purpose" defaultValue="Family / Friend Visit" className="w-full pl-3 pr-2.5 py-1.5 bg-background border border-border rounded text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
-                <Button type="button" variant="outline" size="sm" onClick={() => setShowVisitorModal(false)} className="text-xs">Cancel</Button>
-                <Button type="submit" size="sm" className="text-xs font-semibold">Log Visitor Check-In</Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* PG Rent Assessment Modal */}
+      <PGRentAssessmentModal
+        isOpen={showAssessmentModal}
+        onClose={() => setShowAssessmentModal(false)}
+      />
     </div>
   );
 };

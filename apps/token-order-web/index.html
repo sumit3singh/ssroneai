@@ -7,6 +7,9 @@
     <meta name="theme-color" content="#0d2818" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>SSR One – Fast Mobile Pre-Order (Queue-Buster)</title>
     
     <!-- Google Fonts -->
@@ -17,5 +20,12 @@
   <body class="bg-slate-900 text-slate-100 antialiased font-sans select-none touch-manipulation">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js").catch(() => {});
+        });
+      }
+    </script>
   </body>
 </html>

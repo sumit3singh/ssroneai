@@ -28,7 +28,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
-import { POSOrder } from "../../types";
+import { POSOrder, POSCartItem } from "../../types";
 import { POSOrderHoverTooltip } from "../../components/POSOrderHoverTooltip";
 
 interface DailySalesReportProps {

@@ -1,4 +1,6 @@
 /**
  * Tier B Module Public Export Surface
  */
-export * from "./module.json";
+import moduleMetadata from "./module.json";
+export { moduleMetadata };
+export default moduleMetadata;

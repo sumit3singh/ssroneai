@@ -290,4 +290,19 @@ class PosShiftTransaction(BigIntTenantBaseModel):
     shift: Mapped[PosShift] = relationship("PosShift", back_populates="transactions")
 
 
+class RecipeIngredient(Base):
+    """
+    Recipe Bill of Materials (BOM) linking a MenuItem to raw material InventoryItems.
+    """
+    __tablename__ = "recipe_ingredients"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    menu_item_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("menu_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    inventory_item_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("inventory_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    quantity_required: Mapped[float] = mapped_column(Float, nullable=False)
+    wastage_percentage: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
 

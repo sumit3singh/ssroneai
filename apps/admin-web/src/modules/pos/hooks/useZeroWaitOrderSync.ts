@@ -5,7 +5,7 @@
  * The cashier experiences 0ms latency; background worker guarantees eventual consistency.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@ssrone/api-client";
 import { toast } from "sonner";
 import { offlineDB, cacheCatalog, getCachedCatalog } from "@/shared/utils/offline-store";
@@ -16,14 +16,19 @@ export interface SyncOrderOptions {
   onError?: (error: any) => void;
 }
 
+// Module-level singletons to prevent race conditions across multiple hook instances
+let isGlobalDraining = false;
+const inFlightLocalIds = new Set<string>();
+
 export function useZeroWaitOrderSync(branchId: number | string = 1) {
-  const isDrainingRef = useRef(false);
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== "undefined" ? navigator.onLine : true);
 
   const updatePendingCount = useCallback(async () => {
     try {
-      const count = await offlineDB.offlineOrders.filter((item) => !item.synced).count();
+      const count = await offlineDB.offlineOrders
+        .filter((item) => !item.synced && !item.inFlight && !inFlightLocalIds.has(item.localId))
+        .count();
       setPendingCount(count);
     } catch {
       // ignore in SSR or closed DB
@@ -31,23 +36,27 @@ export function useZeroWaitOrderSync(branchId: number | string = 1) {
   }, []);
 
   /**
-   * Enqueue and immediately dispatch order sync in the background
+   * Enqueue and immediately dispatch order sync in the background.
    * Does NOT block the caller.
    */
   const syncOrderInBackground = useCallback(
     async (orderPayload: any, idempotencyKey: string, options?: SyncOrderOptions) => {
       const localId = `ord-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      inFlightLocalIds.add(localId);
 
-      // 1. Persist to local IndexedDB immediately (takes ~0.5ms in Dexie)
+      let insertedRecordId: number | undefined;
+
+      // 1. Persist to local IndexedDB immediately (< 0.5ms in Dexie)
       try {
-        await offlineDB.offlineOrders.add({
+        insertedRecordId = (await offlineDB.offlineOrders.add({
           localId,
           branchId: String(branchId),
           orderData: { ...orderPayload, idempotencyKey },
           createdAt: new Date().toISOString(),
           synced: false,
+          inFlight: true, // Marked in-flight so background drainer NEVER touches it concurrently
           syncAttempts: 0,
-        });
+        })) as number;
         await updatePendingCount();
       } catch (dbErr) {
         console.warn("[ZeroWaitSync] Failed to persist order to IndexedDB:", dbErr);
@@ -75,19 +84,36 @@ export function useZeroWaitOrderSync(branchId: number | string = 1) {
 
             // Mark synced in local Dexie database
             try {
-              const matched = await offlineDB.offlineOrders.where("localId").equals(localId).first();
-              if (matched && matched.id) {
-                await offlineDB.offlineOrders.update(matched.id, { synced: true });
-                await updatePendingCount();
+              if (insertedRecordId) {
+                await offlineDB.offlineOrders.update(insertedRecordId, { synced: true, inFlight: false });
+              } else {
+                const matched = await offlineDB.offlineOrders.where("localId").equals(localId).first();
+                if (matched && matched.id) {
+                  await offlineDB.offlineOrders.update(matched.id, { synced: true, inFlight: false });
+                }
               }
+              await updatePendingCount();
             } catch (e) {}
 
             options?.onSuccess?.(serverOrder);
           }
         } catch (netErr: any) {
           console.warn("[ZeroWaitSync] Background sync delayed (saved offline in IndexedDB):", netErr?.message || netErr);
+          // Network failed: release inFlight so drainOfflineQueue can retry when connection returns
+          try {
+            if (insertedRecordId) {
+              await offlineDB.offlineOrders.update(insertedRecordId, { inFlight: false, error: String(netErr?.message || netErr) });
+            } else {
+              const matched = await offlineDB.offlineOrders.where("localId").equals(localId).first();
+              if (matched && matched.id) {
+                await offlineDB.offlineOrders.update(matched.id, { inFlight: false, error: String(netErr?.message || netErr) });
+              }
+            }
+          } catch {}
           await updatePendingCount();
           options?.onError?.(netErr);
+        } finally {
+          inFlightLocalIds.delete(localId);
         }
       })();
     },
@@ -95,23 +121,34 @@ export function useZeroWaitOrderSync(branchId: number | string = 1) {
   );
 
   /**
-   * Background Queue Drainer: Flushes any unsynced offline orders when online
+   * Background Queue Drainer: Flushes any genuinely unsynced offline orders when online.
+   * Guarded by module-level global singleton lock (isGlobalDraining).
    */
   const drainOfflineQueue = useCallback(async () => {
-    if (isDrainingRef.current) return;
+    if (isGlobalDraining) return;
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
     try {
-      const pending = await offlineDB.offlineOrders.filter((item) => !item.synced).toArray();
+      // Find orders that are NOT synced and NOT currently in-flight
+      const pending = await offlineDB.offlineOrders
+        .filter((item) => !item.synced && !item.inFlight && !inFlightLocalIds.has(item.localId))
+        .toArray();
+
       if (!pending || pending.length === 0) {
         setPendingCount(0);
         return;
       }
 
-      isDrainingRef.current = true;
+      isGlobalDraining = true;
       let syncedCount = 0;
 
       for (const item of pending) {
+        // Prevent concurrent grabs
+        inFlightLocalIds.add(item.localId);
+        if (item.id) {
+          await offlineDB.offlineOrders.update(item.id, { inFlight: true });
+        }
+
         try {
           const payload: any = item.orderData;
           const key = payload?.idempotencyKey || `offline-drain-${item.localId}`;
@@ -124,15 +161,18 @@ export function useZeroWaitOrderSync(branchId: number | string = 1) {
                 await api.post(`/orders/${res.id}/kots`);
               } catch {}
             }
-            await offlineDB.offlineOrders.update(item.id!, { synced: true });
+            await offlineDB.offlineOrders.update(item.id!, { synced: true, inFlight: false });
             syncedCount++;
           }
         } catch (drainErr) {
           await offlineDB.offlineOrders.update(item.id!, {
             syncAttempts: (item.syncAttempts || 0) + 1,
+            inFlight: false,
             error: String(drainErr),
           });
           break; // Stop loop on persistent connection failure
+        } finally {
+          inFlightLocalIds.delete(item.localId);
         }
       }
 
@@ -145,7 +185,7 @@ export function useZeroWaitOrderSync(branchId: number | string = 1) {
     } catch (e) {
       console.warn("[ZeroWaitSync] Queue drain error:", e);
     } finally {
-      isDrainingRef.current = false;
+      isGlobalDraining = false;
     }
   }, [updatePendingCount]);
 

@@ -6,11 +6,16 @@ services:
     container_name: ssr_one_ai_postgres_prod
     restart: always
     environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-cafedb}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-asd123}
     volumes:
       - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-cafedb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -18,6 +23,11 @@ services:
     restart: always
     volumes:
       - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
     build:
@@ -32,11 +42,38 @@ services:
       APP_DEBUG: "false"
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-cafedb}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-asd123}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-ssrone-prod-secret-change-me}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:alpine
+    container_name: ssr_one_ai_nginx_prod
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ../../apps/marketing-web/dist:/var/www/marketing-web/dist:ro
+      - ../../apps/admin-web/dist:/var/www/admin-web/dist:ro
+      - ../../apps/platform-admin/dist:/var/www/platform-admin/dist:ro
+      - ../../apps/kds-web/dist:/var/www/kds-web/dist:ro
+      - ../../apps/token-order-web/dist:/var/www/token-order-web/dist:ro
+      - ../../apps/customer-food-web/dist:/var/www/customer-food-web/dist:ro
+      - ../../apps/customer-stay-web/dist:/var/www/customer-stay-web/dist:ro
+      - ../../apps/staff-web/dist:/var/www/staff-web/dist:ro
+    depends_on:
+      - backend
 
 volumes:
   postgres_prod_data:

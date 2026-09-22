@@ -334,7 +334,7 @@ async def test_update_menu_item():
         addon_groups=[],
         tags=[]
     )
-    mock_db.execute.side_effect = [DummyResult([existing_item]), DummyResult([existing_item])]
+    mock_db.execute.side_effect = [DummyResult([existing_item]), DummyResult([existing_item]), DummyResult([existing_item])]
 
     body = MenuItemCreateSchema(
         category_id=1,

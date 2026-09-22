@@ -12,6 +12,7 @@ import {
 import { ProtectedRoute } from "@/app/routes/ProtectedRoute";
 import { LoginPage } from "@/modules/auth";
 import { POSPage, KDSScreen, POSOrdersListPage } from "@/modules/pos";
+import { POSCustomerFacingDisplayPage } from "@/modules/pos/pages/transaction/POSCustomerFacingDisplayPage";
 import { lazy } from "react";
 import { ConnectedAppsLauncher } from "@/shared/layout/ConnectedAppsLauncher";
 import { ConnectedAppPage } from "@/shared/layout/ConnectedAppPage";
@@ -44,6 +45,7 @@ const EnterpriseRoadmapPage = lazy(() => import("@/modules/settings").then(m => 
 
 const FinancePage = lazy(() => import("@/modules/finance").then(m => ({ default: m.FinancePage })));
 const FormBuilderPage = lazy(() => import("@/modules/forms").then(m => ({ default: m.FormBuilderPage })));
+const CustomizationStudioPage = lazy(() => import("@/modules/customization").then(m => ({ default: m.CustomizationStudioPage })));
 
 
 // ─── Root Route ──────────────────────────────────────────────
@@ -223,12 +225,18 @@ const posTransactionBillingRoute = createRoute({
   ),
 });
 
+const posCustomerFacingDisplayRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pos/cfd",
+  component: () => <POSCustomerFacingDisplayPage />,
+});
+
 const posTransactionKDSRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/pos/transaction/kds",
   component: () => (
     <ProtectedRoute>
-      <KDSScreen />
+      <POSPage />
     </ProtectedRoute>
   ),
 });
@@ -613,6 +621,16 @@ const crmInteractionsShortRoute = createRoute({
   ),
 });
 
+const crmCampaignsShortRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/crm/campaigns",
+  component: () => (
+    <ProtectedRoute>
+      <CRMPage />
+    </ProtectedRoute>
+  ),
+});
+
 const crmSettingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/crm/settings",
@@ -838,6 +856,26 @@ const reportsRoute = createRoute({
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings",
+  component: () => (
+    <ProtectedRoute>
+      <SettingsPage />
+    </ProtectedRoute>
+  ),
+});
+
+const settingsApprovalsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/approvals",
+  component: () => (
+    <ProtectedRoute>
+      <SettingsPage />
+    </ProtectedRoute>
+  ),
+});
+
+const settingsPluginsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/plugins",
   component: () => (
     <ProtectedRoute>
       <SettingsPage />
@@ -1206,6 +1244,36 @@ const inventoryLedgerRoute = createRoute({
   ),
 });
 
+const inventoryGRNRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/inventory/grn",
+  component: () => (
+    <ProtectedRoute>
+      <InventoryPage />
+    </ProtectedRoute>
+  ),
+});
+
+const inventoryBatchesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/inventory/batches",
+  component: () => (
+    <ProtectedRoute>
+      <InventoryPage />
+    </ProtectedRoute>
+  ),
+});
+
+const inventoryWildcardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/inventory/$",
+  component: () => (
+    <ProtectedRoute>
+      <InventoryPage />
+    </ProtectedRoute>
+  ),
+});
+
 // ─── Finance Sub-routes ──────────────────────────────────────
 
 const financeChartRoute = createRoute({
@@ -1393,6 +1461,16 @@ const aiChatRoute = createRoute({
 const aiPredictRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/ai/predict",
+  component: () => (
+    <ProtectedRoute>
+      <AICopilotPage />
+    </ProtectedRoute>
+  ),
+});
+
+const aiTemplatesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/ai/templates",
   component: () => (
     <ProtectedRoute>
       <AICopilotPage />
@@ -1774,6 +1852,26 @@ const appsAdminSecurityRoute = createRoute({
   ),
 });
 
+const customizationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/customization",
+  component: () => (
+    <ProtectedRoute>
+      <CustomizationStudioPage />
+    </ProtectedRoute>
+  ),
+});
+
+const customizationDomainsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/customization/domains",
+  component: () => (
+    <ProtectedRoute>
+      <CustomizationStudioPage />
+    </ProtectedRoute>
+  ),
+});
+
 // ─── Route Tree ──────────────────────────────────────────────
 
 const routeTree = rootRoute.addChildren([
@@ -1842,6 +1940,7 @@ const routeTree = rootRoute.addChildren([
   crmTiersShortRoute,
   crmPointsShortRoute,
   crmInteractionsShortRoute,
+  crmCampaignsShortRoute,
   crmSettingsRoute,
   pgRoomsRoute,
   pgBedsRoute,
@@ -1857,6 +1956,9 @@ const routeTree = rootRoute.addChildren([
   inventoryVendorsRoute,
   inventoryAdjustmentRoute,
   inventoryLedgerRoute,
+  inventoryGRNRoute,
+  inventoryBatchesRoute,
+  inventoryWildcardRoute,
   billingRoute,
   financeRoute,
   financeChartRoute,
@@ -1884,7 +1986,10 @@ const routeTree = rootRoute.addChildren([
   aiConfigRoute,
   aiChatRoute,
   aiPredictRoute,
+  aiTemplatesRoute,
   settingsRoute,
+  settingsApprovalsRoute,
+  settingsPluginsRoute,
   settingsOutletsRoute,
   settingsBackupRoute,
   settingsAuditRoute,
@@ -1941,12 +2046,15 @@ const routeTree = rootRoute.addChildren([
   appsAdminRoute,
   appsAdminConfigRoute,
   appsAdminMonitorRoute,
+  customizationRoute,
+  customizationDomainsRoute,
   hrWildcardRoute,
+  posCustomerFacingDisplayRoute,
 ]);
 
 export const router = createRouter({
   routeTree,
-  defaultNotFoundComponent: ComingSoonPage,
+  defaultNotFoundComponent: () => <ComingSoonPage />,
 });
 
 declare module "@tanstack/react-router" {

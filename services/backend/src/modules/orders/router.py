@@ -1,6 +1,7 @@
 """
 The ssrone – Orders Schemas & Router
 """
+import inspect
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -8,13 +9,13 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel, Field, model_validator
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.core.database.engine import get_db_session
 from src.core.event_bus.bus import event_bus, order_created_event
-from src.modules.auth.dependencies import get_current_user, get_optional_user, RequirePermission
+from src.modules.auth.dependencies import get_current_user, RequirePermission
 from src.modules.auth.models import User
 from src.modules.orders.models import Order, OrderItem, OrderPayment, OrderStatus, DiningTable, DailyOrderSequence, QueueToken
 from src.modules.crm.models import Customer
@@ -330,11 +331,11 @@ class OrderListResponse(BaseModel):
 @router.get("/next-number")
 async def get_next_order_number_preview(
     branch_id: int = Query(default=1),
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """Preview the next daily order number in DDMMYY001 format."""
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
     next_num = await peek_next_daily_order_number(db, tenant_id=tenant_id, branch_id=branch_id)
     return {"next_order_number": next_num}
 
@@ -342,11 +343,11 @@ async def get_next_order_number_preview(
 @router.get("/grid-projection")
 async def get_pos_grid_projection(
     branch_id: int = Query(default=1),
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """Fast, projection-based API returning thin DTOs (~300 bytes per record) for 0ms Table Floor rendering."""
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
 
     stmt = (
         select(
@@ -390,16 +391,35 @@ async def get_pos_grid_projection(
 async def create_order(
     body: OrderCreateSchema,
     x_idempotency_key: str | None = Header(None, alias="X-Idempotency-Key"),
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> OrderResponse:
     """Create a new order or update existing order in-place and dispatch to KDS via Event Bus."""
     # Check Idempotency Key
     if x_idempotency_key and x_idempotency_key in IDEMPOTENCY_CACHE:
         return OrderResponse(**IDEMPOTENCY_CACHE[x_idempotency_key])
-    tenant_id = current_user.tenant_id if current_user else 1
-    user_id = current_user.id if current_user else 1
+    tenant_id = current_user.tenant_id
+    user_id = current_user.id
     parsed_branch_id = _parse_int_id(body.branch_id) or 1
+    parsed_customer_id = _parse_int_id(body.customer_id)
+
+    # Determine effective order mode & type
+    raw_mode = (body.order_mode or body.order_type or "dine_in").lower()
+    if "take" in raw_mode or "pickup" in raw_mode:
+        eff_type = "takeaway"
+    elif "deliv" in raw_mode:
+        eff_type = "delivery"
+    else:
+        eff_type = "dine_in"
+
+    parsed_table_id = _parse_int_id(body.table_id) if eff_type == "dine_in" else None
+    parsed_waiter_id = _parse_int_id(body.waiter_id) if eff_type == "dine_in" else None
+
+    if eff_type == "delivery" and not parsed_customer_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Customer Selection (Name & Mobile Number) is REQUIRED for Delivery orders!"
+        )
 
     # Calculate subtotal & totals
     calc_subtotal = Decimal("0")
@@ -409,7 +429,18 @@ async def create_order(
         calc_subtotal += qty * price
 
     subtotal = Decimal(str(body.subtotal)) if body.subtotal is not None else calc_subtotal
+
+    # High-value compliance check: Orders >= ₹50,000 require an attached Customer profile
+    if calc_subtotal >= Decimal("50000.00") and not parsed_customer_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="High-value orders (>= ₹50,000) require an attached Customer profile for compliance and tax records."
+        )
+
     total_discount = Decimal(str(body.discount_amount)) if body.discount_amount is not None else Decimal("0")
+    if eff_type == "takeaway" and (body.discount_amount is None or total_discount == Decimal("0")):
+        total_discount = (subtotal * Decimal("0.10")).quantize(Decimal("0.01"))
+
     pkg_charge = Decimal(str(body.packaging_charge)) if body.packaging_charge is not None else Decimal("0")
     taxable = max(Decimal("0"), subtotal + pkg_charge - total_discount)
 
@@ -429,27 +460,7 @@ async def create_order(
     amount_paid = grand_total if payment_status == "paid" else Decimal("0")
     balance_due = Decimal("0") if payment_status == "paid" else grand_total
 
-    # Determine effective order mode & type
-    raw_mode = (body.order_mode or body.order_type or "dine_in").lower()
-    if "take" in raw_mode or "pickup" in raw_mode:
-        eff_type = "takeaway"
-    elif "deliv" in raw_mode:
-        eff_type = "delivery"
-    else:
-        eff_type = "dine_in"
-
-    parsed_table_id = _parse_int_id(body.table_id) if eff_type == "dine_in" else None
-    parsed_waiter_id = _parse_int_id(body.waiter_id) if eff_type == "dine_in" else None
-    parsed_customer_id = _parse_int_id(body.customer_id)
-    parsed_branch_id = _parse_int_id(body.branch_id) or 1
-
-    if eff_type == "delivery" and not parsed_customer_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Customer Selection (Name & Mobile Number) is REQUIRED for Delivery orders!"
-        )
-
-    # CHECK FOR EXISTING ORDER UPDATE (Avoid Duplicate Order Creation!)
+    # CHECK FOR EXISTING ORDER (Strict Idempotency & In-Place Update - Avoid Duplicate Order Creation!)
     existing_order = None
     if body.order_number:
         stmt_exist = select(Order).where(
@@ -459,10 +470,24 @@ async def create_order(
         ).options(selectinload(Order.items))
         res_exist = await db.execute(stmt_exist)
         found_order = res_exist.scalar_one_or_none()
-        if found_order and (body.is_update or found_order.status in ("draft", "confirmed", "in_kitchen", "preparing", "ready", "served")):
+        if found_order:
             existing_order = found_order
 
     if existing_order:
+        # If this is an idempotent duplicate replay of the exact same order (same grand total, status, table),
+        # return immediately without re-mutating or regenerating anything
+        is_idempotent_duplicate = (
+            not body.is_update
+            and existing_order.status in (target_status, "kot_sent", "confirmed", "in_kitchen", "completed")
+            and abs(Decimal(str(existing_order.grand_total or 0)) - grand_total) < Decimal("0.05")
+            and len(existing_order.items or []) == len(body.items or [])
+        )
+        if is_idempotent_duplicate:
+            resp_dup = OrderResponse.model_validate(existing_order)
+            if x_idempotency_key:
+                IDEMPOTENCY_CACHE[x_idempotency_key] = resp_dup.model_dump()
+            return resp_dup
+
         existing_order.branch_id = parsed_branch_id
         if parsed_customer_id:
             existing_order.customer_id = parsed_customer_id
@@ -569,7 +594,10 @@ async def create_order(
         await db.flush()
         await db.commit()
         await db.refresh(existing_order, ["items"])
-        return OrderResponse.model_validate(existing_order)
+        resp_updated = OrderResponse.model_validate(existing_order)
+        if x_idempotency_key:
+            IDEMPOTENCY_CACHE[x_idempotency_key] = resp_updated.model_dump()
+        return resp_updated
 
     # Determine atomic daily order number in DDMMYY001 format
     try:
@@ -588,13 +616,13 @@ async def create_order(
     )
 
     if is_client_ddmmyy and body.order_number:
-        stmt_taken = select(Order.id).where(
+        stmt_taken = select(Order).where(
             Order.order_number == body.order_number,
             Order.tenant_id == tenant_id,
             (Order.is_deleted == False) | (Order.is_deleted.is_(None))
-        )
-        is_taken = (await db.execute(stmt_taken)).scalar_one_or_none()
-        if not is_taken:
+        ).options(selectinload(Order.items))
+        taken_order = (await db.execute(stmt_taken)).scalar_one_or_none()
+        if not taken_order:
             order_number = body.order_number
             try:
                 client_seq_val = int(body.order_number[len(today_prefix):])
@@ -622,7 +650,9 @@ async def create_order(
             except Exception as seq_sync_err:
                 logger.warning("Could not sync DailyOrderSequence with client sequence", error=str(seq_sync_err))
         else:
-            order_number = await get_next_daily_order_number(db, tenant_id=tenant_id, branch_id=parsed_branch_id)
+            # Order already exists! Return existing order idempotently; NEVER generate duplicate order!
+            logger.info("Order number already taken in concurrent transaction, returning existing order", order_number=body.order_number)
+            return OrderResponse.model_validate(taken_order)
     else:
         order_number = await get_next_daily_order_number(db, tenant_id=tenant_id, branch_id=parsed_branch_id)
 
@@ -711,11 +741,19 @@ async def create_order(
         db.add(item)
 
     try:
-        await db.flush()
-        await db.commit()
-        await db.refresh(order, ["items"])
+        flush_res = db.flush()
+        if inspect.isawaitable(flush_res):
+            await flush_res
+        commit_res = db.commit()
+        if inspect.isawaitable(commit_res):
+            await commit_res
+        refresh_res = db.refresh(order, ["items"])
+        if inspect.isawaitable(refresh_res):
+            await refresh_res
     except Exception as commit_err:
-        await db.rollback()
+        rollback_res = db.rollback()
+        if inspect.isawaitable(rollback_res):
+            await rollback_res
         logger.error("Order commit error in PostgreSQL", error=str(commit_err))
         raise HTTPException(status_code=500, detail=f"Database Order Commit Error: {str(commit_err)}")
 
@@ -773,7 +811,7 @@ async def create_order(
             pass
 
     if x_idempotency_key:
-        IDEMPOTENCY_CACHE[x_idempotency_key] = resp_data.model_dump()
+        IDEMPOTENCY_CACHE[x_idempotency_key] = resp_data.model_dump() if hasattr(resp_data, "model_dump") else {}
     return resp_data
 
 
@@ -784,11 +822,11 @@ async def list_orders(
     sort_order: str = Query(default="desc"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=1, le=200),
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> OrderListResponse:
     """List orders with filters and pagination."""
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
     parsed_branch_id = _parse_int_id(branch_id)
 
     base_query = select(Order).where(
@@ -799,7 +837,15 @@ async def list_orders(
     if parsed_branch_id:
         base_query = base_query.where(Order.branch_id == parsed_branch_id)
     if status:
-        base_query = base_query.where(Order.status == status)
+        if status == "active":
+            base_query = base_query.where(
+                func.lower(Order.status).in_(["kot_sent", "placed", "pending", "confirmed", "in_kitchen", "preparing", "ready", "open"])
+            )
+        elif "," in status:
+            status_list = [s.strip().lower() for s in status.split(",") if s.strip()]
+            base_query = base_query.where(func.lower(Order.status).in_(status_list))
+        else:
+            base_query = base_query.where(func.lower(Order.status) == status.lower())
 
     # Count using clean base_query without loader options
     count_query = select(func.count()).select_from(base_query.subquery())
@@ -838,6 +884,19 @@ async def list_orders(
     except Exception as cust_err:
         logger.warning("Failed to fetch customers map in list_orders", error=str(cust_err))
 
+    # Fetch menu items map for kds_station resolution
+    menu_station_map = {}
+    try:
+        from src.modules.restaurant.models import MenuItem
+        m_item_ids = [it.menu_item_id or it.product_id for o in orders for it in o.items if (it.menu_item_id or it.product_id)]
+        if m_item_ids:
+            m_q = await db.execute(select(MenuItem.id, MenuItem.kds_station).where(MenuItem.id.in_(m_item_ids)))
+            for m_id, m_st in m_q.all():
+                if m_st:
+                    menu_station_map[m_id] = m_st
+    except Exception as m_err:
+        logger.warning("Failed to fetch menu items station map in list_orders", error=str(m_err))
+
     valid_items = []
     for o in orders:
         try:
@@ -850,6 +909,11 @@ async def list_orders(
                 item_dto.customer_phone = c_info["phone"]
             elif not item_dto.customer_name:
                 item_dto.customer_name = "Walk-in Guest"
+
+            for it_dto in item_dto.items:
+                if not it_dto.kds_station and it_dto.product_id:
+                    it_dto.kds_station = menu_station_map.get(it_dto.product_id)
+
             valid_items.append(item_dto)
         except Exception as val_err:
             logger.error("Skipping invalid order record in list_orders", order_id=getattr(o, "id", None), error=str(val_err))
@@ -865,11 +929,11 @@ async def list_orders(
 @router.get("/{order_id}", response_model=OrderResponse)
 async def get_order(
     order_id: int,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> OrderResponse:
     """Get a single order by ID."""
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
     result = await db.execute(
         select(Order)
         .where(
@@ -928,7 +992,7 @@ async def cancel_order(
 
 @router.patch("/{order_id}/status")
 async def update_order_status(
-    order_id: int,
+    order_id: Any,
     status: str = Query(..., description="Target status"),
     payment_status: str | None = Query(None, description="Target payment status"),
     amount_paid: Decimal | None = Query(None, description="Amount paid update"),
@@ -936,22 +1000,34 @@ async def update_order_status(
     balance_due: Decimal | None = Query(None, description="Explicit balance due"),
     customer_id: int | None = Query(None, description="Customer ID to associate with order"),
     payment_method: str | None = Query(None, description="Payment method used, e.g. CASH, UPI, CREDIT_ACCOUNT"),
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Update order status and/or payment status with customer debt and settlement discount support."""
     from datetime import timezone
-    tenant_id = getattr(current_user, "tenant_id", 1) or 1
-    user_id = getattr(current_user, "id", 1) or 1
+    tenant_id = current_user.tenant_id
+    user_id = current_user.id
 
-    result = await db.execute(
-        select(Order).where(
-            Order.id == order_id,
+    parsed_id = int(order_id) if str(order_id).isdigit() and len(str(order_id)) < 9 else None
+    stmt = select(Order).where(
+        Order.tenant_id == tenant_id,
+        (Order.is_deleted == False) | (Order.is_deleted.is_(None))
+    )
+    if parsed_id:
+        stmt = stmt.where((Order.id == parsed_id) | (Order.order_number == str(order_id)))
+    else:
+        stmt = stmt.where(Order.order_number == str(order_id))
+
+    result = await db.execute(stmt)
+    order = result.scalar_one_or_none()
+    if not order and str(order_id).isdigit():
+        stmt_fallback = select(Order).where(
+            Order.id == int(order_id),
             Order.tenant_id == tenant_id,
             (Order.is_deleted == False) | (Order.is_deleted.is_(None))
         )
-    )
-    order = result.scalar_one_or_none()
+        order = (await db.execute(stmt_fallback)).scalar_one_or_none()
+
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
@@ -959,12 +1035,29 @@ async def update_order_status(
     current_payment_status = (order.payment_status or "").lower()
     target_status = status.lower()
 
-    if current_status in ("completed", "paid") or current_payment_status == "paid":
-        if target_status in ("completed", "paid"):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Order #{order.order_number} is already settled & completed! Re-settlement is not permitted."
-            )
+    if (current_status in ("completed", "paid") or current_payment_status == "paid") and target_status in ("completed", "paid"):
+        # Idempotent response: If already completed and paid, ensure table is marked free and return success
+        if order.table_id:
+            try:
+                tbl_res = await db.execute(select(DiningTable).where(DiningTable.id == order.table_id))
+                tbl = tbl_res.scalar_one_or_none()
+                if tbl and tbl.status != "free":
+                    tbl.status = "free"
+                    tbl.current_order_id = None
+                    commit_res = db.commit()
+                    if inspect.isawaitable(commit_res):
+                        await commit_res
+            except Exception:
+                pass
+        return {
+            "message": f"Order #{order.order_number} is already settled.",
+            "order_id": str(order.id),
+            "customer_id": order.customer_id,
+            "status": order.status,
+            "payment_status": order.payment_status,
+            "amount_paid": float(order.amount_paid or 0),
+            "balance_due": float(order.balance_due or 0)
+        }
 
     if current_status == "cancelled":
         raise HTTPException(
@@ -973,11 +1066,11 @@ async def update_order_status(
         )
 
     # Associate customer if provided
-    if customer_id and customer_id > 0:
+    if isinstance(customer_id, int) and customer_id > 0:
         order.customer_id = customer_id
 
     # Apply settlement discount if provided (e.g. ₹70 concession on ₹870 bill)
-    if discount_amount is not None and discount_amount > 0:
+    if isinstance(discount_amount, (int, float, Decimal)) and discount_amount > 0:
         order.discount_amount = (order.discount_amount or Decimal("0.00")) + discount_amount
         order.grand_total = max(Decimal("0.00"), (order.grand_total or Decimal("0.00")) - discount_amount)
         if order.metadata_payload is None:
@@ -985,7 +1078,8 @@ async def update_order_status(
         order.metadata_payload["settlement_discount"] = float(discount_amount)
 
     # ─── UDHAR / DEBT ENFORCEMENT ───
-    is_credit_account = (payment_method or "").upper() == "CREDIT_ACCOUNT"
+    pm_str = payment_method if isinstance(payment_method, str) else ""
+    is_credit_account = pm_str.upper() == "CREDIT_ACCOUNT"
 
     if is_credit_account:
         # 100% Bill Transferred to Customer Debt Account
@@ -1017,7 +1111,7 @@ async def update_order_status(
             order.completed_at = datetime.now(timezone.utc)
             if payment_status == "unpaid":
                 order.payment_status = "unpaid"
-                order.amount_paid = amount_paid if amount_paid is not None else Decimal("0.00")
+                order.amount_paid = amount_paid if isinstance(amount_paid, (int, float, Decimal)) else Decimal("0.00")
                 order.balance_due = max(Decimal("0.00"), (order.grand_total or Decimal("0.00")) - order.amount_paid)
             elif payment_status == "partial":
                 # Partial Payment with remaining balance as Customer Debt
@@ -1027,14 +1121,14 @@ async def update_order_status(
                         detail="Customer selection is strictly required for retaining outstanding balance as Udhar / Debt."
                     )
                 order.payment_status = "partial"
-                order.amount_paid = amount_paid if amount_paid is not None else Decimal("0.00")
+                order.amount_paid = amount_paid if isinstance(amount_paid, (int, float, Decimal)) else Decimal("0.00")
                 order.balance_due = max(Decimal("0.00"), (order.grand_total or Decimal("0.00")) - order.amount_paid)
 
-                if payment_method and order.amount_paid > 0:
+                if pm_str and order.amount_paid > 0:
                     db.add(OrderPayment(
                         tenant_id=tenant_id,
                         order_id=order.id,
-                        payment_mode=payment_method.upper(),
+                        payment_mode=pm_str.upper(),
                         amount=order.amount_paid,
                         status="SUCCESS",
                         transaction_reference=f"PARTIAL-{order.order_number}",
@@ -1055,11 +1149,11 @@ async def update_order_status(
                 order.amount_paid = order.grand_total
                 order.balance_due = Decimal("0.00")
 
-                if payment_method and order.amount_paid > 0:
+                if pm_str and order.amount_paid > 0:
                     db.add(OrderPayment(
                         tenant_id=tenant_id,
                         order_id=order.id,
-                        payment_mode=payment_method.upper(),
+                        payment_mode=pm_str.upper(),
                         amount=order.amount_paid,
                         status="SUCCESS",
                         transaction_reference=f"SETTLE-{order.order_number}",
@@ -1072,10 +1166,10 @@ async def update_order_status(
     if order.status in ("completed", "paid", "cancelled"):
         try:
             tbl = None
-            if order.table_id:
+            if isinstance(order.table_id, int) and order.table_id > 0:
                 tbl_res = await db.execute(select(DiningTable).where(DiningTable.id == order.table_id))
                 tbl = tbl_res.scalar_one_or_none()
-            if tbl:
+            if tbl and isinstance(tbl, DiningTable):
                 # Check if another active order is running on this table (Multi-Order / Table Sharing)
                 active_res = await db.execute(
                     select(Order.id).where(
@@ -1087,7 +1181,7 @@ async def update_order_status(
                     ).limit(1)
                 )
                 remaining_order_id = active_res.scalar_one_or_none()
-                if remaining_order_id:
+                if isinstance(remaining_order_id, int) and remaining_order_id > 0:
                     tbl.status = "occupied"
                     tbl.current_order_id = remaining_order_id
                 else:
@@ -1097,7 +1191,9 @@ async def update_order_status(
             logger.warning("Failed to update table status on order completion", error=str(tbl_err))
 
     order.updated_by = user_id
-    await db.commit()
+    commit_res = db.commit()
+    if inspect.isawaitable(commit_res):
+        await commit_res
     logger.info("Order status updated", order_id=str(order_id), status=order.status, payment_status=order.payment_status, customer_id=order.customer_id)
     return {
         "message": "Order updated successfully",
@@ -1105,8 +1201,8 @@ async def update_order_status(
         "customer_id": order.customer_id,
         "status": order.status,
         "payment_status": order.payment_status,
-        "amount_paid": float(order.amount_paid),
-        "balance_due": float(order.balance_due)
+        "amount_paid": float(order.amount_paid or 0),
+        "balance_due": float(order.balance_due or 0)
     }
 
 
@@ -1125,16 +1221,33 @@ class CustomerDebtSettleSchema(BaseModel):
 async def get_customer_debts_summary(
     search: str | None = None,
     branch_id: int | None = None,
-    current_user: User | None = Depends(get_optional_user),
+    include_all_customers: bool = False,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    """Get all customers with outstanding debt (Udhar) and summary aggregates."""
-    tenant_id = getattr(current_user, "tenant_id", 1) or 1
+    """Get all customers with outstanding debt (Udhar) and summary aggregates directly from PostgreSQL."""
+    tenant_id = current_user.tenant_id
 
-    query = (
+    # 1. Fetch real customers from database for this tenant
+    c_query = select(Customer).where(
+        Customer.tenant_id == tenant_id,
+        (Customer.is_deleted == False) | (Customer.is_deleted.is_(None)),
+    )
+    if search:
+        s_clean = search.strip().lower()
+        c_query = c_query.where(
+            func.lower(Customer.name).ilike(f"%{s_clean}%") | Customer.phone.ilike(f"%{s_clean}%")
+        )
+    c_res = await db.execute(c_query.order_by(Customer.name.asc()))
+    customers = c_res.scalars().all()
+    customers_map = {c.id: c for c in customers}
+
+    # 2. Aggregate real order finances grouped by customer_id
+    agg_query = (
         select(
             Order.customer_id,
-            func.count(Order.id).label("unpaid_orders_count"),
+            func.count(Order.id).label("total_orders_count"),
+            func.count(case((Order.balance_due > 0, Order.id))).label("unpaid_orders_count"),
             func.sum(Order.grand_total).label("total_billed"),
             func.sum(Order.amount_paid).label("total_paid"),
             func.sum(Order.balance_due).label("total_balance_due"),
@@ -1143,58 +1256,90 @@ async def get_customer_debts_summary(
         .where(
             Order.tenant_id == tenant_id,
             Order.customer_id.is_not(None),
-            Order.balance_due > 0,
-            Order.status.in_(["completed", "confirmed", "kot_sent", "served", "ready"]),
             (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
         )
         .group_by(Order.customer_id)
     )
     if branch_id:
-        query = query.where(Order.branch_id == branch_id)
+        agg_query = agg_query.where(Order.branch_id == branch_id)
 
-    res = await db.execute(query)
-    rows = res.all()
+    agg_res = await db.execute(agg_query)
+    customer_order_stats = {r.customer_id: r for r in agg_res.all()}
 
-    cust_ids = [r.customer_id for r in rows]
-    customers_map = {}
-    if cust_ids:
-        c_res = await db.execute(select(Customer).where(Customer.id.in_(cust_ids)))
-        for c in c_res.scalars().all():
-            customers_map[c.id] = c
+    # 3. Aggregate all unassigned / counter / table open tabs (orders where customer_id is null and balance_due > 0)
+    unassigned_query = (
+        select(
+            func.count(Order.id).label("unpaid_orders_count"),
+            func.sum(Order.grand_total).label("total_billed"),
+            func.sum(Order.amount_paid).label("total_paid"),
+            func.sum(Order.balance_due).label("total_balance_due"),
+            func.max(Order.created_at).label("last_order_date"),
+        )
+        .where(
+            Order.tenant_id == tenant_id,
+            Order.customer_id.is_(None),
+            Order.balance_due > 0,
+            Order.status.not_in(["cancelled"]),
+            (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
+        )
+    )
+    if branch_id:
+        unassigned_query = unassigned_query.where(Order.branch_id == branch_id)
+    unassigned_res = await db.execute(unassigned_query)
+    unassigned_row = unassigned_res.one_or_none()
 
     debtors = []
     total_market_debt = Decimal("0.00")
 
-    for r in rows:
-        c = customers_map.get(r.customer_id)
-        c_name = c.name if c else f"Customer #{r.customer_id}"
-        c_phone = c.phone if c else ""
+    # Add all registered customers with their real database metrics
+    for c_id, c in customers_map.items():
+        stats = customer_order_stats.get(c_id)
+        b_due = Decimal(str(stats.total_balance_due if stats and stats.total_balance_due else 0))
+        total_billed = float(stats.total_billed if stats and stats.total_billed else 0)
+        total_paid = float(stats.total_paid if stats and stats.total_paid else 0)
+        unpaid_count = int(stats.unpaid_orders_count if stats and stats.unpaid_orders_count else 0)
+        last_date = stats.last_order_date.isoformat() if stats and stats.last_order_date else None
 
-        if search:
-            s_lower = search.lower()
-            if s_lower not in c_name.lower() and s_lower not in c_phone.lower():
-                continue
+        if b_due > 0:
+            total_market_debt += b_due
 
-        b_due = Decimal(str(r.total_balance_due or 0))
-        total_market_debt += b_due
+        # If include_all_customers is True or search was performed or customer has debt, include in list
+        if b_due > 0 or search or include_all_customers:
+            debtors.append({
+                "customer_id": c.id,
+                "customer_name": c.name,
+                "customer_phone": c.phone,
+                "customer_email": c.email,
+                "unpaid_orders_count": unpaid_count,
+                "total_billed": total_billed,
+                "total_paid": total_paid,
+                "total_balance_due": float(b_due),
+                "last_order_date": last_date,
+            })
 
+    # Include Unassigned / Table & Counter Open Tabs if there are unpaid orders
+    if unassigned_row and unassigned_row.unpaid_orders_count and unassigned_row.unpaid_orders_count > 0:
+        unassigned_due = Decimal(str(unassigned_row.total_balance_due or 0))
+        total_market_debt += unassigned_due
         debtors.append({
-            "customer_id": r.customer_id,
-            "customer_name": c_name,
-            "customer_phone": c_phone,
-            "customer_email": c.email if c else None,
-            "unpaid_orders_count": r.unpaid_orders_count,
-            "total_billed": float(r.total_billed or 0),
-            "total_paid": float(r.total_paid or 0),
-            "total_balance_due": float(b_due),
-            "last_order_date": r.last_order_date.isoformat() if r.last_order_date else None,
+            "customer_id": 0,
+            "customer_name": "Walk-in & Table Open Tabs",
+            "customer_phone": "Counter / Tables Unassigned",
+            "customer_email": None,
+            "unpaid_orders_count": int(unassigned_row.unpaid_orders_count),
+            "total_billed": float(unassigned_row.total_billed or 0),
+            "total_paid": float(unassigned_row.total_paid or 0),
+            "total_balance_due": float(unassigned_due),
+            "last_order_date": unassigned_row.last_order_date.isoformat() if unassigned_row.last_order_date else None,
         })
 
-    debtors.sort(key=lambda x: x["total_balance_due"], reverse=True)
+    # Sort: highest balance due first, then alphabetically
+    debtors.sort(key=lambda x: (-x["total_balance_due"], x["customer_name"]))
 
     return {
         "total_outstanding_debt": float(total_market_debt),
-        "total_debtors_count": len(debtors),
+        "total_debtors_count": len([d for d in debtors if d["total_balance_due"] > 0]),
+        "total_customers_count": len(customers),
         "debtors": debtors,
     }
 
@@ -1202,23 +1347,94 @@ async def get_customer_debts_summary(
 @router.get("/debts/customer/{customer_id}")
 async def get_customer_debt_ledger(
     customer_id: int,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    """Get detailed debt ledger and order timeline for a single customer."""
-    tenant_id = getattr(current_user, "tenant_id", 1) or 1
+    """Get detailed debt ledger and order timeline directly from PostgreSQL."""
+    tenant_id = current_user.tenant_id
 
-    c_res = await db.execute(select(Customer).where(Customer.id == customer_id))
+    # Special handling for customer_id == 0: Unassigned / Table Open Tabs
+    if customer_id == 0:
+        orders_stmt = (
+            select(Order)
+            .options(selectinload(Order.items), selectinload(Order.payments))
+            .where(
+                Order.tenant_id == tenant_id,
+                Order.customer_id.is_(None),
+                Order.balance_due > 0,
+                Order.status.not_in(["cancelled"]),
+                (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
+            )
+            .order_by(Order.created_at.desc())
+        )
+        orders_res = await db.execute(orders_stmt)
+        orders = orders_res.scalars().all()
+
+        total_billed = sum(o.grand_total for o in orders)
+        total_paid = sum(o.amount_paid for o in orders)
+        total_due = sum(o.balance_due for o in orders)
+
+        orders_list = []
+        payments_list = []
+
+        for o in orders:
+            orders_list.append({
+                "id": o.id,
+                "order_number": o.order_number,
+                "order_type": o.order_type,
+                "table_id": o.table_id,
+                "grand_total": float(o.grand_total),
+                "amount_paid": float(o.amount_paid),
+                "balance_due": float(o.balance_due),
+                "status": o.status,
+                "payment_status": o.payment_status,
+                "created_at": o.created_at.isoformat() if o.created_at else None,
+                "items_count": len(o.items),
+                "items_summary": ", ".join(f"{int(it.quantity) if it.quantity == int(it.quantity) else it.quantity}x {it.name}" for it in o.items[:4]) + ("..." if len(o.items) > 4 else ""),
+            })
+            for p in o.payments:
+                payments_list.append({
+                    "id": p.id,
+                    "order_id": o.id,
+                    "order_number": o.order_number,
+                    "payment_method": p.payment_mode,
+                    "amount": float(p.amount),
+                    "reference_number": p.transaction_reference,
+                    "status": p.status,
+                    "created_at": p.created_at.isoformat() if p.created_at else None,
+                })
+
+        return {
+            "customer": {
+                "id": 0,
+                "name": "Walk-in & Table Open Tabs",
+                "phone": "Counter / Tables Unassigned",
+                "email": None,
+                "city": "In-Store",
+            },
+            "summary": {
+                "total_billed": float(total_billed),
+                "total_paid": float(total_paid),
+                "total_balance_due": float(total_due),
+                "unpaid_orders_count": len(orders),
+                "total_orders_count": len(orders),
+            },
+            "orders": orders_list,
+            "payments": payments_list,
+        }
+
+    # Standard registered customer
+    c_res = await db.execute(select(Customer).where(Customer.id == customer_id, Customer.tenant_id == tenant_id))
     customer = c_res.scalar_one_or_none()
     if not customer:
-        raise HTTPException(status_code=404, detail="Customer not found")
+        raise HTTPException(status_code=404, detail="Customer not found in database")
 
     orders_res = await db.execute(
         select(Order)
         .options(selectinload(Order.items), selectinload(Order.payments))
         .where(
             Order.tenant_id == tenant_id,
-            Order.customer_id == customer_id,
+            Order.customer_id == customer.id,
             (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
         )
         .order_by(Order.created_at.desc())
@@ -1245,7 +1461,7 @@ async def get_customer_debt_ledger(
             "payment_status": o.payment_status,
             "created_at": o.created_at.isoformat() if o.created_at else None,
             "items_count": len(o.items),
-            "items_summary": ", ".join(f"{it.quantity}x {it.name}" for it in o.items[:3]) + ("..." if len(o.items) > 3 else ""),
+            "items_summary": ", ".join(f"{int(it.quantity) if it.quantity == int(it.quantity) else it.quantity}x {it.name}" for it in o.items[:4]) + ("..." if len(o.items) > 4 else ""),
         })
 
         for p in o.payments:
@@ -1286,29 +1502,45 @@ async def get_customer_debt_ledger(
 @router.post("/debts/settle")
 async def settle_customer_debt(
     body: CustomerDebtSettleSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Settle customer debt with cash/UPI/card payment using FIFO allocation across unpaid bills."""
     from datetime import timezone
-    tenant_id = getattr(current_user, "tenant_id", 1) or 1
-    user_id = getattr(current_user, "id", 1) or 1
+    tenant_id = current_user.tenant_id
+    user_id = current_user.id
 
-    c_res = await db.execute(select(Customer).where(Customer.id == body.customer_id))
-    customer = c_res.scalar_one_or_none()
-    if not customer:
-        raise HTTPException(status_code=404, detail="Customer not found")
-
-    q = (
-        select(Order)
-        .where(
-            Order.tenant_id == tenant_id,
-            Order.customer_id == body.customer_id,
-            Order.balance_due > 0,
-            (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
+    customer_name = "Walk-in & Table Open Tabs"
+    if body.customer_id != 0:
+        c_res = await db.execute(select(Customer).where(Customer.id == body.customer_id, Customer.tenant_id == tenant_id))
+        customer = c_res.scalar_one_or_none()
+        if not customer:
+            raise HTTPException(status_code=404, detail="Customer not found in database")
+        customer_name = customer.name
+        q = (
+            select(Order)
+            .where(
+                Order.tenant_id == tenant_id,
+                Order.customer_id == body.customer_id,
+                Order.balance_due > 0,
+                (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
+            )
+            .order_by(Order.created_at.asc())
         )
-        .order_by(Order.created_at.asc())
-    )
+    else:
+        # Walk-in & Table Open Tabs (unassigned customer)
+        q = (
+            select(Order)
+            .where(
+                Order.tenant_id == tenant_id,
+                Order.customer_id.is_(None),
+                Order.balance_due > 0,
+                Order.status.not_in(["cancelled"]),
+                (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
+            )
+            .order_by(Order.created_at.asc())
+        )
+
     if body.order_ids:
         q = q.where(Order.id.in_(body.order_ids))
 
@@ -1316,7 +1548,7 @@ async def settle_customer_debt(
     unpaid_orders = orders_res.scalars().all()
 
     if not unpaid_orders:
-        raise HTTPException(status_code=400, detail=f"Customer '{customer.name}' has no outstanding debt orders.")
+        raise HTTPException(status_code=400, detail=f"'{customer_name}' has no matching outstanding debt orders.")
 
     total_pending_debt = sum(o.balance_due for o in unpaid_orders)
     payment_remaining = body.amount
@@ -1361,14 +1593,16 @@ async def settle_customer_debt(
 
     await db.commit()
 
-    rem_res = await db.execute(
-        select(func.coalesce(func.sum(Order.balance_due), Decimal("0.00"))).where(
-            Order.tenant_id == tenant_id,
-            Order.customer_id == body.customer_id,
-            Order.balance_due > 0,
-            (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
-        )
+    rem_q = select(func.coalesce(func.sum(Order.balance_due), Decimal("0.00"))).where(
+        Order.tenant_id == tenant_id,
+        Order.balance_due > 0,
+        (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
     )
+    if body.customer_id != 0:
+        rem_q = rem_q.where(Order.customer_id == body.customer_id)
+    else:
+        rem_q = rem_q.where(Order.customer_id.is_(None), Order.status.not_in(["cancelled"]))
+    rem_res = await db.execute(rem_q)
     new_remaining_debt = rem_res.scalar() or Decimal("0.00")
 
     logger.info(
@@ -1380,10 +1614,10 @@ async def settle_customer_debt(
     )
 
     return {
-        "message": f"Successfully recorded payment of ₹{body.amount} for {customer.name}",
+        "message": f"Successfully recorded payment of ₹{body.amount} for {customer_name}",
         "receipt_number": receipt_code,
-        "customer_id": customer.id,
-        "customer_name": customer.name,
+        "customer_id": body.customer_id,
+        "customer_name": customer_name,
         "amount_received": float(body.amount),
         "payment_method": body.payment_method.upper(),
         "previous_debt": float(total_pending_debt),
@@ -1960,14 +2194,79 @@ async def get_kds_live_orders(
     kds_tickets = []
     now = datetime.now()
 
+    # Pre-fetch menu item station codes
+    item_ids = [it.menu_item_id or it.product_id for o in orders for it in o.items if (it.menu_item_id or it.product_id)]
+    item_station_map = {}
+    if item_ids:
+        try:
+            from src.modules.restaurant.models import MenuItem
+            m_res = await db.execute(select(MenuItem.id, MenuItem.kds_station).where(MenuItem.id.in_(item_ids)))
+            for m_id, m_st in m_res.all():
+                if m_st:
+                    item_station_map[m_id] = m_st
+        except Exception as m_err:
+            logger.warning("Could not pre-fetch menu item stations in KDS live", error=str(m_err))
+
+    # Pre-fetch kitchen station names by code
+    station_code_to_name = {}
+    try:
+        from src.modules.orders.models import KitchenStation
+        s_res = await db.execute(select(KitchenStation.code, KitchenStation.name).where(KitchenStation.is_active == True))
+        for s_code, s_name in s_res.all():
+            if s_code:
+                station_code_to_name[s_code.lower()] = s_name
+    except Exception as s_err:
+        logger.warning("Could not pre-fetch kitchen station names in KDS live", error=str(s_err))
+
+    # Pre-fetch dining tables map
+    tables_map = {}
+    table_ids = [o.table_id for o in orders if o.table_id]
+    if table_ids:
+        try:
+            t_res = await db.execute(select(DiningTable.id, DiningTable.table_number).where(DiningTable.id.in_(table_ids)))
+            for t_id, t_num in t_res.all():
+                tables_map[t_id] = t_num
+        except Exception:
+            pass
+
+    # Pre-fetch customers map
+    customers_map = {}
+    cust_ids = [o.customer_id for o in orders if o.customer_id]
+    if cust_ids:
+        try:
+            from src.modules.crm.models import Customer
+            c_res = await db.execute(select(Customer.id, Customer.name).where(Customer.id.in_(cust_ids)))
+            for c_id, c_name in c_res.all():
+                customers_map[c_id] = c_name
+        except Exception:
+            pass
+
+    # Pre-fetch waiters map
+    waiters_map = {}
+    waiter_ids = [o.waiter_id for o in orders if o.waiter_id]
+    if waiter_ids:
+        try:
+            w_res = await db.execute(select(User.id, User.name).where(User.id.in_(waiter_ids)))
+            for w_id, w_name in w_res.all():
+                waiters_map[w_id] = w_name
+        except Exception:
+            pass
+
     for o in orders:
         age_seconds = int((now - o.created_at.replace(tzinfo=None)).total_seconds()) if o.created_at else 0
         items_data = []
         for it in o.items:
             if it.is_voided:
                 continue
-            kds_st = getattr(it, "kds_station", None) or ("Italian" if "pizza" in (it.product_name or "").lower() else ("Drinks" if "chai" in (it.product_name or "").lower() or "tea" in (it.product_name or "").lower() or "coffee" in (it.product_name or "").lower() else None))
-            
+            kds_code = getattr(it, "kds_station", None) or item_station_map.get(it.menu_item_id or it.product_id)
+            kds_display = station_code_to_name.get((kds_code or "").lower()) or (
+                "Italian Kitchen" if "pizza" in (it.product_name or "").lower() else (
+                    "Beverage & Drinks Bar" if any(w in (it.product_name or "").lower() for w in ("chai", "tea", "coffee", "drink", "shake")) else (
+                        "Indian Kitchen" if any(w in (it.product_name or "").lower() for w in ("dosa", "paneer", "thali", "dal")) else None
+                    )
+                )
+            ) or kds_code or "Main Prep"
+
             raw_addons = it.selected_addons if isinstance(it.selected_addons, list) else (it.addons if isinstance(it.addons, list) else [])
             formatted_addons = []
             for a in raw_addons:
@@ -1988,16 +2287,22 @@ async def get_kds_live_orders(
                 "selected_addons": raw_addons,
                 "kds_status": it.kds_status or "pending",
                 "kitchen_note": it.preparation_notes or o.special_instructions or "",
-                "kds_station": kds_st,
-                "station": kds_st or "Main Prep"
+                "kds_station": kds_display,
+                "station": kds_display,
+                "station_code": kds_code,
             })
 
-
+        tbl_num = tables_map.get(o.table_id) or (f"T{o.table_id}" if o.table_id else None)
         kds_tickets.append({
             "id": str(o.id),
             "order_number": o.order_number,
             "token_number": o.token_number or f"#{o.id}",
-            "table_number": f"T{o.table_id}" if o.table_id else (o.order_type.upper() if o.order_type else "T1"),
+            "table_id": o.table_id,
+            "table_name": tbl_num,
+            "table_number": tbl_num or (o.order_type.upper() if o.order_type else "T1"),
+            "customer_name": customers_map.get(o.customer_id) or getattr(o, "customer_name", None) or "Walk-in Guest",
+            "waiter_name": waiters_map.get(o.waiter_id) or getattr(o, "waiter_name", None),
+            "source_channel": o.source_channel or "pos",
             "order_source": o.source_channel or "pos",
             "order_type": o.order_type or "dine_in",
             "status": o.status,
@@ -2361,6 +2666,148 @@ async def get_ai_recommendations(
     ]
     
     return {"status": "success", "recommendations": recommendations[:3]}
+
+
+class WhatsAppInvoiceResponse(BaseModel):
+    status: str
+    phone: str
+    whatsapp_url: str
+    message: str
+    order_number: str
+
+
+@router.post("/{order_id}/whatsapp-invoice", response_model=WhatsAppInvoiceResponse)
+async def dispatch_whatsapp_invoice(
+    order_id: int,
+    phone_number: str | None = Query(None, description="Target customer WhatsApp phone number"),
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Automated WhatsApp Invoicing & Guest Receipts:
+    Generates formatted digital bill summary and direct wa.me link.
+    """
+    stmt = (
+        select(Order)
+        .options(selectinload(Order.items), selectinload(Order.customer))
+        .where(Order.id == order_id)
+    )
+    res = await db.execute(stmt)
+    order = res.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    target_phone = phone_number or (order.customer.phone if order.customer else None) or "919876543210"
+    clean_phone = "".join(filter(str.isdigit, target_phone))
+    if len(clean_phone) == 10:
+        clean_phone = f"91{clean_phone}"
+
+    # Build WhatsApp formatted text message
+    items_summary = "\n".join([f"• {it.quantity}x {it.item_name} — ₹{float(it.total_price):.2f}" for it in order.items])
+    bill_msg = (
+        f"🍽️ *SSR ONE DINING RECEIPT*\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"Order: *#{order.order_number}*\n"
+        f"Date: {order.created_at.strftime('%d-%b-%Y %I:%M %p') if order.created_at else 'Today'}\n"
+        f"Type: {order.order_type}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"{items_summary}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"Subtotal: ₹{float(order.subtotal):.2f}\n"
+        f"Taxes (GST): ₹{float(order.tax_amount or 0):.2f}\n"
+        f"Discount: ₹{float(order.discount_amount or 0):.2f}\n"
+        f"*Net Payable: ₹{float(order.grand_total):.2f}*\n"
+        f"Payment: {order.payment_method or 'CASH'}\n"
+        f"Status: {order.payment_status or 'PAID'}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"🙏 *Thank you for dining with us!* Have a wonderful day!"
+    )
+
+    import urllib.parse
+    encoded_text = urllib.parse.quote(bill_msg)
+    wa_link = f"https://wa.me/{clean_phone}?text={encoded_text}"
+
+    return WhatsAppInvoiceResponse(
+        status="dispatched",
+        phone=clean_phone,
+        whatsapp_url=wa_link,
+        message=bill_msg,
+        order_number=order.order_number,
+    )
+
+
+class AggregatorOrderPayload(BaseModel):
+    channel: str = Field("SWIGGY", description="Aggregator: SWIGGY, ZOMATO, UBEREATS")
+    external_order_id: str
+    customer_name: str | None = "Online Foodie"
+    customer_phone: str | None = None
+    delivery_address: str | None = None
+    items: list[dict[str, Any]] = []
+    subtotal: float = 0.0
+    tax: float = 0.0
+    packaging_charge: float = 0.0
+    grand_total: float
+    notes: str | None = None
+    branch_id: int = 1
+
+
+@router.post("/integrations/aggregators/webhook")
+async def aggregator_order_webhook(
+    payload: AggregatorOrderPayload,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """
+    Food Delivery Aggregator Gateway Webhook:
+    Receives incoming delivery orders from Swiggy, Zomato, and UberEats,
+    normalizes the order, and creates an active delivery order with zero human entry.
+    """
+    tenant_id = 1
+    daily_seq = await get_next_daily_order_number(db, tenant_id, payload.branch_id)
+    agg_order_num = f"{payload.channel[:3]}-{daily_seq}"
+
+    new_order = Order(
+        tenant_id=tenant_id,
+        branch_id=payload.branch_id,
+        order_number=agg_order_num,
+        order_type="DELIVERY",
+        order_source=payload.channel.upper(),
+        status=OrderStatus.PENDING,
+        subtotal=Decimal(str(payload.subtotal or payload.grand_total)),
+        tax_amount=Decimal(str(payload.tax or 0)),
+        discount_amount=Decimal("0.0"),
+        packaging_charge=Decimal(str(payload.packaging_charge or 0)),
+        grand_total=Decimal(str(payload.grand_total)),
+        payment_status="paid",
+        payment_method="ONLINE_AGGREGATOR",
+        notes=f"[{payload.channel.upper()}] Ext ID: {payload.external_order_id} | Addr: {payload.delivery_address or 'N/A'}",
+    )
+    db.add(new_order)
+    await db.flush()
+
+    for it in payload.items:
+        qty = int(it.get("quantity", 1))
+        rate = Decimal(str(it.get("price", it.get("unit_price", 0))))
+        order_item = OrderItem(
+            tenant_id=tenant_id,
+            order_id=new_order.id,
+            item_name=it.get("name", "Aggregator Item"),
+            quantity=qty,
+            unit_price=rate,
+            total_price=rate * qty,
+            special_instructions=it.get("notes") or it.get("instruction"),
+        )
+        db.add(order_item)
+
+    await db.commit()
+    await db.refresh(new_order)
+
+    return {
+        "status": "success",
+        "order_id": new_order.id,
+        "order_number": new_order.order_number,
+        "channel": payload.channel.upper(),
+        "external_order_id": payload.external_order_id,
+    }
 
 
 

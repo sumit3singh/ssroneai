@@ -14,7 +14,8 @@ from src.modules.auth.models import (
     FeatureMaster, FeatureLicense, FileMasterERP
 )
 from src.modules.restaurant.models import MenuCategory, MenuItem
-from src.modules.orders.models import Order, OrderItem, OrderPayment
+from src.modules.orders.models import Order, OrderItem, OrderPayment, KitchenStation
+from src.ai.copilot.models import AIPromptTemplate
 from src.modules.hotel.models import RoomType, Room, Guest, Reservation
 from src.modules.pg_management.models import PGFloor, PGRoom, PGBed, PGResident, PGRentRecord, PGVisitorLog
 from src.modules.inventory.models import ProductCategory, Product, StockEntry, StockMovement, ProductionBatch
@@ -51,6 +52,8 @@ MODEL_MAP: Dict[str, Any] = {
     # POS & Universal Billing
     "menu-categories": MenuCategory,
     "menu-items": MenuItemModel,
+    "kitchen-stations": KitchenStation,
+    "ai-prompt-templates": AIPromptTemplate,
     "pos-orders": Order,
     "order-items": OrderItem,
     "order-payments": OrderPayment,

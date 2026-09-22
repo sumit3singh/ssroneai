@@ -2,7 +2,8 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import {
   Bell, MessageSquare, Send, Plus, Trash2, Edit2,
-  Save, X, ShieldAlert, BarChart3, Clock, Sparkles, Search
+  Save, X, ShieldAlert, BarChart3, Clock, Sparkles, Search,
+  Smartphone, CheckCircle2, Key, ExternalLink
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Button } from "@ssrone/ui";
@@ -17,11 +18,49 @@ export function CommunicationPage() {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "templates" | "logs" | "broadcast">(
+  const [activeTab, setActiveTab] = useState<"dashboard" | "templates" | "logs" | "broadcast" | "whatsapp">(
     currentPath === "/communication/templates" ? "templates" :
       currentPath === "/communication/send" ? "broadcast" :
         currentPath === "/communication/logs" ? "logs" : "dashboard"
   );
+
+  // WhatsApp Gateway Settings state
+  const [waMode, setWaMode] = useState<"DIRECT_FREE" | "META_CLOUD_API">(() => {
+    try {
+      return (localStorage.getItem("whatsapp_gateway_mode") as any) || "DIRECT_FREE";
+    } catch {
+      return "DIRECT_FREE";
+    }
+  });
+  const [waPhoneNumberId, setWaPhoneNumberId] = useState(() => {
+    try { return localStorage.getItem("whatsapp_phone_number_id") || ""; } catch { return ""; }
+  });
+  const [waWabaId, setWaWabaId] = useState(() => {
+    try { return localStorage.getItem("whatsapp_waba_id") || ""; } catch { return ""; }
+  });
+  const [waAccessToken, setWaAccessToken] = useState(() => {
+    try { return localStorage.getItem("whatsapp_access_token") || ""; } catch { return ""; }
+  });
+  const [waAutoSendOnSettle, setWaAutoSendOnSettle] = useState<boolean>(() => {
+    try { return localStorage.getItem("whatsapp_auto_send_on_settle") === "true"; } catch { return false; }
+  });
+  const [waTemplateName, setWaTemplateName] = useState(() => {
+    try { return localStorage.getItem("whatsapp_template_name") || "order_receipt_v1"; } catch { return "order_receipt_v1"; }
+  });
+
+  const handleSaveWhatsAppConfig = () => {
+    try {
+      localStorage.setItem("whatsapp_gateway_mode", waMode);
+      localStorage.setItem("whatsapp_phone_number_id", waPhoneNumberId);
+      localStorage.setItem("whatsapp_waba_id", waWabaId);
+      localStorage.setItem("whatsapp_access_token", waAccessToken);
+      localStorage.setItem("whatsapp_auto_send_on_settle", String(waAutoSendOnSettle));
+      localStorage.setItem("whatsapp_template_name", waTemplateName);
+      toast.success("WhatsApp Gateway settings saved successfully!");
+    } catch (e) {
+      toast.error("Failed to save settings to localStorage");
+    }
+  };
 
   useEffect(() => {
     if (currentPath === "/communication/templates") {
@@ -231,6 +270,14 @@ export function CommunicationPage() {
           >
             <Send size={13} />
             <span>Quick Send</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("whatsapp")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${activeTab === "whatsapp" ? "bg-card text-emerald-600 dark:text-emerald-400 shadow-xs" : "text-muted-foreground"
+              }`}
+          >
+            <Smartphone size={13} className="text-emerald-500" />
+            <span>WhatsApp Settings</span>
           </button>
         </div>
       </div>
@@ -473,6 +520,254 @@ export function CommunicationPage() {
               </span>
             </div>
           </Card>
+        </div>
+      )}
+
+      {/* Tab 5: WhatsApp Gateway Settings */}
+      {activeTab === "whatsapp" && (
+        <div className="space-y-6 animate-in fade-in duration-150">
+          {/* Header Card */}
+          <Card className="p-5 border border-border bg-gradient-to-r from-emerald-500/5 via-transparent to-transparent">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <Smartphone size={20} />
+                  </span>
+                  <div>
+                    <h2 className="text-base font-bold text-foreground">WhatsApp Billing &amp; Notification Engine</h2>
+                    <p className="text-xs text-muted-foreground">
+                      Configure how customer receipts, invoices, and payment confirmations are sent to customer WhatsApp numbers.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <Button
+                onClick={handleSaveWhatsAppConfig}
+                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md text-xs font-bold cursor-pointer"
+              >
+                <Save size={14} />
+                Save Settings
+              </Button>
+            </div>
+          </Card>
+
+          {/* Mode Selector Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Mode 1: Free Direct Click-to-Chat */}
+            <div
+              onClick={() => setWaMode("DIRECT_FREE")}
+              className={`p-5 rounded-2xl border-2 transition-all cursor-pointer relative ${
+                waMode === "DIRECT_FREE"
+                  ? "border-emerald-500 bg-emerald-500/5 shadow-md"
+                  : "border-border hover:border-border/80 bg-card"
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                    <MessageSquare size={18} />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground">Direct Click-to-Chat (wa.me)</h3>
+                    <span className="inline-block text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 mt-0.5">
+                      100% Free • No API Key Needed
+                    </span>
+                  </div>
+                </div>
+                {waMode === "DIRECT_FREE" && (
+                  <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+                )}
+              </div>
+
+              <ul className="mt-4 space-y-2 text-xs text-muted-foreground">
+                <li className="flex items-center gap-2">
+                  <span className="text-emerald-500 font-bold">✓</span> Zero setup required — works out of the box Day 1.
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-emerald-500 font-bold">✓</span> Opens WhatsApp Web / Desktop with receipt pre-formatted.
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-emerald-500 font-bold">✓</span> Zero monthly bills or Meta conversation charges.
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-emerald-500 font-bold">✓</span> Cashier taps &quot;WhatsApp Bill&quot; on thermal print dialog.
+                </li>
+              </ul>
+            </div>
+
+            {/* Mode 2: Automated Meta Cloud API */}
+            <div
+              onClick={() => setWaMode("META_CLOUD_API")}
+              className={`p-5 rounded-2xl border-2 transition-all cursor-pointer relative ${
+                waMode === "META_CLOUD_API"
+                  ? "border-emerald-500 bg-emerald-500/5 shadow-md"
+                  : "border-border hover:border-border/80 bg-card"
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 rounded-lg bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                    <Key size={18} />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground">Meta WhatsApp Cloud API</h3>
+                    <span className="inline-block text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-600 mt-0.5">
+                      Hands-Free Server Dispatch
+                    </span>
+                  </div>
+                </div>
+                {waMode === "META_CLOUD_API" && (
+                  <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+                )}
+              </div>
+
+              <ul className="mt-4 space-y-2 text-xs text-muted-foreground">
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500 font-bold">✓</span> Fully automated server-side message delivery on bill settle.
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500 font-bold">✓</span> Requires Meta Business Manager &amp; WhatsApp Business Account.
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500 font-bold">✓</span> Uses registered business phone number &amp; verified badge.
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500 font-bold">✓</span> Subject to Meta per-conversation utility rates.
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Configuration Form based on Mode */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-2 p-5 border border-border space-y-5">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <ShieldAlert size={16} className="text-primary" />
+                Gateway Configuration Details
+              </h3>
+
+              {waMode === "DIRECT_FREE" ? (
+                <div className="space-y-4 text-xs">
+                  <div className="p-4 rounded-xl bg-muted/30 border border-border space-y-2">
+                    <h4 className="font-bold text-foreground">How Direct Free Mode Works:</h4>
+                    <p className="text-muted-foreground leading-relaxed">
+                      Whenever the cashier settles an order at the POS or completes a table checkout, the thermal receipt modal pops up with a green <strong className="text-foreground">WhatsApp Bill</strong> button. Clicking it instantly launches WhatsApp with the customer&apos;s phone number and the complete itemized bill pre-typed.
+                    </p>
+                    <p className="text-muted-foreground leading-relaxed">
+                      If the customer did not provide a phone number during ordering, the cashier can type a 10-digit number right in the thermal receipt dialog in 2 seconds.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-surface">
+                    <div>
+                      <span className="font-semibold text-foreground">Default Country Calling Code</span>
+                      <p className="text-2xs text-muted-foreground">Automatically prefixed when sending to 10-digit customer mobile numbers.</p>
+                    </div>
+                    <span className="font-mono font-bold text-xs bg-muted px-3 py-1 rounded-md text-foreground">+91 (India)</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4 text-xs">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">WhatsApp Phone Number ID</Label>
+                    <Input
+                      placeholder="e.g. 109283746501928"
+                      value={waPhoneNumberId}
+                      onChange={(e) => setWaPhoneNumberId(e.target.value)}
+                      className="font-mono text-xs"
+                    />
+                    <span className="text-3xs text-muted-foreground">Found under Meta Developers &gt; WhatsApp &gt; API Setup &gt; Phone number ID.</span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">WhatsApp Business Account (WABA) ID</Label>
+                    <Input
+                      placeholder="e.g. 293847561029384"
+                      value={waWabaId}
+                      onChange={(e) => setWaWabaId(e.target.value)}
+                      className="font-mono text-xs"
+                    />
+                    <span className="text-3xs text-muted-foreground">Found under Meta Developers &gt; WhatsApp &gt; API Setup &gt; WhatsApp Business Account ID.</span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Permanent System User Access Token</Label>
+                    <Input
+                      type="password"
+                      placeholder="EAAG..."
+                      value={waAccessToken}
+                      onChange={(e) => setWaAccessToken(e.target.value)}
+                      className="font-mono text-xs"
+                    />
+                    <span className="text-3xs text-muted-foreground">Create a permanent token with whatsapp_business_messaging permissions in Meta Business Manager.</span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Approved Meta Template Name</Label>
+                    <Input
+                      placeholder="e.g. order_receipt_v1"
+                      value={waTemplateName}
+                      onChange={(e) => setWaTemplateName(e.target.value)}
+                      className="font-mono text-xs"
+                    />
+                    <span className="text-3xs text-muted-foreground">The utility template name pre-approved in your Meta WhatsApp Manager.</span>
+                  </div>
+
+                  <div className="pt-2">
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={waAutoSendOnSettle}
+                        onChange={(e) => setWaAutoSendOnSettle(e.target.checked)}
+                        className="rounded border-input text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                      />
+                      <div>
+                        <span className="font-semibold text-foreground">Automatically dispatch WhatsApp receipt when payment is settled</span>
+                        <p className="text-3xs text-muted-foreground">Calls backend invoice dispatch API without needing the cashier to click.</p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+            </Card>
+
+            {/* Live Message Preview */}
+            <Card className="p-5 border border-border space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                  Live Customer WhatsApp Preview
+                </h3>
+                <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                  Sample
+                </span>
+              </div>
+
+              {/* WhatsApp Chat Bubble Mock */}
+              <div className="p-4 rounded-2xl bg-[#ECE5DD] dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 space-y-2 text-xs">
+                <div className="bg-white dark:bg-[#1f2c34] text-zinc-900 dark:text-zinc-100 p-3.5 rounded-xl shadow-xs space-y-1.5 font-mono text-[11px] leading-relaxed select-all">
+                  <p className="font-bold text-emerald-700 dark:text-emerald-400">SSR ONE RESTAURANT &amp; BAR</p>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Order #ORD-8492 • Table: T-04</p>
+                  <p className="text-zinc-400">--------------------------------</p>
+                  <p>1x Paneer Butter Masala - ₹280.00</p>
+                  <p>2x Butter Naan - ₹120.00</p>
+                  <p>1x Fresh Lime Soda - ₹90.00</p>
+                  <p className="text-zinc-400">--------------------------------</p>
+                  <p>Subtotal: ₹490.00</p>
+                  <p>CGST (2.5%): ₹12.25</p>
+                  <p>SGST (2.5%): ₹12.25</p>
+                  <p className="font-bold text-emerald-700 dark:text-emerald-400">NET TOTAL: ₹514.50</p>
+                  <p className="text-zinc-400">--------------------------------</p>
+                  <p className="text-[10px] text-zinc-600 dark:text-zinc-300">Thank you for dining with us! Visit again.</p>
+                  <div className="text-right text-[9px] text-zinc-400 pt-1">11:42 PM ✓✓</div>
+                </div>
+              </div>
+
+              <p className="text-3xs text-muted-foreground text-center">
+                This exact itemized bill is generated dynamically from live cart data when settled in POS.
+              </p>
+            </Card>
+          </div>
         </div>
       )}
 

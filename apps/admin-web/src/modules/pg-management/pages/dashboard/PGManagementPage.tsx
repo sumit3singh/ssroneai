@@ -61,6 +61,10 @@ export function PGManagementPage() {
           id_proof_type: r.id_type || "Aadhaar",
           id_proof_number: r.id_proof_number || r.id_number || "Verified",
           emergency_contact: r.phone,
+          bed: r.bed_code || (r.bed_id ? String(r.bed_id) : "-"),
+          agreement_code: r.agreement_code || "AGR-AUTO",
+          is_active: r.is_active !== undefined ? Boolean(r.is_active) : true,
+          avatar_color: r.avatar_color || "bg-indigo-500",
         }));
         setResidents(formatted);
       } else {

@@ -44,6 +44,7 @@ interface POSTableTrackerPageProps {
   onSelectOrderModeForNewOrder?: (mode: "takeaway" | "delivery" | "dine_in") => void;
   onRefresh?: () => void;
   onOptimisticOrderSettle?: (orderNumber: string, tableId?: number | string) => void;
+  onPrintReceipt?: (receiptPayload?: any) => void;
   isFullScreenPOS?: boolean;
   onToggleFullScreen?: () => void;
   onSwitchView?: (view: "billing" | "tables" | "orders" | "kds" | "shift") => void;
@@ -160,10 +161,37 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
   };
 
   // Filter active orders (status not completed/paid/cancelled)
-  const activeOrders = orders.filter((o) => {
-    const s = (o.status || "").toLowerCase();
-    return !["completed", "paid", "cancelled"].includes(s);
-  });
+  // Deduplicate by order_number: if an order is marked completed/paid anywhere, exclude it completely!
+  const activeOrders = React.useMemo(() => {
+    // 1. Build set of settled/completed order numbers
+    const settledOrderNumbers = new Set<string>();
+    for (const o of orders) {
+      if (!o || !o.order_number) continue;
+      const s = (o.status || "").toLowerCase();
+      const p = (o.payment_status || "").toLowerCase();
+      if (s === "completed" || s === "paid" || s === "cancelled" || p === "paid") {
+        settledOrderNumbers.add(String(o.order_number));
+      }
+    }
+
+    // 2. Filter active orders: must not be in settledOrderNumbers, deduplicate by order_number
+    const activeMap = new Map<string, POSOrder>();
+    for (const o of orders) {
+      if (!o || !o.order_number) continue;
+      const numStr = String(o.order_number);
+      if (settledOrderNumbers.has(numStr)) continue;
+
+      const s = (o.status || "").toLowerCase();
+      const p = (o.payment_status || "").toLowerCase();
+      if (["completed", "paid", "cancelled"].includes(s) || p === "paid") continue;
+
+      // Prefer non-local ID over local- temporary ID
+      if (!activeMap.has(numStr) || String(activeMap.get(numStr)!.id).startsWith("local-")) {
+        activeMap.set(numStr, o);
+      }
+    }
+    return Array.from(activeMap.values());
+  }, [orders]);
 
   // Helper to find ALL active orders for a given table (Multi-Order / Table Sharing)
   const getAllActiveOrdersForTable = (table: POSTable): POSOrder[] => {
@@ -332,13 +360,14 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
               )}
               {onToggleFullScreen && (
                 <Button
-                  variant={isFullScreenPOS ? "destructive" : "outline"}
+                  variant={isFullScreenPOS ? "danger" : "outline"}
                   size="sm"
                   onClick={onToggleFullScreen}
                   className="h-8 gap-1 text-xs font-semibold rounded-md cursor-pointer px-2"
+                  title={isFullScreenPOS ? "Exit Fullscreen (Press F11)" : "Enter Fullscreen (Press F11)"}
                 >
                   {isFullScreenPOS ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-                  <span className="hidden sm:inline">{isFullScreenPOS ? "Exit Fullscreen" : "Fullscreen"}</span>
+                  <span className="hidden sm:inline">{isFullScreenPOS ? "Exit Fullscreen" : "Fullscreen (F11)"}</span>
                 </Button>
               )}
               <Button
@@ -361,7 +390,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                 <span>Customer Debt (Udhar)</span>
               </Button>
               <Button
-                variant="default"
+                variant="primary"
                 size="sm"
                 onClick={() => goToView("billing")}
                 className="h-8 gap-1.5 text-xs font-bold rounded-md cursor-pointer px-3 bg-primary text-primary-foreground hover:opacity-90"
@@ -770,7 +799,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
               </div>
 
               <Button
-                variant="default"
+                variant="primary"
                 size="sm"
                 onClick={() => {
                   const ord = previewOrderModal;

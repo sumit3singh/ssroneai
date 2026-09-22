@@ -383,7 +383,7 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
               <IndianLiveClock compact className="hidden sm:inline-flex" />
               {onToggleFullScreen && (
                 <Button
-                  variant={isFullScreenPOS ? "destructive" : "secondary"}
+                  variant={isFullScreenPOS ? "danger" : "secondary"}
                   size="sm"
                   onClick={onToggleFullScreen}
                   className="h-8 gap-1 text-xs font-bold rounded cursor-pointer px-2.5 shadow-2xs"

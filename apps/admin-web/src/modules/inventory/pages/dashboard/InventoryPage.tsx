@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { 
   Package, Plus, Search, AlertTriangle, X, ArrowDown, ArrowUp, 
-  RefreshCw, BarChart2, Users, DollarSign, ArrowRight, History, Save
+  RefreshCw, BarChart2, Users, DollarSign, ArrowRight, History, Save,
+  Truck, Factory
 } from "lucide-react";
 import { Button } from "@ssrone/ui";
 import { Input } from "@ssrone/ui";
@@ -10,6 +11,8 @@ import { Badge } from "@ssrone/ui";
 import { cn } from "@/shared/utils/cn";
 import { formatCurrency, formatNumber } from "@/shared/utils/formatters";
 import { api } from "@ssrone/api-client";
+import { StockGRNModal } from "../transaction/StockGRNModal";
+import { ProductionBatchModal } from "../transaction/ProductionBatchModal";
 
 interface StockItem {
   id: string;
@@ -34,7 +37,17 @@ export function InventoryPage() {
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [isGRNModalOpen, setIsGRNModalOpen] = useState(false);
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
+
+  useEffect(() => {
+    if (currentPath.includes("/grn")) {
+      setIsGRNModalOpen(true);
+    } else if (currentPath.includes("/batches")) {
+      setIsBatchModalOpen(true);
+    }
+  }, [currentPath]);
 
   // Form states
   const [newStock, setNewStock] = useState({
@@ -158,6 +171,24 @@ export function InventoryPage() {
           >
             <RefreshCw size={15} className={isLoading ? "animate-spin" : ""} />
           </button>
+
+          <Button
+            variant="outline"
+            onClick={() => setIsGRNModalOpen(true)}
+            className="font-extrabold flex items-center gap-2 border-primary/30 text-primary hover:bg-primary/10"
+          >
+            <Truck size={15} />
+            <span>Goods Receipt (GRN)</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => setIsBatchModalOpen(true)}
+            className="font-extrabold flex items-center gap-2 border-amber-500/30 text-amber-500 hover:bg-amber-500/10"
+          >
+            <Factory size={15} />
+            <span>Production Batch</span>
+          </Button>
 
           <Button
             onClick={() => setShowAddModal(true)}
@@ -388,6 +419,19 @@ export function InventoryPage() {
           </div>
         </div>
       )}
+
+      {/* Goods Receipt Note (GRN) Inward Modal */}
+      <StockGRNModal
+        isOpen={isGRNModalOpen}
+        onClose={() => setIsGRNModalOpen(false)}
+        onSuccess={fetchInventoryData}
+      />
+
+      {/* Kitchen & Bakery Production Run Modal */}
+      <ProductionBatchModal
+        isOpen={isBatchModalOpen}
+        onClose={() => setIsBatchModalOpen(false)}
+      />
     </div>
   );
 }

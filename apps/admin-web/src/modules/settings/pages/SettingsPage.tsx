@@ -1,13 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouterState, useNavigate } from "@tanstack/react-router";
 import {
-  Settings as SettingsIcon, Palette, Bell, Plug, FileText, ArrowLeft, Save, Printer, Clock
+  Settings as SettingsIcon, Palette, Bell, Plug, FileText, ArrowLeft, Save, Printer, Clock,
+  ShieldCheck, Puzzle
 } from "lucide-react";
 import { Card, CardContent, Button, PageHeader, PageContainer } from "@ssrone/ui";
 import { FormRenderer } from "@ssrone/ui";
 import { toast } from "sonner";
+import { ApprovalRequestsModal } from "./ApprovalRequestsModal";
+import { PluginConfigModal } from "./PluginConfigModal";
+import { POSThermalPrintersPage } from "../../pos/pages/settings/POSThermalPrintersPage";
 
 const SETTINGS_SECTIONS = [
+  { id: "approvals", icon: ShieldCheck, label: "Maker-Checker Approvals", desc: "Audit and authorize high-value discounts, refunds, and expense vouchers" },
+  { id: "plugins", icon: Puzzle, label: "Installed Plugins & Integrations", desc: "Manage third-party connectors, webhooks, Tally ERP, and WhatsApp gateways" },
   { id: "branding", icon: Palette, label: "Branding & Theme Studio", desc: "Customize tenant logo, HSL color palette, and store title" },
   { id: "notifications", icon: Bell, label: "Notifications & Alerts", desc: "Configure email, SMS, and WhatsApp notification templates" },
   { id: "integrations", icon: Plug, label: "Integrations & Payment Gateways", desc: "Connect UPI QR code, Razorpay, food aggregators, Tally" },
@@ -20,12 +26,24 @@ export function SettingsPage() {
   const currentPath = routerState.location.pathname;
 
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [isApprovalsModalOpen, setIsApprovalsModalOpen] = useState(false);
+  const [isPluginsModalOpen, setIsPluginsModalOpen] = useState(false);
 
   const navigate = useNavigate();
 
+  useEffect(() => {
+    if (currentPath.includes("/approvals")) {
+      setIsApprovalsModalOpen(true);
+    } else if (currentPath.includes("/plugins")) {
+      setIsPluginsModalOpen(true);
+    } else if (currentPath.includes("/pos/settings") || currentPath.includes("/printers")) {
+      setActiveSection("printers");
+    }
+  }, [currentPath]);
+
   const handleBack = () => {
     setActiveSection(null);
-    if (currentPath.startsWith("/settings/")) {
+    if (currentPath.startsWith("/settings/") || currentPath.includes("/pos/settings")) {
       navigate({ to: "/settings" });
     }
   };
@@ -51,29 +69,17 @@ export function SettingsPage() {
 
   if (activeSection === "printers") {
     return (
-      <PageContainer>
-        <button
-          onClick={handleBack}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors cursor-pointer"
-        >
-          <ArrowLeft size={14} /> Back to Settings
-        </button>
-
-        <PageHeader
-          title="POS & Thermal Printers"
-          description="Configure USB, LAN & Bluetooth KOT receipt thermal printers"
-          icon={<Printer size={18} />}
-          badge="Coming Soon"
-        />
-
-        <div className="py-16 text-center border border-dashed border-border rounded-md bg-muted/20 space-y-2">
-          <Clock size={32} className="mx-auto text-muted-foreground/50" />
-          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Module Under Development</h3>
-          <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-            Hardware printer driver integrations are currently being enhanced for direct ESC/POS network thermal printing.
-          </p>
+      <div className="space-y-2">
+        <div className="px-6 pt-4">
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-semibold transition-colors cursor-pointer"
+          >
+            <ArrowLeft size={14} /> Back to All Settings
+          </button>
         </div>
-      </PageContainer>
+        <POSThermalPrintersPage />
+      </div>
     );
   }
 
@@ -234,7 +240,11 @@ export function SettingsPage() {
         {SETTINGS_SECTIONS.map((section) => (
           <div
             key={section.id}
-            onClick={() => setActiveSection(section.id)}
+            onClick={() => {
+              if (section.id === "approvals") setIsApprovalsModalOpen(true);
+              else if (section.id === "plugins") setIsPluginsModalOpen(true);
+              else setActiveSection(section.id);
+            }}
             className="bg-card border border-border rounded-md p-4 hover:border-primary/40 transition-all cursor-pointer shadow-2xs group"
           >
             <div className="w-8 h-8 rounded bg-primary/10 border border-primary/20 flex items-center justify-center mb-2.5 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
@@ -245,6 +255,18 @@ export function SettingsPage() {
           </div>
         ))}
       </div>
+
+      {/* Approvals Modal */}
+      <ApprovalRequestsModal
+        isOpen={isApprovalsModalOpen}
+        onClose={() => setIsApprovalsModalOpen(false)}
+      />
+
+      {/* Plugins Modal */}
+      <PluginConfigModal
+        isOpen={isPluginsModalOpen}
+        onClose={() => setIsPluginsModalOpen(false)}
+      />
     </PageContainer>
   );
 }

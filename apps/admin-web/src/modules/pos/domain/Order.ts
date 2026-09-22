@@ -118,7 +118,7 @@ export class Order {
   }
 
   canTransitionTo(nextStatus: OrderStatus): boolean {
-    const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
+    const allowedTransitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
       PENDING: ["CONFIRMED", "PREPARING", "CANCELLED"],
       CONFIRMED: ["PREPARING", "CANCELLED"],
       PREPARING: ["READY", "CANCELLED"],

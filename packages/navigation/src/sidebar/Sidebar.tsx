@@ -24,6 +24,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         if (segment === "hrms" || segment === "hr") return "hr";
         if (segment === "ai-copilot") return "ai";
         if (segment === "platform-studio" || segment === "master-studio" || segment === "workflow" || segment === "communication") return "settings";
+        if (segment === "apps") return "customization";
         if (navigationEngine.getModuleConfig(segment)) return segment;
         return "pos";
     };

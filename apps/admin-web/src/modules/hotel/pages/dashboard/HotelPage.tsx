@@ -11,6 +11,9 @@ import { cn } from "@/shared/utils/cn";
 import { formatCurrency } from "@/shared/utils/formatters";
 import { api } from "@ssrone/api-client";
 import type { RoomStatus } from "@/shared/types";
+import { RoomTypeMasterModal } from "../master/RoomTypeMasterModal";
+import { GuestDirectoryModal } from "../master/GuestDirectoryModal";
+import { ReservationBookingModal } from "../transaction/ReservationBookingModal";
 
 interface Room {
   id: string;
@@ -42,8 +45,17 @@ export function HotelPage() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
 
-  // Selection states for modal
+  // Selection states for modals
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showRoomTypeModal, setShowRoomTypeModal] = useState(false);
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const [showReservationModal, setShowReservationModal] = useState(false);
+
+  useEffect(() => {
+    if (currentPath.includes("/guests")) setShowGuestModal(true);
+    if (currentPath.includes("/reservations")) setShowReservationModal(true);
+    if (currentPath === "/hotel/rooms") setShowRoomTypeModal(true);
+  }, [currentPath]);
   const [newRoom, setNewRoom] = useState({
     room_number: "",
     floor: "1st Floor",
@@ -125,6 +137,33 @@ export function HotelPage() {
             >
               <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
             </button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowRoomTypeModal(true)}
+              className="text-xs font-medium gap-1.5 cursor-pointer"
+            >
+              <Bed size={14} /> Room Types
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowGuestModal(true)}
+              className="text-xs font-medium gap-1.5 cursor-pointer"
+            >
+              <Users size={14} /> Guest Directory
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowReservationModal(true)}
+              className="text-xs font-medium gap-1.5 cursor-pointer"
+            >
+              <Calendar size={14} /> New Reservation
+            </Button>
 
             <Button
               onClick={() => setShowAddModal(true)}
@@ -293,6 +332,26 @@ export function HotelPage() {
           </div>
         </div>
       )}
+
+      {/* Room Type & Rate Card Master Modal */}
+      <RoomTypeMasterModal
+        isOpen={showRoomTypeModal}
+        onClose={() => setShowRoomTypeModal(false)}
+        onRoomTypeUpdated={fetchRooms}
+      />
+
+      {/* Guest Directory Modal */}
+      <GuestDirectoryModal
+        isOpen={showGuestModal}
+        onClose={() => setShowGuestModal(false)}
+      />
+
+      {/* Reservation Booking Modal */}
+      <ReservationBookingModal
+        isOpen={showReservationModal}
+        onClose={() => setShowReservationModal(false)}
+        onReservationCreated={fetchRooms}
+      />
     </PageContainer>
   );
 }

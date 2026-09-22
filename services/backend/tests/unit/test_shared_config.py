@@ -18,3 +18,16 @@ def test_settings_properties():
     assert settings.redis is not None
     assert settings.jwt is not None
     assert settings.ai is not None
+
+
+def test_database_url_normalization():
+    # Test standard postgresql URL with sslmode=require
+    db = DatabaseSettings(DATABASE_URL="postgresql://user:pass@ep-cool.neon.tech/cafedb?sslmode=require")
+    assert db.async_url == "postgresql+asyncpg://user:pass@ep-cool.neon.tech/cafedb?ssl=require"
+    assert db.sync_url == "postgresql+psycopg2://user:pass@ep-cool.neon.tech/cafedb?sslmode=require"
+
+    # Test postgres:// shorthand
+    db_short = DatabaseSettings(DATABASE_URL="postgres://user:pass@db.supabase.co:5432/postgres")
+    assert db_short.async_url == "postgresql+asyncpg://user:pass@db.supabase.co:5432/postgres"
+    assert db_short.sync_url == "postgresql+psycopg2://user:pass@db.supabase.co:5432/postgres"
+

@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database.engine import get_db_session
-from src.modules.auth.dependencies import get_current_user, get_optional_user
+from src.modules.auth.dependencies import get_current_user
 from src.modules.auth.models import User
 from src.modules.pg_management.models import (
     BedStatus, PGBed, PGFloor, PGRentRecord, PGResident, PGRoom, PGVisitorLog, RentStatus, ResidentStatus
@@ -114,10 +114,10 @@ class PGVisitorLogCreateSchema(BaseModel):
 @router.get("/dashboard")
 async def get_pg_dashboard_kpis(
     branch_id: int | None = None,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
 
     try:
         # 1. Total active residents
@@ -183,10 +183,10 @@ async def get_pg_dashboard_kpis(
 
 @router.get("/floors", response_model=list[PGFloorResponse])
 async def list_floors(
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[PGFloorResponse]:
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
     result = await db.execute(select(PGFloor).where(PGFloor.tenant_id == tenant_id, PGFloor.is_deleted == False))
     return [PGFloorResponse.model_validate(f) for f in result.scalars().all()]
 
@@ -194,11 +194,11 @@ async def list_floors(
 @router.post("/floors", response_model=PGFloorResponse, status_code=status.HTTP_201_CREATED)
 async def create_floor(
     body: PGFloorCreateSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> PGFloorResponse:
-    tenant_id = current_user.tenant_id if current_user else 1
-    user_id = current_user.id if current_user else 1
+    tenant_id = current_user.tenant_id
+    user_id = current_user.id
 
     floor = PGFloor(
         tenant_id=tenant_id,
@@ -217,10 +217,10 @@ async def create_floor(
 
 @router.get("/rooms", response_model=list[PGRoomResponse])
 async def list_rooms(
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[PGRoomResponse]:
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
     result = await db.execute(select(PGRoom).where(PGRoom.tenant_id == tenant_id, PGRoom.is_deleted == False))
     return [PGRoomResponse.model_validate(r) for r in result.scalars().all()]
 
@@ -228,11 +228,11 @@ async def list_rooms(
 @router.post("/rooms", response_model=PGRoomResponse, status_code=status.HTTP_201_CREATED)
 async def create_room(
     body: PGRoomCreateSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> PGRoomResponse:
-    tenant_id = current_user.tenant_id if current_user else 1
-    user_id = current_user.id if current_user else 1
+    tenant_id = current_user.tenant_id
+    user_id = current_user.id
 
     room = PGRoom(
         tenant_id=tenant_id,
@@ -268,10 +268,10 @@ async def create_room(
 @router.get("/beds", response_model=list[PGBedResponse])
 async def list_beds(
     room_id: int | None = None,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[PGBedResponse]:
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
     query = select(PGBed).where(PGBed.tenant_id == tenant_id, PGBed.is_deleted == False)
     if room_id:
         query = query.where(PGBed.room_id == room_id)
@@ -284,10 +284,10 @@ async def list_beds(
 @router.get("/residents", response_model=list[PGResidentResponse])
 @alias_router.get("/residents", response_model=list[PGResidentResponse])
 async def list_residents(
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[PGResidentResponse]:
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
     result = await db.execute(select(PGResident).where(PGResident.tenant_id == tenant_id, PGResident.is_deleted == False))
     return [PGResidentResponse.model_validate(r) for r in result.scalars().all()]
 
@@ -296,11 +296,11 @@ async def list_residents(
 @alias_router.post("/residents", response_model=PGResidentResponse, status_code=status.HTTP_201_CREATED)
 async def create_resident(
     body: PGResidentCreateSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> PGResidentResponse:
-    tenant_id = current_user.tenant_id if current_user else 1
-    user_id = current_user.id if current_user else 1
+    tenant_id = current_user.tenant_id
+    user_id = current_user.id
 
     if body.bed_id:
         bed_res = await db.execute(select(PGBed).where(PGBed.id == body.bed_id, PGBed.tenant_id == tenant_id))
@@ -346,10 +346,10 @@ async def create_resident(
 @alias_router.delete("/residents/{resident_id}", status_code=status.HTTP_200_OK)
 async def delete_resident(
     resident_id: int,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
     result = await db.execute(select(PGResident).where(PGResident.id == resident_id, PGResident.tenant_id == tenant_id))
     resident = result.scalar_one_or_none()
     if not resident:
@@ -373,11 +373,11 @@ async def delete_resident(
 @router.post("/rent/collect")
 async def collect_rent(
     body: CollectRentSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    tenant_id = current_user.tenant_id if current_user else 1
-    user_id = current_user.id if current_user else 1
+    tenant_id = current_user.tenant_id
+    user_id = current_user.id
 
     result = await db.execute(
         select(PGRentRecord).where(
@@ -404,3 +404,157 @@ async def collect_rent(
 
     await db.commit()
     return {"message": "Rent payment recorded in PostgreSQL DB", "status": record.status}
+
+
+# ─── Rent Records & Assessment ───────────────────────────────────
+
+class PGRentRecordResponse(BaseModel):
+    id: int
+    resident_id: int
+    resident_name: str | None = None
+    rent_month: str
+    amount: Decimal
+    paid_amount: Decimal
+    status: str
+    model_config = {"from_attributes": True}
+
+
+class PGRentAssessSchema(BaseModel):
+    resident_id: int
+    rent_month: str
+    amount: Decimal = Field(gt=0)
+
+
+@router.get("/rent-records")
+@alias_router.get("/rent-records")
+async def list_rent_records(
+    resident_id: int | None = None,
+    rent_month: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[PGRentRecordResponse]:
+    tenant_id = current_user.tenant_id
+    query = select(PGRentRecord).where(PGRentRecord.tenant_id == tenant_id, PGRentRecord.is_deleted == False)
+    if resident_id:
+        query = query.where(PGRentRecord.resident_id == resident_id)
+    if rent_month:
+        query = query.where(PGRentRecord.rent_month == rent_month)
+    
+    result = await db.execute(query.order_by(PGRentRecord.rent_month.desc()))
+    records = result.scalars().all()
+    
+    # Enrich resident names
+    out: list[PGRentRecordResponse] = []
+    for r in records:
+        res_stmt = await db.execute(select(PGResident.full_name).where(PGResident.id == r.resident_id))
+        res_name = res_stmt.scalar_one_or_none() or "Resident"
+        out.append(PGRentRecordResponse(
+            id=r.id,
+            resident_id=r.resident_id,
+            resident_name=res_name,
+            rent_month=r.rent_month,
+            amount=r.amount,
+            paid_amount=r.paid_amount,
+            status=r.status
+        ))
+    return out
+
+
+@router.post("/rent-records/assess", status_code=status.HTTP_201_CREATED)
+@alias_router.post("/rent-records/assess", status_code=status.HTTP_201_CREATED)
+async def assess_rent(
+    body: PGRentAssessSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    tenant_id = current_user.tenant_id
+    user_id = current_user.id
+
+    record = PGRentRecord(
+        tenant_id=tenant_id,
+        resident_id=body.resident_id,
+        rent_month=body.rent_month,
+        amount=body.amount,
+        paid_amount=Decimal("0.00"),
+        status=RentStatus.UNPAID,
+        created_by=user_id,
+    )
+    db.add(record)
+    await db.commit()
+    return {"message": "Rent assessed successfully", "id": record.id, "status": record.status}
+
+
+# ─── Visitor Gatepass Logs ───────────────────────────────────────
+
+class PGVisitorLogCreateSchema(BaseModel):
+    resident_id: int | None = None
+    visitor_name: str
+    visitor_phone: str
+
+
+class PGVisitorLogResponse(BaseModel):
+    id: int
+    resident_id: int | None = None
+    visitor_name: str
+    visitor_phone: str
+    check_in_time: datetime
+    check_out_time: datetime | None = None
+    model_config = {"from_attributes": True}
+
+
+@router.get("/visitors", response_model=list[PGVisitorLogResponse])
+@alias_router.get("/visitors", response_model=list[PGVisitorLogResponse])
+async def list_visitors(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[PGVisitorLogResponse]:
+    tenant_id = current_user.tenant_id
+    result = await db.execute(
+        select(PGVisitorLog)
+        .where(PGVisitorLog.tenant_id == tenant_id, PGVisitorLog.is_deleted == False)
+        .order_by(PGVisitorLog.check_in_time.desc())
+        .limit(100)
+    )
+    return [PGVisitorLogResponse.model_validate(v) for v in result.scalars().all()]
+
+
+@router.post("/visitors", response_model=PGVisitorLogResponse, status_code=status.HTTP_201_CREATED)
+@alias_router.post("/visitors", response_model=PGVisitorLogResponse, status_code=status.HTTP_201_CREATED)
+async def check_in_visitor(
+    body: PGVisitorLogCreateSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> PGVisitorLogResponse:
+    tenant_id = current_user.tenant_id
+    user_id = current_user.id
+
+    visitor = PGVisitorLog(
+        tenant_id=tenant_id,
+        resident_id=body.resident_id,
+        visitor_name=body.visitor_name,
+        visitor_phone=body.visitor_phone,
+        check_in_time=datetime.now(timezone.utc),
+        created_by=user_id,
+    )
+    db.add(visitor)
+    await db.commit()
+    await db.refresh(visitor)
+    return PGVisitorLogResponse.model_validate(visitor)
+
+
+@router.patch("/visitors/{visitor_id}/checkout")
+@alias_router.patch("/visitors/{visitor_id}/checkout")
+async def check_out_visitor(
+    visitor_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    tenant_id = current_user.tenant_id
+    result = await db.execute(select(PGVisitorLog).where(PGVisitorLog.id == visitor_id, PGVisitorLog.tenant_id == tenant_id))
+    visitor = result.scalar_one_or_none()
+    if not visitor:
+        raise HTTPException(status_code=404, detail="Visitor log not found")
+    
+    visitor.check_out_time = datetime.now(timezone.utc)
+    await db.commit()
+    return {"message": f"Visitor {visitor.visitor_name} checked out at gate"}

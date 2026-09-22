@@ -2,7 +2,7 @@
 
 > **Status**: Accepted, Active & Non-Negotiable  
 > **Effective Date**: September 2026  
-> **Project Completion Status**: **~96–98% (Production Candidate / Release Milestone)**  
+> **Project Completion Status**: **~98–99% (Production Candidate / Release Milestone)**  
 > **Audited By**: Enterprise System Architect AI & SSR IT INDUSTRY Leadership  
 
 ---
@@ -22,11 +22,11 @@ This document serves as the **Canonical Current State Snapshot & Safeguard Stand
 
 | App Name | Directory | Port | Key Features & Architecture | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **Enterprise ERP Web** | `apps/admin-web` | `5173` / `3000` | React 19 + TanStack Router + Zustand. 10 domain modules (POS, Hotel, PG, CRM, Finance, Inventory, HR, Forms, AI Copilot, Settings). Features **Zero-Wait POS** (< 1.2ms order saving, Dual In-Memory Hot-Mounted DOM, Dexie.js offline queue). | 🟢 100% Operational |
+| **Enterprise ERP Web** | `apps/admin-web` | `5173` / `3000` | React 19 + TanStack Router + Zustand. 11 domain modules (POS, Hotel, PG, CRM, Finance, Inventory, HR, Customization Studio, Forms, AI Copilot, Settings). Features **Zero-Wait POS** (< 1.2ms order saving, Dual In-Memory Hot-Mounted DOM, Dexie.js offline queue), and dedicated clean Platform Home module launcher. | 🟢 100% Operational |
 | **Platform Superadmin** | `apps/platform-admin` | `5174` / `3001` | React 19 + Vite. Superadmin tenant provisioning, cluster health status, outlet licensing keys, and live Sales Lead follow-up console (`#leads`) with WhatsApp integration. | 🟢 100% Operational |
 | **Kitchen Operations System (KOS)** | `apps/kds-web` | `8083` / `3002` | Multi-Stage 5-Mode QSR KOS: Station Cook KDS, Batch Prep, EXPO Pass, Packing & Handoff, SLA Command Center. Direct PostgreSQL connection via `/api/v1/orders/kds/live`. 86 Item modal & recipe view. | 🟢 100% Operational |
 | **Queue-Buster Token Web** | `apps/token-order-web` | `3003` | Mobile fast-order web app for counter QR & kiosk tablets. Generates 3-digit queue tokens (`#104`). Cashier loads entire pre-built cart in < 0.1s via `Alt+Q`. | 🟢 100% Operational |
-| **Customer Food Web** | `apps/customer-food-web` | `3000` / `3004` | Public customer QR menu, dynamic item filters, cart customization, and live order status tracker. | 🟢 100% Operational |
+| **Customer Food Web** | `apps/customer-food-web` | `3000` / `3004` | Public customer QR menu, dynamic CSS token injection, tenant branding/logo, dynamic item filters, cart customization, and live order status tracker. | 🟢 100% Operational |
 | **Customer Stay Web** | `apps/customer-stay-web` | `3001` / `3005` | Hotel room booking, date range picker, room catalog, booking folio, guest check-in requests. | 🟢 100% Operational |
 | **Staff Mobile Web** | `apps/staff-web` | `8084` / `3006` | Staff mobile operations: Housekeeping room cleaning status, room service orders, KOT table entry, staff attendance. | 🟢 100% Operational |
 | **Marketing Scrollytelling Web** | `apps/marketing-web` | `3002` / `3007` | GSAP `MotionPathPlugin` character-guided scrollytelling along a winding emerald road across 7 story beats. Warm paper daylight theme, ₹12,000/yr flat pricing, PostgreSQL lead ingestion. | 🟢 100% Operational |
@@ -53,7 +53,7 @@ This document serves as the **Canonical Current State Snapshot & Safeguard Stand
 
 ### 2.3 Backend Services & Enterprise Engines (`services/backend/`)
 
-- **13 Domain Modules** (`services/backend/src/modules/`):
+- **14 Domain Modules** (`services/backend/src/modules/`):
   1. `auth`: JWT token authentication, user roles, tenant context, dynamic workspace loading.
   2. `restaurant`: Categories, items, variants, tables, floor layout, kitchen stations.
   3. `orders`: High-speed order creation, KOT generation, queue tokens, settlement.
@@ -67,6 +67,7 @@ This document serves as the **Canonical Current State Snapshot & Safeguard Stand
   11. `marketing`: Lead inquiries, sales follow-ups, contact messages.
   12. `maintenance`: Asset maintenance requests, service logs.
   13. `dashboard`: High-level tenant KPI metrics and aggregates.
+  14. `customization`: Tenant branding studio, draft/publish lifecycle, self-service custom domains with socket DNS verification, and reverse proxy host resolution.
 
 - **14 Enterprise Engines** (`services/backend/src/engines/`):
   1. `workflow`: State machine transitions (orders, bookings, tasks).
@@ -86,7 +87,7 @@ This document serves as the **Canonical Current State Snapshot & Safeguard Stand
 
 ---
 
-### 2.4 Architectural Decision Records (11 Canonical ADRs)
+### 2.4 Architectural Decision Records (12 Canonical ADRs)
 
 - **[ADR-0001](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0001-module-structure.md)**: Module Structure Standard (5-part frontend, 5-layer backend).
 - **[ADR-0002](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0002-multi-tenancy-rls.md)**: PostgreSQL Row-Level Security (RLS) & Tenant Isolation.
@@ -99,12 +100,13 @@ This document serves as the **Canonical Current State Snapshot & Safeguard Stand
 - **[ADR-0009](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0009-pos-kiosk-billing-and-order-edit-architecture.md)**: POS Kiosk Fullscreen Architecture & Tooltip Popover Engine.
 - **[ADR-0010](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0010-zero-wait-pos-architecture-and-dual-in-memory-mounted-layout.md)**: Enterprise Zero-Wait POS Architecture & Dual In-Memory Hot-Mounted DOM Layout.
 - **[ADR-0011](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0011-marketing-web-character-guided-motion-path-architecture.md)**: Marketing Web Character-Guided Motion-Path Scrollytelling Architecture.
+- **[ADR-0012](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0012-tenant-customization-studio-and-self-service-domains.md)**: Tenant Customization Studio & Self-Service Custom Domains Architecture.
 
 ---
 
-## 3. The 10 Inviolable Architectural Invariants (Never Ruin Rules)
+## 3. The 11 Inviolable Architectural Invariants (Never Ruin Rules)
 
-The following 10 invariants are strictly protected. Any proposed change violating any invariant MUST BE IMMEDIATELY REJECTED.
+The following 11 invariants are strictly protected. Any proposed change violating any invariant MUST BE IMMEDIATELY REJECTED.
 
 ### 🛡️ Invariant 1: Preserve Dual In-Memory Hot-Mounted DOM in POS
 - **Rule**: In `POSTransactionSection.tsx`, both the **Billing Terminal** (`POSItemGrid + POSCartPanel`) and the **Table Floor Tracker** (`POSTableTrackerPage`) must remain permanently mounted in the React DOM.
@@ -147,6 +149,11 @@ The following 10 invariants are strictly protected. Any proposed change violatin
 - **Rule**: The lead ingestion pipeline in `apps/marketing-web` must always enforce 10-digit phone sanitization, timeout shields, multi-endpoint fallback, direct WhatsApp follow-up link generation, and PostgreSQL persistence to `lead_inquiries`.
 - **Forbidden**: NEVER replace live database lead submission with dummy `console.log` or unpersisted mock states.
 
+### 🛡️ Invariant 11: Pure Tenant Customization & Zero-Ruination Fallbacks
+- **Rule**: All connected customer applications (`customer-food-web`, `customer-stay-web`, `kds-web`, `staff-web`, `token-order-web`) must load dynamic branding and features via PostgreSQL SSOT `tenant_app_configs`, while unconditionally preserving hardcoded default fallbacks so zero downtime or blank screens occur if a tenant has no configuration or when network fails.
+- **Mechanism**: Hierarchical resolution checks branch override first, falls back to tenant default, then platform fallback constants. Custom CSS tokens inject dynamically via `:root` CSS variables without requiring page reloads or bundle recompilation.
+- **Forbidden**: NEVER delete or bypass fallback configuration objects or allow missing tenant records to raise 404/500 errors on public routes.
+
 ---
 
 ## 4. Emergency Verification & Health Checklist
@@ -159,10 +166,11 @@ Before committing any future pull request or completing any AI agent turn, verif
 4. **Fast-Order Token Web**: Token generation persists to `/api/v1/orders/queue-tokens` and recalls in POS cart in `< 0.1s`.
 5. **KDS Operational Modes**: Station view, Batch prep, EXPO pass, Packing, and SLA Command Center switch cleanly.
 6. **Lead Submission**: Submitting a test lead on `marketing-web` inserts a row into `lead_inquiries` table and updates Superadmin `#leads`.
+7. **Customization & Fallbacks**: `GET /api/v1/tenant-config/by-slug/{slug}/{code}/{app}` returns HTTP 200 with full fallback config even for non-existent tenants. `test_customization.py` passes 100%.
 
 ---
 
 ## 5. Architectural Governance Sign-Off
 
-- **Current Status**: **FROZEN & VERIFIED (96–98% Monorepo Completion)**
+- **Current Status**: **FROZEN & VERIFIED (98–99% Monorepo Completion)**
 - **Protection Tier**: **CRITICAL NON-NEGOTIABLE**

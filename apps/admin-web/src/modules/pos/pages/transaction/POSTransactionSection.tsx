@@ -12,12 +12,14 @@ import { POSCartPanel, OrderMode } from "./POSCartPanel";
 import { POSVariantAddonModal } from "./POSVariantAddonModal";
 import { HoldBillsModal, HeldBill } from "./pos-billing/HoldBillsModal";
 import { ThermalReceiptModal } from "./pos-billing/ThermalReceiptModal";
-import { ThermalKOTPrintableArea, StationKOTSlip } from "../../components/ThermalKOTPrintableArea";
+import { ThermalKOTPrintableArea, StationKOTSlip, printKOTSlipsDirectly } from "../../components/ThermalKOTPrintableArea";
 import { ActiveOrdersTrackerModal } from "./pos-billing/ActiveOrdersTrackerModal";
 import { POSQueueTokenModal } from "./pos-billing/POSQueueTokenModal";
 import { POSTableTrackerPage } from "./tables-ops/POSTableTrackerPage";
 import { POSTableTrackerModal } from "./tables-ops/POSTableTrackerModal";
 import { POSOrdersListPage } from "./POSOrdersListPage";
+import { POSUPIQRModal } from "../../components/POSUPIQRModal";
+import { playPaymentSuccessSound } from "@ssrone/utils";
 import { usePOSShortcuts, useBarcodeScanner, useAsyncPrintQueue, useZeroWaitOrderSync } from "../../hooks";
 import { renderSafeString } from "../../utils/renderSafeString";
 import { generateLocalOrderNumber, generateDailyTokenNumber, generateIdempotencyKey } from "../../utils/order-sequence";
@@ -66,11 +68,6 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
   // In-Place Virtual Tab Switching State (Instant < 0.2ms swaps without router remount)
   const [activeVirtualTab, setActiveVirtualTab] = useState<POSVirtualTab>(() => getInitialVirtualTab(currentPath));
 
-  useEffect(() => {
-    const tabFromUrl = getInitialVirtualTab(currentPath);
-    setActiveVirtualTab((prev) => (prev !== tabFromUrl ? tabFromUrl : prev));
-  }, [currentPath]);
-
   const switchVirtualTab = useCallback((targetTab: POSVirtualTab) => {
     setActiveVirtualTab(targetTab);
     try {
@@ -84,11 +81,73 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
           : targetTab === "kds"
           ? "/pos/transaction/kds"
           : "/pos/transaction/shift";
-      if (typeof window !== "undefined" && window.location.pathname !== targetUrl) {
-        window.history.replaceState(null, "", targetUrl);
+      if (typeof window !== "undefined") {
+        if (window.location.pathname !== targetUrl) {
+          window.history.replaceState(null, "", targetUrl);
+        }
+        window.dispatchEvent(new CustomEvent("pos:tab-changed", { detail: { tab: targetTab, url: targetUrl } }));
       }
     } catch {}
   }, []);
+
+  useEffect(() => {
+    const tabFromUrl = getInitialVirtualTab(currentPath);
+    setActiveVirtualTab((prev) => (prev !== tabFromUrl ? tabFromUrl : prev));
+  }, [currentPath]);
+
+  // Broadcast current virtual tab on mount and whenever it changes so AppShell stays in sync
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("pos:tab-changed", { detail: { tab: activeVirtualTab } }));
+    }
+  }, [activeVirtualTab]);
+
+  // Global event listener for instant tab switching & table refresh from AppShell navbar
+  useEffect(() => {
+    const handleSwitchTabEvent = (e: Event) => {
+      const ce = e as CustomEvent<{ tab: POSVirtualTab; fullscreen?: boolean }>;
+      if (ce.detail?.tab) {
+        switchVirtualTab(ce.detail.tab);
+        if (ce.detail.fullscreen) {
+          setIsFullScreenPOS(true);
+          try {
+            if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+              document.documentElement.requestFullscreen().catch(() => {});
+            }
+          } catch {}
+        }
+      }
+    };
+    const handleSetFullscreenEvent = (e: Event) => {
+      const ce = e as CustomEvent<{ fullscreen: boolean }>;
+      if (ce.detail && typeof ce.detail.fullscreen === "boolean") {
+        setIsFullScreenPOS(ce.detail.fullscreen);
+        try {
+          if (ce.detail.fullscreen) {
+            if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+              document.documentElement.requestFullscreen().catch(() => {});
+            }
+          } else {
+            if (document.fullscreenElement && document.exitFullscreen) {
+              document.exitFullscreen().catch(() => {});
+            }
+          }
+        } catch {}
+      }
+    };
+    const handleRefreshTablesEvent = () => {
+      onRefresh?.();
+    };
+
+    window.addEventListener("pos:switch-tab", handleSwitchTabEvent);
+    window.addEventListener("pos:set-fullscreen", handleSetFullscreenEvent);
+    window.addEventListener("pos:refresh-tables", handleRefreshTablesEvent);
+    return () => {
+      window.removeEventListener("pos:switch-tab", handleSwitchTabEvent);
+      window.removeEventListener("pos:set-fullscreen", handleSetFullscreenEvent);
+      window.removeEventListener("pos:refresh-tables", handleRefreshTablesEvent);
+    };
+  }, [switchVirtualTab, onRefresh]);
 
   const selectedBranch = useAuthStore((s: any) => s.selected_branch);
   const activeBranchId = selectedBranch?.id || localStorage.getItem("active_branch_id") || 1;
@@ -136,11 +195,23 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
   const isSubmittingRef = useRef(false);
   const [isFullScreenPOS, setIsFullScreenPOS] = useState<boolean>(() => {
     try {
-      return localStorage.getItem("pos_kiosk_fullscreen") === "true" || Boolean(document.fullscreenElement);
+      return typeof document !== "undefined" ? Boolean(document.fullscreenElement) : false;
     } catch {
       return false;
     }
   });
+
+  // Check if navigation requested Fullscreen Kiosk Mode on path change
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("pos_open_kiosk_fullscreen") === "true") {
+        sessionStorage.removeItem("pos_open_kiosk_fullscreen");
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }
+      }
+    } catch {}
+  }, [currentPath]);
 
   // Customer Management State
   const [customers, setCustomers] = useState<any[]>([]);
@@ -292,6 +363,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
   const [recalledOrderNumber, setRecalledOrderNumber] = useState<string | null>(null);
   const [receiptData, setReceiptData] = useState<any | null>(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [isUPIModalOpen, setIsUPIModalOpen] = useState(false);
 
   // Global Alt+Q Queue Token Shortcut Listener
   useEffect(() => {
@@ -367,37 +439,26 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     }
   }, [currentPath]);
 
-  // Auto-trigger Kiosk Fullscreen Mode when accessing Table Floor view
-  useEffect(() => {
-    if (isTablesTrackerView) {
-      if (!isFullScreenPOS) {
-        setIsFullScreenPOS(true);
-        localStorage.setItem("pos_kiosk_fullscreen", "true");
-      }
-      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      }
-    }
-  }, [isTablesTrackerView]);
+
 
   const toggleKioskFullScreen = () => {
     try {
-      const targetState = !isFullScreenPOS;
-      if (targetState) {
-        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+      const isCurrentlyFs = Boolean(document.fullscreenElement);
+      if (!isCurrentlyFs) {
+        if (document.documentElement.requestFullscreen) {
           document.documentElement.requestFullscreen().catch(() => {});
         }
         setIsFullScreenPOS(true);
         localStorage.setItem("pos_kiosk_fullscreen", "true");
       } else {
-        if (document.fullscreenElement && document.exitFullscreen) {
+        if (document.exitFullscreen) {
           document.exitFullscreen().catch(() => {});
         }
         setIsFullScreenPOS(false);
         localStorage.setItem("pos_kiosk_fullscreen", "false");
       }
     } catch (err) {
-      setIsFullScreenPOS((prev) => !prev);
+      setIsFullScreenPOS(Boolean(document.fullscreenElement));
     }
   };
 
@@ -408,8 +469,13 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       setIsFullScreenPOS(isFs);
       localStorage.setItem("pos_kiosk_fullscreen", isFs ? "true" : "false");
     };
+    handleFullscreenChange();
     document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+    };
   }, []);
 
   // Decoupled Background Thermal Print Queue Engine
@@ -1015,6 +1081,32 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
   const taxAmount = applyGst ? Math.round(Math.max(0, taxableAmount) * 0.05) : 0;
   const netAmount = Math.max(0, taxableAmount + taxAmount);
 
+  // Customer-Facing Display (CFD) Synchronization via BroadcastChannel
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        const channel = new BroadcastChannel("ssrone_cfd_sync");
+        channel.postMessage({
+          type: "CART_UPDATE",
+          cartItems: cartItems.map((c) => ({
+            cart_id: c.cart_id,
+            name: c.name,
+            variant_name: c.variant_name,
+            quantity: c.quantity,
+            unit_price: c.unit_price,
+            is_veg: c.is_veg,
+          })),
+          subtotal,
+          discountAmount,
+          taxAmount,
+          netAmount,
+          orderMode,
+        });
+        channel.close();
+      }
+    } catch {}
+  }, [cartItems, subtotal, discountAmount, taxAmount, netAmount, orderMode]);
+
   const handleSetOrderMode = (mode: OrderMode) => {
     setOrderMode(mode);
     if (mode !== "dine_in") {
@@ -1250,6 +1342,13 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     setOrderNotes("");
     baselineOrderItemsRef.current = {};
     setActiveKOTSlips([]);
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        const channel = new BroadcastChannel("ssrone_cfd_sync");
+        channel.postMessage({ type: "CLEAR_CART" });
+        channel.close();
+      }
+    } catch {}
     toast.info("Cart cleared. Switched to New Order mode.");
   };
 
@@ -1272,6 +1371,13 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       setIsCreateCustomerModalOpen(true);
       return;
     }
+
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    setTimeout(() => {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }, 800);
 
     const startTime = performance.now();
 
@@ -1351,15 +1457,10 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
 
     const generatedSlips = Object.values(stationSlipsMap);
 
-    // Auto-Trigger Kitchen Station-wise Thermal Print (Zero Extra Clicks)
+    // Auto-Trigger Kitchen Station-wise Thermal Print directly via isolated print preview (Zero Popup, Zero Fullscreen scaling bug)
     if (generatedSlips.length > 0) {
       setActiveKOTSlips(generatedSlips);
-      setTimeout(() => {
-        window.print();
-      }, 120);
-      setTimeout(() => {
-        setActiveKOTSlips([]);
-      }, 3000);
+      printKOTSlipsDirectly(generatedSlips);
 
       // Also queue into async print queue for audit & hardware routing
       generatedSlips.forEach((slip) => {
@@ -1377,6 +1478,9 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       });
     } else if (isUpdate) {
       toast.info(`ℹ️ Order #${assignedNum} updated. No new items to print for kitchen.`);
+      if (orderMode === "dine_in") {
+        switchVirtualTab("tables");
+      }
     }
 
     // Update baseline snapshot so any further update knows latest sent state
@@ -1393,12 +1497,12 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       order_number: assignedNum,
       order_type: orderMode.toUpperCase() as OrderType,
       order_mode: orderMode,
-      customer_id: selectedCustomerId ? (Number(selectedCustomerId) || selectedCustomerId) : null,
+      customer_id: selectedCustomerId ? (Number(selectedCustomerId) || selectedCustomerId) : undefined,
       customer_name: selectedCust ? selectedCust.name : undefined,
       customer_phone: selectedCust ? selectedCust.phone : undefined,
-      table_id: isDineIn && selectedTable ? selectedTable.id : null,
+      table_id: isDineIn && selectedTable ? selectedTable.id : undefined,
       table_name: isDineIn && selectedTable ? selectedTable.table_number : undefined,
-      waiter_id: isDineIn && selectedWaiter ? Number(selectedWaiter.id) : null,
+      waiter_id: isDineIn && selectedWaiter ? Number(selectedWaiter.id) : undefined,
       waiter_name: isDineIn && selectedWaiter ? selectedWaiter.name : undefined,
       items: cartBackup,
       subtotal,
@@ -1423,8 +1527,10 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     setDiscountAmount(0);
     setOrderNotes("");
 
-    // 6. Instant virtual view transition (< 0.2ms)
-    switchVirtualTab("tables");
+    // 6. Virtual view transition immediately for Dine-In orders
+    if (orderMode === "dine_in") {
+      switchVirtualTab("tables");
+    }
 
     // 7. Instant success toast (< 0.1ms)
     const elapsed = (performance.now() - startTime).toFixed(1);
@@ -1485,6 +1591,13 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       setIsCreateCustomerModalOpen(true);
       return;
     }
+
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    setTimeout(() => {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }, 800);
 
     const startTime = performance.now();
     const cartBackup = [...cartItems];
@@ -1570,13 +1683,27 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     baselineOrderItemsRef.current = {};
     setActiveKOTSlips([]);
 
-    // 6. Instant success toast (< 0.1ms)
+    // 6. Instant success toast (< 0.1ms) & Soundbox Chime
     const elapsed = (performance.now() - startTime).toFixed(1);
     toast.success(
       orderNum
         ? `⚡ Order #${assignedNum} updated & settled in ${elapsed}ms!`
         : `⚡ Bill #${assignedNum} settled & completed in ${elapsed}ms!`
     );
+
+    playPaymentSuccessSound();
+
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        const channel = new BroadcastChannel("ssrone_cfd_sync");
+        channel.postMessage({
+          type: "ORDER_SETTLED",
+          orderNumber: assignedNum,
+          netAmount,
+        });
+        channel.close();
+      }
+    } catch {}
 
     // 7. Fire-and-forget background synchronization to IndexedDB & PostgreSQL
     const orderPayload = {
@@ -1608,6 +1735,11 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
   };
 
   const handleSettleAndPay = (method?: PaymentMethod) => {
+    const targetMethod = method || paymentMethod;
+    if (targetMethod === "UPI") {
+      setIsUPIModalOpen(true);
+      return;
+    }
     if (method) setPaymentMethod(method);
     handleCompleteAndSettle(method);
   };
@@ -1615,7 +1747,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
 
 
   return (
-    <div className={`transition-all ${isFullScreenPOS ? "fixed inset-0 z-50 bg-background p-2.5 overflow-hidden flex flex-col h-screen w-screen" : "h-[calc(100vh-4.25rem)] flex flex-col overflow-hidden space-y-2"}`}>
+    <div className={`transition-all ${isFullScreenPOS ? "fixed inset-0 z-50 bg-background p-2 sm:p-2.5 pb-3 overflow-hidden flex flex-col h-[100dvh] max-h-[100dvh] w-screen" : "h-[calc(100vh-4.25rem)] flex flex-col overflow-hidden space-y-2"}`}>
       {/* 1. BILLING TERMINAL VIEW (Permanently hot in DOM for 0ms transitions) */}
       <div className={activeVirtualTab === "billing" ? "flex flex-col h-full min-h-0 overflow-hidden relative" : "hidden"}>
         {/* Mobile/Tablet Segmented Switcher Tab Bar (Visible on < lg screens) */}
@@ -1782,7 +1914,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
             switchVirtualTab("billing");
           }}
           onSwitchView={switchVirtualTab}
-          onPrintReceipt={(receiptPayload) => {
+          onPrintReceipt={(receiptPayload: any) => {
             setReceiptData(receiptPayload);
             setIsReceiptModalOpen(true);
           }}
@@ -1995,7 +2127,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
         }}
       />
 
-      {/* Station-Wise KOT Thermal Printable Area (Auto-prints on Send KOT) */}
+      {/* Station-Wise KOT Thermal Printable Area (Auto-prints on Send KOT directly via native system print dialog) */}
       <ThermalKOTPrintableArea slips={activeKOTSlips} />
 
       {/* Thermal Receipt Preview Modal */}
@@ -2008,6 +2140,15 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
           }
         }}
         receiptData={receiptData}
+      />
+
+      {/* Dynamic UPI QR Modal with Soundbox Chime */}
+      <POSUPIQRModal
+        isOpen={isUPIModalOpen}
+        onClose={() => setIsUPIModalOpen(false)}
+        amount={netAmount}
+        orderNumber={recalledOrderNumber || generateLocalOrderNumber(activeBranchId, orderMode)}
+        onConfirmPayment={() => handleCompleteAndSettle("UPI")}
       />
     </div>
   );

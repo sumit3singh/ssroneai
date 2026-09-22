@@ -1,7 +1,10 @@
 import React, { useState } from "react";
-import { Plus, Search, Utensils, Edit2, Trash2, Layers, Package, Sparkles, ChevronDown, ChevronUp, Tag, AlertCircle, CheckCircle2, X, Zap } from "lucide-react";
+import { Plus, Search, Utensils, Edit2, Trash2, Layers, Package, Sparkles, ChevronDown, ChevronUp, Tag, AlertCircle, CheckCircle2, X, Zap, Scale } from "lucide-react";
 import { Button, Input, PageHeader, PageContainer } from "@ssrone/ui";
 import { POSMenuItem, POSCategory } from "../../../types";
+import { MenuTagMasterModal } from "../MenuTagMasterModal";
+import { ItemVariantsAddonsModal } from "../ItemVariantsAddonsModal";
+import { RecipeBOMModal } from "../RecipeBOMModal";
 
 interface MenuItemMasterPageProps {
   menuItems: POSMenuItem[];
@@ -28,6 +31,11 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
   const [selectedCatId, setSelectedCatId] = useState<number | null>(null);
   const [filterMode, setFilterMode] = useState<"all" | "veg" | "non_veg" | "in_stock" | "out_of_stock" | "variants">("all");
   const [expandedItemId, setExpandedItemId] = useState<number | null>(null);
+
+  // Sub-modals state for Enterprise Features
+  const [isTagModalOpen, setIsTagModalOpen] = useState(false);
+  const [variantModalItem, setVariantModalItem] = useState<POSMenuItem | null>(null);
+  const [recipeModalItem, setRecipeModalItem] = useState<POSMenuItem | null>(null);
 
   // Compute KPI Statistics
   const totalCount = menuItems.length;
@@ -76,13 +84,23 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
         icon={<Utensils size={18} />}
         badge={`${totalCount} Dishes`}
         actions={
-          <Button
-            onClick={onOpenCreate}
-            size="sm"
-            className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
-          >
-            <Plus size={15} /> Add New Dish
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsTagModalOpen(true)}
+              size="sm"
+              className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Tag size={14} /> Menu Tags
+            </Button>
+            <Button
+              onClick={onOpenCreate}
+              size="sm"
+              className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Plus size={15} /> Add New Dish
+            </Button>
+          </div>
         }
       />
 
@@ -408,9 +426,29 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
+                                setVariantModalItem(item);
+                              }}
+                              title="Configure Portion Sizes & Addons"
+                              className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors border-none bg-transparent cursor-pointer"
+                            >
+                              <Layers size={14} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRecipeModalItem(item);
+                              }}
+                              title="Recipe Bill of Materials (BOM) & Inventory Deduction"
+                              className="p-1 rounded text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-colors border-none bg-transparent cursor-pointer"
+                            >
+                              <Scale size={14} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 onOpenEdit(item);
                               }}
-                              title="Edit Dish & Variants"
+                              title="Edit Dish"
                               className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border-none bg-transparent cursor-pointer"
                             >
                               <Edit2 size={14} />
@@ -537,6 +575,23 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
           </table>
         </div>
       </div>
+      {/* Enterprise Sub-Modals */}
+      <MenuTagMasterModal
+        isOpen={isTagModalOpen}
+        onClose={() => setIsTagModalOpen(false)}
+      />
+
+      <ItemVariantsAddonsModal
+        isOpen={!!variantModalItem}
+        menuItem={variantModalItem}
+        onClose={() => setVariantModalItem(null)}
+      />
+
+      <RecipeBOMModal
+        isOpen={!!recipeModalItem}
+        menuItem={recipeModalItem}
+        onClose={() => setRecipeModalItem(null)}
+      />
     </PageContainer>
   );
 };

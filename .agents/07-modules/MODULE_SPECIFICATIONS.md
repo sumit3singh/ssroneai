@@ -13,3 +13,5 @@ This document serves as the master index for domain-specific module specificatio
 | **Point of Sale (POS)** | [POS_MODULE_SPECIFICATION.md](file:///e:/2026/ssr_one_ai/.agents/07-modules/POS_MODULE_SPECIFICATION.md) | Table Grid, Fast Billing, KOT Generation, Size-Based Addon Pricing, KDS Integration |
 | **Accommodation & PMS** | [PMS_MODULE_SPECIFICATION.md](file:///e:/2026/ssr_one_ai/.agents/07-modules/PMS_MODULE_SPECIFICATION.md) | Room Grid, Reservations, Guest Check-In/Out, PG Bed Allocations, Folio Billing |
 | **CRM & Loyalty** | [CRM_MODULE_SPECIFICATION.md](file:///e:/2026/ssr_one_ai/.agents/07-modules/CRM_MODULE_SPECIFICATION.md) | Customer Master, Wallet Balances, Loyalty Tiers, Automated Promo Codes |
+| **Tenant Customization & Domains** | [CUSTOMIZATION_MODULE_SPECIFICATION.md](file:///e:/2026/ssr_one_ai/.agents/07-modules/CUSTOMIZATION_MODULE_SPECIFICATION.md) | Multi-Tenant Branding Studio, Live Preview, Draft/Publish Lifecycle, Self-Service Domains & DNS Verification |
+

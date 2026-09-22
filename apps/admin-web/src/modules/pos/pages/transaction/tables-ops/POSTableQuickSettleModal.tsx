@@ -6,8 +6,10 @@ import {
 import { Button, Input } from "@ssrone/ui";
 import { api } from "@ssrone/api-client";
 import { toast } from "sonner";
-import { POSOrder, PaymentMethod } from "../../types";
+import { POSOrder, PaymentMethod } from "../../../types";
 import { renderSafeString } from "../../../utils/renderSafeString";
+import { DynamicUpiQrCode } from "../../../components/DynamicUpiQrCode";
+import { playPaymentSuccessSound } from "@ssrone/utils";
 
 interface POSTableQuickSettleModalProps {
   order: POSOrder;
@@ -28,17 +30,28 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
   onOptimisticOrderSettle,
   onPrintReceipt,
   customers = [],
-  onRefreshCustomers
+  onRefreshCustomers,
 }) => {
-  if (!isOpen || !order) return null;
-
-  const originalNet = Number(order.net_amount || order.grand_total || order.subtotal || 0);
+  const originalNet = Number(order?.net_amount || order?.grand_total || order?.subtotal || 0);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "CREDIT_ACCOUNT">("CASH");
-  const [tenderedAmount, setTenderedAmount] = useState<number>(originalNet);
-  const [underpaymentResolution, setUnderpaymentResolution] = useState<"DISCOUNT" | "DEBT">("DISCOUNT");
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | string>(order.customer_id || "");
+  const [immediatePaymentMethod, setImmediatePaymentMethod] = useState<"CASH" | "UPI">("CASH");
+  const [tenderedAmount, setTenderedAmount] = useState<number>(() => originalNet);
+  const [underpaymentResolution, setUnderpaymentResolution] = useState<"DISCOUNT" | "DEBT">("DEBT");
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | string>(() => order?.customer_id || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Sync state whenever order or open status changes
+  React.useEffect(() => {
+    if (order && isOpen) {
+      const net = Number(order.net_amount || order.grand_total || order.subtotal || 0);
+      setTenderedAmount(net);
+      setSelectedCustomerId(order.customer_id || "");
+      setPaymentMethod("CASH");
+      setImmediatePaymentMethod("CASH");
+      setUnderpaymentResolution("DEBT");
+    }
+  }, [order?.order_number, order?.net_amount, isOpen]);
 
   // New Customer Modal inside Settlement
   const [isNewCustModalOpen, setIsNewCustModalOpen] = useState(false);
@@ -47,22 +60,21 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
   const [custEmail, setCustEmail] = useState("");
   const [isCreatingCust, setIsCreatingCust] = useState(false);
 
-  const unpaidDifference = Math.max(0, originalNet - (tenderedAmount || 0));
-  const isDiscount = unpaidDifference > 0 && underpaymentResolution === "DISCOUNT";
-  const isPartialDebt = unpaidDifference > 0 && underpaymentResolution === "DEBT";
-  const isFullDebt = paymentMethod === "CREDIT_ACCOUNT";
+  // Robust Mathematical Resolution for all settlement scenarios
+  const isCreditAccountMode = paymentMethod === "CREDIT_ACCOUNT";
+  const validTendered = Math.max(0, Number(tenderedAmount || 0));
+  const unpaidDifference = Math.max(0, originalNet - validTendered);
 
-  const finalDiscount = isDiscount
-    ? Number(order.discount_amount || 0) + unpaidDifference
-    : Number(order.discount_amount || 0);
+  const isDiscount = !isCreditAccountMode && unpaidDifference > 0 && underpaymentResolution === "DISCOUNT";
+  const isDebt = isCreditAccountMode || (unpaidDifference > 0 && underpaymentResolution === "DEBT");
 
-  const finalNetAmount = isDiscount
-    ? Math.max(0, originalNet - unpaidDifference)
-    : originalNet;
+  const finalDiscount = isDiscount ? unpaidDifference : Number(order.discount_amount || 0);
+  const finalNetAmount = isDiscount ? Math.max(0, originalNet - unpaidDifference) : originalNet;
 
-  const amountPaid = isFullDebt ? 0 : tenderedAmount;
-  const balanceDue = isFullDebt ? originalNet : (isPartialDebt ? unpaidDifference : 0);
-  const targetPaymentStatus = isFullDebt ? "unpaid" : (isPartialDebt ? "partial" : "paid");
+  const amountPaid = isCreditAccountMode ? Math.min(originalNet, validTendered) : (isDiscount ? validTendered : Math.min(originalNet, validTendered));
+  const balanceDue = isDebt ? Math.max(0, originalNet - amountPaid) : 0;
+  const targetPaymentStatus = balanceDue === 0 ? "paid" : (amountPaid > 0 ? "partial" : "unpaid");
+  const targetPaymentMethod = isCreditAccountMode ? (amountPaid > 0 ? immediatePaymentMethod : "CREDIT_ACCOUNT") : paymentMethod;
 
   const handleRegisterCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,7 +111,7 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
   };
 
   const handleCompleteSettlement = async () => {
-    if ((isFullDebt || isPartialDebt) && !selectedCustomerId) {
+    if (isDebt && balanceDue > 0 && !selectedCustomerId) {
       toast.error("Customer selection is strictly required for Udhar / Debt settlement! Please select or register a customer.");
       return;
     }
@@ -127,7 +139,11 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
       taxAmount: Number(order.tax_amount || 0),
       discountAmount: finalDiscount,
       netAmount: finalNetAmount,
-      paymentMethod: isFullDebt ? "CREDIT / DEBT ACCOUNT" : (isPartialDebt ? `${paymentMethod} + DEBT` : paymentMethod),
+      paymentMethod: balanceDue > 0 && amountPaid > 0
+        ? `${targetPaymentMethod} (₹${amountPaid}) + UDHAR (₹${balanceDue})`
+        : balanceDue > 0
+        ? "CREDIT / DEBT ACCOUNT"
+        : targetPaymentMethod,
       timestamp: new Date().toLocaleString()
     };
 
@@ -135,15 +151,17 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
       onPrintReceipt(receiptPayload);
     }
 
-    if (isFullDebt) {
+    if (balanceDue > 0 && amountPaid > 0) {
+      toast.success(`⚡ Bill #${order.order_number} settled: ₹${amountPaid} paid via ${targetPaymentMethod}, ₹${balanceDue} saved to Udhar Khata (${rawCustName || "Customer"})!`);
+    } else if (balanceDue > 0) {
       toast.success(`⚡ Bill #${order.order_number} transferred to Customer Debt Account (${rawCustName || "Customer"})!`);
-    } else if (isPartialDebt) {
-      toast.success(`⚡ Bill #${order.order_number} settled: ₹${amountPaid} paid via ${paymentMethod}, ₹${balanceDue} saved to Debt Account (${rawCustName})!`);
     } else if (isDiscount) {
-      toast.success(`⚡ Bill #${order.order_number} settled with ₹${unpaidDifference} discount!`);
+      toast.success(`⚡ Bill #${order.order_number} settled with ₹${finalDiscount} discount concession!`);
     } else {
-      toast.success(`⚡ Bill #${order.order_number} settled successfully via ${paymentMethod}!`);
+      toast.success(`⚡ Bill #${order.order_number} settled successfully via ${targetPaymentMethod}!`);
     }
+
+    playPaymentSuccessSound();
 
     // Close modal instantly for 0ms cashier interaction
     onClose();
@@ -151,15 +169,19 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
 
     // 3. Fire-and-forget background synchronization to PostgreSQL
     try {
-      await api.patch(`/orders/${order.id}/status`, null, {
+      const targetIdentifier = order.id && !String(order.id).startsWith("local-")
+        ? order.id
+        : order.order_number;
+
+      await api.patch(`/orders/${targetIdentifier}/status`, null, {
         params: {
           status: "completed",
           payment_status: targetPaymentStatus,
           amount_paid: amountPaid,
-          discount_amount: isDiscount ? unpaidDifference : undefined,
+          discount_amount: isDiscount ? finalDiscount : undefined,
           balance_due: balanceDue > 0 ? balanceDue : undefined,
           customer_id: selectedCustomerId ? Number(selectedCustomerId) : undefined,
-          payment_method: isFullDebt ? "CREDIT_ACCOUNT" : paymentMethod,
+          payment_method: targetPaymentMethod,
         }
       });
 
@@ -174,6 +196,8 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
       toast.error(err?.response?.data?.detail || err?.message || "Failed to synchronize bill settlement");
     }
   };
+
+  if (!isOpen || !order) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150 select-none">
@@ -292,11 +316,12 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
                 type="button"
                 onClick={() => {
                   setPaymentMethod("CREDIT_ACCOUNT");
+                  // Default to 0 cash paid for full Udhar (user can type 150 for split!)
                   setTenderedAmount(0);
                 }}
                 className={`p-2 rounded-lg border text-xs font-semibold flex flex-col items-center gap-1 transition-colors cursor-pointer ${
                   paymentMethod === "CREDIT_ACCOUNT"
-                    ? "bg-amber-500 text-white border-amber-600"
+                    ? "bg-amber-500 text-white border-amber-600 shadow-xs font-bold"
                     : "bg-background border-border text-muted-foreground hover:bg-muted"
                 }`}
               >
@@ -306,8 +331,83 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
             </div>
           </div>
 
-          {/* Tendered Amount & Partial Payment Auto-Discount Calculation */}
-          {paymentMethod !== "CREDIT_ACCOUNT" && (
+          {/* Dynamic UPI QR Code Display for instant customer scan */}
+          {paymentMethod === "UPI" && (
+            <div className="flex flex-col items-center justify-center p-3 bg-muted/30 border border-border rounded-xl shadow-xs animate-in fade-in duration-150">
+              <DynamicUpiQrCode
+                amount={finalNetAmount}
+                orderNumber={order.order_number}
+                vpa="merchant@upi"
+                payeeName="SSR One Resto"
+                size={140}
+              />
+              <p className="text-[10px] text-muted-foreground mt-1.5 font-medium">
+                Scan with PhonePe, GPay, Paytm or any UPI App & click Settle
+              </p>
+            </div>
+          )}
+
+          {/* Dedicated Input Card when Udhar / Debt is Selected */}
+          {isCreditAccountMode && (
+            <div className="space-y-2 bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <label className="text-xs font-bold text-amber-700 dark:text-amber-300 block">
+                    Immediate Cash / UPI Received (Optional)
+                  </label>
+                  <p className="text-[10px] text-muted-foreground">
+                    Leave ₹0 for 100% credit, or enter advance/partial cash paid (e.g. ₹150).
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 self-end sm:self-center">
+                  <select
+                    value={immediatePaymentMethod}
+                    onChange={(e) => setImmediatePaymentMethod(e.target.value as "CASH" | "UPI")}
+                    className="h-8 text-xs font-semibold bg-background border border-border rounded-md px-2 text-foreground"
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="UPI">UPI / QR</option>
+                  </select>
+                  <div className="w-28">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={originalNet}
+                      value={tenderedAmount === 0 ? "" : tenderedAmount}
+                      placeholder="₹0"
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        const val = raw === "" ? 0 : Number(raw);
+                        setTenderedAmount(Math.min(originalNet, Math.max(0, val)));
+                      }}
+                      className="h-8 text-xs font-mono font-bold text-right bg-background"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Real-time Visual Breakdown of Cash vs Udhar */}
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-amber-500/20 text-xs font-mono">
+                <div className="bg-card/90 border border-border rounded-lg p-2">
+                  <span className="text-[10px] uppercase text-muted-foreground font-sans block">Paid Now ({immediatePaymentMethod})</span>
+                  <strong className="text-emerald-600 dark:text-emerald-400 font-extrabold text-sm block">
+                    ₹{amountPaid.toLocaleString("en-IN")}
+                  </strong>
+                </div>
+                <div className="bg-amber-500/20 border border-amber-500/40 rounded-lg p-2">
+                  <span className="text-[10px] uppercase text-amber-700 dark:text-amber-300 font-sans block font-bold">
+                    Added to Udhar Khata
+                  </span>
+                  <strong className="text-amber-600 dark:text-amber-400 font-black text-sm block">
+                    ₹{balanceDue.toLocaleString("en-IN")}
+                  </strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tendered Amount & Partial Payment Auto-Discount Calculation for Cash/UPI/Card */}
+          {!isCreditAccountMode && (
             <div className="space-y-2 bg-card border border-border rounded-lg p-2.5">
               <div className="flex items-center justify-between gap-2">
                 <div>
@@ -317,6 +417,7 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
                 <div className="w-32">
                   <Input
                     type="number"
+                    min={0}
                     value={tenderedAmount}
                     onChange={(e) => setTenderedAmount(Number(e.target.value))}
                     className="h-8 text-xs font-mono font-bold text-right"
@@ -329,37 +430,17 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
                 <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs space-y-2">
                   <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 font-semibold">
                     <span className="flex items-center gap-1.5">
-                      <AlertCircle size={14} /> Underpayment Difference:
+                      <AlertCircle size={14} /> Remaining Balance:
                     </span>
                     <span className="font-mono font-bold text-sm">₹{unpaidDifference.toLocaleString("en-IN")}</span>
                   </div>
 
                   <div className="space-y-1.5 pt-0.5">
                     <span className="text-[11px] font-semibold text-foreground block">
-                      Choose how to settle the remaining ₹{unpaidDifference}:
+                      Choose how to handle remaining ₹{unpaidDifference}:
                     </span>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                      <label className={`p-2 rounded-md border cursor-pointer flex items-start gap-2 transition-colors ${
-                        underpaymentResolution === "DISCOUNT"
-                          ? "bg-primary/10 border-primary text-foreground font-semibold"
-                          : "bg-background border-border text-muted-foreground hover:bg-muted"
-                      }`}>
-                        <input
-                          type="radio"
-                          name="underpay_mode"
-                          checked={underpaymentResolution === "DISCOUNT"}
-                          onChange={() => setUnderpaymentResolution("DISCOUNT")}
-                          className="mt-0.5 accent-primary"
-                        />
-                        <div>
-                          <span className="block text-xs text-foreground">Concession / Discount</span>
-                          <span className="text-[10px] text-muted-foreground block">
-                            Apply ₹{unpaidDifference} discount & settle bill fully as 100% PAID.
-                          </span>
-                        </div>
-                      </label>
-
                       <label className={`p-2 rounded-md border cursor-pointer flex items-start gap-2 transition-colors ${
                         underpaymentResolution === "DEBT"
                           ? "bg-amber-500/10 border-amber-500 text-amber-700 dark:text-amber-300 font-semibold"
@@ -373,9 +454,29 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
                           className="mt-0.5 accent-amber-500"
                         />
                         <div>
-                          <span className="block text-xs text-foreground">Customer Debt (Udhar)</span>
+                          <span className="block text-xs text-foreground font-bold">Customer Debt (Udhar)</span>
                           <span className="text-[10px] text-muted-foreground block">
-                            Collect ₹{tenderedAmount} now, save ₹{unpaidDifference} to Customer Debt account.
+                            Collect ₹{validTendered} now, save ₹{unpaidDifference} to Customer Udhar Khata.
+                          </span>
+                        </div>
+                      </label>
+
+                      <label className={`p-2 rounded-md border cursor-pointer flex items-start gap-2 transition-colors ${
+                        underpaymentResolution === "DISCOUNT"
+                          ? "bg-primary/10 border-primary text-foreground font-semibold"
+                          : "bg-background border-border text-muted-foreground hover:bg-muted"
+                      }`}>
+                        <input
+                          type="radio"
+                          name="underpay_mode"
+                          checked={underpaymentResolution === "DISCOUNT"}
+                          onChange={() => setUnderpaymentResolution("DISCOUNT")}
+                          className="mt-0.5 accent-primary"
+                        />
+                        <div>
+                          <span className="block text-xs text-foreground font-bold">Concession / Discount</span>
+                          <span className="text-[10px] text-muted-foreground block">
+                            Waive ₹{unpaidDifference} as discount & settle bill as fully paid.
                           </span>
                         </div>
                       </label>
@@ -392,7 +493,7 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
               <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                 <User size={13} className="text-primary" />
                 <span>Customer Account</span>
-                {(paymentMethod === "CREDIT_ACCOUNT" || isPartialDebt) && (
+                {(isDebt && balanceDue > 0) && (
                   <span className="text-amber-600 dark:text-amber-400 font-bold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-[10px] uppercase font-mono">
                     Required for Udhar
                   </span>
@@ -407,7 +508,7 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
               </button>
             </div>
 
-            {(paymentMethod === "CREDIT_ACCOUNT" || isPartialDebt) && !selectedCustomerId && (
+            {(isDebt && balanceDue > 0) && !selectedCustomerId && (
               <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded text-[11px] text-amber-700 dark:text-amber-300 font-medium flex items-center gap-1.5 animate-in fade-in">
                 <AlertCircle size={14} className="text-amber-600 shrink-0" />
                 <span>Customer selection is <strong>strictly required</strong> for Udhar / Debt. Select or register a customer to enable settlement.</span>
@@ -442,12 +543,21 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
         </div>
 
         {/* Footer Actions */}
-        <div className="pt-2 border-t border-border flex items-center justify-between shrink-0">
+        <div className="pt-2.5 border-t border-border flex items-center justify-between shrink-0">
           <div>
-            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Final Settlement</span>
-            <span className="text-base font-extrabold font-mono text-primary">
-              ₹{finalNetAmount.toLocaleString("en-IN")}
+            <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+              {isDebt ? "Total Bill Amount" : "Final Settlement"}
             </span>
+            <div className="flex items-center gap-1.5 font-mono">
+              <span className="text-base font-extrabold text-foreground">
+                ₹{originalNet.toLocaleString("en-IN")}
+              </span>
+              {isDebt && balanceDue > 0 && amountPaid > 0 && (
+                <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                  (₹{amountPaid} {targetPaymentMethod} + ₹{balanceDue} Udhar)
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -455,19 +565,25 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
               Cancel
             </Button>
             <Button
-              variant="default"
+              variant="primary"
               size="sm"
-              disabled={isSubmitting || (paymentMethod === "CREDIT_ACCOUNT" && !selectedCustomerId)}
+              disabled={isSubmitting || (isDebt && balanceDue > 0 && !selectedCustomerId)}
               onClick={handleCompleteSettlement}
               className={`h-9 gap-2 text-xs font-extrabold cursor-pointer px-4 text-white shadow-md hover:shadow-lg transition-all active:scale-98 rounded-lg ${
-                paymentMethod === "CREDIT_ACCOUNT" && !selectedCustomerId
+                isDebt && balanceDue > 0 && !selectedCustomerId
                   ? "bg-muted-foreground/30 text-muted-foreground opacity-60 cursor-not-allowed border border-border"
                   : "bg-emerald-600 hover:bg-emerald-700"
               }`}
             >
-              {paymentMethod === "CREDIT_ACCOUNT" && !selectedCustomerId
+              {isDebt && balanceDue > 0 && !selectedCustomerId
                 ? "Select Customer for Udhar"
-                : isSubmitting ? "Settling..." : "Complete & Close Bill"} <ArrowRight size={14} className="font-bold" />
+                : isSubmitting
+                ? "Settling..."
+                : isDebt && amountPaid > 0
+                ? `Complete (₹${amountPaid} Paid + ₹${balanceDue} Udhar)`
+                : isDebt
+                ? `Complete Full Udhar (₹${balanceDue})`
+                : "Complete & Close Bill"} <ArrowRight size={14} className="font-bold" />
             </Button>
           </div>
         </div>

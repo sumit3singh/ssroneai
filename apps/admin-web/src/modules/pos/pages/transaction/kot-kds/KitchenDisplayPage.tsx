@@ -91,11 +91,29 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
     setIsLoading(true);
     try {
       const activeBranchId = localStorage.getItem("active_branch_id");
-      const url = activeBranchId
-        ? `/orders?branch_id=${activeBranchId}&sort_order=asc&page_size=100`
-        : "/orders?sort_order=asc&page_size=100";
-      const res = await api.get<any>(url);
-      const list = Array.isArray(res) ? res : res?.items || [];
+      const branchParam = activeBranchId ? `?branch_id=${activeBranchId}` : "";
+
+      let list: any[] = [];
+      if (statusFilter === "HISTORY") {
+        // Recall view: show latest completed orders
+        const res = await api.get<any>(`/orders${branchParam}${branchParam ? "&" : "?"}status=completed&sort_order=desc&page_size=50`);
+        list = Array.isArray(res) ? res : res?.items || [];
+      } else {
+        // Active kitchen queue: first attempt primary dedicated live KDS endpoint
+        try {
+          const res = await api.get<any>(`/orders/kds/live${branchParam}`);
+          if (Array.isArray(res) && res.length > 0) {
+            list = res;
+          } else {
+            // Fallback to active orders query
+            const fallbackRes = await api.get<any>(`/orders${branchParam}${branchParam ? "&" : "?"}status=active&sort_order=asc&page_size=100`);
+            list = Array.isArray(fallbackRes) ? fallbackRes : fallbackRes?.items || [];
+          }
+        } catch {
+          const fallbackRes = await api.get<any>(`/orders${branchParam}${branchParam ? "&" : "?"}status=active&sort_order=asc&page_size=100`);
+          list = Array.isArray(fallbackRes) ? fallbackRes : fallbackRes?.items || [];
+        }
+      }
 
       if (!isMuted && list.length > previousOrderCountRef.current && previousOrderCountRef.current > 0) {
         playKitchenChime();
@@ -115,7 +133,7 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
     loadKDSOrders();
     const interval = setInterval(loadKDSOrders, 4000);
     return () => clearInterval(interval);
-  }, []);
+  }, [statusFilter]);
 
   // Deduplicate orders
   const allOrdersMap = new Map<string, POSOrder>();
@@ -128,11 +146,11 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
     }
   });
 
-  // Strict FIFO queue sorting by creation timestamp
+  // Strict FIFO queue sorting by creation timestamp (or DESC for history)
   const allOrders = Array.from(allOrdersMap.values()).sort((a, b) => {
     const tA = a.created_at ? new Date(a.created_at).getTime() : 0;
     const tB = b.created_at ? new Date(b.created_at).getTime() : 0;
-    return tA - tB;
+    return statusFilter === "HISTORY" ? tB - tA : tA - tB;
   });
 
   // Filter orders and split line items per station
@@ -148,24 +166,37 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
         if (statusFilter === "HISTORY" && !isCompleted) return null;
 
         if (stationFilter !== "ALL") {
+          const selectedStation = dbStations.find((s) => s.name === stationFilter);
           const targetStationLower = stationFilter.toLowerCase();
+          const targetCodeLower = (selectedStation?.code || "").toLowerCase();
+
           const matchingItems = (o.items || []).filter((it: any) => {
             const itemStation = (it.kds_station || it.kdsStation || it.station || "").toLowerCase();
             const itemName = (it.product_name || it.item_name || it.name || "").toLowerCase();
-            const targetLower = stationFilter.toLowerCase();
 
             if (itemStation) {
-              return itemStation.includes(targetLower) || targetLower.includes(itemStation);
+              if (targetCodeLower && (itemStation === targetCodeLower || itemStation.includes(targetCodeLower))) {
+                return true;
+              }
+              if (itemStation.includes(targetStationLower) || targetStationLower.includes(itemStation)) {
+                return true;
+              }
             }
-            // Smart category keyword fallback if kds_station was not explicitly set on order item
-            if (targetLower.includes("italian") || targetLower.includes("pizza")) {
-              return itemName.includes("pizza") || itemName.includes("pasta") || itemName.includes("bread") || itemName.includes("italian");
+            // Smart keyword fallback matching
+            if (targetStationLower.includes("drink") || targetStationLower.includes("beverage") || targetStationLower.includes("bar")) {
+              return itemStation.includes("drink") || itemName.includes("chai") || itemName.includes("coffee") || itemName.includes("tea") || itemName.includes("drink") || itemName.includes("shake") || itemName.includes("beverage") || itemName.includes("coke") || itemName.includes("pepsi");
             }
-            if (targetLower.includes("drink") || targetLower.includes("beverage") || targetLower.includes("bar")) {
-              return itemName.includes("chai") || itemName.includes("coffee") || itemName.includes("tea") || itemName.includes("drink") || itemName.includes("shake") || itemName.includes("beverage") || itemName.includes("coke") || itemName.includes("pepsi");
+            if (targetStationLower.includes("tandoor") || targetStationLower.includes("bread")) {
+              return itemStation.includes("tandoor") || itemName.includes("roti") || itemName.includes("naan") || itemName.includes("tikka") || itemName.includes("kulcha") || itemName.includes("paratha");
             }
-            if (targetLower.includes("main") || targetLower.includes("kitchen")) {
-              return !itemName.includes("pizza") && !itemName.includes("chai") && !itemName.includes("coffee") && !itemName.includes("tea");
+            if (targetStationLower.includes("chinese") || targetStationLower.includes("asian")) {
+              return itemStation.includes("chinese") || itemName.includes("momo") || itemName.includes("noodle") || itemName.includes("soup") || itemName.includes("manchow") || itemName.includes("chilli");
+            }
+            if (targetStationLower.includes("continental") || targetStationLower.includes("fast food")) {
+              return itemStation.includes("french") || itemStation.includes("continental") || itemName.includes("sandwich") || itemName.includes("burger") || itemName.includes("pizza") || itemName.includes("fries");
+            }
+            if (targetStationLower.includes("indian")) {
+              return itemStation.includes("indian") || itemName.includes("dosa") || itemName.includes("paneer") || itemName.includes("thali") || itemName.includes("dal");
             }
             return false;
           });
@@ -181,7 +212,7 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
         return o;
       })
       .filter((o): o is POSOrder => o !== null);
-  }, [allOrders, statusFilter, stationFilter]);
+  }, [allOrders, statusFilter, stationFilter, dbStations]);
 
   // Keyboard bump shortcut (Space or 1 key)
   useEffect(() => {
@@ -556,34 +587,72 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
                 </div>
 
                 {/* Supervisor Action Bar */}
-                <div className="p-2 bg-muted/20 border-t border-border flex items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-                    <span className={`w-2 h-2 rounded-full ${isReady ? "bg-emerald-500" : isPreparing ? "bg-indigo-500" : "bg-amber-500 animate-pulse"}`} />
-                    <span>{isReady ? "Kitchen Ready" : isPreparing ? "Cooking in Kitchen" : "Pending in Queue"}</span>
+                <div className="p-2 bg-muted/20 border-t border-border flex items-center justify-between gap-1.5 text-xs">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground min-w-0 truncate">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${isReady ? "bg-emerald-500" : isPreparing ? "bg-indigo-500" : "bg-amber-500 animate-pulse"}`} />
+                    <span className="truncate">{isReady ? "Kitchen Ready" : isPreparing ? "Cooking" : "Pending Queue"}</span>
                   </div>
 
-                  <button
-                    onClick={async () => {
-                      try {
-                        const numId = parseInt(String(order.id).replace(/\D/g, ""), 10);
-                        if (!isNaN(numId)) {
-                          await api.post(`/orders/${numId}/alert`, {});
-                          playKitchenChime();
-                          toast.success("Expedite Alert Dispatched!", {
-                            description: `Order #${order.order_number} is now blinking with sound alert on Kitchen KDS terminal!`
-                          });
-                          loadKDSOrders();
+                  <div className="flex items-center gap-1 shrink-0">
+                    {!isReady && !isPreparing && (
+                      <button
+                        onClick={() => handleStartPrep(order.id, order.order_number)}
+                        disabled={isBumping}
+                        className="py-1 px-2 rounded font-semibold text-[11px] bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 cursor-pointer transition-all flex items-center gap-1"
+                        title="Start cooking ticket"
+                      >
+                        <Flame size={12} className={isBumping ? "animate-spin" : ""} />
+                        <span>Start Prep</span>
+                      </button>
+                    )}
+
+                    {isPreparing && (
+                      <button
+                        onClick={() => handleBumpOrder(order.id, order.order_number)}
+                        disabled={isBumping}
+                        className="py-1 px-2 rounded font-semibold text-[11px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 cursor-pointer transition-all flex items-center gap-1"
+                        title="Mark ticket as ready"
+                      >
+                        <CheckCircle2 size={12} className={isBumping ? "animate-spin" : ""} />
+                        <span>Ready</span>
+                      </button>
+                    )}
+
+                    {isReady && (
+                      <button
+                        onClick={() => handleCompleteOrder(order.id, order.order_number)}
+                        disabled={isBumping}
+                        className="py-1 px-2 rounded font-semibold text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-all flex items-center gap-1 shadow-2xs"
+                        title="Complete / Bump ticket out of queue"
+                      >
+                        <Check size={12} className={isBumping ? "animate-spin" : ""} />
+                        <span>Complete</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={async () => {
+                        try {
+                          const numId = parseInt(String(order.id).replace(/\D/g, ""), 10);
+                          if (!isNaN(numId)) {
+                            await api.post(`/orders/${numId}/alert`, {});
+                            playKitchenChime();
+                            toast.success("Expedite Alert Dispatched!", {
+                              description: `Order #${order.order_number} alert sent to KDS terminal!`
+                            });
+                            loadKDSOrders();
+                          }
+                        } catch (err) {
+                          toast.error("Failed to send kitchen alert");
                         }
-                      } catch (err) {
-                        toast.error("Failed to send kitchen alert");
-                      }
-                    }}
-                    className="py-1 px-3 rounded font-bold text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 cursor-pointer transition-all flex items-center gap-1.5 shadow-2xs"
-                    title="Dispatch sound & visual alert to Kitchen Display App"
-                  >
-                    <BellRing size={14} className="animate-bounce" />
-                    <span>Alert Kitchen</span>
-                  </button>
+                      }}
+                      className="py-1 px-2 rounded font-bold text-[11px] bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 cursor-pointer transition-all flex items-center gap-1"
+                      title="Dispatch sound & visual alert to Kitchen Display App"
+                    >
+                      <BellRing size={12} className="animate-bounce" />
+                      <span>Alert</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             );

@@ -1,1154 +1,2055 @@
 -- =============================================================================
--- SSR One AI – 10/10 Enterprise Database Schema (DDL)
--- World-Class Hospitality & ERP Platform Grade
--- Shared Database, Shared Schema Multi-Tenant Architecture with PostgreSQL RLS,
--- Optimistic Concurrency Control, High-Performance Composite Indexes, & DB Constraints
+-- SSR One AI – Canonical Enterprise Database Schema (DDL)
+-- Generated to match 100% parity across all 96 enterprise tables.
+-- Multi-Tenant Architecture with PostgreSQL Row-Level Security (RLS)
 -- =============================================================================
 
-BEGIN;
-
--- Helper function to check if current user is superadmin
 CREATE OR REPLACE FUNCTION is_superadmin() RETURNS boolean AS $$
 BEGIN
     RETURN current_setting('app.is_superadmin', true) = 'true';
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- -----------------------------------------------------------------------------
--- 1. AUTH, MULTI-TENANCY & CORE PLATFORM
--- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS approval_requests (
+	entity_type varchar(100) NOT NULL,
+	entity_id varchar(100) NOT NULL,
+	amount numeric(15, 2) NOT NULL,
+	required_role varchar(50) NOT NULL,
+	status varchar(50) NOT NULL,
+	requested_by int8 NULL,
+	approved_by int8 NULL,
+	reason text NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	CONSTRAINT approval_requests_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs_partitioned (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	user_id int8 NULL,
+	"action" varchar(100) NOT NULL,
+	resource_type varchar(100) NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	CONSTRAINT audit_logs_partitioned_pkey PRIMARY KEY (id, created_at)
+)
+PARTITION BY RANGE (created_at);
+
+CREATE TABLE IF NOT EXISTS daily_order_sequences (
+	branch_id int8 NOT NULL,
+	sequence_date varchar(10) NOT NULL,
+	last_seq int4 NOT NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	CONSTRAINT daily_order_sequences_pkey PRIMARY KEY (id),
+	CONSTRAINT uq_tenant_branch_date_seq UNIQUE (tenant_id, branch_id, sequence_date)
+);
+
+CREATE TABLE IF NOT EXISTS feature_master (
+	id bigserial NOT NULL,
+	code varchar(100) NOT NULL,
+	"name" varchar(200) NOT NULL,
+	description text NULL,
+	category varchar(100) NOT NULL,
+	dependencies jsonb DEFAULT '[]'::jsonb NULL,
+	is_core bool DEFAULT false NOT NULL,
+	is_active bool DEFAULT true NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	is_deleted bool DEFAULT false NULL,
+	tenant_id int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT feature_master_code_key UNIQUE (code),
+	CONSTRAINT feature_master_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS financial_years (
+	"name" varchar(100) NOT NULL,
+	code varchar(50) NOT NULL,
+	is_active bool NOT NULL,
+	is_deleted bool NOT NULL,
+	start_date date NULL,
+	end_date date NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT financial_years_pkey PRIMARY KEY (id),
+	CONSTRAINT uq_tenant_financial_year_code UNIQUE (tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS form_master (
+	id bigserial NOT NULL,
+	form_key varchar(100) NOT NULL,
+	title varchar(200) NOT NULL,
+	description varchar(500) NULL,
+	business_type_id varchar(50) NULL,
+	submit_label varchar(50) DEFAULT 'Save'::character varying NOT NULL,
+	is_active bool DEFAULT true NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	is_deleted bool DEFAULT false NULL,
+	tenant_id int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT form_master_form_key_key UNIQUE (form_key),
+	CONSTRAINT form_master_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS hotel_guests (
+	branch_id int8 NOT NULL,
+	first_name varchar(80) NOT NULL,
+	last_name varchar(80) NOT NULL,
+	email varchar(120) NULL,
+	phone varchar(30) NULL,
+	id_type varchar(50) NULL,
+	id_number varchar(100) NULL,
+	notes text NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	CONSTRAINT hotel_guests_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS installed_plugins (
+	plugin_id varchar(100) NOT NULL,
+	plugin_name varchar(200) NOT NULL,
+	is_enabled bool NOT NULL,
+	config_data jsonb NOT NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	CONSTRAINT installed_plugins_pkey PRIMARY KEY (id),
+	CONSTRAINT uq_tenant_plugin UNIQUE (tenant_id, plugin_id)
+);
+
+CREATE TABLE IF NOT EXISTS kds_alerts (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	order_id int8 NULL,
+	ticket_id int8 NULL,
+	station_id int8 NULL,
+	alert_type varchar(40) NOT NULL,
+	severity varchar(20) DEFAULT 'INFO'::character varying NOT NULL,
+	message varchar(500) NOT NULL,
+	is_acknowledged bool DEFAULT false NOT NULL,
+	acknowledged_by int8 NULL,
+	acknowledged_at timestamptz NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	CONSTRAINT kds_alerts_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS kds_settings (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	settings jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	CONSTRAINT kds_settings_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS kds_station_rules (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	station_id int8 NOT NULL,
+	menu_item_id int8 NULL,
+	category_id int8 NULL,
+	rule_type varchar(30) DEFAULT 'ITEM'::character varying NOT NULL,
+	priority int4 DEFAULT 100 NOT NULL,
+	preparation_time_seconds int4 DEFAULT 300 NOT NULL,
+	is_default bool DEFAULT false NOT NULL,
+	is_active bool DEFAULT true NOT NULL,
+	conditions jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	CONSTRAINT kds_station_rules_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS lead_inquiries (
+	id bigserial NOT NULL,
+	full_name varchar(255) NOT NULL,
+	company_name varchar(255) NOT NULL,
+	phone varchar(50) NOT NULL,
+	email varchar(255) NOT NULL,
+	vertical varchar(50) DEFAULT 'restaurant'::character varying NOT NULL,
+	outlet_count varchar(50) DEFAULT '1-3 Outlets'::character varying NULL,
+	preferred_date varchar(50) NULL,
+	preferred_time varchar(50) NULL,
+	inquiry_type varchar(50) DEFAULT 'DEMO_REQUEST'::character varying NOT NULL,
+	status varchar(50) DEFAULT 'NEW'::character varying NOT NULL,
+	notes text NULL,
+	operator_notes text NULL,
+	"source" varchar(100) DEFAULT 'MARKETING_WEB'::character varying NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NULL,
+	CONSTRAINT lead_inquiries_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS notification_logs (
+	channel varchar(20) NOT NULL,
+	recipient varchar(300) NOT NULL,
+	subject varchar(300) NULL,
+	body text NOT NULL,
+	status varchar(20) NOT NULL,
+	error_message text NULL,
+	sent_at timestamp NULL,
+	delivered_at timestamp NULL,
+	template_key varchar(100) NULL,
+	reference_type varchar(50) NULL,
+	reference_id varchar(100) NULL,
+	metadata jsonb NOT NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT notification_logs_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS notification_templates (
+	"name" varchar(200) NOT NULL,
+	template_key varchar(100) NOT NULL,
+	channel varchar(20) NOT NULL,
+	subject varchar(300) NULL,
+	body text NOT NULL,
+	variables jsonb NOT NULL,
+	is_active bool NOT NULL,
+	"version" int4 NOT NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT notification_templates_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+	recipient varchar(255) NOT NULL,
+	channel varchar(50) NOT NULL,
+	subject varchar(255) NULL,
+	body text NOT NULL,
+	status varchar(50) NOT NULL,
+	error_message text NULL,
+	sent_at timestamptz NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	CONSTRAINT notifications_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS payment_modes (
+	branch_id int8 NULL,
+	"name" varchar(100) NOT NULL,
+	code varchar(30) NOT NULL,
+	icon varchar(50) NULL,
+	payment_type varchar(50) NOT NULL,
+	qr_code_url varchar(500) NULL,
+	is_active bool NOT NULL,
+	sort_order int4 NOT NULL,
+	company_id int8 NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	CONSTRAINT payment_modes_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS pos_queue_tokens (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	branch_id int8 NULL,
+	token_code varchar(20) NOT NULL,
+	cart_items jsonb NOT NULL,
+	customer_name varchar(100) NULL,
+	customer_phone varchar(20) NULL,
+	is_claimed bool DEFAULT false NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NULL,
+	CONSTRAINT pos_queue_tokens_pkey PRIMARY KEY (id),
+	CONSTRAINT pos_queue_tokens_token_code_key UNIQUE (token_code)
+);
+
+CREATE TABLE IF NOT EXISTS pos_shifts (
+	branch_id int8 NULL,
+	shift_number varchar(50) NOT NULL,
+	cashier_name varchar(100) NOT NULL,
+	status varchar(20) NOT NULL,
+	opening_cash numeric(15, 2) NOT NULL,
+	closing_cash numeric(15, 2) NULL,
+	expected_cash numeric(15, 2) NOT NULL,
+	cash_sales numeric(15, 2) NOT NULL,
+	upi_sales numeric(15, 2) NOT NULL,
+	card_sales numeric(15, 2) NOT NULL,
+	total_sales numeric(15, 2) NOT NULL,
+	pay_ins numeric(15, 2) NOT NULL,
+	pay_outs numeric(15, 2) NOT NULL,
+	variance numeric(15, 2) NULL,
+	opened_at timestamptz NOT NULL,
+	closed_at timestamptz NULL,
+	notes text NULL,
+	company_id int8 NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	CONSTRAINT pos_shifts_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS queue_tokens (
+	branch_id int8 NOT NULL,
+	token_code varchar(10) NOT NULL,
+	customer_name varchar(100) NULL,
+	customer_phone varchar(20) NULL,
+	table_number varchar(20) NULL,
+	cart_items jsonb NOT NULL,
+	subtotal numeric(15, 2) NOT NULL,
+	is_claimed bool NOT NULL,
+	claimed_at timestamptz NULL,
+	claimed_by_order_id int8 NULL,
+	expires_at timestamptz NOT NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	CONSTRAINT queue_tokens_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS tenant_app_configs (
+	branch_id int8 NULL,
+	app_name varchar(100) NOT NULL,
+	draft_config jsonb NOT NULL,
+	published_config jsonb NOT NULL,
+	config_version int4 NOT NULL,
+	published_at timestamptz NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	CONSTRAINT tenant_app_configs_pkey PRIMARY KEY (id),
+	CONSTRAINT uq_tenant_branch_app_config UNIQUE (tenant_id, branch_id, app_name)
+);
+
+CREATE TABLE IF NOT EXISTS tenant_custom_domains (
+	branch_id int8 NULL,
+	app_name varchar(100) NOT NULL,
+	"domain" varchar(255) NOT NULL,
+	status varchar(50) NOT NULL,
+	record_type varchar(20) NOT NULL,
+	target_value varchar(255) NOT NULL,
+	verified_at timestamptz NULL,
+	last_checked_at timestamptz NULL,
+	error_message text NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	CONSTRAINT tenant_custom_domains_pkey PRIMARY KEY (id),
+	CONSTRAINT uq_custom_domain UNIQUE (domain)
+);
 
 CREATE TABLE IF NOT EXISTS tenants (
-    id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(200) NOT NULL,
-    slug VARCHAR(100) UNIQUE NOT NULL,
-    subdomain VARCHAR(100),
-    domain VARCHAR(255) UNIQUE,
-    logo_url VARCHAR(500),
-    plan VARCHAR(50) DEFAULT 'starter' NOT NULL CHECK (plan IN ('starter', 'professional', 'enterprise')),
-    is_active BOOLEAN DEFAULT TRUE NOT NULL,
-    settings JSONB DEFAULT '{}'::jsonb,
-    theme JSONB DEFAULT '{}'::jsonb,
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
+	id bigserial NOT NULL,
+	"name" varchar(200) NOT NULL,
+	slug varchar(100) NOT NULL,
+	subdomain varchar(100) NULL,
+	"domain" varchar(255) NULL,
+	logo_url varchar(500) NULL,
+	"plan" varchar(50) DEFAULT 'starter'::character varying NOT NULL,
+	is_active bool DEFAULT true NOT NULL,
+	settings jsonb DEFAULT '{}'::jsonb NULL,
+	theme jsonb DEFAULT '{}'::jsonb NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT tenants_domain_key UNIQUE (domain),
+	CONSTRAINT tenants_pkey PRIMARY KEY (id),
+	CONSTRAINT tenants_plan_check CHECK (((plan)::text = ANY ((ARRAY['starter'::character varying, 'professional'::character varying, 'enterprise'::character varying])::text[]))),
+	CONSTRAINT tenants_slug_key UNIQUE (slug)
+);
+
+CREATE TABLE IF NOT EXISTS workflow_instances (
+	workflow_key varchar(100) NOT NULL,
+	entity_id varchar(100) NOT NULL,
+	current_state varchar(100) NOT NULL,
+	state_payload jsonb NOT NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	CONSTRAINT uq_tenant_workflow_entity UNIQUE (tenant_id, workflow_key, entity_id),
+	CONSTRAINT workflow_instances_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_conversations (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	user_id int8 NOT NULL,
+	agent_type varchar(50) DEFAULT 'general'::character varying NOT NULL,
+	title varchar(300) NULL,
+	context jsonb DEFAULT '{}'::jsonb NULL,
+	token_count int4 DEFAULT 0 NOT NULL,
+	cost_usd numeric(10, 4) DEFAULT 0.0000 NOT NULL,
+	is_archived bool DEFAULT false NOT NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT ai_conversations_pkey PRIMARY KEY (id),
+	CONSTRAINT ai_conversations_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS ai_messages (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	conversation_id int8 NOT NULL,
+	"role" varchar(20) NOT NULL,
+	"content" text NOT NULL,
+	token_count int4 DEFAULT 0 NOT NULL,
+	model_used varchar(100) NULL,
+	metadata jsonb DEFAULT '{}'::jsonb NULL,
+	feedback varchar(10) NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT ai_messages_feedback_check CHECK (((feedback)::text = ANY ((ARRAY['good'::character varying, 'bad'::character varying])::text[]))),
+	CONSTRAINT ai_messages_pkey PRIMARY KEY (id),
+	CONSTRAINT ai_messages_role_check CHECK (((role)::text = ANY ((ARRAY['user'::character varying, 'assistant'::character varying, 'system'::character varying])::text[]))),
+	CONSTRAINT ai_messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE,
+	CONSTRAINT ai_messages_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS ai_prompt_templates (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	"name" varchar(200) NOT NULL,
+	category varchar(100) NOT NULL,
+	agent_type varchar(50) NOT NULL,
+	system_prompt text NOT NULL,
+	user_prompt_template text NOT NULL,
+	variables jsonb DEFAULT '[]'::jsonb NULL,
+	"version" int4 DEFAULT 1 NOT NULL,
+	is_active bool DEFAULT true NOT NULL,
+	usage_count int4 DEFAULT 0 NOT NULL,
+	avg_rating numeric(3, 2) DEFAULT 0.00 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT ai_prompt_templates_pkey PRIMARY KEY (id),
+	CONSTRAINT ai_prompt_templates_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+	id bigserial NOT NULL,
+	tenant_id int8 NULL,
+	user_id int8 NULL,
+	"action" varchar(100) NOT NULL,
+	resource_type varchar(100) NOT NULL,
+	resource_id varchar(255) NULL,
+	old_values jsonb NULL,
+	new_values jsonb NULL,
+	ip_address varchar(50) NULL,
+	user_agent varchar(500) NULL,
+	metadata jsonb DEFAULT '{}'::jsonb NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	is_deleted bool DEFAULT false NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT audit_logs_pkey PRIMARY KEY (id),
+	CONSTRAINT audit_logs_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS budget_entries (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	fiscal_year varchar(10) NOT NULL,
+	category varchar(100) NOT NULL,
+	allocated_amount numeric(12, 2) NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT budget_entries_pkey PRIMARY KEY (id),
+	CONSTRAINT budget_entries_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS campaigns (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	title varchar(200) NOT NULL,
+	channel varchar(50) NOT NULL,
+	status varchar(50) DEFAULT 'ACTIVE'::character varying NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT campaigns_channel_check CHECK (((channel)::text = ANY ((ARRAY['SMS'::character varying, 'EMAIL'::character varying, 'WHATSAPP'::character varying, 'PUSH'::character varying])::text[]))),
+	CONSTRAINT campaigns_pkey PRIMARY KEY (id),
+	CONSTRAINT campaigns_status_check CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'SCHEDULED'::character varying, 'ACTIVE'::character varying, 'COMPLETED'::character varying, 'CANCELLED'::character varying])::text[]))),
+	CONSTRAINT campaigns_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS chart_of_accounts (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	account_code varchar(50) NOT NULL,
+	account_name varchar(150) NOT NULL,
+	account_type varchar(50) NOT NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT chart_of_accounts_account_type_check CHECK (((account_type)::text = ANY ((ARRAY['ASSET'::character varying, 'LIABILITY'::character varying, 'EQUITY'::character varying, 'REVENUE'::character varying, 'EXPENSE'::character varying])::text[]))),
+	CONSTRAINT chart_of_accounts_pkey PRIMARY KEY (id),
+	CONSTRAINT uq_tenant_account_code UNIQUE (tenant_id, account_code),
+	CONSTRAINT chart_of_accounts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS companies (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    name VARCHAR(200) NOT NULL,
-    legal_name VARCHAR(300),
-    gstin VARCHAR(15),
-    pan VARCHAR(10),
-    cin VARCHAR(21),
-    address JSONB DEFAULT '{}'::jsonb,
-    country_code VARCHAR(3) DEFAULT 'IN',
-    currency_code VARCHAR(3) DEFAULT 'INR',
-    fiscal_year_start VARCHAR(5) DEFAULT '04-01',
-    business_type VARCHAR(50) DEFAULT 'restaurant',
-    is_active BOOLEAN DEFAULT TRUE NOT NULL,
-    settings JSONB DEFAULT '{}'::jsonb,
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	"name" varchar(200) NOT NULL,
+	legal_name varchar(300) NULL,
+	gstin varchar(15) NULL,
+	pan varchar(10) NULL,
+	cin varchar(21) NULL,
+	address jsonb DEFAULT '{}'::jsonb NULL,
+	country_code varchar(3) DEFAULT 'IN'::character varying NULL,
+	currency_code varchar(3) DEFAULT 'INR'::character varying NULL,
+	fiscal_year_start varchar(5) DEFAULT '04-01'::character varying NULL,
+	business_type varchar(50) DEFAULT 'restaurant'::character varying NULL,
+	is_active bool DEFAULT true NOT NULL,
+	settings jsonb DEFAULT '{}'::jsonb NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT companies_pkey PRIMARY KEY (id),
+	CONSTRAINT companies_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_companies_tenant ON companies(tenant_id);
 
-CREATE TABLE IF NOT EXISTS branches (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    company_id BIGINT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    name VARCHAR(200) NOT NULL,
-    code VARCHAR(20) NOT NULL,
-    branch_type VARCHAR(50) DEFAULT 'outlet',
-    address JSONB DEFAULT '{}'::jsonb,
-    phone VARCHAR(20),
-    email VARCHAR(255),
-    gstin VARCHAR(15),
-    latitude NUMERIC(10, 7),
-    longitude NUMERIC(10, 7),
-    timezone VARCHAR(50) DEFAULT 'Asia/Kolkata',
-    is_active BOOLEAN DEFAULT TRUE NOT NULL,
-    settings JSONB DEFAULT '{}'::jsonb,
-    operating_hours JSONB DEFAULT '{}'::jsonb,
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL,
-    CONSTRAINT uq_branch_code UNIQUE (tenant_id, company_id, code)
+CREATE TABLE IF NOT EXISTS customers (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	"name" varchar(150) NOT NULL,
+	phone varchar(30) NOT NULL,
+	email varchar(150) NULL,
+	loyalty_points int4 DEFAULT 0 NOT NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	hashed_password varchar(255) NULL,
+	address jsonb DEFAULT '{}'::jsonb NULL,
+	city varchar(100) NULL,
+	pincode varchar(20) NULL,
+	CONSTRAINT customers_pkey PRIMARY KEY (id),
+	CONSTRAINT customers_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_branches_tenant ON branches(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_branches_company ON branches(tenant_id, company_id);
 
-CREATE TABLE IF NOT EXISTS users (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    company_id BIGINT REFERENCES companies(id) ON DELETE SET NULL,
-    branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
-    email VARCHAR(255) NOT NULL,
-    phone VARCHAR(20),
-    first_name VARCHAR(100) NOT NULL,
-    last_name VARCHAR(100) NOT NULL,
-    display_name VARCHAR(200),
-    avatar_url VARCHAR(500),
-    hashed_password VARCHAR(255) NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE NOT NULL,
-    is_verified BOOLEAN DEFAULT FALSE NOT NULL,
-    is_superadmin BOOLEAN DEFAULT FALSE NOT NULL,
-    language VARCHAR(10) DEFAULT 'en',
-    timezone VARCHAR(50) DEFAULT 'Asia/Kolkata',
-    last_login_at TIMESTAMP WITH TIME ZONE,
-    mfa_enabled BOOLEAN DEFAULT FALSE NOT NULL,
-    mfa_secret VARCHAR(255),
-    failed_login_attempts INT DEFAULT 0 NOT NULL,
-    locked_until TIMESTAMP WITH TIME ZONE,
-    preferences JSONB DEFAULT '{}'::jsonb,
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL,
-    CONSTRAINT uq_user_email_per_tenant UNIQUE (tenant_id, email)
+CREATE TABLE IF NOT EXISTS departments (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	"name" varchar(100) NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT departments_pkey PRIMARY KEY (id),
+	CONSTRAINT departments_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_users_tenant ON users(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_users_tenant_active ON users(tenant_id, is_active);
 
-CREATE TABLE IF NOT EXISTS roles (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL,
-    code VARCHAR(50) NOT NULL,
-    description TEXT,
-    permissions JSONB DEFAULT '{}'::jsonb NOT NULL,
-    is_system_role BOOLEAN DEFAULT FALSE NOT NULL,
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
+CREATE TABLE IF NOT EXISTS designations (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	department_id int8 NULL,
+	title varchar(100) NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT designations_pkey PRIMARY KEY (id),
+	CONSTRAINT designations_department_id_fkey FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL,
+	CONSTRAINT designations_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_roles_tenant ON roles(tenant_id);
 
-CREATE TABLE IF NOT EXISTS user_roles (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    role_id BIGINT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
-    branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
-    company_id BIGINT REFERENCES companies(id) ON DELETE SET NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
+CREATE TABLE IF NOT EXISTS employees (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	employee_code varchar(50) NOT NULL,
+	full_name varchar(150) NOT NULL,
+	designation varchar(100) NOT NULL,
+	phone varchar(30) NOT NULL,
+	basic_salary numeric(12, 2) NOT NULL,
+	status varchar(50) DEFAULT 'ACTIVE'::character varying NOT NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	is_waiter bool DEFAULT false NULL,
+	is_cashier bool DEFAULT false NULL,
+	is_chef bool DEFAULT false NULL,
+	department_name varchar(100) DEFAULT 'General'::character varying NULL,
+	allowances numeric(12, 2) DEFAULT 0.00 NULL,
+	deductions numeric(12, 2) DEFAULT 0.00 NULL,
+	can_access_staff_web bool DEFAULT false NULL,
+	can_access_kds_web bool DEFAULT false NULL,
+	can_access_pos bool DEFAULT false NULL,
+	user_id int8 NULL,
+	pin_code varchar(100) DEFAULT '1234'::character varying NULL,
+	CONSTRAINT employees_pkey PRIMARY KEY (id),
+	CONSTRAINT employees_status_check CHECK (((status)::text = ANY ((ARRAY['ACTIVE'::character varying, 'ON_LEAVE'::character varying, 'SUSPENDED'::character varying, 'TERMINATED'::character varying])::text[]))),
+	CONSTRAINT uq_tenant_emp_code UNIQUE (tenant_id, employee_code),
+	CONSTRAINT employees_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_user_roles_lookup ON user_roles(tenant_id, user_id, role_id);
 
-CREATE TABLE IF NOT EXISTS user_sessions (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    refresh_token_hash VARCHAR(255) UNIQUE NOT NULL,
-    device_info JSONB DEFAULT '{}'::jsonb,
-    ip_address VARCHAR(50),
-    user_agent VARCHAR(500),
-    is_active BOOLEAN DEFAULT TRUE NOT NULL,
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_used_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_lookup ON user_sessions(tenant_id, user_id, is_active);
-
-CREATE TABLE IF NOT EXISTS feature_master (
-    id BIGSERIAL PRIMARY KEY,
-    code VARCHAR(100) UNIQUE NOT NULL,
-    name VARCHAR(200) NOT NULL,
-    description TEXT,
-    category VARCHAR(100) NOT NULL,
-    dependencies JSONB DEFAULT '[]'::jsonb,
-    is_core BOOLEAN DEFAULT FALSE NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+CREATE TABLE IF NOT EXISTS event_store (
+	id bigserial NOT NULL,
+	event_type varchar(100) NOT NULL,
+	tenant_id int8 NOT NULL,
+	payload jsonb NOT NULL,
+	status varchar(20) DEFAULT 'PENDING'::character varying NOT NULL,
+	retry_count int4 DEFAULT 0 NOT NULL,
+	source_module varchar(100) NULL,
+	correlation_id varchar(255) NULL,
+	processed_at timestamptz NULL,
+	"error" text NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	is_deleted bool DEFAULT false NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT event_store_pkey PRIMARY KEY (id),
+	CONSTRAINT event_store_status_check CHECK (((status)::text = ANY ((ARRAY['PENDING'::character varying, 'PROCESSED'::character varying, 'FAILED'::character varying])::text[]))),
+	CONSTRAINT event_store_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS feature_licenses (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    feature_code VARCHAR(100) NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE NOT NULL,
-    expires_at TIMESTAMP WITH TIME ZONE,
-    max_users INT,
-    max_branches INT,
-    config JSONB DEFAULT '{}'::jsonb,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL,
-    CONSTRAINT uq_feature_license UNIQUE (tenant_id, feature_code)
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	feature_code varchar(100) NOT NULL,
+	is_active bool DEFAULT true NOT NULL,
+	expires_at timestamptz NULL,
+	max_users int4 NULL,
+	max_branches int4 NULL,
+	config jsonb DEFAULT '{}'::jsonb NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT feature_licenses_pkey PRIMARY KEY (id),
+	CONSTRAINT uq_feature_license UNIQUE (tenant_id, feature_code),
+	CONSTRAINT feature_licenses_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_feature_licenses_lookup ON feature_licenses(tenant_id, feature_code, is_active);
-
-CREATE TABLE IF NOT EXISTS audit_logs (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT REFERENCES tenants(id) ON DELETE CASCADE,
-    user_id BIGINT,
-    action VARCHAR(100) NOT NULL,
-    resource_type VARCHAR(100) NOT NULL,
-    resource_id VARCHAR(255),
-    old_values JSONB,
-    new_values JSONB,
-    ip_address VARCHAR(50),
-    user_agent VARCHAR(500),
-    metadata JSONB DEFAULT '{}'::jsonb,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_lookup ON audit_logs(tenant_id, resource_type, created_at DESC);
-
-CREATE TABLE IF NOT EXISTS event_store (
-    id BIGSERIAL PRIMARY KEY,
-    event_type VARCHAR(100) NOT NULL,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    payload JSONB NOT NULL,
-    status VARCHAR(20) DEFAULT 'PENDING' NOT NULL CHECK (status IN ('PENDING', 'PROCESSED', 'FAILED')),
-    retry_count INT DEFAULT 0 NOT NULL,
-    source_module VARCHAR(100),
-    correlation_id VARCHAR(255),
-    processed_at TIMESTAMP WITH TIME ZONE,
-    error TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_event_store_lookup ON event_store(tenant_id, status, created_at ASC);
 
 CREATE TABLE IF NOT EXISTS file_master_erp (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    code VARCHAR(100) NOT NULL,
-    label VARCHAR(200) NOT NULL,
-    href VARCHAR(300) NOT NULL,
-    icon VARCHAR(100),
-    category VARCHAR(50) DEFAULT 'core',
-    parent_code VARCHAR(100),
-    is_active BOOLEAN DEFAULT TRUE NOT NULL,
-    sort_order INT DEFAULT 0 NOT NULL,
-    required_permission VARCHAR(100),
-    required_feature VARCHAR(100),
-    type VARCHAR(50),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL,
-    CONSTRAINT uq_file_master_erp_code UNIQUE (tenant_id, code)
-);
-CREATE INDEX IF NOT EXISTS idx_file_master_erp_lookup ON file_master_erp(tenant_id, category, is_active);
-
--- -----------------------------------------------------------------------------
--- 2. AI COPILOT & GOVERNANCE
--- -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS ai_conversations (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL,
-    agent_type VARCHAR(50) DEFAULT 'general' NOT NULL,
-    title VARCHAR(300),
-    context JSONB DEFAULT '{}'::jsonb,
-    token_count INT DEFAULT 0 NOT NULL,
-    cost_usd NUMERIC(10, 4) DEFAULT 0.0000 NOT NULL,
-    is_archived BOOLEAN DEFAULT FALSE NOT NULL,
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_ai_conversations_lookup ON ai_conversations(tenant_id, user_id, is_archived);
-
-CREATE TABLE IF NOT EXISTS ai_messages (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    conversation_id BIGINT NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
-    content TEXT NOT NULL,
-    token_count INT DEFAULT 0 NOT NULL,
-    model_used VARCHAR(100),
-    metadata JSONB DEFAULT '{}'::jsonb,
-    feedback VARCHAR(10) CHECK (feedback IN ('good', 'bad')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_ai_messages_lookup ON ai_messages(tenant_id, conversation_id, created_at ASC);
-
-CREATE TABLE IF NOT EXISTS ai_prompt_templates (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    name VARCHAR(200) NOT NULL,
-    category VARCHAR(100) NOT NULL,
-    agent_type VARCHAR(50) NOT NULL,
-    system_prompt TEXT NOT NULL,
-    user_prompt_template TEXT NOT NULL,
-    variables JSONB DEFAULT '[]'::jsonb,
-    version INT DEFAULT 1 NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE NOT NULL,
-    usage_count INT DEFAULT 0 NOT NULL,
-    avg_rating NUMERIC(3, 2) DEFAULT 0.00 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_ai_prompt_templates_lookup ON ai_prompt_templates(tenant_id, agent_type, is_active);
-
--- -----------------------------------------------------------------------------
--- 3. DYNAMIC FORM BUILDER ENGINE
--- -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS form_master (
-    id BIGSERIAL PRIMARY KEY,
-    form_key VARCHAR(100) UNIQUE NOT NULL,
-    title VARCHAR(200) NOT NULL,
-    description VARCHAR(500),
-    business_type_id VARCHAR(50),
-    submit_label VARCHAR(50) DEFAULT 'Save' NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	code varchar(100) NOT NULL,
+	"label" varchar(200) NOT NULL,
+	href varchar(300) NOT NULL,
+	icon varchar(100) NULL,
+	category varchar(50) DEFAULT 'core'::character varying NULL,
+	parent_code varchar(100) NULL,
+	is_active bool DEFAULT true NOT NULL,
+	sort_order int4 DEFAULT 0 NOT NULL,
+	required_permission varchar(100) NULL,
+	required_feature varchar(100) NULL,
+	"type" varchar(50) NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT file_master_erp_pkey PRIMARY KEY (id),
+	CONSTRAINT uq_file_master_erp_code UNIQUE (tenant_id, code),
+	CONSTRAINT file_master_erp_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS form_fields (
-    id BIGSERIAL PRIMARY KEY,
-    form_id BIGINT NOT NULL REFERENCES form_master(id) ON DELETE CASCADE,
-    field_name VARCHAR(100) NOT NULL,
-    field_label VARCHAR(200) NOT NULL,
-    field_type VARCHAR(50) NOT NULL,
-    placeholder VARCHAR(200),
-    default_value VARCHAR(200),
-    is_required BOOLEAN DEFAULT FALSE NOT NULL,
-    is_readonly BOOLEAN DEFAULT FALSE NOT NULL,
-    is_hidden BOOLEAN DEFAULT FALSE NOT NULL,
-    sort_order INT DEFAULT 0 NOT NULL,
-    section VARCHAR(50) DEFAULT 'default' NOT NULL,
-    tab VARCHAR(50) DEFAULT 'basic' NOT NULL,
-    width VARCHAR(50) DEFAULT 'full' NOT NULL,
-    help_text VARCHAR(500),
-    options JSONB,
-    depends_on VARCHAR(100),
-    depends_value VARCHAR(100),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT uq_form_field_name UNIQUE (form_id, field_name)
-);
-
-CREATE TABLE IF NOT EXISTS field_validations (
-    id BIGSERIAL PRIMARY KEY,
-    field_id BIGINT UNIQUE NOT NULL REFERENCES form_fields(id) ON DELETE CASCADE,
-    min_value NUMERIC,
-    max_value NUMERIC,
-    min_length INT,
-    max_length INT,
-    regex_pattern VARCHAR(500),
-    regex_message VARCHAR(300),
-    allowed_values JSONB,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+	id bigserial NOT NULL,
+	form_id int8 NOT NULL,
+	field_name varchar(100) NOT NULL,
+	field_label varchar(200) NOT NULL,
+	field_type varchar(50) NOT NULL,
+	placeholder varchar(200) NULL,
+	default_value varchar(200) NULL,
+	is_required bool DEFAULT false NOT NULL,
+	is_readonly bool DEFAULT false NOT NULL,
+	is_hidden bool DEFAULT false NOT NULL,
+	sort_order int4 DEFAULT 0 NOT NULL,
+	"section" varchar(50) DEFAULT 'default'::character varying NOT NULL,
+	tab varchar(50) DEFAULT 'basic'::character varying NOT NULL,
+	width varchar(50) DEFAULT 'full'::character varying NOT NULL,
+	help_text varchar(500) NULL,
+	"options" jsonb NULL,
+	depends_on varchar(100) NULL,
+	depends_value varchar(100) NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	is_deleted bool DEFAULT false NULL,
+	tenant_id int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT form_fields_pkey PRIMARY KEY (id),
+	CONSTRAINT uq_form_field_name UNIQUE (form_id, field_name),
+	CONSTRAINT form_fields_form_id_fkey FOREIGN KEY (form_id) REFERENCES form_master(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS form_submissions (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    form_key VARCHAR(100) NOT NULL,
-    submitted_by BIGINT,
-    payload JSONB DEFAULT '{}'::jsonb,
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	form_key varchar(100) NOT NULL,
+	submitted_by int8 NULL,
+	payload jsonb DEFAULT '{}'::jsonb NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT form_submissions_pkey PRIMARY KEY (id),
+	CONSTRAINT form_submissions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_form_submissions_lookup ON form_submissions(tenant_id, form_key, created_at DESC);
-
--- -----------------------------------------------------------------------------
--- 4. RESTAURANT & POS MODULE
--- -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS menu_categories (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
-    name VARCHAR(100) NOT NULL,
-    icon VARCHAR(50),
-    slug VARCHAR(100),
-    parent_id BIGINT REFERENCES menu_categories(id) ON DELETE SET NULL,
-    level INT DEFAULT 1,
-    sort_order INT DEFAULT 1,
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_menu_categories_lookup ON menu_categories(tenant_id, branch_id, sort_order);
-
-CREATE TABLE IF NOT EXISTS menu_tags (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    name VARCHAR(50) NOT NULL,
-    color_code VARCHAR(20),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_menu_tags_tenant ON menu_tags(tenant_id);
-
-CREATE TABLE IF NOT EXISTS menu_items (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    category_id BIGINT REFERENCES menu_categories(id) ON DELETE SET NULL,
-    item_code VARCHAR(50) NOT NULL,
-    name VARCHAR(200) NOT NULL,
-    price NUMERIC(12, 2) DEFAULT 0.00 NOT NULL,
-    cost_price NUMERIC(12, 2) DEFAULT 0.00 NOT NULL,
-    tax_rate NUMERIC(5, 2) DEFAULT 5.00 NOT NULL,
-    is_available BOOLEAN DEFAULT TRUE NOT NULL,
-    image_url TEXT,
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL,
-    CONSTRAINT uq_tenant_item_code UNIQUE (tenant_id, item_code)
-);
-CREATE INDEX IF NOT EXISTS idx_menu_items_pos_lookup ON menu_items(tenant_id, category_id, is_available);
-
-CREATE TABLE IF NOT EXISTS menu_item_tags (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    item_id BIGINT NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
-    tag_id BIGINT NOT NULL REFERENCES menu_tags(id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_menu_item_tags_lookup ON menu_item_tags(tenant_id, item_id, tag_id);
-
-CREATE TABLE IF NOT EXISTS menu_variant_groups (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    item_id BIGINT NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL,
-    is_required BOOLEAN DEFAULT FALSE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_variant_groups_item ON menu_variant_groups(tenant_id, item_id);
-
-CREATE TABLE IF NOT EXISTS menu_variant_options (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    group_id BIGINT NOT NULL REFERENCES menu_variant_groups(id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL,
-    additional_price NUMERIC(12, 2) DEFAULT 0.00 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_variant_options_group ON menu_variant_options(tenant_id, group_id);
-
-CREATE TABLE IF NOT EXISTS menu_addon_groups (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    item_id BIGINT NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL,
-    min_selection INT DEFAULT 0,
-    max_selection INT DEFAULT 5,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_addon_groups_item ON menu_addon_groups(tenant_id, item_id);
-
-CREATE TABLE IF NOT EXISTS menu_addon_options (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    group_id BIGINT NOT NULL REFERENCES menu_addon_groups(id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL,
-    price NUMERIC(12, 2) DEFAULT 0.00 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_addon_options_group ON menu_addon_options(tenant_id, group_id);
-
-CREATE TABLE IF NOT EXISTS dining_tables (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
-    table_number VARCHAR(20) NOT NULL,
-    seating_capacity INT DEFAULT 4 NOT NULL,
-    status VARCHAR(50) DEFAULT 'VACANT' NOT NULL CHECK (status IN ('VACANT', 'OCCUPIED', 'RESERVED', 'DIRTY', 'OUT_OF_SERVICE')),
-    section VARCHAR(50) DEFAULT 'MAIN',
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL,
-    CONSTRAINT uq_tenant_table_no UNIQUE (tenant_id, table_number)
-);
-CREATE INDEX IF NOT EXISTS idx_dining_tables_pos_lookup ON dining_tables(tenant_id, branch_id, status);
-
-CREATE TABLE IF NOT EXISTS kitchen_stations (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
-    name VARCHAR(100) NOT NULL,
-    code VARCHAR(50) NOT NULL,
-    display_ip VARCHAR(50),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_kitchen_stations_tenant ON kitchen_stations(tenant_id, branch_id);
-
--- -----------------------------------------------------------------------------
--- 5. ORDERS, BILLING & KOT ENGINE
--- -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS daily_order_sequences (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
-    branch_id BIGINT NOT NULL DEFAULT 1 REFERENCES branches(id) ON DELETE CASCADE,
-    sequence_date VARCHAR(10) NOT NULL,
-    last_seq INTEGER DEFAULT 0 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT uq_tenant_branch_date_seq UNIQUE (tenant_id, branch_id, sequence_date)
-);
-CREATE INDEX IF NOT EXISTS idx_daily_order_sequences_tenant ON daily_order_sequences(tenant_id, branch_id, sequence_date);
-
-CREATE TABLE IF NOT EXISTS orders (
-
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
-    order_number VARCHAR(50) NOT NULL,
-    table_id BIGINT REFERENCES dining_tables(id) ON DELETE SET NULL,
-    order_type VARCHAR(50) DEFAULT 'DINE_IN' NOT NULL CHECK (order_type IN ('DINE_IN', 'TAKEAWAY', 'DELIVERY', 'ROOM_SERVICE')),
-    status VARCHAR(50) DEFAULT 'OPEN' NOT NULL CHECK (status IN ('OPEN', 'PREPARING', 'READY', 'SERVED', 'COMPLETED', 'CANCELLED')),
-    subtotal NUMERIC(12, 2) DEFAULT 0.00 NOT NULL,
-    tax_amount NUMERIC(12, 2) DEFAULT 0.00 NOT NULL,
-    discount_amount NUMERIC(12, 2) DEFAULT 0.00 NOT NULL,
-    total_amount NUMERIC(12, 2) DEFAULT 0.00 NOT NULL,
-    customer_name VARCHAR(150),
-    customer_phone VARCHAR(30),
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL,
-    CONSTRAINT uq_tenant_order_no UNIQUE (tenant_id, order_number)
-);
-CREATE INDEX IF NOT EXISTS idx_orders_pos_filtering ON orders(tenant_id, branch_id, status, created_at DESC);
-
-CREATE TABLE IF NOT EXISTS order_items (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    item_id BIGINT REFERENCES menu_items(id) ON DELETE SET NULL,
-    item_name VARCHAR(200) NOT NULL,
-    quantity INT DEFAULT 1 NOT NULL,
-    unit_price NUMERIC(12, 2) NOT NULL,
-    total_price NUMERIC(12, 2) NOT NULL,
-    notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(tenant_id, order_id);
-
-CREATE TABLE IF NOT EXISTS order_payments (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    payment_mode VARCHAR(50) NOT NULL,
-    amount NUMERIC(12, 2) NOT NULL,
-    status VARCHAR(50) DEFAULT 'SUCCESS' NOT NULL CHECK (status IN ('SUCCESS', 'PENDING', 'FAILED', 'REFUNDED')),
-    transaction_reference VARCHAR(100),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_order_payments_lookup ON order_payments(tenant_id, order_id);
-
-CREATE TABLE IF NOT EXISTS kots (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    kot_number VARCHAR(50) NOT NULL,
-    station_id BIGINT REFERENCES kitchen_stations(id) ON DELETE SET NULL,
-    status VARCHAR(50) DEFAULT 'PENDING' NOT NULL CHECK (status IN ('PENDING', 'PREPARING', 'READY', 'SERVED', 'CANCELLED')),
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_kots_kds_display ON kots(tenant_id, station_id, status, created_at ASC);
-
-CREATE TABLE IF NOT EXISTS kot_items (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    kot_id BIGINT NOT NULL REFERENCES kots(id) ON DELETE CASCADE,
-    item_name VARCHAR(200) NOT NULL,
-    quantity INT DEFAULT 1 NOT NULL,
-    status VARCHAR(50) DEFAULT 'PREPARING' NOT NULL CHECK (status IN ('PREPARING', 'READY', 'SERVED', 'CANCELLED')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_kot_items_kot ON kot_items(tenant_id, kot_id);
-
-CREATE TABLE IF NOT EXISTS order_status_logs (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    previous_status VARCHAR(50),
-    new_status VARCHAR(50) NOT NULL,
-    changed_by BIGINT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_order_status_logs_lookup ON order_status_logs(tenant_id, order_id, created_at DESC);
-
-CREATE TABLE IF NOT EXISTS invoices (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    invoice_number VARCHAR(50) NOT NULL,
-    customer_name VARCHAR(150) NOT NULL,
-    invoice_date DATE NOT NULL,
-    due_date DATE NOT NULL,
-    subtotal NUMERIC(12, 2) NOT NULL,
-    tax_amount NUMERIC(12, 2) DEFAULT 0.00 NOT NULL,
-    total_amount NUMERIC(12, 2) NOT NULL,
-    paid_amount NUMERIC(12, 2) DEFAULT 0.00 NOT NULL,
-    status VARCHAR(50) DEFAULT 'UNPAID' NOT NULL CHECK (status IN ('DRAFT', 'UNPAID', 'PARTIALLY_PAID', 'PAID', 'CANCELLED', 'OVERDUE')),
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL,
-    CONSTRAINT uq_tenant_invoice_no UNIQUE (tenant_id, invoice_number)
-);
-CREATE INDEX IF NOT EXISTS idx_invoices_lookup ON invoices(tenant_id, status, due_date);
-
-CREATE TABLE IF NOT EXISTS invoice_items (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    invoice_id BIGINT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
-    item_description VARCHAR(250) NOT NULL,
-    quantity NUMERIC(12, 3) DEFAULT 1 NOT NULL,
-    unit_price NUMERIC(12, 2) NOT NULL,
-    total_price NUMERIC(12, 2) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice ON invoice_items(tenant_id, invoice_id);
-
-CREATE TABLE IF NOT EXISTS invoice_payments (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    invoice_id BIGINT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
-    payment_mode VARCHAR(50) NOT NULL,
-    amount NUMERIC(12, 2) NOT NULL,
-    payment_date DATE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_invoice_payments_invoice ON invoice_payments(tenant_id, invoice_id);
-
--- -----------------------------------------------------------------------------
--- 6. INVENTORY & STOCK MANAGEMENT
--- -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS product_categories (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_product_categories_tenant ON product_categories(tenant_id);
-
-CREATE TABLE IF NOT EXISTS products (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    category_id BIGINT REFERENCES product_categories(id) ON DELETE SET NULL,
-    sku VARCHAR(50) NOT NULL,
-    name VARCHAR(200) NOT NULL,
-    unit VARCHAR(20) DEFAULT 'PCS' NOT NULL,
-    current_stock NUMERIC(12, 3) DEFAULT 0.000 NOT NULL,
-    min_stock_level NUMERIC(12, 3) DEFAULT 10.000 NOT NULL,
-    unit_cost NUMERIC(12, 2) DEFAULT 0.00 NOT NULL,
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL,
-    CONSTRAINT uq_tenant_product_sku UNIQUE (tenant_id, sku)
-);
-CREATE INDEX IF NOT EXISTS idx_products_stock_lookup ON products(tenant_id, category_id, current_stock);
-
-CREATE TABLE IF NOT EXISTS stock_entries (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    entry_type VARCHAR(50) NOT NULL,
-    quantity NUMERIC(12, 3) NOT NULL,
-    unit_cost NUMERIC(12, 2) NOT NULL,
-    notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_stock_entries_product ON stock_entries(tenant_id, product_id, created_at DESC);
-
-CREATE TABLE IF NOT EXISTS stock_movements (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    movement_type VARCHAR(50) NOT NULL,
-    quantity NUMERIC(12, 3) NOT NULL,
-    source_location VARCHAR(100),
-    destination_location VARCHAR(100),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_stock_movements_product ON stock_movements(tenant_id, product_id, created_at DESC);
-
-CREATE TABLE IF NOT EXISTS production_batches (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    batch_number VARCHAR(50) NOT NULL,
-    recipe_name VARCHAR(150) NOT NULL,
-    quantity_produced NUMERIC(12, 3) NOT NULL,
-    status VARCHAR(50) DEFAULT 'COMPLETED' NOT NULL CHECK (status IN ('PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED')),
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_production_batches_lookup ON production_batches(tenant_id, status, created_at DESC);
-
--- -----------------------------------------------------------------------------
--- 7. HOTEL PMS (HOTEL & ROOMS)
--- -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS room_types (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL,
-    base_rate NUMERIC(12, 2) NOT NULL,
-    capacity INT DEFAULT 2 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_room_types_tenant ON room_types(tenant_id);
 
 CREATE TABLE IF NOT EXISTS hotel_rooms (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    room_number VARCHAR(20) NOT NULL,
-    room_type VARCHAR(50) NOT NULL,
-    rate_per_night NUMERIC(12, 2) NOT NULL,
-    status VARCHAR(50) DEFAULT 'VACANT' NOT NULL CHECK (status IN ('VACANT', 'OCCUPIED', 'RESERVED', 'CLEANING', 'MAINTENANCE')),
-    floor_number INT DEFAULT 1,
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL,
-    CONSTRAINT uq_tenant_hotel_room UNIQUE (tenant_id, room_number)
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	room_number varchar(20) NOT NULL,
+	room_type varchar(50) NOT NULL,
+	rate_per_night numeric(12, 2) NOT NULL,
+	status varchar(50) DEFAULT 'VACANT'::character varying NOT NULL,
+	floor_number int4 DEFAULT 1 NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT hotel_rooms_pkey PRIMARY KEY (id),
+	CONSTRAINT hotel_rooms_status_check CHECK (((status)::text = ANY ((ARRAY['VACANT'::character varying, 'OCCUPIED'::character varying, 'RESERVED'::character varying, 'CLEANING'::character varying, 'MAINTENANCE'::character varying])::text[]))),
+	CONSTRAINT uq_tenant_hotel_room UNIQUE (tenant_id, room_number),
+	CONSTRAINT hotel_rooms_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_hotel_rooms_pms_lookup ON hotel_rooms(tenant_id, status, room_type);
 
-CREATE TABLE IF NOT EXISTS hotel_reservations (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    reservation_code VARCHAR(50) NOT NULL,
-    room_id BIGINT NOT NULL REFERENCES hotel_rooms(id) ON DELETE CASCADE,
-    guest_name VARCHAR(150) NOT NULL,
-    guest_phone VARCHAR(30) NOT NULL,
-    check_in_date DATE NOT NULL,
-    check_out_date DATE NOT NULL,
-    total_amount NUMERIC(12, 2) NOT NULL,
-    status VARCHAR(50) DEFAULT 'CONFIRMED' NOT NULL CHECK (status IN ('CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED', 'NO_SHOW')),
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL,
-    CONSTRAINT uq_tenant_reservation UNIQUE (tenant_id, reservation_code)
+CREATE TABLE IF NOT EXISTS inventory_items (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	branch_id int8 NULL,
+	"name" varchar(200) NOT NULL,
+	item_code varchar(50) NOT NULL,
+	unit_of_measure varchar(20) DEFAULT 'kg'::character varying NOT NULL,
+	current_stock numeric(15, 3) DEFAULT 0.000 NOT NULL,
+	reorder_level numeric(15, 3) DEFAULT 10.000 NOT NULL,
+	cost_per_unit numeric(15, 2) DEFAULT 0.00 NOT NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT inventory_items_pkey PRIMARY KEY (id),
+	CONSTRAINT inventory_items_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_hotel_reservations_pms_lookup ON hotel_reservations(tenant_id, room_id, status, check_in_date, check_out_date);
 
--- -----------------------------------------------------------------------------
--- 8. PG & HOSTEL MANAGEMENT
--- -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS pg_floors (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    floor_name VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
+CREATE TABLE IF NOT EXISTS invoices (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	invoice_number varchar(50) NOT NULL,
+	customer_name varchar(150) NOT NULL,
+	invoice_date date NOT NULL,
+	due_date date NOT NULL,
+	subtotal numeric(12, 2) NOT NULL,
+	tax_amount numeric(12, 2) DEFAULT 0.00 NOT NULL,
+	total_amount numeric(12, 2) NOT NULL,
+	paid_amount numeric(12, 2) DEFAULT 0.00 NOT NULL,
+	status varchar(50) DEFAULT 'UNPAID'::character varying NOT NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT invoices_pkey PRIMARY KEY (id),
+	CONSTRAINT invoices_status_check CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'UNPAID'::character varying, 'PARTIALLY_PAID'::character varying, 'PAID'::character varying, 'CANCELLED'::character varying, 'OVERDUE'::character varying])::text[]))),
+	CONSTRAINT uq_tenant_invoice_no UNIQUE (tenant_id, invoice_number),
+	CONSTRAINT invoices_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_pg_floors_tenant ON pg_floors(tenant_id);
-
-CREATE TABLE IF NOT EXISTS pg_rooms (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    floor_id BIGINT REFERENCES pg_floors(id) ON DELETE SET NULL,
-    room_number VARCHAR(20) NOT NULL,
-    sharing_type INT DEFAULT 2 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_pg_rooms_tenant ON pg_rooms(tenant_id, floor_id);
-
-CREATE TABLE IF NOT EXISTS pg_beds (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    room_id BIGINT REFERENCES pg_rooms(id) ON DELETE CASCADE,
-    bed_number VARCHAR(20) NOT NULL,
-    monthly_rent NUMERIC(12, 2) NOT NULL,
-    status VARCHAR(50) DEFAULT 'VACANT' NOT NULL CHECK (status IN ('VACANT', 'OCCUPIED', 'MAINTENANCE', 'RESERVED')),
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_pg_beds_lookup ON pg_beds(tenant_id, room_id, status);
-
-CREATE TABLE IF NOT EXISTS pg_residents (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    bed_id BIGINT REFERENCES pg_beds(id) ON DELETE SET NULL,
-    full_name VARCHAR(150) NOT NULL,
-    phone VARCHAR(30) NOT NULL,
-    id_proof_number VARCHAR(50),
-    joining_date DATE NOT NULL,
-    status VARCHAR(50) DEFAULT 'ACTIVE' NOT NULL CHECK (status IN ('ACTIVE', 'NOTICE', 'INACTIVE')),
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_pg_residents_lookup ON pg_residents(tenant_id, status, bed_id);
-
-CREATE TABLE IF NOT EXISTS pg_rent_records (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    resident_id BIGINT NOT NULL REFERENCES pg_residents(id) ON DELETE CASCADE,
-    rent_month VARCHAR(7) NOT NULL,
-    amount NUMERIC(12, 2) NOT NULL,
-    paid_amount NUMERIC(12, 2) DEFAULT 0.00 NOT NULL,
-    status VARCHAR(50) DEFAULT 'UNPAID' NOT NULL CHECK (status IN ('UNPAID', 'PARTIALLY_PAID', 'PAID', 'OVERDUE')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_pg_rent_records_lookup ON pg_rent_records(tenant_id, resident_id, status);
-
-CREATE TABLE IF NOT EXISTS pg_visitor_logs (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    resident_id BIGINT REFERENCES pg_residents(id) ON DELETE SET NULL,
-    visitor_name VARCHAR(150) NOT NULL,
-    visitor_phone VARCHAR(30) NOT NULL,
-    check_in_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    check_out_time TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_pg_visitor_logs_lookup ON pg_visitor_logs(tenant_id, resident_id, check_in_time DESC);
-
--- -----------------------------------------------------------------------------
--- 9. HRMS & WORKFORCE
--- -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS departments (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_departments_tenant ON departments(tenant_id);
-
-CREATE TABLE IF NOT EXISTS designations (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    department_id BIGINT REFERENCES departments(id) ON DELETE SET NULL,
-    title VARCHAR(100) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_designations_tenant ON designations(tenant_id, department_id);
-
-CREATE TABLE IF NOT EXISTS employees (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    employee_code VARCHAR(50) NOT NULL,
-    full_name VARCHAR(150) NOT NULL,
-    designation VARCHAR(100) NOT NULL,
-    phone VARCHAR(30) NOT NULL,
-    basic_salary NUMERIC(12, 2) NOT NULL,
-    status VARCHAR(50) DEFAULT 'ACTIVE' NOT NULL CHECK (status IN ('ACTIVE', 'ON_LEAVE', 'SUSPENDED', 'TERMINATED')),
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL,
-    CONSTRAINT uq_tenant_emp_code UNIQUE (tenant_id, employee_code)
-);
-CREATE INDEX IF NOT EXISTS idx_employees_lookup ON employees(tenant_id, status, designation);
-
-CREATE TABLE IF NOT EXISTS shifts (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    name VARCHAR(50) NOT NULL,
-    start_time TIME NOT NULL,
-    end_time TIME NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_shifts_tenant ON shifts(tenant_id);
-
-CREATE TABLE IF NOT EXISTS attendance_records (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-    attendance_date DATE NOT NULL,
-    check_in TIMESTAMP WITH TIME ZONE,
-    check_out TIMESTAMP WITH TIME ZONE,
-    status VARCHAR(50) DEFAULT 'PRESENT' NOT NULL CHECK (status IN ('PRESENT', 'ABSENT', 'HALF_DAY', 'LEAVE')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_attendance_records_lookup ON attendance_records(tenant_id, employee_id, attendance_date);
-
-CREATE TABLE IF NOT EXISTS leave_types (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    name VARCHAR(50) NOT NULL,
-    max_days INT DEFAULT 12 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_leave_types_tenant ON leave_types(tenant_id);
-
-CREATE TABLE IF NOT EXISTS leave_requests (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
-    reason TEXT,
-    status VARCHAR(50) DEFAULT 'PENDING' NOT NULL CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_leave_requests_lookup ON leave_requests(tenant_id, employee_id, status);
-
-CREATE TABLE IF NOT EXISTS payroll_runs (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    pay_period VARCHAR(7) NOT NULL,
-    total_payout NUMERIC(12, 2) NOT NULL,
-    status VARCHAR(50) DEFAULT 'PROCESSED' NOT NULL CHECK (status IN ('DRAFT', 'PROCESSED', 'APPROVED', 'CANCELLED')),
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_payroll_runs_lookup ON payroll_runs(tenant_id, pay_period, status);
-
-CREATE TABLE IF NOT EXISTS payslips (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    payroll_run_id BIGINT NOT NULL REFERENCES payroll_runs(id) ON DELETE CASCADE,
-    employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-    basic_salary NUMERIC(12, 2) NOT NULL,
-    net_salary NUMERIC(12, 2) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_payslips_lookup ON payslips(tenant_id, payroll_run_id, employee_id);
-
--- -----------------------------------------------------------------------------
--- 10. FINANCE & ACCOUNTING
--- -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS chart_of_accounts (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    account_code VARCHAR(50) NOT NULL,
-    account_name VARCHAR(150) NOT NULL,
-    account_type VARCHAR(50) NOT NULL CHECK (account_type IN ('ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE')),
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL,
-    CONSTRAINT uq_tenant_account_code UNIQUE (tenant_id, account_code)
-);
-CREATE INDEX IF NOT EXISTS idx_chart_of_accounts_lookup ON chart_of_accounts(tenant_id, account_type);
 
 CREATE TABLE IF NOT EXISTS journal_entries (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    entry_date DATE NOT NULL,
-    description TEXT,
-    debit_amount NUMERIC(12, 2) DEFAULT 0.00 NOT NULL,
-    credit_amount NUMERIC(12, 2) DEFAULT 0.00 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	entry_date date NOT NULL,
+	description text NULL,
+	debit_amount numeric(12, 2) DEFAULT 0.00 NOT NULL,
+	credit_amount numeric(12, 2) DEFAULT 0.00 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT journal_entries_pkey PRIMARY KEY (id),
+	CONSTRAINT journal_entries_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_journal_entries_lookup ON journal_entries(tenant_id, entry_date);
 
-CREATE TABLE IF NOT EXISTS budget_entries (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    fiscal_year VARCHAR(10) NOT NULL,
-    category VARCHAR(100) NOT NULL,
-    allocated_amount NUMERIC(12, 2) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
+CREATE TABLE IF NOT EXISTS leave_requests (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	employee_id int8 NOT NULL,
+	start_date date NOT NULL,
+	end_date date NOT NULL,
+	reason text NULL,
+	status varchar(50) DEFAULT 'PENDING'::character varying NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT leave_requests_pkey PRIMARY KEY (id),
+	CONSTRAINT leave_requests_status_check CHECK (((status)::text = ANY ((ARRAY['PENDING'::character varying, 'APPROVED'::character varying, 'REJECTED'::character varying, 'CANCELLED'::character varying])::text[]))),
+	CONSTRAINT leave_requests_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+	CONSTRAINT leave_requests_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_budget_entries_lookup ON budget_entries(tenant_id, fiscal_year, category);
 
--- -----------------------------------------------------------------------------
--- 11. CRM & CUSTOMER LOYALTY
--- -----------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS customers (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    name VARCHAR(150) NOT NULL,
-    phone VARCHAR(30) NOT NULL,
-    email VARCHAR(150),
-    loyalty_points INT DEFAULT 0 NOT NULL,
-    version BIGINT DEFAULT 1 NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
+CREATE TABLE IF NOT EXISTS leave_types (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	"name" varchar(50) NOT NULL,
+	max_days int4 DEFAULT 12 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT leave_types_pkey PRIMARY KEY (id),
+	CONSTRAINT leave_types_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_customers_lookup ON customers(tenant_id, phone);
 
 CREATE TABLE IF NOT EXISTS loyalty_transactions (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-    points_earned INT DEFAULT 0 NOT NULL,
-    points_redeemed INT DEFAULT 0 NOT NULL,
-    transaction_type VARCHAR(50) NOT NULL CHECK (transaction_type IN ('EARN', 'REDEEM', 'EXPIRE', 'ADJUSTMENT')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	customer_id int8 NOT NULL,
+	points_earned int4 DEFAULT 0 NOT NULL,
+	points_redeemed int4 DEFAULT 0 NOT NULL,
+	transaction_type varchar(50) NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT loyalty_transactions_pkey PRIMARY KEY (id),
+	CONSTRAINT loyalty_transactions_transaction_type_check CHECK (((transaction_type)::text = ANY ((ARRAY['EARN'::character varying, 'REDEEM'::character varying, 'EXPIRE'::character varying, 'ADJUSTMENT'::character varying])::text[]))),
+	CONSTRAINT loyalty_transactions_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+	CONSTRAINT loyalty_transactions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_loyalty_transactions_lookup ON loyalty_transactions(tenant_id, customer_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS menu_categories (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	branch_id int8 NULL,
+	"name" varchar(100) NOT NULL,
+	icon varchar(50) NULL,
+	slug varchar(100) NULL,
+	parent_id int8 NULL,
+	"level" int4 DEFAULT 1 NULL,
+	sort_order int4 DEFAULT 1 NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	company_id int8 NULL,
+	updated_by int8 NULL,
+	CONSTRAINT menu_categories_pkey PRIMARY KEY (id),
+	CONSTRAINT menu_categories_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES menu_categories(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS menu_items (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	category_id int8 NULL,
+	item_code varchar(50) DEFAULT ''::character varying NULL,
+	"name" varchar(200) NOT NULL,
+	price numeric(12, 2) DEFAULT 0.00 NOT NULL,
+	cost_price numeric(12, 2) DEFAULT 0.00 NOT NULL,
+	tax_rate numeric(5, 2) DEFAULT 5.00 NOT NULL,
+	is_available bool DEFAULT true NOT NULL,
+	image_url text NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	branch_id int8 NULL,
+	company_id int8 NULL,
+	description varchar(500) NULL,
+	short_description varchar(200) NULL,
+	images jsonb DEFAULT '[]'::jsonb NULL,
+	product_id int8 NULL,
+	kds_station varchar(50) NULL,
+	allergens jsonb DEFAULT '[]'::jsonb NULL,
+	nutrition jsonb DEFAULT '{}'::jsonb NULL,
+	is_veg bool DEFAULT true NULL,
+	is_popular bool DEFAULT false NULL,
+	packaging_charge numeric(15, 2) DEFAULT 0.0 NULL,
+	sort_order int4 DEFAULT 1 NULL,
+	CONSTRAINT menu_items_pkey PRIMARY KEY (id),
+	CONSTRAINT uq_tenant_item_code UNIQUE (tenant_id, item_code),
+	CONSTRAINT menu_items_category_id_fkey FOREIGN KEY (category_id) REFERENCES menu_categories(id) ON DELETE SET NULL,
+	CONSTRAINT menu_items_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS menu_tags (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	"name" varchar(50) NOT NULL,
+	color_code varchar(20) NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	color varchar(20) DEFAULT '#ef4444'::character varying NULL,
+	icon varchar(50) NULL,
+	CONSTRAINT menu_tags_pkey PRIMARY KEY (id),
+	CONSTRAINT menu_tags_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS menu_variant_groups (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	item_id int8 NOT NULL,
+	"name" varchar(100) NOT NULL,
+	is_required bool DEFAULT false NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	branch_id int8 NULL,
+	min_selection varchar NULL,
+	max_selection varchar NULL,
+	sort_order varchar NULL,
+	company_id int8 NULL,
+	CONSTRAINT menu_variant_groups_pkey PRIMARY KEY (id),
+	CONSTRAINT menu_variant_groups_item_id_fkey FOREIGN KEY (item_id) REFERENCES menu_items(id) ON DELETE CASCADE,
+	CONSTRAINT menu_variant_groups_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS menu_variant_options (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	group_id int8 NOT NULL,
+	"name" varchar(100) NOT NULL,
+	additional_price numeric(12, 2) DEFAULT 0.00 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	selling_price float8 DEFAULT 0.0 NULL,
+	branch_id int8 NULL,
+	company_id int8 NULL,
+	price numeric NULL,
+	is_default bool DEFAULT false NULL,
+	is_available bool DEFAULT true NULL,
+	sort_order int4 DEFAULT 1 NULL,
+	CONSTRAINT menu_variant_options_pkey PRIMARY KEY (id),
+	CONSTRAINT menu_variant_options_group_id_fkey FOREIGN KEY (group_id) REFERENCES menu_variant_groups(id) ON DELETE CASCADE,
+	CONSTRAINT menu_variant_options_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS order_items (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	order_id int8 NOT NULL,
+	item_id int8 NULL,
+	item_name varchar(200) NULL,
+	quantity int4 DEFAULT 1 NOT NULL,
+	unit_price numeric(12, 2) NOT NULL,
+	total_price numeric(12, 2) NULL,
+	notes text NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	menu_item_id int8 NULL,
+	product_id int8 NULL,
+	product_name varchar(300) NULL,
+	product_code varchar(50) NULL,
+	variant_id int8 NULL,
+	variant_name varchar(200) NULL,
+	unit_of_measure varchar(20) DEFAULT 'pcs'::character varying NULL,
+	mrp numeric(12, 2) NULL,
+	discount_amount numeric(12, 2) DEFAULT 0 NULL,
+	tax_amount numeric(12, 2) DEFAULT 0 NULL,
+	line_total numeric(12, 2) DEFAULT 0 NULL,
+	kot_id int8 NULL,
+	kds_status varchar(20) DEFAULT 'pending'::character varying NULL,
+	course varchar(50) NULL,
+	preparation_notes text NULL,
+	selected_variants jsonb DEFAULT '[]'::jsonb NULL,
+	selected_addons jsonb DEFAULT '[]'::jsonb NULL,
+	modifiers jsonb DEFAULT '[]'::jsonb NULL,
+	tax_breakdown jsonb DEFAULT '{}'::jsonb NULL,
+	is_voided bool DEFAULT false NULL,
+	is_active bool DEFAULT true NULL,
+	kds_sent_at timestamptz NULL,
+	kds_completed_at timestamptz NULL,
+	void_reason text NULL,
+	voided_at timestamptz NULL,
+	voided_by int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT order_items_pkey PRIMARY KEY (id),
+	CONSTRAINT order_items_item_id_fkey FOREIGN KEY (item_id) REFERENCES menu_items(id) ON DELETE SET NULL,
+	CONSTRAINT order_items_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	branch_id int8 NULL,
+	order_number varchar(50) NOT NULL,
+	table_id int8 NULL,
+	order_type varchar(50) DEFAULT 'DINE_IN'::character varying NOT NULL,
+	status varchar(50) DEFAULT 'OPEN'::character varying NOT NULL,
+	subtotal numeric(12, 2) DEFAULT 0.00 NOT NULL,
+	tax_amount numeric(12, 2) DEFAULT 0.00 NOT NULL,
+	discount_amount numeric(12, 2) DEFAULT 0.00 NOT NULL,
+	total_amount numeric(12, 2) DEFAULT 0.00 NOT NULL,
+	customer_name varchar(150) NULL,
+	customer_phone varchar(30) NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	token_number varchar(20) NULL,
+	customer_id int8 NULL,
+	waiter_id int8 NULL,
+	guest_count int4 DEFAULT 1 NULL,
+	payment_status varchar(20) DEFAULT 'unpaid'::character varying NULL,
+	is_held bool DEFAULT false NULL,
+	taxable_amount numeric(12, 2) DEFAULT 0 NULL,
+	cgst_amount numeric(12, 2) DEFAULT 0 NULL,
+	sgst_amount numeric(12, 2) DEFAULT 0 NULL,
+	igst_amount numeric(12, 2) DEFAULT 0 NULL,
+	total_tax numeric(12, 2) DEFAULT 0 NULL,
+	grand_total numeric(12, 2) DEFAULT 0 NULL,
+	amount_paid numeric(12, 2) DEFAULT 0 NULL,
+	balance_due numeric(12, 2) DEFAULT 0 NULL,
+	notes text NULL,
+	special_instructions text NULL,
+	source_channel varchar(30) DEFAULT 'pos'::character varying NULL,
+	is_active bool DEFAULT true NULL,
+	parent_order_id int8 NULL,
+	external_order_id varchar(100) NULL,
+	metadata jsonb DEFAULT '{}'::jsonb NULL,
+	held_at timestamptz NULL,
+	kot_sent_at timestamptz NULL,
+	confirmed_at timestamptz NULL,
+	ready_at timestamptz NULL,
+	served_at timestamptz NULL,
+	completed_at timestamptz NULL,
+	cancelled_at timestamptz NULL,
+	cancellation_reason text NULL,
+	CONSTRAINT orders_pkey PRIMARY KEY (id),
+	CONSTRAINT uq_tenant_order_no UNIQUE (tenant_id, order_number),
+	CONSTRAINT orders_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS payroll_runs (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	pay_period varchar(7) NOT NULL,
+	total_payout numeric(12, 2) NOT NULL,
+	status varchar(50) DEFAULT 'PROCESSED'::character varying NOT NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT payroll_runs_pkey PRIMARY KEY (id),
+	CONSTRAINT payroll_runs_status_check CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PROCESSED'::character varying, 'APPROVED'::character varying, 'CANCELLED'::character varying])::text[]))),
+	CONSTRAINT payroll_runs_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS payslips (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	payroll_run_id int8 NOT NULL,
+	employee_id int8 NOT NULL,
+	basic_salary numeric(12, 2) NOT NULL,
+	net_salary numeric(12, 2) NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT payslips_pkey PRIMARY KEY (id),
+	CONSTRAINT payslips_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+	CONSTRAINT payslips_payroll_run_id_fkey FOREIGN KEY (payroll_run_id) REFERENCES payroll_runs(id) ON DELETE CASCADE,
+	CONSTRAINT payslips_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS pg_floors (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	floor_name varchar(50) NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT pg_floors_pkey PRIMARY KEY (id),
+	CONSTRAINT pg_floors_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS pg_rooms (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	floor_id int8 NULL,
+	room_number varchar(20) NOT NULL,
+	sharing_type int4 DEFAULT 2 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT pg_rooms_pkey PRIMARY KEY (id),
+	CONSTRAINT pg_rooms_floor_id_fkey FOREIGN KEY (floor_id) REFERENCES pg_floors(id) ON DELETE SET NULL,
+	CONSTRAINT pg_rooms_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS pos_shift_transactions (
+	shift_id int8 NOT NULL,
+	"type" varchar(30) NOT NULL,
+	amount float8 NOT NULL,
+	payment_mode varchar(30) NOT NULL,
+	reason varchar(255) NULL,
+	performed_by varchar(100) NOT NULL,
+	company_id int8 NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	branch_id int8 NULL,
+	CONSTRAINT pos_shift_transactions_pkey PRIMARY KEY (id),
+	CONSTRAINT pos_shift_transactions_shift_id_fkey FOREIGN KEY (shift_id) REFERENCES pos_shifts(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS product_categories (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	"name" varchar(100) NOT NULL,
+	description text NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT product_categories_pkey PRIMARY KEY (id),
+	CONSTRAINT product_categories_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS production_batches (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	batch_number varchar(50) NOT NULL,
+	recipe_name varchar(150) NOT NULL,
+	quantity_produced numeric(12, 3) NOT NULL,
+	status varchar(50) DEFAULT 'COMPLETED'::character varying NOT NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT production_batches_pkey PRIMARY KEY (id),
+	CONSTRAINT production_batches_status_check CHECK (((status)::text = ANY ((ARRAY['PLANNED'::character varying, 'IN_PROGRESS'::character varying, 'COMPLETED'::character varying, 'CANCELLED'::character varying])::text[]))),
+	CONSTRAINT production_batches_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS products (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	category_id int8 NULL,
+	sku varchar(50) NOT NULL,
+	"name" varchar(200) NOT NULL,
+	unit varchar(20) DEFAULT 'PCS'::character varying NOT NULL,
+	current_stock numeric(12, 3) DEFAULT 0.000 NOT NULL,
+	min_stock_level numeric(12, 3) DEFAULT 10.000 NOT NULL,
+	unit_cost numeric(12, 2) DEFAULT 0.00 NOT NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT products_pkey PRIMARY KEY (id),
+	CONSTRAINT uq_tenant_product_sku UNIQUE (tenant_id, sku),
+	CONSTRAINT products_category_id_fkey FOREIGN KEY (category_id) REFERENCES product_categories(id) ON DELETE SET NULL,
+	CONSTRAINT products_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS recipe_ingredients (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	menu_item_id int8 NOT NULL,
+	inventory_item_id int8 NOT NULL,
+	quantity_required numeric(15, 4) NOT NULL,
+	wastage_percentage numeric(5, 2) DEFAULT 0.00 NOT NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	CONSTRAINT recipe_ingredients_pkey PRIMARY KEY (id),
+	CONSTRAINT recipe_ingredients_inventory_item_id_fkey FOREIGN KEY (inventory_item_id) REFERENCES inventory_items(id) ON DELETE CASCADE,
+	CONSTRAINT recipe_ingredients_menu_item_id_fkey FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE CASCADE,
+	CONSTRAINT recipe_ingredients_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS roles (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	"name" varchar(100) NOT NULL,
+	code varchar(50) NOT NULL,
+	description text NULL,
+	permissions jsonb DEFAULT '{}'::jsonb NOT NULL,
+	is_system_role bool DEFAULT false NOT NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT roles_pkey PRIMARY KEY (id),
+	CONSTRAINT roles_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS room_types (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	"name" varchar(100) NOT NULL,
+	base_rate numeric(12, 2) NOT NULL,
+	capacity int4 DEFAULT 2 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT room_types_pkey PRIMARY KEY (id),
+	CONSTRAINT room_types_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS shifts (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	"name" varchar(50) NOT NULL,
+	start_time time NOT NULL,
+	end_time time NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT shifts_pkey PRIMARY KEY (id),
+	CONSTRAINT shifts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS stock_entries (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	product_id int8 NOT NULL,
+	entry_type varchar(50) NOT NULL,
+	quantity numeric(12, 3) NOT NULL,
+	unit_cost numeric(12, 2) NOT NULL,
+	notes text NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT stock_entries_pkey PRIMARY KEY (id),
+	CONSTRAINT stock_entries_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+	CONSTRAINT stock_entries_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS stock_movements (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	product_id int8 NOT NULL,
+	movement_type varchar(50) NOT NULL,
+	quantity numeric(12, 3) NOT NULL,
+	source_location varchar(100) NULL,
+	destination_location varchar(100) NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT stock_movements_pkey PRIMARY KEY (id),
+	CONSTRAINT stock_movements_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+	CONSTRAINT stock_movements_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS attendance_records (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	employee_id int8 NOT NULL,
+	attendance_date date NOT NULL,
+	check_in timestamptz NULL,
+	check_out timestamptz NULL,
+	status varchar(50) DEFAULT 'PRESENT'::character varying NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT attendance_records_pkey PRIMARY KEY (id),
+	CONSTRAINT attendance_records_status_check CHECK (((status)::text = ANY ((ARRAY['PRESENT'::character varying, 'ABSENT'::character varying, 'HALF_DAY'::character varying, 'LEAVE'::character varying])::text[]))),
+	CONSTRAINT attendance_records_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+	CONSTRAINT attendance_records_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS branches (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	company_id int8 NOT NULL,
+	"name" varchar(200) NOT NULL,
+	code varchar(20) NOT NULL,
+	branch_type varchar(50) DEFAULT 'outlet'::character varying NULL,
+	address jsonb DEFAULT '{}'::jsonb NULL,
+	phone varchar(20) NULL,
+	email varchar(255) NULL,
+	gstin varchar(15) NULL,
+	latitude numeric(10, 7) NULL,
+	longitude numeric(10, 7) NULL,
+	timezone varchar(50) DEFAULT 'Asia/Kolkata'::character varying NULL,
+	is_active bool DEFAULT true NOT NULL,
+	settings jsonb DEFAULT '{}'::jsonb NULL,
+	operating_hours jsonb DEFAULT '{}'::jsonb NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT branches_pkey PRIMARY KEY (id),
+	CONSTRAINT uq_branch_code UNIQUE (tenant_id, company_id, code),
+	CONSTRAINT branches_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+	CONSTRAINT branches_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS customer_addresses (
+	customer_id int8 NOT NULL,
+	"label" varchar(50) NOT NULL,
+	flat_no varchar(100) NULL,
+	area_street text NOT NULL,
+	landmark varchar(150) NULL,
+	city varchar(100) NOT NULL,
+	state varchar(100) NULL,
+	pincode varchar(20) NULL,
+	is_default bool NOT NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	CONSTRAINT customer_addresses_pkey PRIMARY KEY (id),
+	CONSTRAINT customer_addresses_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customers(id)
+);
 
 CREATE TABLE IF NOT EXISTS customer_interactions (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-    interaction_type VARCHAR(50) NOT NULL,
-    notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	customer_id int8 NOT NULL,
+	interaction_type varchar(50) NOT NULL,
+	notes text NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT customer_interactions_pkey PRIMARY KEY (id),
+	CONSTRAINT customer_interactions_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+	CONSTRAINT customer_interactions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_customer_interactions_lookup ON customer_interactions(tenant_id, customer_id);
 
-CREATE TABLE IF NOT EXISTS campaigns (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    title VARCHAR(200) NOT NULL,
-    channel VARCHAR(50) NOT NULL CHECK (channel IN ('SMS', 'EMAIL', 'WHATSAPP', 'PUSH')),
-    status VARCHAR(50) DEFAULT 'ACTIVE' NOT NULL CHECK (status IN ('DRAFT', 'SCHEDULED', 'ACTIVE', 'COMPLETED', 'CANCELLED')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by BIGINT,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL
+CREATE TABLE IF NOT EXISTS dining_tables (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	branch_id int8 NULL,
+	table_number varchar(20) NOT NULL,
+	seating_capacity int4 DEFAULT 4 NOT NULL,
+	status varchar(50) DEFAULT 'VACANT'::character varying NOT NULL,
+	"section" varchar(50) DEFAULT 'MAIN'::character varying NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	"name" varchar(100) NULL,
+	floor varchar(50) NULL,
+	sort_order int4 DEFAULT 0 NULL,
+	position_x int4 DEFAULT 0 NULL,
+	position_y int4 DEFAULT 0 NULL,
+	"attributes" jsonb DEFAULT '{}'::jsonb NULL,
+	company_id int8 NULL,
+	capacity int4 DEFAULT 4 NULL,
+	current_order_id int8 NULL,
+	is_active bool DEFAULT true NULL,
+	CONSTRAINT dining_tables_pkey PRIMARY KEY (id),
+	CONSTRAINT uq_tenant_table_no UNIQUE (tenant_id, table_number),
+	CONSTRAINT dining_tables_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE SET NULL,
+	CONSTRAINT dining_tables_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_campaigns_lookup ON campaigns(tenant_id, status);
 
-COMMIT;
+CREATE TABLE IF NOT EXISTS field_validations (
+	id bigserial NOT NULL,
+	field_id int8 NOT NULL,
+	min_value numeric NULL,
+	max_value numeric NULL,
+	min_length int4 NULL,
+	max_length int4 NULL,
+	regex_pattern varchar(500) NULL,
+	regex_message varchar(300) NULL,
+	allowed_values jsonb NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	is_deleted bool DEFAULT false NULL,
+	CONSTRAINT field_validations_field_id_key UNIQUE (field_id),
+	CONSTRAINT field_validations_pkey PRIMARY KEY (id),
+	CONSTRAINT field_validations_field_id_fkey FOREIGN KEY (field_id) REFERENCES form_fields(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS hotel_reservations (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	reservation_code varchar(50) NOT NULL,
+	room_id int8 NOT NULL,
+	guest_name varchar(150) NOT NULL,
+	guest_phone varchar(30) NOT NULL,
+	check_in_date date NOT NULL,
+	check_out_date date NOT NULL,
+	total_amount numeric(12, 2) NOT NULL,
+	status varchar(50) DEFAULT 'CONFIRMED'::character varying NOT NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT hotel_reservations_pkey PRIMARY KEY (id),
+	CONSTRAINT hotel_reservations_status_check CHECK (((status)::text = ANY ((ARRAY['CONFIRMED'::character varying, 'CHECKED_IN'::character varying, 'CHECKED_OUT'::character varying, 'CANCELLED'::character varying, 'NO_SHOW'::character varying])::text[]))),
+	CONSTRAINT uq_tenant_reservation UNIQUE (tenant_id, reservation_code),
+	CONSTRAINT hotel_reservations_room_id_fkey FOREIGN KEY (room_id) REFERENCES hotel_rooms(id) ON DELETE CASCADE,
+	CONSTRAINT hotel_reservations_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS invoice_items (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	invoice_id int8 NOT NULL,
+	item_description varchar(250) NOT NULL,
+	quantity numeric(12, 3) DEFAULT 1 NOT NULL,
+	unit_price numeric(12, 2) NOT NULL,
+	total_price numeric(12, 2) NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT invoice_items_pkey PRIMARY KEY (id),
+	CONSTRAINT invoice_items_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+	CONSTRAINT invoice_items_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS invoice_payments (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	invoice_id int8 NOT NULL,
+	payment_mode varchar(50) NOT NULL,
+	amount numeric(12, 2) NOT NULL,
+	payment_date date NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT invoice_payments_pkey PRIMARY KEY (id),
+	CONSTRAINT invoice_payments_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+	CONSTRAINT invoice_payments_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS kds_expo_orders (
+	order_id int8 NOT NULL,
+	status varchar(30) NOT NULL,
+	order_type varchar(30) NOT NULL,
+	fulfilment_mode varchar(30) NOT NULL,
+	total_items int4 NOT NULL,
+	ready_items int4 NOT NULL,
+	is_complete bool NOT NULL,
+	ready_at timestamptz NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	CONSTRAINT kds_expo_orders_pkey PRIMARY KEY (id),
+	CONSTRAINT kds_expo_orders_order_id_fkey FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS kds_packing_orders (
+	order_id int8 NOT NULL,
+	status varchar(30) NOT NULL,
+	packing_required bool NOT NULL,
+	checklist jsonb NOT NULL,
+	packed_at timestamptz NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	CONSTRAINT kds_packing_orders_pkey PRIMARY KEY (id),
+	CONSTRAINT kds_packing_orders_order_id_fkey FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS kitchen_stations (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	branch_id int8 NULL,
+	"name" varchar(100) NOT NULL,
+	code varchar(50) NOT NULL,
+	display_ip varchar(50) NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	printer_name varchar(100) NULL,
+	station_type varchar(50) DEFAULT 'main'::character varying NULL,
+	categories jsonb DEFAULT '[]'::jsonb NULL,
+	is_active bool DEFAULT true NULL,
+	sort_order int4 DEFAULT 0 NULL,
+	CONSTRAINT kitchen_stations_pkey PRIMARY KEY (id),
+	CONSTRAINT kitchen_stations_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE SET NULL,
+	CONSTRAINT kitchen_stations_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS kots (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	order_id int8 NOT NULL,
+	kot_number varchar(50) NOT NULL,
+	station_id int8 NULL,
+	status varchar(50) DEFAULT 'PENDING'::character varying NOT NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT kots_pkey PRIMARY KEY (id),
+	CONSTRAINT kots_status_check CHECK (((status)::text = ANY ((ARRAY['PENDING'::character varying, 'PREPARING'::character varying, 'READY'::character varying, 'SERVED'::character varying, 'CANCELLED'::character varying])::text[]))),
+	CONSTRAINT kots_order_id_fkey FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+	CONSTRAINT kots_station_id_fkey FOREIGN KEY (station_id) REFERENCES kitchen_stations(id) ON DELETE SET NULL,
+	CONSTRAINT kots_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS menu_addon_groups (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	item_id int8 NOT NULL,
+	"name" varchar(100) NOT NULL,
+	min_selection int4 DEFAULT 0 NULL,
+	max_selection int4 DEFAULT 5 NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	branch_id int8 NULL,
+	sort_order varchar NULL,
+	company_id int8 NULL,
+	CONSTRAINT menu_addon_groups_pkey PRIMARY KEY (id),
+	CONSTRAINT menu_addon_groups_item_id_fkey FOREIGN KEY (item_id) REFERENCES menu_items(id) ON DELETE CASCADE,
+	CONSTRAINT menu_addon_groups_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS menu_addon_options (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	group_id int8 NOT NULL,
+	"name" varchar(100) NOT NULL,
+	price numeric(12, 2) DEFAULT 0.00 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	variant_prices jsonb DEFAULT '{}'::jsonb NULL,
+	branch_id int8 NULL,
+	company_id int8 NULL,
+	is_available bool DEFAULT true NULL,
+	sort_order int4 DEFAULT 1 NULL,
+	CONSTRAINT menu_addon_options_pkey PRIMARY KEY (id),
+	CONSTRAINT menu_addon_options_group_id_fkey FOREIGN KEY (group_id) REFERENCES menu_addon_groups(id) ON DELETE CASCADE,
+	CONSTRAINT menu_addon_options_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS menu_item_tags (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	item_id int8 NOT NULL,
+	tag_id int8 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	CONSTRAINT menu_item_tags_pkey PRIMARY KEY (id),
+	CONSTRAINT menu_item_tags_item_id_fkey FOREIGN KEY (item_id) REFERENCES menu_items(id) ON DELETE CASCADE,
+	CONSTRAINT menu_item_tags_tag_id_fkey FOREIGN KEY (tag_id) REFERENCES menu_tags(id) ON DELETE CASCADE,
+	CONSTRAINT menu_item_tags_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS order_payments (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	order_id int8 NOT NULL,
+	payment_mode varchar(50) NOT NULL,
+	amount numeric(12, 2) NOT NULL,
+	status varchar(50) DEFAULT 'SUCCESS'::character varying NOT NULL,
+	transaction_reference varchar(100) NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT order_payments_pkey PRIMARY KEY (id),
+	CONSTRAINT order_payments_status_check CHECK (((status)::text = ANY ((ARRAY['SUCCESS'::character varying, 'PENDING'::character varying, 'FAILED'::character varying, 'REFUNDED'::character varying])::text[]))),
+	CONSTRAINT order_payments_order_id_fkey FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+	CONSTRAINT order_payments_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS order_status_logs (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	order_id int8 NOT NULL,
+	previous_status varchar(50) NULL,
+	new_status varchar(50) NOT NULL,
+	changed_by int8 NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT order_status_logs_pkey PRIMARY KEY (id),
+	CONSTRAINT order_status_logs_order_id_fkey FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+	CONSTRAINT order_status_logs_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS pg_beds (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	room_id int8 NULL,
+	bed_number varchar(20) NOT NULL,
+	monthly_rent numeric(12, 2) NOT NULL,
+	status varchar(50) DEFAULT 'VACANT'::character varying NOT NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT pg_beds_pkey PRIMARY KEY (id),
+	CONSTRAINT pg_beds_status_check CHECK (((status)::text = ANY ((ARRAY['VACANT'::character varying, 'OCCUPIED'::character varying, 'MAINTENANCE'::character varying, 'RESERVED'::character varying])::text[]))),
+	CONSTRAINT pg_beds_room_id_fkey FOREIGN KEY (room_id) REFERENCES pg_rooms(id) ON DELETE CASCADE,
+	CONSTRAINT pg_beds_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS pg_residents (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	bed_id int8 NULL,
+	full_name varchar(150) NOT NULL,
+	phone varchar(30) NOT NULL,
+	id_proof_number varchar(50) NULL,
+	joining_date date NOT NULL,
+	status varchar(50) DEFAULT 'ACTIVE'::character varying NOT NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT pg_residents_pkey PRIMARY KEY (id),
+	CONSTRAINT pg_residents_status_check CHECK (((status)::text = ANY ((ARRAY['ACTIVE'::character varying, 'NOTICE'::character varying, 'INACTIVE'::character varying])::text[]))),
+	CONSTRAINT pg_residents_bed_id_fkey FOREIGN KEY (bed_id) REFERENCES pg_beds(id) ON DELETE SET NULL,
+	CONSTRAINT pg_residents_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS pg_visitor_logs (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	resident_id int8 NULL,
+	visitor_name varchar(150) NOT NULL,
+	visitor_phone varchar(30) NOT NULL,
+	check_in_time timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	check_out_time timestamptz NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT pg_visitor_logs_pkey PRIMARY KEY (id),
+	CONSTRAINT pg_visitor_logs_resident_id_fkey FOREIGN KEY (resident_id) REFERENCES pg_residents(id) ON DELETE SET NULL,
+	CONSTRAINT pg_visitor_logs_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS users (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	company_id int8 NULL,
+	branch_id int8 NULL,
+	email varchar(255) NOT NULL,
+	phone varchar(20) NULL,
+	first_name varchar(100) NOT NULL,
+	last_name varchar(100) NOT NULL,
+	display_name varchar(200) NULL,
+	avatar_url varchar(500) NULL,
+	hashed_password varchar(255) NOT NULL,
+	is_active bool DEFAULT true NOT NULL,
+	is_verified bool DEFAULT false NOT NULL,
+	is_superadmin bool DEFAULT false NOT NULL,
+	"language" varchar(10) DEFAULT 'en'::character varying NULL,
+	timezone varchar(50) DEFAULT 'Asia/Kolkata'::character varying NULL,
+	last_login_at timestamptz NULL,
+	mfa_enabled bool DEFAULT false NOT NULL,
+	mfa_secret varchar(255) NULL,
+	failed_login_attempts int4 DEFAULT 0 NOT NULL,
+	locked_until timestamptz NULL,
+	preferences jsonb DEFAULT '{}'::jsonb NULL,
+	"version" int8 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT uq_user_email_per_tenant UNIQUE (tenant_id, email),
+	CONSTRAINT users_pkey PRIMARY KEY (id),
+	CONSTRAINT users_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE SET NULL,
+	CONSTRAINT users_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL,
+	CONSTRAINT users_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS kds_order_tickets (
+	order_id int8 NOT NULL,
+	kot_id int8 NULL,
+	station_id int8 NULL,
+	ticket_number varchar(50) NOT NULL,
+	order_type varchar(30) NOT NULL,
+	fulfilment_mode varchar(30) NOT NULL,
+	table_id int8 NULL,
+	table_name varchar(50) NULL,
+	token_number varchar(30) NULL,
+	status varchar(30) NOT NULL,
+	priority int4 NOT NULL,
+	is_rush bool NOT NULL,
+	sla_seconds int4 NOT NULL,
+	queued_at timestamptz DEFAULT '2026-08-28 20:56:19.20567+05:30'::timestamp with time zone NOT NULL,
+	started_at timestamptz NULL,
+	ready_at timestamptz NULL,
+	notes text NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	CONSTRAINT kds_order_tickets_pkey PRIMARY KEY (id),
+	CONSTRAINT kds_order_tickets_kot_id_fkey FOREIGN KEY (kot_id) REFERENCES kots(id) ON DELETE SET NULL,
+	CONSTRAINT kds_order_tickets_order_id_fkey FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+	CONSTRAINT kds_order_tickets_station_id_fkey FOREIGN KEY (station_id) REFERENCES kitchen_stations(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS kds_ticket_items (
+	ticket_id int8 NOT NULL,
+	order_item_id int8 NOT NULL,
+	station_id int8 NULL,
+	item_name varchar(300) NOT NULL,
+	quantity int4 NOT NULL,
+	prepared_quantity int4 NOT NULL,
+	status varchar(30) NOT NULL,
+	variant_name varchar(200) NULL,
+	addons jsonb NOT NULL,
+	preparation_notes text NULL,
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	created_by int8 NULL,
+	updated_by int8 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	is_deleted bool NOT NULL,
+	CONSTRAINT kds_ticket_items_pkey PRIMARY KEY (id),
+	CONSTRAINT kds_ticket_items_order_item_id_fkey FOREIGN KEY (order_item_id) REFERENCES order_items(id) ON DELETE CASCADE,
+	CONSTRAINT kds_ticket_items_station_id_fkey FOREIGN KEY (station_id) REFERENCES kitchen_stations(id) ON DELETE CASCADE,
+	CONSTRAINT kds_ticket_items_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES kds_order_tickets(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS kot_items (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	kot_id int8 NOT NULL,
+	item_name varchar(200) NOT NULL,
+	quantity int4 DEFAULT 1 NOT NULL,
+	status varchar(50) DEFAULT 'PREPARING'::character varying NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT kot_items_pkey PRIMARY KEY (id),
+	CONSTRAINT kot_items_status_check CHECK (((status)::text = ANY ((ARRAY['PREPARING'::character varying, 'READY'::character varying, 'SERVED'::character varying, 'CANCELLED'::character varying])::text[]))),
+	CONSTRAINT kot_items_kot_id_fkey FOREIGN KEY (kot_id) REFERENCES kots(id) ON DELETE CASCADE,
+	CONSTRAINT kot_items_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS pg_rent_records (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	resident_id int8 NOT NULL,
+	rent_month varchar(7) NOT NULL,
+	amount numeric(12, 2) NOT NULL,
+	paid_amount numeric(12, 2) DEFAULT 0.00 NOT NULL,
+	status varchar(50) DEFAULT 'UNPAID'::character varying NOT NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT pg_rent_records_pkey PRIMARY KEY (id),
+	CONSTRAINT pg_rent_records_status_check CHECK (((status)::text = ANY ((ARRAY['UNPAID'::character varying, 'PARTIALLY_PAID'::character varying, 'PAID'::character varying, 'OVERDUE'::character varying])::text[]))),
+	CONSTRAINT pg_rent_records_resident_id_fkey FOREIGN KEY (resident_id) REFERENCES pg_residents(id) ON DELETE CASCADE,
+	CONSTRAINT pg_rent_records_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS user_roles (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	user_id int8 NOT NULL,
+	role_id int8 NOT NULL,
+	branch_id int8 NULL,
+	company_id int8 NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT user_roles_pkey PRIMARY KEY (id),
+	CONSTRAINT user_roles_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE SET NULL,
+	CONSTRAINT user_roles_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL,
+	CONSTRAINT user_roles_role_id_fkey FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+	CONSTRAINT user_roles_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+	CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+	id bigserial NOT NULL,
+	tenant_id int8 NOT NULL,
+	user_id int8 NOT NULL,
+	refresh_token_hash varchar(255) NOT NULL,
+	device_info jsonb DEFAULT '{}'::jsonb NULL,
+	ip_address varchar(50) NULL,
+	user_agent varchar(500) NULL,
+	is_active bool DEFAULT true NOT NULL,
+	expires_at timestamptz NOT NULL,
+	last_used_at timestamptz NULL,
+	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	created_by int8 NULL,
+	is_deleted bool DEFAULT false NOT NULL,
+	updated_by int8 NULL,
+	CONSTRAINT user_sessions_pkey PRIMARY KEY (id),
+	CONSTRAINT user_sessions_refresh_token_hash_key UNIQUE (refresh_token_hash),
+	CONSTRAINT user_sessions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+	CONSTRAINT user_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);

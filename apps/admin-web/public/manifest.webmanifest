@@ -1,0 +1,38 @@
+{
+  "name": "SSR One AI — Enterprise POS & Cloud Suite",
+  "short_name": "SSR One POS",
+  "description": "Ultra-fast Offline-First Restaurant POS and Enterprise Operating System",
+  "start_url": "/pos/transaction/billing",
+  "display": "standalone",
+  "background_color": "#0B1914",
+  "theme_color": "#103B2B",
+  "orientation": "landscape-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Quick Billing",
+      "short_name": "Billing",
+      "url": "/pos/transaction/billing",
+      "icons": [{ "src": "/favicon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Table Floor Grid",
+      "short_name": "Tables",
+      "url": "/pos/transaction/tables",
+      "icons": [{ "src": "/favicon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Customer Display",
+      "short_name": "CFD",
+      "url": "/pos/cfd",
+      "icons": [{ "src": "/favicon.svg", "sizes": "192x192" }]
+    }
+  ]
+}

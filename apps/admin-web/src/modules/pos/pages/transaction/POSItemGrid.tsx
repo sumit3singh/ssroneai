@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Search, Leaf, Maximize2, Minimize2, Sparkles, Coffee, Utensils, Pizza, Sandwich, Flame, LayoutGrid, Zap, X } from "lucide-react";
+import { Search, Leaf, Maximize2, Minimize2, Sparkles, Coffee, Utensils, Pizza, Sandwich, Flame, LayoutGrid, Zap, X, Tv } from "lucide-react";
 import { Input } from "@ssrone/ui";
 import { toast } from "sonner";
 import { POSCategory, POSMenuItem, POSTable, POSWaiter, getParsedVariantGroups, getParsedAddonGroups, POSCartItem } from "../../types";
 import { POSExpressHotbar } from "../../components/POSExpressHotbar";
+import { POSVoiceOrderButton } from "../../components/POSVoiceOrderButton";
 
 interface POSItemGridProps {
   categories: POSCategory[];
@@ -479,6 +480,20 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+            {/* Multilingual AI Voice Order Taking Button */}
+            <POSVoiceOrderButton menuItems={menuItems} onAddToCart={onAddToCart} />
+
+            {/* Customer-Facing Display (CFD 2nd Monitor) Launcher */}
+            <button
+              type="button"
+              onClick={() => window.open("/pos/cfd", "_blank", "width=1200,height=800")}
+              className="h-8 px-2 sm:px-2.5 rounded text-xs font-semibold bg-background border border-border text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 cursor-pointer"
+              title="Open Customer-Facing Display (2nd Screen Kiosk Window)"
+            >
+              <Tv size={13} className="text-primary" />
+              <span className="hidden sm:inline">2nd Screen</span>
+            </button>
+
             {/* Table Floor Tracker Button */}
             <button
               type="button"
@@ -537,7 +552,7 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
                 }`}
               >
                 {isFullScreenPOS ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-                <span className="hidden sm:inline">{isFullScreenPOS ? "Exit Kiosk" : "Kiosk Fullscreen"}</span>
+                <span className="hidden sm:inline">{isFullScreenPOS ? "Exit Kiosk (F11)" : "Kiosk Fullscreen (F11)"}</span>
               </button>
             )}
           </div>

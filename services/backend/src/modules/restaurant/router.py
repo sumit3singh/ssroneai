@@ -7,17 +7,17 @@ from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect, HTTPException, status, Header, Query
+from pydantic import BaseModel, Field
 from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, String, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, selectinload
 
 from src.core.database.engine import get_db_session, engine
 from src.core.database.models import TenantBaseModel
 from src.core.event_bus.bus import event_bus
-from src.modules.auth.dependencies import get_current_user, get_optional_user
+from src.modules.auth.dependencies import get_current_user
 from src.modules.auth.models import User, Tenant
 from src.shared.logger import get_logger
 
@@ -25,25 +25,12 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/restaurant", tags=["Restaurant"])
 
 
-async def _get_active_tenant_id(current_user: User | None, db: AsyncSession) -> int:
-    """Dynamically resolve active tenant ID from JWT or PostgreSQL database."""
+async def _get_active_tenant_id(current_user: User, db: AsyncSession) -> int:
+    """Dynamically resolve active tenant ID from authenticated user context."""
     if current_user and getattr(current_user, "tenant_id", None):
         return current_user.tenant_id
-    try:
-        res = await db.execute(select(Tenant.id).where(Tenant.is_active.is_(True)).limit(1))
-        tid = res.scalar_one_or_none()
-        if tid is not None:
-            return tid
-    except Exception:
-        pass
-    return 1
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
 
-# Trigger background schema migration to ensure all PostgreSQL columns exist
-try:
-    import scratch_alter_postgres
-    asyncio.create_task(scratch_alter_postgres.run_alter())
-except Exception as _schema_err:
-    pass
 
 
 # ─── Models ──────────────────────────────────────────────────
@@ -120,17 +107,17 @@ def _parse_int_id(val: Any) -> int | None:
         return None
 
 
-async def _get_active_tenant_id(current_user: User | None, db: AsyncSession) -> int:
-    """Dynamically resolve tenant ID from authenticated user context, falling back to default tenant 1."""
+async def _get_active_tenant_id(current_user: User, db: AsyncSession) -> int:
+    """Dynamically resolve active tenant ID from authenticated user context."""
     if current_user and getattr(current_user, "tenant_id", None):
         return current_user.tenant_id
-    return 1
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
 
 
 async def _resolve_branch_id(branch_id: int | str | None, current_user: User | None, db: AsyncSession) -> int:
 
     """Dynamically resolve branch ID from numeric int, string branch code, or current user context, guaranteeing a valid Branch ID in PostgreSQL."""
-    tenant_id = current_user.tenant_id if (current_user and getattr(current_user, "tenant_id", None)) else 1
+    tenant_id = current_user.tenant_id
     from src.modules.auth.models import Branch, Company, Tenant
 
     # 1. Check numeric integer branch_id and verify it exists in branches table
@@ -217,7 +204,7 @@ from src.modules.orders.models import DiningTable
 @router.get("/tables", response_model=list[TableResponseSchema])
 async def list_tables(
     branch_id: int | str | None = None,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[TableResponseSchema]:
     tenant_id = await _get_active_tenant_id(current_user, db)
@@ -287,10 +274,10 @@ class WaiterResponse(BaseModel):
 @router.get("/waiters", response_model=list[WaiterResponse])
 async def list_waiters(
     branch_id: int | None = None,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[WaiterResponse]:
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
     stmt = select(User).where(
         User.tenant_id == tenant_id,
         User.is_active == True
@@ -314,10 +301,10 @@ async def list_waiters(
 async def update_table_status(
     table_id: int,
     body: UpdateTableStatusSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
     result = await db.execute(
         select(RestaurantTable).where(
             RestaurantTable.id == table_id,
@@ -338,12 +325,12 @@ async def update_table_status(
 @router.post("/tables", response_model=TableResponseSchema, status_code=201)
 async def create_table(
     body: TableCreateSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> TableResponseSchema:
     try:
-        tenant_id = current_user.tenant_id if current_user else 1
-        user_id = current_user.id if current_user else 1
+        tenant_id = current_user.tenant_id
+        user_id = current_user.id
         target_branch_id = await _resolve_branch_id(body.branch_id, current_user, db)
 
         # Ensure section column exists in PostgreSQL & drop restrictive legacy status check constraint
@@ -395,12 +382,12 @@ async def create_table(
 async def update_table(
     table_id: int,
     body: TableCreateSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> TableResponseSchema:
     try:
-        tenant_id = current_user.tenant_id if current_user else 1
-        user_id = current_user.id if current_user else 1
+        tenant_id = current_user.tenant_id
+        user_id = current_user.id
         result = await db.execute(
             select(RestaurantTable).where(
                 RestaurantTable.id == table_id,
@@ -433,10 +420,10 @@ async def update_table(
 @router.delete("/tables/{table_id}", status_code=200)
 async def delete_table(
     table_id: int,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
     result = await db.execute(
         select(RestaurantTable).where(
             RestaurantTable.id == table_id,
@@ -459,11 +446,11 @@ from src.modules.restaurant.schemas import KitchenStationCreateSchema, KitchenSt
 @router.get("/kitchen-stations", response_model=list[KitchenStationResponseSchema])
 async def list_kitchen_stations(
     branch_id: int | str | None = None,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[KitchenStationResponseSchema]:
     try:
-        tenant_id = current_user.tenant_id if current_user else 1
+        tenant_id = current_user.tenant_id
         parsed_branch_id = await _resolve_branch_id(branch_id, current_user, db) or 1
 
         query = select(KDSStation).where(
@@ -488,11 +475,11 @@ async def list_kitchen_stations(
 @router.post("/kitchen-stations", response_model=KitchenStationResponseSchema, status_code=201)
 async def create_kitchen_station(
     body: KitchenStationCreateSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> KitchenStationResponseSchema:
     try:
-        tenant_id = current_user.tenant_id if (current_user and getattr(current_user, "tenant_id", None)) else 1
+        tenant_id = current_user.tenant_id
         target_branch_id = await _resolve_branch_id(body.branch_id, current_user, db)
         st = KDSStation(
             tenant_id=tenant_id,
@@ -518,11 +505,11 @@ async def create_kitchen_station(
 async def update_kitchen_station(
     station_id: int,
     body: KitchenStationCreateSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> KitchenStationResponseSchema:
     try:
-        tenant_id = current_user.tenant_id if current_user else 1
+        tenant_id = current_user.tenant_id
         res = await db.execute(
             select(KDSStation).where(
                 KDSStation.id == station_id,
@@ -556,10 +543,10 @@ async def update_kitchen_station(
 @router.delete("/kitchen-stations/{station_id}", status_code=200)
 async def delete_kitchen_station(
     station_id: int,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
     res = await db.execute(
         select(KDSStation).where(
             KDSStation.id == station_id,
@@ -584,10 +571,10 @@ from src.modules.restaurant.schemas import PaymentModeCreateSchema, PaymentModeR
 @router.get("/payment-modes", response_model=list[PaymentModeResponseSchema])
 async def list_payment_modes(
     branch_id: int | str | None = None,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[PaymentModeResponseSchema]:
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
     parsed_branch_id = await _resolve_branch_id(branch_id, current_user, db) or 1
 
     query = select(PaymentMode).where(
@@ -603,11 +590,11 @@ async def list_payment_modes(
 @router.post("/payment-modes", response_model=PaymentModeResponseSchema, status_code=201)
 async def create_payment_mode(
     body: PaymentModeCreateSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> PaymentModeResponseSchema:
     try:
-        tenant_id = current_user.tenant_id if (current_user and getattr(current_user, "tenant_id", None)) else 1
+        tenant_id = current_user.tenant_id
         target_branch_id = await _resolve_branch_id(body.branch_id, current_user, db)
         pm = PaymentMode(
             tenant_id=tenant_id,
@@ -633,11 +620,11 @@ async def create_payment_mode(
 async def update_payment_mode(
     mode_id: int,
     body: PaymentModeCreateSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> PaymentModeResponseSchema:
     try:
-        tenant_id = current_user.tenant_id if current_user else 1
+        tenant_id = current_user.tenant_id
         res = await db.execute(
             select(PaymentMode).where(
                 PaymentMode.id == mode_id,
@@ -670,10 +657,10 @@ async def update_payment_mode(
 @router.delete("/payment-modes/{mode_id}", status_code=200)
 async def delete_payment_mode(
     mode_id: int,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
     res = await db.execute(
         select(PaymentMode).where(
             PaymentMode.id == mode_id,
@@ -727,6 +714,7 @@ from src.modules.restaurant.models import (
     MenuAddonOption,
     MenuTag,
     MenuItemTag,
+    RecipeIngredient,
 )
 from src.modules.restaurant.schemas import (
     CategoryCreateSchema,
@@ -735,6 +723,10 @@ from src.modules.restaurant.schemas import (
     MenuItemResponseSchema,
     MenuTagCreate,
     MenuTagResponse,
+    MenuVariantGroupCreate,
+    MenuVariantGroupResponse,
+    MenuAddonGroupCreate,
+    MenuAddonGroupResponse,
 )
 
 
@@ -932,10 +924,10 @@ def _build_menu_item_response(item: MenuItem) -> dict:
 
 @router.get("/categories", response_model=list[CategoryResponseSchema])
 async def list_categories(
-    request: Request,
     branch_id: int | str | None = None,
     company_id: int | str | None = None,
-    current_user: User | None = Depends(get_optional_user),
+    x_branch_id: str | None = Header(None, alias="x-branch-id"),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[CategoryResponseSchema]:
     try:
@@ -944,8 +936,7 @@ async def list_categories(
             (MenuCategory.is_deleted == False) | (MenuCategory.is_deleted.is_(None))
         )
 
-        header_branch = request.headers.get("x-branch-id") or request.headers.get("X-Branch-ID")
-        target_branch = branch_id or header_branch
+        target_branch = branch_id or x_branch_id
         parsed_branch_id = await _resolve_branch_id(target_branch, current_user, db)
         if parsed_branch_id is not None:
             query = query.where(MenuCategory.branch_id == parsed_branch_id)
@@ -986,7 +977,7 @@ async def list_categories(
 @router.post("/categories", response_model=CategoryResponseSchema, status_code=201)
 async def create_category(
     body: CategoryCreateSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> CategoryResponseSchema:
     tenant_id = await _get_active_tenant_id(current_user, db)
@@ -1001,7 +992,7 @@ async def create_category(
         parent_id=body.parent_id,
         level=body.level or 1,
         sort_order=body.sort_order or 1,
-        created_by=current_user.id if current_user else 1
+        created_by=current_user.id
     )
     db.add(category)
     try:
@@ -1018,7 +1009,7 @@ async def create_category(
 async def update_category(
     category_id: int,
     body: CategoryCreateSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> CategoryResponseSchema:
     result = await db.execute(
@@ -1057,7 +1048,7 @@ async def update_category(
 @router.delete("/categories/{category_id}")
 async def delete_category(
     category_id: int,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     result = await db.execute(
@@ -1090,8 +1081,9 @@ async def list_tags(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[MenuTagResponse]:
+    tenant_id = current_user.tenant_id
     query = select(MenuTag).where(
-        MenuTag.tenant_id == current_user.tenant_id,
+        MenuTag.tenant_id == tenant_id,
         MenuTag.is_deleted == False
     )
     if branch_id:
@@ -1106,12 +1098,14 @@ async def create_tag(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> MenuTagResponse:
+    tenant_id = current_user.tenant_id
+    user_id = current_user.id
     tag = MenuTag(
-        tenant_id=current_user.tenant_id,
+        tenant_id=tenant_id,
         name=body.name,
         color=body.color,
         icon=body.icon,
-        created_by=current_user.id
+        created_by=user_id
     )
     db.add(tag)
     await db.commit()
@@ -1130,7 +1124,7 @@ async def list_menu_items(
     branch_id: int | str | None = None,
     is_veg: bool | None = None,
     is_available: bool | None = None,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[MenuItemResponseSchema]:
     try:
@@ -1281,11 +1275,11 @@ async def list_menu_items(
 @router.post("/menu-items", response_model=MenuItemResponseSchema, status_code=201)
 async def create_menu_item(
     body: MenuItemCreateSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> MenuItemResponseSchema:
-    tenant_id = current_user.tenant_id if current_user and current_user.tenant_id else 2
-    user_id = current_user.id if current_user else 1
+    tenant_id = current_user.tenant_id
+    user_id = current_user.id
 
     try:
         # Validate category_id exists in menu_categories table
@@ -1434,7 +1428,7 @@ async def create_menu_item(
 async def update_menu_item(
     item_id: int,
     body: MenuItemCreateSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> MenuItemResponseSchema:
     result = await db.execute(
@@ -1447,7 +1441,7 @@ async def update_menu_item(
         raise HTTPException(status_code=404, detail="Menu item not found")
     
     tenant_id = current_user.tenant_id if current_user and current_user.tenant_id else (item.tenant_id or 2)
-    user_id = current_user.id if current_user else 1
+    user_id = current_user.id
 
     try:
         # Validate category_id exists
@@ -1463,7 +1457,7 @@ async def update_menu_item(
         item.name = body.name
         if getattr(body, "item_code", None):
             item.item_code = body.item_code
-        elif not item.item_code:
+        elif not getattr(item, "item_code", None):
             import random
             clean_prefix = "".join(c for c in body.name if c.isalnum()).upper()[:4] or "DISH"
             item.item_code = f"{clean_prefix}-{random.randint(100, 999)}"
@@ -1574,7 +1568,7 @@ async def update_menu_item(
 @router.delete("/menu-items/{item_id}")
 async def delete_menu_item(
     item_id: int,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     result = await db.execute(
@@ -1613,11 +1607,11 @@ from src.modules.restaurant.schemas import (
 @router.get("/shifts/current", response_model=PosShiftResponseSchema | None)
 async def get_current_shift(
     branch_id: int | None = 1,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> PosShiftResponseSchema | None:
     """Get active open POS shift with live transaction logs."""
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
 
     stmt = (
         select(PosShift)
@@ -1641,11 +1635,11 @@ async def get_current_shift(
 @router.post("/shifts/open", response_model=PosShiftResponseSchema)
 async def open_shift(
     body: PosShiftOpenSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> PosShiftResponseSchema:
-    tenant_id = current_user.tenant_id if current_user else 1
-    user_id = current_user.id if current_user else 1
+    tenant_id = current_user.tenant_id
+    user_id = current_user.id
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
     shift_num = f"SH-{now.strftime('%Y%m%d%H%M%S')}"
@@ -1690,10 +1684,10 @@ async def open_shift(
 @router.post("/shifts/close", response_model=PosShiftResponseSchema)
 async def close_shift(
     body: PosShiftCloseSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> PosShiftResponseSchema:
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
 
@@ -1735,10 +1729,10 @@ async def close_shift(
 @router.post("/shifts/pay-in-out", response_model=PosShiftResponseSchema)
 async def shift_pay_in_out(
     body: PosShiftPayInOutSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> PosShiftResponseSchema:
-    tenant_id = current_user.tenant_id if current_user else 1
+    tenant_id = current_user.tenant_id
 
     res = await db.execute(
         select(PosShift)
@@ -1772,6 +1766,253 @@ async def shift_pay_in_out(
     await db.commit()
     await db.refresh(shift, ["transactions"])
     return PosShiftResponseSchema.model_validate(shift)
+
+
+# ─── Tag Delete ───────────────────────────────────────────────
+
+@router.delete("/tags/{tag_id}", status_code=status.HTTP_200_OK)
+async def delete_tag(
+    tag_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    tenant_id = current_user.tenant_id
+    result = await db.execute(select(MenuTag).where(MenuTag.id == tag_id, MenuTag.tenant_id == tenant_id))
+    tag = result.scalar_one_or_none()
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    tag.is_deleted = True
+    await db.commit()
+    return {"message": f"Tag {tag.name} deleted successfully"}
+
+
+# ─── Variant Groups & Options ─────────────────────────────────
+
+@router.get("/menu-items/{item_id}/variants", response_model=list[MenuVariantGroupResponse])
+async def get_item_variants(
+    item_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[MenuVariantGroupResponse]:
+    tenant_id = current_user.tenant_id
+    res = await db.execute(
+        select(MenuVariantGroup)
+        .where(MenuVariantGroup.item_id == item_id, MenuVariantGroup.tenant_id == tenant_id, MenuVariantGroup.is_deleted == False)
+        .options(selectinload(MenuVariantGroup.options))
+        .order_by(MenuVariantGroup.sort_order.asc())
+    )
+    return [MenuVariantGroupResponse.model_validate(vg) for vg in res.scalars().all()]
+
+
+@router.post("/menu-items/{item_id}/variants", response_model=MenuVariantGroupResponse, status_code=status.HTTP_201_CREATED)
+async def create_item_variant_group(
+    item_id: int,
+    body: MenuVariantGroupCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> MenuVariantGroupResponse:
+    tenant_id = current_user.tenant_id
+    vg = MenuVariantGroup(
+        tenant_id=tenant_id,
+        item_id=item_id,
+        name=body.name,
+        min_selection=body.min_selection,
+        max_selection=body.max_selection,
+        is_required=body.is_required,
+        sort_order=body.sort_order,
+    )
+    db.add(vg)
+    await db.flush()
+
+    for opt in body.options:
+        opt_obj = MenuVariantOption(
+            tenant_id=tenant_id,
+            group_id=vg.id,
+            name=opt.name,
+            selling_price=opt.selling_price or opt.price,
+            price=opt.price or opt.selling_price,
+            is_default=opt.is_default,
+            is_available=opt.is_available,
+            sort_order=opt.sort_order,
+        )
+        db.add(opt_obj)
+    await db.commit()
+    await db.refresh(vg, ["options"])
+    return MenuVariantGroupResponse.model_validate(vg)
+
+
+@router.delete("/variants/groups/{group_id}", status_code=status.HTTP_200_OK)
+async def delete_variant_group(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    tenant_id = current_user.tenant_id
+    res = await db.execute(select(MenuVariantGroup).where(MenuVariantGroup.id == group_id, MenuVariantGroup.tenant_id == tenant_id))
+    vg = res.scalar_one_or_none()
+    if not vg:
+        raise HTTPException(status_code=404, detail="Variant group not found")
+    vg.is_deleted = True
+    await db.commit()
+    return {"message": "Variant group deleted"}
+
+
+# ─── Addon Groups & Options ───────────────────────────────────
+
+@router.get("/menu-items/{item_id}/addons", response_model=list[MenuAddonGroupResponse])
+async def get_item_addons(
+    item_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[MenuAddonGroupResponse]:
+    tenant_id = current_user.tenant_id
+    res = await db.execute(
+        select(MenuAddonGroup)
+        .where(MenuAddonGroup.item_id == item_id, MenuAddonGroup.tenant_id == tenant_id, MenuAddonGroup.is_deleted == False)
+        .options(selectinload(MenuAddonGroup.options))
+        .order_by(MenuAddonGroup.sort_order.asc())
+    )
+    return [MenuAddonGroupResponse.model_validate(ag) for ag in res.scalars().all()]
+
+
+@router.post("/menu-items/{item_id}/addons", response_model=MenuAddonGroupResponse, status_code=status.HTTP_201_CREATED)
+async def create_item_addon_group(
+    item_id: int,
+    body: MenuAddonGroupCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> MenuAddonGroupResponse:
+    tenant_id = current_user.tenant_id
+    ag = MenuAddonGroup(
+        tenant_id=tenant_id,
+        item_id=item_id,
+        name=body.name,
+        min_selection=body.min_selection,
+        max_selection=body.max_selection,
+        sort_order=body.sort_order,
+    )
+    db.add(ag)
+    await db.flush()
+
+    for opt in body.options:
+        opt_obj = MenuAddonOption(
+            tenant_id=tenant_id,
+            group_id=ag.id,
+            name=opt.name,
+            price=opt.price,
+            variant_prices=opt.variant_prices,
+            is_available=opt.is_available,
+            sort_order=opt.sort_order,
+        )
+        db.add(opt_obj)
+    await db.commit()
+    await db.refresh(ag, ["options"])
+    return MenuAddonGroupResponse.model_validate(ag)
+
+
+@router.delete("/addons/groups/{group_id}", status_code=status.HTTP_200_OK)
+async def delete_addon_group(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    tenant_id = current_user.tenant_id
+    res = await db.execute(select(MenuAddonGroup).where(MenuAddonGroup.id == group_id, MenuAddonGroup.tenant_id == tenant_id))
+    ag = res.scalar_one_or_none()
+    if not ag:
+        raise HTTPException(status_code=404, detail="Addon group not found")
+    ag.is_deleted = True
+    await db.commit()
+    return {"message": "Addon group deleted"}
+
+
+# ─── Recipe Bill of Materials (BOM) ───────────────────────────
+
+class RecipeIngredientCreateSchema(BaseModel):
+    inventory_item_id: int
+    quantity_required: float = Field(gt=0)
+    wastage_percentage: float = 0.0
+
+
+class RecipeIngredientResponseSchema(BaseModel):
+    id: int
+    menu_item_id: int
+    inventory_item_id: int
+    inventory_item_name: str | None = None
+    unit_of_measure: str | None = None
+    quantity_required: float
+    wastage_percentage: float
+    model_config = {"from_attributes": True}
+
+
+@router.get("/menu-items/{item_id}/recipe")
+async def get_item_recipe(
+    item_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[RecipeIngredientResponseSchema]:
+    tenant_id = current_user.tenant_id
+    res = await db.execute(
+        select(RecipeIngredient)
+        .where(RecipeIngredient.menu_item_id == item_id, RecipeIngredient.tenant_id == tenant_id, RecipeIngredient.is_deleted == False)
+    )
+    ingredients = res.scalars().all()
+    out = []
+    for ing in ingredients:
+        try:
+            inv_res = await db.execute(text("SELECT name, unit_of_measure FROM inventory_items WHERE id = :id"), {"id": ing.inventory_item_id})
+            row = inv_res.fetchone()
+            inv_name = row[0] if row else "Inventory Raw Material"
+            uom = row[1] if row else "kg"
+        except Exception:
+            inv_name = "Inventory Raw Material"
+            uom = "kg"
+        out.append(RecipeIngredientResponseSchema(
+            id=ing.id,
+            menu_item_id=ing.menu_item_id,
+            inventory_item_id=ing.inventory_item_id,
+            inventory_item_name=inv_name,
+            unit_of_measure=uom,
+            quantity_required=ing.quantity_required,
+            wastage_percentage=ing.wastage_percentage,
+        ))
+    return out
+
+
+@router.post("/menu-items/{item_id}/recipe", status_code=status.HTTP_201_CREATED)
+async def add_recipe_ingredient(
+    item_id: int,
+    body: RecipeIngredientCreateSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    tenant_id = current_user.tenant_id
+    ing = RecipeIngredient(
+        tenant_id=tenant_id,
+        menu_item_id=item_id,
+        inventory_item_id=body.inventory_item_id,
+        quantity_required=body.quantity_required,
+        wastage_percentage=body.wastage_percentage,
+    )
+    db.add(ing)
+    await db.commit()
+    return {"message": "Ingredient added to recipe", "id": ing.id}
+
+
+@router.delete("/recipe/{ingredient_id}", status_code=status.HTTP_200_OK)
+async def delete_recipe_ingredient(
+    ingredient_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    tenant_id = current_user.tenant_id
+    res = await db.execute(select(RecipeIngredient).where(RecipeIngredient.id == ingredient_id, RecipeIngredient.tenant_id == tenant_id))
+    ing = res.scalar_one_or_none()
+    if not ing:
+        raise HTTPException(status_code=404, detail="Recipe ingredient not found")
+    ing.is_deleted = True
+    await db.commit()
+    return {"message": "Ingredient removed from recipe"}
 
 
 

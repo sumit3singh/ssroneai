@@ -48,6 +48,8 @@
   - [ADR-0009](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0009-pos-kiosk-billing-and-order-edit-architecture.md): POS Kiosk Fullscreen Architecture & Tooltip Popover Engine
   - [ADR-0010](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0010-zero-wait-pos-architecture-and-dual-in-memory-mounted-layout.md): Zero-Wait POS Architecture & Dual In-Memory Hot-Mounted DOM Layout
   - [ADR-0011](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0011-marketing-web-character-guided-motion-path-architecture.md): Marketing Web Character-Guided Motion-Path Scrollytelling Architecture
+  - [ADR-0012](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0012-tenant-customization-studio-and-self-service-domains.md): Tenant Customization Studio & Self-Service Custom Domains Architecture
+  - [ADR-0013](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0013-world-class-enterprise-pos-innovations.md): World-Class Enterprise POS Innovations & Zero-Ruination Hardening
 
 ---
 
@@ -80,7 +82,7 @@
 
 ## 6. Quality & Governance (`05-quality/` & `06-governance/`)
 
-- **[05-quality/CURRENT_STATE_SAFEGUARD.md](file:///e:/2026/ssr_one_ai/.agents/05-quality/CURRENT_STATE_SAFEGUARD.md)**: Zero-Ruination Protocol, Monorepo Baseline Snapshot, and 10 Non-Negotiable Invariants.
+- **[05-quality/CURRENT_STATE_SAFEGUARD.md](file:///e:/2026/ssr_one_ai/.agents/05-quality/CURRENT_STATE_SAFEGUARD.md)**: Zero-Ruination Protocol, Monorepo Baseline Snapshot, and 11 Non-Negotiable Invariants.
 - **[05-quality/DEFINITION_OF_DONE.md](file:///e:/2026/ssr_one_ai/.agents/05-quality/DEFINITION_OF_DONE.md)**: Checklist defining criteria required before marking features as DONE.
 - **[05-quality/CODE_REVIEW_CHECKLIST.md](file:///e:/2026/ssr_one_ai/.agents/05-quality/CODE_REVIEW_CHECKLIST.md)**: Code reviewer checklist for Pull Request approvals.
 - **[05-quality/FINAL_SIGN_OFF_CHECKLIST.md](file:///e:/2026/ssr_one_ai/.agents/05-quality/FINAL_SIGN_OFF_CHECKLIST.md)**: Monorepo architecture, multi-tenant security, and code integrity final sign-off checklist.
@@ -97,6 +99,8 @@
 - **[07-modules/POS_MODULE_SPECIFICATION.md](file:///e:/2026/ssr_one_ai/.agents/07-modules/POS_MODULE_SPECIFICATION.md)**: Point of Sale, KOT, and Kitchen Display System specification.
 - **[07-modules/PMS_MODULE_SPECIFICATION.md](file:///e:/2026/ssr_one_ai/.agents/07-modules/PMS_MODULE_SPECIFICATION.md)**: Hotel PMS, Room Inventory, and PG Management specification.
 - **[07-modules/CRM_MODULE_SPECIFICATION.md](file:///e:/2026/ssr_one_ai/.agents/07-modules/CRM_MODULE_SPECIFICATION.md)**: Customer Relationship Management and Loyalty specification.
+- **[07-modules/CUSTOMIZATION_MODULE_SPECIFICATION.md](file:///e:/2026/ssr_one_ai/.agents/07-modules/CUSTOMIZATION_MODULE_SPECIFICATION.md)**: Tenant Customization Studio, Branding/Theme engine, and Self-Service Custom Domains.
+
 
 ---
 

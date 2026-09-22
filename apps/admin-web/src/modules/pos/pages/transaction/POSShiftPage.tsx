@@ -235,7 +235,7 @@ export const POSShiftPage: React.FC = () => {
                 <Button
                   onClick={() => setIsCloseModalOpen(true)}
                   size="sm"
-                  variant="destructive"
+                  variant="danger"
                   className="text-xs font-semibold gap-1.5 cursor-pointer"
                 >
                   <Lock size={14} /> Close Shift

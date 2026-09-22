@@ -2,7 +2,7 @@
 The ssrone – HR Router
 Employee management, attendance, leave requests.
 """
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -11,10 +11,20 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database.engine import get_db_session
-from src.modules.auth.dependencies import get_current_user, get_optional_user
-from src.modules.auth.models import User, Tenant
-from src.modules.hrms.models import AttendanceRecord, Employee, LeaveRequest, Department, Designation
+from src.modules.auth.dependencies import get_current_user
+from src.modules.auth.models import User
 from src.shared.logger import get_logger
+from src.modules.hrms.models import (
+    AttendanceRecord,
+    Department,
+    Designation,
+    Employee,
+    LeaveRequest,
+    LeaveType,
+    PayrollRun,
+    Payslip,
+    Shift,
+)
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/hr", tags=["HR & Payroll"])
@@ -98,14 +108,19 @@ async def staff_login(
         raise HTTPException(status_code=400, detail="Employee Code, Phone, or Email is required")
 
     from src.modules.auth.models import Tenant
-    slug = (body.tenant_slug or "baithak-cafe").strip()
-    t_query = select(Tenant).where(Tenant.slug == slug)
+    slug = (body.tenant_slug or "").strip()
+    if slug:
+        t_query = select(Tenant).where(Tenant.slug == slug)
+    else:
+        t_query = select(Tenant).where(Tenant.is_active == True).order_by(Tenant.id.asc()).limit(1)
     t_res = await db.execute(t_query)
     tenant = t_res.scalar_one_or_none()
-    tenant_id = tenant.id if tenant else 2
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    tenant_id = tenant.id
 
     e_query = select(Employee).where(
-        (Employee.tenant_id == tenant_id) | (Employee.tenant_id == 2),
+        Employee.tenant_id == tenant_id,
         Employee.is_deleted == False,
         (Employee.employee_code == clean_identifier) |
         (Employee.phone == clean_identifier)
@@ -155,7 +170,7 @@ async def list_employees(
     tenant_id: int | None = None,
     company_id: int | None = None,
     branch_id: int | None = None,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[dict]:
     try:
@@ -217,17 +232,17 @@ async def list_employees(
     return res_list
 
 
-from src.modules.auth.dependencies import get_current_user, get_optional_user
+from src.modules.auth.dependencies import get_current_user
 
 @router.post("/employees", status_code=status.HTTP_201_CREATED)
 async def create_employee(
     body: EmployeeCreateSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    tenant_id = body.tenant_id or (current_user.tenant_id if current_user and getattr(current_user, "tenant_id", None) else 2)
-    company_id = body.company_id or (current_user.company_id if current_user and getattr(current_user, "company_id", None) else 1)
-    branch_id = body.branch_id or (current_user.branch_id if current_user and getattr(current_user, "branch_id", None) else 1)
+    tenant_id = body.tenant_id or current_user.tenant_id
+    company_id = body.company_id or getattr(current_user, 'company_id', None)
+    branch_id = body.branch_id or getattr(current_user, 'branch_id', None)
 
     try:
         # Check for duplicate employee code under tenant to avoid IntegrityError
@@ -263,7 +278,7 @@ async def create_employee(
             is_waiter=body.is_waiter or body.can_access_staff_web,
             is_chef=body.is_chef or body.can_access_kds_web,
             status="ACTIVE",
-            created_by=current_user.id if current_user else 1,
+            created_by=current_user.id,
         )
         db.add(employee)
         await db.commit()
@@ -302,7 +317,7 @@ async def create_employee(
                         hashed_password=hashed_pwd,
                         role_code=role_code,
                         is_active=True,
-                        created_by=current_user.id if current_user else 1,
+                        created_by=current_user.id,
                     )
                     db.add(user_account)
                     await db.commit()
@@ -355,7 +370,7 @@ async def create_employee(
 async def update_employee(
     emp_id: int,
     body: EmployeeCreateSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     try:
@@ -427,7 +442,7 @@ class AttendancePunchSchema(BaseModel):
 @router.get("/attendance/today")
 async def get_today_attendance(
     branch_id: int | None = None,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[dict]:
     today = date.today()
@@ -456,12 +471,12 @@ async def get_today_attendance(
 @router.post("/attendance/punch")
 async def punch_attendance(
     body: AttendancePunchSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     today = date.today()
-    tenant_id = current_user.tenant_id if current_user and getattr(current_user, "tenant_id", None) else 2
-    branch_id = body.branch_id or (current_user.branch_id if current_user and getattr(current_user, "branch_id", None) else 1)
+    tenant_id = current_user.tenant_id
+    branch_id = body.branch_id or getattr(current_user, 'branch_id', None)
 
     existing = await db.execute(
         select(AttendanceRecord).where(
@@ -478,7 +493,7 @@ async def punch_attendance(
             attendance_date=today,
             check_in_time=datetime.now(timezone.utc),
             status=body.status or "present",
-            created_by=current_user.id if current_user else 1,
+            created_by=current_user.id,
         )
         db.add(record)
     else:
@@ -521,7 +536,7 @@ class DesignationSchema(BaseModel):
 @router.get("/departments")
 async def list_departments(
     branch_id: int | None = None,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[dict]:
     try:
@@ -539,7 +554,7 @@ async def list_departments(
 @router.post("/departments", status_code=status.HTTP_201_CREATED)
 async def create_department(
     body: DepartmentSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     try:
@@ -603,7 +618,7 @@ async def delete_department(dept_id: int, db: AsyncSession = Depends(get_db_sess
 @router.get("/designations")
 async def list_designations(
     branch_id: int | None = None,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[dict]:
     try:
@@ -621,7 +636,7 @@ async def list_designations(
 @router.post("/designations", status_code=status.HTTP_201_CREATED)
 async def create_designation(
     body: DesignationSchema,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     try:
@@ -703,8 +718,14 @@ async def staff_login(
         slug = (body.tenant_slug or "baithak-cafe").strip()
 
         # Resolve tenant by slug
-        tenant = (await db.execute(select(Tenant).where(Tenant.slug == slug))).scalar_one_or_none()
-        tenant_id = tenant.id if tenant else 2
+        if slug:
+            t_stmt = select(Tenant).where(Tenant.slug == slug)
+        else:
+            t_stmt = select(Tenant).where(Tenant.is_active == True).order_by(Tenant.id.asc()).limit(1)
+        tenant = (await db.execute(t_stmt)).scalar_one_or_none()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        tenant_id = tenant.id
 
         # Query Employee by code, phone, name or ID
         query = select(Employee).where(
@@ -790,4 +811,497 @@ async def staff_login(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Staff authentication failed: {str(err)}"
         )
+
+
+# ─── Shift Endpoints ──────────────────────────────────────────
+
+class ShiftCreateSchema(BaseModel):
+    name: str
+    code: str
+    start_time: str  # "09:00"
+    end_time: str    # "17:00"
+    grace_minutes: int = 10
+    is_night_shift: bool = False
+    branch_id: int | None = 1
+    is_active: bool = True
+
+
+@router.get("/shifts")
+async def list_shifts(
+    branch_id: int | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[dict]:
+    tenant_id = current_user.tenant_id
+    query = select(Shift).where(Shift.tenant_id == tenant_id, Shift.is_deleted == False)
+    if branch_id:
+        query = query.where(Shift.branch_id == branch_id)
+    res = await db.execute(query.order_by(Shift.start_time.asc()))
+    shifts = res.scalars().all()
+    return [
+        {
+            "id": s.id,
+            "name": s.name,
+            "code": s.code,
+            "start_time": s.start_time.strftime("%H:%M") if s.start_time else "09:00",
+            "end_time": s.end_time.strftime("%H:%M") if s.end_time else "17:00",
+            "grace_minutes": s.grace_minutes,
+            "is_night_shift": s.is_night_shift,
+            "is_active": s.is_active,
+            "branch_id": s.branch_id,
+        }
+        for s in shifts
+    ]
+
+
+@router.post("/shifts", status_code=status.HTTP_201_CREATED)
+async def create_shift(
+    body: ShiftCreateSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    tenant_id = current_user.tenant_id
+    st_parts = [int(x) for x in body.start_time.split(":")[:2]]
+    et_parts = [int(x) for x in body.end_time.split(":")[:2]]
+    shift = Shift(
+        tenant_id=tenant_id,
+        branch_id=body.branch_id or 1,
+        name=body.name.strip(),
+        code=body.code.strip().upper(),
+        start_time=time(st_parts[0], st_parts[1]),
+        end_time=time(et_parts[0], et_parts[1]),
+        grace_minutes=body.grace_minutes,
+        is_night_shift=body.is_night_shift,
+        is_active=body.is_active,
+    )
+    db.add(shift)
+    await db.commit()
+    await db.refresh(shift)
+    return {"message": "Shift created successfully", "id": shift.id}
+
+
+@router.delete("/shifts/{shift_id}", status_code=status.HTTP_200_OK)
+async def delete_shift(
+    shift_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    tenant_id = current_user.tenant_id
+    res = await db.execute(select(Shift).where(Shift.id == shift_id, Shift.tenant_id == tenant_id))
+    s = res.scalar_one_or_none()
+    if not s:
+        raise HTTPException(status_code=404, detail="Shift not found")
+    s.is_deleted = True
+    await db.commit()
+    return {"message": "Shift deleted successfully"}
+
+
+# ─── Leave Types Endpoints ─────────────────────────────────────
+
+class LeaveTypeCreateSchema(BaseModel):
+    name: str
+    code: str
+    days_per_year: float = 12.0
+    is_paid: bool = True
+    carry_forward: bool = False
+    max_carry_forward_days: int = 0
+    requires_approval: bool = True
+
+
+@router.get("/leave-types")
+async def list_leave_types(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[dict]:
+    tenant_id = current_user.tenant_id
+    query = select(LeaveType).where(LeaveType.tenant_id == tenant_id, LeaveType.is_deleted == False)
+    res = await db.execute(query.order_by(LeaveType.id.asc()))
+    types = res.scalars().all()
+    return [
+        {
+            "id": lt.id,
+            "name": lt.name,
+            "code": lt.code,
+            "days_per_year": float(lt.days_per_year),
+            "is_paid": lt.is_paid,
+            "carry_forward": lt.carry_forward,
+            "max_carry_forward_days": lt.max_carry_forward_days,
+            "requires_approval": lt.requires_approval,
+            "is_active": lt.is_active,
+        }
+        for lt in types
+    ]
+
+
+@router.post("/leave-types", status_code=status.HTTP_201_CREATED)
+async def create_leave_type(
+    body: LeaveTypeCreateSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    tenant_id = current_user.tenant_id
+    lt = LeaveType(
+        tenant_id=tenant_id,
+        name=body.name.strip(),
+        code=body.code.strip().upper(),
+        days_per_year=Decimal(str(body.days_per_year)),
+        is_paid=body.is_paid,
+        carry_forward=body.carry_forward,
+        max_carry_forward_days=body.max_carry_forward_days,
+        requires_approval=body.requires_approval,
+        is_active=True,
+    )
+    db.add(lt)
+    await db.commit()
+    await db.refresh(lt)
+    return {"message": "Leave type created successfully", "id": lt.id}
+
+
+@router.delete("/leave-types/{type_id}", status_code=status.HTTP_200_OK)
+async def delete_leave_type(
+    type_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    tenant_id = current_user.tenant_id
+    res = await db.execute(select(LeaveType).where(LeaveType.id == type_id, LeaveType.tenant_id == tenant_id))
+    lt = res.scalar_one_or_none()
+    if not lt:
+        raise HTTPException(status_code=404, detail="Leave type not found")
+    lt.is_deleted = True
+    await db.commit()
+    return {"message": "Leave type deleted successfully"}
+
+
+# ─── Leave Requests Endpoints ──────────────────────────────────
+
+class LeaveRequestFormSchema(BaseModel):
+    employee_id: int
+    leave_type_id: int
+    from_date: date
+    to_date: date
+    reason: str | None = None
+
+
+class LeaveStatusUpdateSchema(BaseModel):
+    status: str  # "approved" or "rejected"
+    rejection_reason: str | None = None
+
+
+@router.get("/leave-requests")
+async def list_leave_requests(
+    status_filter: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[dict]:
+    tenant_id = current_user.tenant_id
+    query = (
+        select(LeaveRequest, Employee.full_name, Employee.employee_code, LeaveType.name)
+        .outerjoin(Employee, LeaveRequest.employee_id == Employee.id)
+        .outerjoin(LeaveType, LeaveRequest.leave_type_id == LeaveType.id)
+        .where(LeaveRequest.tenant_id == tenant_id, LeaveRequest.is_deleted == False)
+    )
+    if status_filter:
+        query = query.where(LeaveRequest.status == status_filter)
+    res = await db.execute(query.order_by(LeaveRequest.from_date.desc()))
+    rows = res.all()
+    out = []
+    for lr, emp_name, emp_code, lt_name in rows:
+        out.append({
+            "id": lr.id,
+            "employee_id": lr.employee_id,
+            "employee_name": emp_name or f"Emp #{lr.employee_id}",
+            "employee_code": emp_code or "",
+            "leave_type_id": lr.leave_type_id,
+            "leave_type_name": lt_name or "General Leave",
+            "from_date": lr.from_date.isoformat(),
+            "to_date": lr.to_date.isoformat(),
+            "total_days": float(lr.total_days),
+            "reason": lr.reason,
+            "status": lr.status,
+            "approved_at": lr.approved_at.isoformat() if lr.approved_at else None,
+            "rejection_reason": lr.rejection_reason,
+        })
+    return out
+
+
+@router.post("/leave-requests", status_code=status.HTTP_201_CREATED)
+async def submit_leave_request(
+    body: LeaveRequestFormSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    tenant_id = current_user.tenant_id
+    days = (body.to_date - body.from_date).days + 1
+    if days <= 0:
+        raise HTTPException(status_code=400, detail="to_date must be greater than or equal to from_date")
+
+    lr = LeaveRequest(
+        tenant_id=tenant_id,
+        employee_id=body.employee_id,
+        leave_type_id=body.leave_type_id,
+        from_date=body.from_date,
+        to_date=body.to_date,
+        total_days=Decimal(str(days)),
+        reason=body.reason,
+        status="pending",
+    )
+    db.add(lr)
+    await db.commit()
+    await db.refresh(lr)
+    return {"message": "Leave application submitted successfully", "id": lr.id, "total_days": days}
+
+
+@router.patch("/leave-requests/{request_id}/status")
+async def update_leave_status(
+    request_id: int,
+    body: LeaveStatusUpdateSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    tenant_id = current_user.tenant_id
+    res = await db.execute(select(LeaveRequest).where(LeaveRequest.id == request_id, LeaveRequest.tenant_id == tenant_id))
+    lr = res.scalar_one_or_none()
+    if not lr:
+        raise HTTPException(status_code=404, detail="Leave request not found")
+
+    lr.status = body.status.lower()
+    if body.status.lower() == "approved":
+        lr.approved_by=current_user.id
+        lr.approved_at = datetime.now(timezone.utc)
+    elif body.status.lower() == "rejected":
+        lr.rejection_reason = body.rejection_reason
+
+    await db.commit()
+    return {"message": f"Leave request status updated to {lr.status}"}
+
+
+# ─── Attendance Records & Override Endpoints ───────────────────
+
+class AttendanceOverrideSchema(BaseModel):
+    employee_id: int
+    attendance_date: date
+    check_in_time: str | None = None   # "09:00"
+    check_out_time: str | None = None  # "18:00"
+    status: str = "present"
+    notes: str | None = None
+
+
+@router.get("/attendance/records")
+async def list_attendance_records(
+    date_from: date | None = None,
+    date_to: date | None = None,
+    employee_id: int | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[dict]:
+    tenant_id = current_user.tenant_id
+    query = (
+        select(AttendanceRecord, Employee.full_name, Employee.employee_code, Employee.designation)
+        .outerjoin(Employee, AttendanceRecord.employee_id == Employee.id)
+        .where(AttendanceRecord.tenant_id == tenant_id, AttendanceRecord.is_deleted == False)
+    )
+    if employee_id:
+        query = query.where(AttendanceRecord.employee_id == employee_id)
+    if date_from:
+        query = query.where(AttendanceRecord.attendance_date >= date_from)
+    if date_to:
+        query = query.where(AttendanceRecord.attendance_date <= date_to)
+
+    res = await db.execute(query.order_by(AttendanceRecord.attendance_date.desc(), AttendanceRecord.id.desc()).limit(100))
+    rows = res.all()
+    out = []
+    for att, emp_name, emp_code, desig in rows:
+        out.append({
+            "id": att.id,
+            "employee_id": att.employee_id,
+            "employee_name": emp_name or f"Emp #{att.employee_id}",
+            "employee_code": emp_code or "",
+            "designation": desig or "Staff",
+            "attendance_date": att.attendance_date.isoformat(),
+            "check_in_time": att.check_in_time.isoformat() if att.check_in_time else None,
+            "check_out_time": att.check_out_time.isoformat() if att.check_out_time else None,
+            "status": att.status,
+            "working_hours": float(att.working_hours or 0),
+            "notes": att.notes,
+            "is_regularized": att.is_regularized,
+        })
+    return out
+
+
+@router.post("/attendance/override")
+async def override_attendance(
+    body: AttendanceOverrideSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    tenant_id = current_user.tenant_id
+    res = await db.execute(
+        select(AttendanceRecord).where(
+            AttendanceRecord.tenant_id == tenant_id,
+            AttendanceRecord.employee_id == body.employee_id,
+            AttendanceRecord.attendance_date == body.attendance_date,
+        )
+    )
+    rec = res.scalar_one_or_none()
+
+    cin = None
+    if body.check_in_time:
+        p = [int(x) for x in body.check_in_time.split(":")[:2]]
+        cin = datetime.combine(body.attendance_date, time(p[0], p[1]), tzinfo=timezone.utc)
+
+    cout = None
+    if body.check_out_time:
+        p = [int(x) for x in body.check_out_time.split(":")[:2]]
+        cout = datetime.combine(body.attendance_date, time(p[0], p[1]), tzinfo=timezone.utc)
+
+    hrs = Decimal("8.0")
+    if cin and cout:
+        diff_secs = (cout - cin).total_seconds()
+        if diff_secs > 0:
+            hrs = Decimal(str(round(diff_secs / 3600, 2)))
+
+    if not rec:
+        rec = AttendanceRecord(
+            tenant_id=tenant_id,
+            branch_id=1,
+            employee_id=body.employee_id,
+            attendance_date=body.attendance_date,
+            check_in_time=cin,
+            check_out_time=cout,
+            status=body.status,
+            working_hours=hrs,
+            notes=body.notes or "Manual Regularization by HR",
+            is_regularized=True,
+            created_by=current_user.id,
+        )
+        db.add(rec)
+    else:
+        if cin:
+            rec.check_in_time = cin
+        if cout:
+            rec.check_out_time = cout
+        rec.status = body.status
+        rec.working_hours = hrs
+        rec.notes = body.notes or "Manual Regularization by HR"
+        rec.is_regularized = True
+
+    await db.commit()
+    return {"message": "Attendance regularized successfully"}
+
+
+# ─── Payroll Execution Endpoints ───────────────────────────────
+
+class PayrollExecutionSchema(BaseModel):
+    payroll_month: str  # e.g. "2026-09"
+    branch_id: int | None = 1
+
+
+@router.get("/payroll-runs")
+async def list_payroll_runs(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[dict]:
+    tenant_id = current_user.tenant_id
+    res = await db.execute(
+        select(PayrollRun)
+        .where(PayrollRun.tenant_id == tenant_id, PayrollRun.is_deleted == False)
+        .order_by(PayrollRun.payroll_month.desc())
+    )
+    runs = res.scalars().all()
+    return [
+        {
+            "id": r.id,
+            "payroll_month": r.payroll_month,
+            "status": r.status,
+            "total_employees": r.total_employees,
+            "total_gross": float(r.total_gross),
+            "total_deductions": float(r.total_deductions),
+            "total_net": float(r.total_net),
+            "processed_at": r.processed_at.isoformat() if r.processed_at else None,
+            "paid_at": r.paid_at.isoformat() if r.paid_at else None,
+        }
+        for r in runs
+    ]
+
+
+@router.post("/payroll-runs/execute", status_code=status.HTTP_201_CREATED)
+async def execute_payroll(
+    body: PayrollExecutionSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    tenant_id = current_user.tenant_id
+    branch_id = body.branch_id or 1
+
+    emp_res = await db.execute(
+        select(Employee).where(
+            Employee.tenant_id == tenant_id,
+            Employee.status == "ACTIVE",
+            Employee.is_deleted == False,
+        )
+    )
+    employees = emp_res.scalars().all()
+    if not employees:
+        raise HTTPException(status_code=400, detail="No active employees found to process payroll")
+
+    total_gross = Decimal("0.00")
+    total_ded = Decimal("0.00")
+    total_net = Decimal("0.00")
+
+    run = PayrollRun(
+        tenant_id=tenant_id,
+        branch_id=branch_id,
+        payroll_month=body.payroll_month,
+        status="processed",
+        total_employees=len(employees),
+        processed_at=datetime.now(timezone.utc),
+        approved_by=current_user.id,
+    )
+    db.add(run)
+    await db.flush()
+
+    for emp in employees:
+        basic = emp.basic_salary or Decimal("20000.00")
+        allowances = emp.allowances or Decimal("0.00")
+        deductions = emp.deductions or Decimal("0.00")
+        gross = basic + allowances
+        net = gross - deductions
+
+        total_gross += gross
+        total_ded += deductions
+        total_net += net
+
+        slip = Payslip(
+            tenant_id=tenant_id,
+            payroll_run_id=run.id,
+            employee_id=emp.id,
+            basic_salary=basic,
+            earnings={"Basic": float(basic), "Allowances": float(allowances)},
+            deductions={"Standard Deductions": float(deductions)},
+            gross_salary=gross,
+            total_deductions=deductions,
+            net_salary=net,
+            working_days=Decimal("30.0"),
+            present_days=Decimal("30.0"),
+            leave_days=Decimal("0.0"),
+            lop_days=Decimal("0.0"),
+        )
+        db.add(slip)
+
+    run.total_gross = total_gross
+    run.total_deductions = total_ded
+    run.total_net = total_net
+
+    await db.commit()
+    await db.refresh(run)
+
+    return {
+        "message": f"Payroll for {body.payroll_month} successfully executed",
+        "run_id": run.id,
+        "total_employees": run.total_employees,
+        "total_gross": float(run.total_gross),
+        "total_net": float(run.total_net),
+    }
+
 

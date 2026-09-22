@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { CreditCard, Banknote, QrCode, User, X, Check, Receipt, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { PaymentMethod } from "../../types";
+import { PaymentMethod } from "../../../types";
 
 interface POSPaymentSettlementModalProps {
   isOpen: boolean;

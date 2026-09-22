@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { LayoutGrid, X, Check, Users, Utensils, Sparkles } from "lucide-react";
-import { POSTable } from "../../types";
+import { POSTable } from "../../../types";
 
 interface POSTableTrackerModalProps {
   isOpen: boolean;

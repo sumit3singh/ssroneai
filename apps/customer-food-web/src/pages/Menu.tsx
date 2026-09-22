@@ -13,6 +13,7 @@ import CartSheet from "@/components/CartSheet";
 import LanguageToggle from "@/components/LanguageToggle";
 import { FoodParticleLayer, useFoodParticles } from "@/components/FoodParticles";
 import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
+import { useTenantAppConfig } from "@/hooks/useTenantAppConfig";
 import type { MenuItem } from "@/data/mockMenu";
 import type { CartItemVariant, CartItemAddon } from "@/stores/cartStore";
 import BranchSwitchDialog from "@/components/BranchSwitchDialog";
@@ -20,6 +21,7 @@ import BranchSwitchDialog from "@/components/BranchSwitchDialog";
 const MenuPage = () => {
   const navigate = useNavigate();
   const { tenantSlug, branchCode, tableNumber, isTableMode, branches, switchBranch } = useTenantBranchContext();
+  const { branding, banner, features, hiddenCategories, hiddenItems, featuredItems } = useTenantAppConfig();
   const { t } = useI18n();
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -66,6 +68,19 @@ const MenuPage = () => {
   const filteredItems = useMemo(() => {
     let items = (menuItemsList || []).filter(Boolean);
 
+    // Filter out items hidden by tenant configuration
+    if (hiddenItems && hiddenItems.length > 0) {
+      items = items.filter((i) => !hiddenItems.includes(String(i.id)));
+    }
+
+    // Filter out categories hidden by tenant configuration
+    if (hiddenCategories && hiddenCategories.length > 0) {
+      items = items.filter((i) => {
+        const catId = String(i.categoryId ?? (i as any).category_id);
+        return !hiddenCategories.includes(catId);
+      });
+    }
+
     if (selectedCategory !== "all") {
       items = items.filter((i) => {
         const catId = i.categoryId ?? (i as any).category_id;
@@ -84,8 +99,18 @@ const MenuPage = () => {
           (i.description || "").toLowerCase().includes(q)
       );
     }
+
+    // Elevate featured items to top
+    if (featuredItems && featuredItems.length > 0) {
+      items = [...items].sort((a, b) => {
+        const aFeat = featuredItems.includes(String(a.id)) ? -1 : 1;
+        const bFeat = featuredItems.includes(String(b.id)) ? -1 : 1;
+        return aFeat - bFeat;
+      });
+    }
+
     return items;
-  }, [menuItemsList, selectedCategory, vegOnly, searchQuery]);
+  }, [menuItemsList, selectedCategory, vegOnly, searchQuery, hiddenCategories, hiddenItems, featuredItems]);
 
 
   const handleAddItem = (item: MenuItem, e?: React.MouseEvent) => {
@@ -121,7 +146,7 @@ const MenuPage = () => {
               <Home className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
             </button>
             <div className="min-w-0 flex-1">
-              <h1 className="font-display text-xs sm:text-lg font-bold leading-tight truncate">{activeBranch?.name || t("app.name")}</h1>
+              <h1 className="font-display text-xs sm:text-lg font-bold leading-tight truncate">{branding.businessName || activeBranch?.name || t("app.name")}</h1>
               <div className="flex items-center gap-1 text-[9px] sm:text-xs text-muted-foreground truncate">
                 <span>{isTableMode ? `Table ${tableNumber}` : t("misc.dineIn")}</span>
                 <span>·</span>

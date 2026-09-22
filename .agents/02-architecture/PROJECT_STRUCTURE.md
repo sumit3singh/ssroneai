@@ -52,8 +52,8 @@
 
 | Service / Sub-App | Port | Technology | Primary Responsibility |
 | :--- | :--- | :--- | :--- |
-| **FastAPI Backend API** | `8000` | Python 3.12 / FastAPI / SQLAlchemy / AsyncPG | Single Source of Truth Async API Gateway & Multi-Tenant RLS |
-| **Admin ERP Web (`admin-web`)** | `5173` | React 19 / Vite / TanStack Router | Tenant ERP Workspace (POS, Hotel, HR, CRM, Inventory, Finance) |
+| **FastAPI Backend API** | `8000` | Python 3.12 / FastAPI / SQLAlchemy / AsyncPG | Single Source of Truth Async API Gateway & Multi-Tenant RLS (14 Domain Modules) |
+| **Admin ERP Web (`admin-web`)** | `5173` | React 19 / Vite / TanStack Router | Tenant ERP Workspace (11 Business Modules: POS, Hotel, PG, CRM, HR, Inventory, Finance, Customization, Forms, Copilot, Settings) |
 | **Platform Admin (`platform-admin`)** | `5174` | React 19 / Vite / Tailwind / Lucide | SaaS Superadmin Portal (Tenants, Licensing Keys, DB Telemetry) |
 | **Kitchen Display (`kds-web`)** | `8083` | React 19 / Vite | 5-Mode Kitchen Operations System (Cook, Batch, EXPO, Packing, SLA) |
 | **Queue Token Web (`token-order-web`)** | `3003` | React 19 / Vite / Tailwind | Mobile Fast-Order & Queue-Buster 3-Digit Token Generation (`#104`) |
@@ -87,6 +87,7 @@ ssr_one_ai
 │   │   │   ├── ADR-0009-pos-kiosk-billing-and-order-edit-architecture.md
 │   │   │   ├── ADR-0010-zero-wait-pos-architecture-and-dual-in-memory-mounted-layout.md
 │   │   │   ├── ADR-0011-marketing-web-character-guided-motion-path-architecture.md
+│   │   │   ├── ADR-0012-tenant-customization-studio-and-self-service-domains.md
 │   │   │   └── template.md
 │   │   ├── AI_ARCHITECTURE.md              # AI Copilot, RAG Retrieval & OCR Specs
 │   │   ├── API_VERSIONING_GUIDE.md         # API Versioning URI Scheme & RFC Specs

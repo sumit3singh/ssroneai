@@ -106,16 +106,14 @@ export const ThermalKOTModal: React.FC<ThermalKOTModalProps> = ({
           .kot-station-slip {
             width: 80mm !important;
             max-width: 80mm !important;
-            padding: 6px 8px 16px 8px !important;
+            padding: 2mm 1mm 4mm 1mm !important;
             page-break-after: always !important;
             break-after: page !important;
             box-sizing: border-box !important;
-            border-bottom: 1px dashed #000000 !important;
           }
           .kot-station-slip:last-child {
             page-break-after: auto !important;
             break-after: auto !important;
-            border-bottom: none !important;
           }
         }
       `}</style>
@@ -135,7 +133,7 @@ export const ThermalKOTModal: React.FC<ThermalKOTModalProps> = ({
                 </span>
               </h3>
               <p className="text-[11px] text-muted-foreground">
-                80mm Station-Wise Thermal Kitchen Order Tickets
+                80mm Ultra-Compact Minimal-Waste Ticket
               </p>
             </div>
           </div>
@@ -148,57 +146,42 @@ export const ThermalKOTModal: React.FC<ThermalKOTModalProps> = ({
         </div>
 
         {/* Scrollable Preview on Screen / Printable Area for Printer */}
-        <div className="overflow-y-auto flex-1 pr-1 space-y-4 max-h-[65vh]">
-          <div id="thermal-kot-printable-area" className="space-y-4">
+        <div className="overflow-y-auto flex-1 pr-1 space-y-3 max-h-[65vh]">
+          <div id="thermal-kot-printable-area" className="space-y-3">
             {slips.map((slip, idx) => {
               const totalQty = slip.items.reduce((sum, it) => sum + it.quantity, 0);
               const isUpdate = slip.kotType === "UPDATE";
+              const displayTable = slip.tableName
+                ? (String(slip.tableName).toLowerCase().startsWith("table") ? slip.tableName : `Table ${slip.tableName}`)
+                : (slip.orderType || "N/A");
 
               return (
                 <div
                   key={`${slip.stationName}-${slip.orderNumber}-${idx}`}
-                  className="kot-station-slip bg-white text-black p-4 rounded-xl border border-border shadow-xs text-xs font-mono space-y-2"
+                  className="kot-station-slip bg-white text-black p-3 rounded-lg border border-neutral-300 shadow-2xs font-mono text-[11px] leading-tight space-y-1.5"
                 >
-                  {/* Station Header */}
-                  <div className="text-center pb-2 border-b border-dashed border-black/60">
-                    <p className="font-bold text-[10px] tracking-wider uppercase text-neutral-600">{venueName}</p>
-                    <div className="font-black text-sm uppercase tracking-wide my-1 py-1 border-y border-black">
-                      {isUpdate ? "⚡ RUNNING KOT (ORDER UPDATE) ⚡" : "★ KITCHEN ORDER TICKET (KOT) ★"}
+                  {/* Ultra-Compact Station & Table Header (Minimum Paper Waste) */}
+                  <div className="border-b-2 border-black pb-1">
+                    <div className="flex items-center justify-between">
+                      <span className="bg-black text-white px-2 py-0.5 rounded text-xs font-black uppercase tracking-wide">
+                        {slip.stationName}
+                      </span>
+                      <span className="font-black text-xs text-black">
+                        {displayTable}
+                      </span>
                     </div>
-                    <div className="bg-black text-white px-2 py-0.5 rounded text-xs font-black inline-block uppercase">
-                      STATION: {slip.stationName}
+                    <div className="flex items-center justify-between text-[10px] text-neutral-800 mt-1 font-bold">
+                      <span>KOT #{slip.orderNumber} ({slip.orderType})</span>
+                      <span>{isUpdate ? "⚡ ADD-ON" : "★ NEW"}</span>
                     </div>
-                    {slip.printerName && (
-                      <p className="text-[9px] text-neutral-600 mt-0.5 font-mono">
-                        PRINTER: {slip.printerName}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Metadata */}
-                  <div className="text-[10px] space-y-0.5 border-b border-dashed border-black/60 pb-2">
-                    <div className="flex justify-between font-bold">
-                      <span>ORDER #: {slip.orderNumber}</span>
-                      <span>MODE: {slip.orderType}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>TABLE: {slip.tableName ? `Table ${slip.tableName}` : "N/A"}</span>
-                      <span className="font-bold">{isUpdate ? "RUNNING ADD-ON" : "NEW ORDER"}</span>
-                    </div>
-                    <div className="flex justify-between text-neutral-600">
-                      <span>TIME: {slip.timestamp}</span>
-                      {slip.waiterName && <span>SERVER: {slip.waiterName}</span>}
+                    <div className="flex items-center justify-between text-[9px] text-neutral-600">
+                      <span>{slip.timestamp}</span>
+                      {slip.waiterName && <span>Srvr: {slip.waiterName}</span>}
                     </div>
                   </div>
 
-                  {/* Column Header */}
-                  <div className="flex justify-between font-black text-[10px] border-b border-black pb-1">
-                    <span className="w-8">QTY</span>
-                    <span className="flex-1">ITEM / SPECIFICATIONS</span>
-                  </div>
-
-                  {/* Items List */}
-                  <div className="space-y-2 py-1">
+                  {/* Compact Items List (Zero Unnecessary Gap) */}
+                  <div className="space-y-1 py-0.5">
                     {slip.items.map((it, itemIdx) => {
                       const addonsList = it.addons || [];
                       const addonStr = Array.isArray(addonsList)
@@ -209,45 +192,40 @@ export const ThermalKOTModal: React.FC<ThermalKOTModalProps> = ({
                         : "";
 
                       return (
-                        <div key={`${it.name}-${itemIdx}`} className="border-b border-dotted border-neutral-300 pb-1.5">
-                          <div className="flex items-start">
-                            <span className="w-8 font-black text-sm leading-tight text-neutral-900">
-                              {it.quantity}x
-                            </span>
-                            <div className="flex-1">
-                              <p className="font-black text-xs leading-tight text-neutral-900">{it.name}</p>
+                        <div key={`${it.name}-${itemIdx}`} className="border-b border-dotted border-neutral-300 pb-1">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 pr-1">
+                              <span className="font-black text-xs text-neutral-900">{it.name}</span>
                               {it.variant_name && (
-                                <p className="text-[9.5px] italic text-neutral-700">↳ Size: {it.variant_name}</p>
+                                <span className="text-[9.5px] italic text-neutral-600 block">↳ {it.variant_name}</span>
                               )}
                               {addonStr && (
-                                <p className="text-[9px] text-neutral-600">↳ Addons: {addonStr}</p>
+                                <span className="text-[9px] text-neutral-600 block">+ {addonStr}</span>
                               )}
                               {it.notes && it.notes.trim() && (
-                                <p className="text-[9.5px] font-black mt-0.5 bg-neutral-100 p-1 border border-dashed border-black">
-                                  *** NOTE: {it.notes.trim().toUpperCase()} ***
-                                </p>
+                                <div className="text-[9.5px] font-black mt-0.5 bg-neutral-100 px-1 py-0.5 border border-dashed border-black inline-block">
+                                  *** {it.notes.trim().toUpperCase()} ***
+                                </div>
                               )}
                             </div>
+                            <span className="font-black text-sm text-neutral-900 shrink-0">
+                              {it.quantity}x
+                            </span>
                           </div>
                         </div>
                       );
                     })}
                   </div>
 
-                  {/* Slip Footer */}
-                  <div className="border-t border-dashed border-black/60 pt-2 text-center text-[10px]">
-                    <div className="flex justify-between font-bold">
+                  {/* Ultra-Compact Footer */}
+                  <div className="border-t border-dashed border-black pt-1 text-[10px]">
+                    <div className="flex justify-between font-black">
                       <span>ITEMS: {slip.items.length}</span>
                       <span>TOTAL QTY: {totalQty}</span>
                     </div>
-                    <div className="font-black uppercase text-[10px] mt-1 text-black">
-                      {isUpdate
-                        ? ">>> PREPARE ONLY NEW ADDED ITEMS ABOVE <<<"
-                        : ">>> NEW ORDER: PREPARE IMMEDIATELY <<<"}
-                    </div>
-                    <p className="text-[8px] text-neutral-400 mt-2 border-t border-dotted border-neutral-300 pt-1">
+                    <div className="text-center text-[8.5px] text-neutral-500 mt-1 border-t border-dotted border-neutral-400 pt-0.5">
                       - - - - - - - - - - TEAR / CUT HERE - - - - - - - - - -
-                    </p>
+                    </div>
                   </div>
                 </div>
               );

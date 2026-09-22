@@ -9,11 +9,13 @@ import { LogIn, LogOut, Truck, ClipboardList, QrCode, Award, MapPin } from "luci
 import LanguageToggle from "@/components/LanguageToggle";
 import heroFood from "@/assets/hero-food.jpg";
 import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
+import { useTenantAppConfig } from "@/hooks/useTenantAppConfig";
 import SelectLocationModal from "@/components/SelectLocationModal";
 
 const Welcome = () => {
   const navigate = useNavigate();
   const { tenantSlug, branchCode, tableNumber, isTableMode, branches, switchBranch } = useTenantBranchContext();
+  const { branding, banner, features } = useTenantAppConfig();
   const setTableNumber = useCartStore((s) => s.setTableNumber);
   const { isLoggedIn, user, logout, orderMode, setOrderMode, loyaltyTier, loyaltyPoints } = useAuthStore();
   const { t } = useI18n();
@@ -21,7 +23,8 @@ const Welcome = () => {
   const [showLocationGuardModal, setShowLocationGuardModal] = useState(false);
 
   const activeBranch = branches.find((b) => b.code === branchCode);
-  const tenantTitle = activeBranch?.name || (tenantSlug ? tenantSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "SSR One AI");
+  const tenantTitle = branding.businessName || activeBranch?.name || (tenantSlug ? tenantSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "SSR One AI");
+  const bgImage = banner.imageUrl || heroFood;
 
   useEffect(() => {
     if (tableNumber) {
@@ -47,7 +50,7 @@ const Welcome = () => {
       {/* Background Image & Gradient */}
       <div
         className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${heroFood})` }}
+        style={{ backgroundImage: `url(${bgImage})` }}
       />
       <div className="absolute inset-0 bg-gradient-to-b from-foreground/75 via-foreground/55 to-foreground/85" />
 
@@ -100,13 +103,23 @@ const Welcome = () => {
         transition={{ duration: 0.6, ease: "easeOut" }}
         className="relative z-10 text-center px-4 max-w-md my-auto flex flex-col items-center justify-center"
       >
-        <motion.div
-          className="text-5xl sm:text-6xl mb-2 sm:mb-3"
-          animate={{ y: [0, -8, 0] }}
-          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-        >
-          🍽️
-        </motion.div>
+        {branding.logoUrl ? (
+          <motion.img
+            src={branding.logoUrl}
+            alt={tenantTitle}
+            className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-full mb-2 sm:mb-3 shadow-lg bg-background/20 backdrop-blur p-1 border border-primary-foreground/20"
+            animate={{ y: [0, -6, 0] }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          />
+        ) : (
+          <motion.div
+            className="text-5xl sm:text-6xl mb-2 sm:mb-3"
+            animate={{ y: [0, -8, 0] }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          >
+            🍽️
+          </motion.div>
+        )}
 
         <h1 className="text-2xl sm:text-4xl md:text-5xl font-display font-bold text-primary-foreground mb-2 leading-tight">
           {isLoggedIn
@@ -117,7 +130,7 @@ const Welcome = () => {
         </h1>
 
         <p className="text-sm sm:text-base text-primary-foreground/80 mb-2">
-          {isTableMode ? t("welcome.subtitle.table") : t("welcome.subtitle.general")}
+          {branding.tagline || (isTableMode ? t("welcome.subtitle.table") : t("welcome.subtitle.general"))}
         </p>
 
         {isTableMode && (
@@ -161,27 +174,43 @@ const Welcome = () => {
 
         {/* Mode toggle */}
         {!isTableMode && (
-          <div className="flex justify-center gap-2 mb-4">
-            <button
-              onClick={() => setOrderMode("dine-in")}
-              className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition ${
-                orderMode === "dine-in"
-                  ? "bg-primary text-primary-foreground shadow-md"
-                  : "bg-primary-foreground/15 text-primary-foreground/80 hover:bg-primary-foreground/25"
-              }`}
-            >
-              {t("welcome.dineIn")}
-            </button>
-            <button
-              onClick={() => setOrderMode("delivery")}
-              className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition flex items-center gap-1 ${
-                orderMode === "delivery"
-                  ? "bg-primary text-primary-foreground shadow-md"
-                  : "bg-primary-foreground/15 text-primary-foreground/80 hover:bg-primary-foreground/25"
-              }`}
-            >
-              <Truck className="w-3.5 h-3.5" /> {t("welcome.delivery")}
-            </button>
+          <div className="flex justify-center gap-2 mb-4 flex-wrap">
+            {features.tableQrOrdering !== false && (
+              <button
+                onClick={() => setOrderMode("dine-in")}
+                className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition ${
+                  orderMode === "dine-in"
+                    ? "bg-primary text-primary-foreground shadow-md"
+                    : "bg-primary-foreground/15 text-primary-foreground/80 hover:bg-primary-foreground/25"
+                }`}
+              >
+                {t("welcome.dineIn")}
+              </button>
+            )}
+            {features.takeaway && (
+              <button
+                onClick={() => setOrderMode("takeaway")}
+                className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition ${
+                  orderMode === "takeaway"
+                    ? "bg-primary text-primary-foreground shadow-md"
+                    : "bg-primary-foreground/15 text-primary-foreground/80 hover:bg-primary-foreground/25"
+                }`}
+              >
+                Takeaway
+              </button>
+            )}
+            {features.delivery !== false && (
+              <button
+                onClick={() => setOrderMode("delivery")}
+                className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition flex items-center gap-1 ${
+                  orderMode === "delivery"
+                    ? "bg-primary text-primary-foreground shadow-md"
+                    : "bg-primary-foreground/15 text-primary-foreground/80 hover:bg-primary-foreground/25"
+                }`}
+              >
+                <Truck className="w-3.5 h-3.5" /> {t("welcome.delivery")}
+              </button>
+            )}
           </div>
         )}
 

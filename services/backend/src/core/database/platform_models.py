@@ -13,7 +13,7 @@ from src.core.database.models import BaseModel, TenantBaseModel
 
 class AuditLogModel(TenantBaseModel):
     """Audit log entries tracking system entity changes."""
-    __tablename__ = "audit_logs"
+    __tablename__ = "platform_audit_logs"
 
     event_name: Mapped[str] = mapped_column(String(100), nullable=False)
     entity_name: Mapped[str] = mapped_column(String(100), nullable=False)

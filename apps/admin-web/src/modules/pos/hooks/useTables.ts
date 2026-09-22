@@ -7,7 +7,7 @@ export const useTables = () => {
 
   const tablesQuery = useQuery({
     queryKey: ["pos-tables"],
-    queryFn: tablesApi.getTables
+    queryFn: () => tablesApi.getTables()
   });
 
   const createTableMutation = useMutation({

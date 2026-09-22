@@ -20,7 +20,7 @@ export const PermissionGuard: React.FC<PermissionGuardProps> = ({
   const { user, selected_role } = useAuthStore();
 
   // Super Admin bypasses permission checks
-  if (user?.is_superadmin || selected_role?.code === "SUPER_ADMIN" || selected_role?.code === "PLATFORM_ADMIN") {
+  if (user?.is_superadmin || (selected_role as any)?.code === "SUPER_ADMIN" || (selected_role as any)?.code === "PLATFORM_ADMIN" || selected_role?.name === "Super Admin") {
     return <>{children}</>;
   }
 

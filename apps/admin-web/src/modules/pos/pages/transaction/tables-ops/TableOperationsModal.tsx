@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { ArrowRightLeft, Users, X, Layers, Split } from "lucide-react";
 import { Button } from "@ssrone/ui";
-import { POSTable, POSWaiter } from "../../types";
+import { POSTable, POSWaiter } from "../../../types";
 
 interface TableOperationsModalProps {
   isOpen: boolean;

@@ -53,15 +53,15 @@ export function FormRenderer({
   isSubmitting = false,
 }: FormRendererProps) {
   const targetFormKey = formKey || formName || "guest_registration";
-  const { tenantSlug } = useAuthStore();
+  const { tenant_slug } = useAuthStore();
   const [activeTab, setActiveTab] = useState<string>("");
 
   const { data: formDef, isLoading, error } = useQuery<FormDefinition>({
-    queryKey: ["formMetadata", targetFormKey, tenantSlug],
+    queryKey: ["formMetadata", targetFormKey, tenant_slug],
     queryFn: async () => {
       const res = await fetch(`/api/v1/metadata/forms/${targetFormKey}`, {
         headers: {
-          "X-Tenant-Slug": tenantSlug || "default",
+          "X-Tenant-Slug": tenant_slug || "default",
         },
       });
       if (!res.ok) {

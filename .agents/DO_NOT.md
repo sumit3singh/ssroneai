@@ -600,7 +600,11 @@ Implementation automatically FAILS if ANY of the following exist:
 - Components larger than project limits
 - Duplicate documentation
 - Metadata bypassed with hardcoded values
-- Violation of approved ADRs
+- Violation of approved ADRs (e.g. ADR-0001 through ADR-0012)
+- Re-introducing redundant connected app launchers or bottom panels to Platform Home (Platform Home strictly contains the 11 Business Workspace Modules)
+- Missing deterministic configuration fallbacks in connected customer applications (apps must never crash on missing DB records)
+- Executing synchronous DDL statements (`ALTER TABLE`, `CREATE TABLE`) inside FastAPI startup lifespan
+
 
 ---
 

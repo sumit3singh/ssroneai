@@ -3,10 +3,19 @@ SSR One AI – Application Settings
 All configuration is loaded from environment variables via Pydantic Settings.
 """
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import AnyHttpUrl, Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_backend_dir = Path(__file__).resolve().parent.parent.parent
+_workspace_root = _backend_dir.parent
+_ENV_FILES = (
+    str(_backend_dir / ".env"),
+    str(_workspace_root / ".env"),
+    ".env",
+)
 
 
 class DatabaseSettings(BaseSettings):
@@ -25,7 +34,16 @@ class DatabaseSettings(BaseSettings):
     @property
     def async_url(self) -> str:
         if self.url:
-            return self.url
+            raw = self.url.strip()
+            if raw.startswith("jdbc:"):
+                raw = raw[len("jdbc:"):]
+            if raw.startswith("postgres://"):
+                raw = "postgresql+asyncpg://" + raw[len("postgres://"):]
+            elif raw.startswith("postgresql://"):
+                raw = "postgresql+asyncpg://" + raw[len("postgresql://"):]
+            # asyncpg expects 'ssl' parameter instead of 'sslmode'
+            raw = raw.replace("sslmode=", "ssl=")
+            return raw
         if self.provider.lower() == "sqlite":
             return "sqlite+aiosqlite:///./cafedb.db"
         return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
@@ -33,11 +51,24 @@ class DatabaseSettings(BaseSettings):
     @computed_field  # type: ignore[misc]
     @property
     def sync_url(self) -> str:
+        if self.url:
+            raw = self.url.strip()
+            if raw.startswith("jdbc:"):
+                raw = raw[len("jdbc:"):]
+            if raw.startswith("postgresql+asyncpg://"):
+                raw = "postgresql+psycopg2://" + raw[len("postgresql+asyncpg://"):]
+            elif raw.startswith("postgres://"):
+                raw = "postgresql+psycopg2://" + raw[len("postgres://"):]
+            elif raw.startswith("postgresql://"):
+                raw = "postgresql+psycopg2://" + raw[len("postgresql://"):]
+            if "ssl=" in raw and "sslmode=" not in raw:
+                raw = raw.replace("ssl=", "sslmode=")
+            return raw
         if self.provider.lower() == "sqlite":
             return "sqlite:///./cafedb.db"
         return f"postgresql+psycopg2://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_ENV_FILES, extra="ignore")
 
 
 class RedisSettings(BaseSettings):
@@ -52,7 +83,7 @@ class RedisSettings(BaseSettings):
         auth = f":{self.password}@" if self.password else ""
         return f"redis://{auth}{self.host}:{self.port}/{self.db}"
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_ENV_FILES, extra="ignore")
 
 
 class JWTSettings(BaseSettings):
@@ -61,7 +92,7 @@ class JWTSettings(BaseSettings):
     access_token_expire_minutes: int = Field(default=30, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
     refresh_token_expire_days: int = Field(default=30, alias="JWT_REFRESH_TOKEN_EXPIRE_DAYS")
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_ENV_FILES, extra="ignore")
 
 
 class AISettings(BaseSettings):
@@ -72,7 +103,7 @@ class AISettings(BaseSettings):
     max_tokens_per_day: int = Field(default=1_000_000, alias="AI_MAX_TOKENS_PER_DAY")
     cost_limit_usd_per_day: float = Field(default=10.0, alias="AI_COST_LIMIT_USD_PER_DAY")
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_ENV_FILES, extra="ignore")
 
 
 class Settings(BaseSettings):
@@ -138,7 +169,7 @@ class Settings(BaseSettings):
         return self.app_env == "development"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_ENV_FILES,
         extra="ignore",
         case_sensitive=False,
     )

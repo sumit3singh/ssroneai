@@ -16,6 +16,7 @@ export interface POSVariantOption {
   id: number | string;
   name: string;
   sellingPrice: number;
+  selling_price?: number;
   price?: number;
   is_default?: boolean;
   sortOrder?: number;
@@ -24,8 +25,12 @@ export interface POSVariantOption {
 export interface POSVariantGroup {
   id: number | string;
   name: string;
-  isRequired: boolean;
-  maxSelection: number;
+  isRequired?: boolean;
+  is_required?: boolean;
+  maxSelection?: number;
+  max_selection?: number;
+  min_selection?: number;
+  minSelection?: number;
   options: POSVariantOption[];
 }
 
@@ -41,21 +46,35 @@ export interface POSAddonOption {
 export interface POSAddonGroup {
   id: number | string;
   name: string;
+  min_selection?: number;
+  minSelection?: number;
+  max_selection?: number;
+  maxSelection?: number;
   options: POSAddonOption[];
 }
 
 export interface POSMenuItem {
   id: number;
   category_id: number;
+  category_name?: string;
+  category?: string | any;
+  item_code?: string;
   name: string;
   description: string;
   base_price: number;
+  price?: number;
   selling_price?: number;
   packaging_charge?: number;
   image_url: string;
   is_veg: boolean;
   is_popular: boolean;
   is_available: boolean;
+  is_deleted?: boolean;
+  branch_id?: number | string;
+  barcode?: string;
+  sku?: string;
+  shortcode?: string;
+  short_description?: string;
   gst_percent: number;
   tags: string[];
   variant_groups?: POSVariantGroup[];

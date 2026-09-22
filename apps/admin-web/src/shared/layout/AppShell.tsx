@@ -2,15 +2,17 @@
  * The ssrone – App Shell Layout (10/10 Enterprise Grade)
  * Platform Home (full-width launcher at '/') vs Module Workspaces (Sidebar + Header + Working Area).
  */
-import { useState, useRef, useEffect, type ReactNode } from "react";
-import { useRouterState, Link } from "@tanstack/react-router";
+import { useState, useRef, useEffect, useMemo, type ReactNode } from "react";
+import { useRouterState, Link, useNavigate } from "@tanstack/react-router";
 import {
   Bell, Search, LogOut, User, Building2, Menu,
-  Sun, Moon, ChevronDown, Check, Shield, X, Receipt, HelpCircle, LayoutGrid
+  Sun, Moon, ChevronDown, Check, Shield, X, Receipt, HelpCircle, LayoutGrid,
+  Sparkles
 } from "lucide-react";
 import { useAuthStore } from "@ssrone/auth";
 import { api } from "@ssrone/api-client";
-import { CommandPalette, Sidebar } from "@ssrone/navigation";
+import { Sidebar } from "@ssrone/navigation";
+import { NavbarSearchDropdown } from "./NavbarSearchDropdown";
 import { PageHelpSOPModal } from "../components/universal/PageHelpSOPModal";
 
 
@@ -35,6 +37,7 @@ export function AppShell({ children }: AppShellProps) {
 
   const { user, selected_branch, branches, setSelectedBranch, setBranches, logout } = useAuthStore();
   const routerState = useRouterState();
+  const navigate = useNavigate();
   const currentPath = routerState?.location?.pathname || "/";
 
   const [pendingBranch, setPendingBranch] = useState<any | null>(null);
@@ -61,23 +64,37 @@ export function AppShell({ children }: AppShellProps) {
   const userName = getUserDisplayName(user);
 
   const authTenantSlug = useAuthStore((s) => s.tenant_slug);
-  const currentTenantSlug = authTenantSlug 
-    || (user as any)?.tenant_slug 
-    || (user as any)?.tenant?.slug 
-    || (selected_branch as any)?.tenant_slug 
+  const currentTenantSlug = authTenantSlug
+    || (user as any)?.tenant_slug
+    || (user as any)?.tenant?.slug
+    || (selected_branch as any)?.tenant_slug
     || "";
 
   const displayTenantName = currentTenantSlug || (activeCompany?.name ? activeCompany.name.toLowerCase().replace(/\s+/g, "-") : "tenant-workspace");
 
-  const resolvedCompany = activeCompany 
-    || useAuthStore.getState().selected_company 
-    || (branches.length > 0 && branches[0].company ? branches[0].company : null);
+  const resolvedCompany = activeCompany
+    || useAuthStore.getState().selected_company
+    || (branches.length > 0 && (branches[0] as any)?.company ? (branches[0] as any).company : null);
 
-  const activeCompanyName = resolvedCompany?.name 
-    || selected_branch?.company_name 
-    || (selected_branch as any)?.company?.name 
-    || (user as any)?.company_name 
+  const activeCompanyName = resolvedCompany?.name
+    || (selected_branch as any)?.company_name
+    || (selected_branch as any)?.company?.name
+    || (user as any)?.company_name
     || (currentTenantSlug ? currentTenantSlug : "No Company");
+
+  const tenantDisplayName = useMemo(() => {
+    if ((user as any)?.tenant_name) return (user as any).tenant_name;
+    if ((user as any)?.tenant?.name) return (user as any).tenant.name;
+    if (activeCompanyName && activeCompanyName !== "No Company") {
+      return activeCompanyName;
+    }
+    if (currentTenantSlug) {
+      return currentTenantSlug
+        .replace(/[-_]/g, " ")
+        .replace(/\b\w/g, (c: string) => c.toUpperCase());
+    }
+    return "Workspace";
+  }, [user, activeCompanyName, currentTenantSlug]);
 
   const activeBranchName = selected_branch?.name || (branches.length > 0 ? branches[0].name : "0 Outlets Provisioned");
 
@@ -85,7 +102,7 @@ export function AppShell({ children }: AppShellProps) {
   useEffect(() => {
     const fetchPostgresBranches = async () => {
       try {
-        const safeApiGet = async (endpoint: string, params?: any) => {
+        const safeApiGet = async (endpoint: string, params?: any): Promise<any> => {
           try {
             return await api.get(endpoint, params);
           } catch {
@@ -121,7 +138,7 @@ export function AppShell({ children }: AppShellProps) {
         if (companies.length === 0 && currentTenantId) {
           const cRes = await safeApiGet("/business/companies", { tenant_id: currentTenantId }) || await safeApiGet("/auth/companies", { tenant_id: currentTenantId });
           companies = Array.isArray(cRes) ? cRes : (cRes && Array.isArray(cRes.data) ? cRes.data : []);
-          
+
           if (companies.length > 0 && branchesList.length === 0) {
             for (const co of companies) {
               const bRes = await safeApiGet("/business/branches", { company_id: co.id }) || await safeApiGet("/auth/branches", { company_id: co.id });
@@ -145,7 +162,7 @@ export function AppShell({ children }: AppShellProps) {
         setBranches(branchesList);
 
         if (companies.length > 0) {
-          const targetCompanyId = selected_branch?.company_id || (user as any)?.company_id || state.selected_company?.id;
+          const targetCompanyId = (selected_branch as any)?.company_id || (user as any)?.company_id || state.selected_company?.id;
           const matchCo = targetCompanyId ? companies.find((c: any) => String(c.id) === String(targetCompanyId)) : companies[0];
           setActiveCompany(matchCo || companies[0]);
           state.setSelectedCompany(matchCo || companies[0]);
@@ -221,16 +238,38 @@ export function AppShell({ children }: AppShellProps) {
             </button>
           )}
 
-          <Link to="/" className="flex items-center gap-2 group cursor-pointer no-underline">
-            <div className="h-5 w-5 rounded bg-primary/10 text-primary flex items-center justify-center font-bold text-[11px]">
-              ∞
-            </div>
+          <Link
+            to="/"
+            className="flex items-center gap-2 group cursor-pointer no-underline py-0.5 px-1 -ml-1 rounded-md hover:bg-muted/40 transition-all duration-200"
+            title={`SSR ONE AI • Bonded with ${tenantDisplayName}`}
+          >
+            {/* 1. SSR ONE AI Core Brand Identity */}
             <div className="flex items-center gap-1.5">
-              <span className="font-semibold text-xs text-foreground">
+              <div className="h-5 w-5 rounded-md bg-gradient-to-br from-primary/25 via-primary/10 to-indigo-500/20 border border-primary/30 flex items-center justify-center font-bold text-[11px] text-primary shadow-xs group-hover:scale-105 group-hover:shadow-[0_0_10px_rgba(var(--primary),0.3)] transition-all">
+                <span className="text-[12px] leading-none">∞</span>
+              </div>
+              <span className="font-extrabold text-xs tracking-tight text-foreground group-hover:text-primary transition-colors whitespace-nowrap">
                 SSR ONE AI
               </span>
-              <span className="bg-muted text-muted-foreground border border-border text-[10px] font-mono font-medium px-1.5 py-0.2 rounded">
-                v2.0
+            </div>
+
+            {/* 2. Creative AI Bonding Bridge */}
+            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-primary/15 via-violet-500/15 to-indigo-500/15 border border-primary/30 shadow-xs group-hover:border-primary/50 transition-all">
+              <Sparkles size={10} className="text-primary animate-pulse shrink-0" />
+              <span className="text-[11px] font-mono font-black text-primary leading-none">+</span>
+              <span className="text-[9px] font-mono font-bold tracking-wider uppercase text-primary/80 hidden sm:inline leading-none">
+                AI
+              </span>
+            </div>
+
+            {/* 3. Logged-in Tenant Identity */}
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted/60 border border-border/80 text-foreground group-hover:border-primary/40 group-hover:bg-muted/90 transition-all max-w-[140px] sm:max-w-[200px]">
+              <span className="relative flex h-1.5 w-1.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+              </span>
+              <span className="font-bold text-xs tracking-tight text-foreground truncate">
+                {tenantDisplayName}
               </span>
             </div>
           </Link>
@@ -238,20 +277,13 @@ export function AppShell({ children }: AppShellProps) {
 
         {/* Right Side: Header Controls */}
         <div className="flex items-center gap-2">
-          {/* Search Command Palette Trigger */}
-          <button
-            onClick={() => {
-              const event = new KeyboardEvent("keydown", { key: "k", ctrlKey: true });
-              window.dispatchEvent(event);
-            }}
-            className="hidden sm:flex items-center gap-2 px-2 py-1 rounded border border-border bg-background text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-          >
-            <Search size={13} className="text-muted-foreground" />
-            <span>Search</span>
-            <kbd className="font-mono text-[9px] bg-muted px-1 py-0.2 rounded border border-border text-muted-foreground">
-              Ctrl+K
-            </kbd>
-          </button>
+          {/* Search Navbar Dropdown */}
+          <NavbarSearchDropdown
+            onOpenSOP={() => setIsHelpModalOpen(true)}
+            onToggleTheme={toggleTheme}
+            theme={theme}
+            className="hidden sm:block"
+          />
 
           {/* Simple Inline Unit / Branch Dropdown Selector */}
           <div className="relative" ref={branchDropdownRef}>
@@ -324,15 +356,35 @@ export function AppShell({ children }: AppShellProps) {
           {/* Real-time Indian Date & Time (IST Asia/Kolkata) */}
           <IndianLiveClock compact className="hidden md:inline-flex" />
 
-          {/* Quick Table Floor Link */}
-          <Link
-            to="/pos/transaction/tables"
+          {/* Quick Table Floor Button - Enters Fullscreen Kiosk Mode */}
+          <button
+            type="button"
+            onClick={() => {
+              // 1. Mark and request Fullscreen Kiosk Mode
+              try {
+                sessionStorage.setItem("pos_open_kiosk_fullscreen", "true");
+                localStorage.setItem("pos_kiosk_fullscreen", "true");
+                if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+                  document.documentElement.requestFullscreen().catch(() => {});
+                }
+              } catch {}
+
+              // 2. Broadcast events immediately to POS
+              window.dispatchEvent(new CustomEvent("pos:switch-tab", { detail: { tab: "tables", fullscreen: true } }));
+              window.dispatchEvent(new CustomEvent("pos:set-fullscreen", { detail: { fullscreen: true } }));
+              window.dispatchEvent(new CustomEvent("pos:refresh-tables"));
+
+              // 3. Ensure route navigation to /pos/transaction/tables
+              if (typeof window !== "undefined" && window.location.pathname !== "/pos/transaction/tables") {
+                void navigate({ to: "/pos/transaction/tables" });
+              }
+            }}
             className="flex items-center gap-1.5 px-3 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all no-underline cursor-pointer shadow-xs active:scale-95"
-            title="Open Table Floor & Live Tracker (Auto-Kiosk Fullscreen)"
+            title="Open Table Floor & Live Tracker (Fullscreen Kiosk Mode)"
           >
             <LayoutGrid size={13} />
             <span>Table Floor</span>
-          </Link>
+          </button>
 
           {/* Universal Page SOP & Data Flow ? Button */}
           <button
@@ -474,7 +526,7 @@ export function AppShell({ children }: AppShellProps) {
         <div className="flex items-center gap-3">
           <span>User: <strong className="text-foreground font-semibold">{userName}</strong></span>
           <span className="text-border">|</span>
-          <span className="text-muted-foreground font-medium">Ctrl+K Palette</span>
+          <span className="text-muted-foreground font-medium">Ctrl+K Search</span>
         </div>
       </footer>
 
@@ -519,8 +571,7 @@ export function AppShell({ children }: AppShellProps) {
         </div>
       )}
 
-      {/* Global Command Palette (Ctrl+K) */}
-      <CommandPalette />
+
 
       {/* Universal Page SOP & System Data Flow Modal */}
       <PageHelpSOPModal

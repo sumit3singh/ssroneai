@@ -1,7 +1,7 @@
 # Pending Work & Architectural Consolidation Roadmap
 
 > **Last Reviewed**: September 2026  
-> **Overall Monorepo Completion Status**: **~96–98% (Production Candidate Milestone)**
+> **Overall Monorepo Completion Status**: **~98–99% (Production Candidate Milestone)**
 
 This document lists living tasks, roadmap execution phases, and completed architectural milestones for **SSR One AI**.
 
@@ -11,19 +11,35 @@ This document lists living tasks, roadmap execution phases, and completed archit
 
 | Phase | Milestone Area | Current Status & Completion % | Focus & Deliverables | Priority |
 | :--- | :--- | :--- | :--- | :--- |
-| **Phase 1** | **Vertical Slice Domain & Backend Integration** | 🟢 **100% Complete** | All 13 backend modules and 10 frontend ERP modules fully operational and connected directly to PostgreSQL SSOT. | 🟢 Closed |
+| **Phase 1** | **Vertical Slice Domain & Backend Integration** | 🟢 **100% Complete** | All 14 backend modules and 11 frontend ERP modules fully operational and connected directly to PostgreSQL SSOT. | 🟢 Closed |
 | **Phase 2** | **Offline-First & Zero-Wait POS Engine** | 🟢 **100% Complete** | Dexie.js IndexedDB persistence, `< 1.2ms` local tokens (`#001`), UUIDv4 idempotency keys, dual in-memory hot-mounted DOM layout, and background sync worker with auto-reconnect drainer. | 🟢 Closed |
-| **Phase 3** | **Feature Licensing & Subscription Entitlement** | 🟢 **95% Complete** | `feature_registry.json` enforced server-side by `engines/licensing/engine.py`, verified with pytest suites. Frontend `FeatureGate` and `PermissionGuard` in `@ssrone/auth`. Final step: client tier upgrade upsell modal. | 🟡 Polish |
-| **Phase 4** | **Plugin & Dynamic Module Registry** | 🟢 **90% Complete** | Dynamic module sidebar, breadcrumb engine, and `@ssrone/navigation` runtime launcher operational across all 8 web apps. | 🟡 Polish |
-| **Phase 5** | **Telemetry & Performance Monitoring** | 🟢 **90% Complete** | Centralized audit engine, Superadmin cluster health monitor (100% OK), and order sequence tracking operational. | 🟡 Polish |
-| **Phase 6** | **Layered Testing & CI Quality Gates** | 🟢 **Continuous** | Backend pytest suites passing (`services/backend/tests/test_licensing.py`), TypeScript strict configs, zero syntax errors. | 🟢 Continuous |
+| **Phase 3** | **Feature Licensing & Subscription Entitlement** | 🟢 **98% Complete** | `feature_registry.json` enforced server-side by `engines/licensing/engine.py`, verified with pytest suites. Frontend `FeatureGate` and `PermissionGuard` in `@ssrone/auth`. | 🟢 Closed |
+| **Phase 4** | **Plugin & Dynamic Module Registry** | 🟢 **95% Complete** | Dynamic module sidebar, breadcrumb engine, and `@ssrone/navigation` runtime launcher operational across all 8 web apps. | 🟡 Polish |
+| **Phase 5** | **Telemetry & Performance Monitoring** | 🟢 **95% Complete** | Centralized audit engine, Superadmin cluster health monitor (100% OK), and order sequence tracking operational. | 🟡 Polish |
+| **Phase 6** | **Layered Testing & CI Quality Gates** | 🟢 **Continuous** | Backend pytest suites passing (`services/backend/tests/test_licensing.py`, `test_customization.py`), TypeScript strict configs, zero syntax errors. | 🟢 Continuous |
 
 ---
 
 ## 2. Recently Completed Architectural Milestones
 
+- **[COMPLETED] World-Class Enterprise POS Innovations & Zero-Ruination Hardening ([ADR-0013](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0013-world-class-enterprise-pos-innovations.md))**:
+  - **Dynamic UPI QR & Offline Soundbox Audio Chime**: Contactless scan-and-pay via pure SVG QR matrix generation (`DynamicUpiQrCode.tsx`) and synthesized 3-tone C5-E5-G5 harmonic chime (`playPaymentSuccessSound()`) via Web Audio API with zero hardware lock-in and zero audio file downloads.
+  - **Customer-Facing Display (CFD / 2nd Screen Kiosk)**: Dual-screen counter operations on `/pos/cfd` synchronized via `BroadcastChannel("ssrone_cfd_sync")`. Live cart stream, dynamic UPI QR on right panel, and celebration sound chime on settlement.
+  - **Multilingual AI Voice Order Taking**: Real-time voice dish insertion supporting natural English and Hindi ("दो मसाला डोसा", "three chai") with fuzzy catalog matching via `POSVoiceOrderButton.tsx`.
+  - **Progressive Web App (PWA) 1-Click Install**: Offline Kiosk installation enabled across `apps/admin-web`, `apps/kds-web`, and `apps/token-order-web` with `manifest.webmanifest` and service worker caching.
+  - **Automated WhatsApp Invoicing**: `POST /api/v1/orders/{order_id}/whatsapp-invoice` with one-tap `wa.me` links and clean bill breakdowns.
+  - **Recipe BOM Stock Consumption**: `POST /api/v1/inventory/orders/{order_id}/consume-bom` automated ingredient deduction and stock movement audit trails.
+  - **Food Delivery Aggregator Gateway Webhook**: `POST /api/v1/orders/integrations/aggregators/webhook` ingest and normalization for Swiggy, Zomato, and UberEats orders into kitchen display queues.
+  - **Multi-Currency & Global i18n Engine**: Currency formatting (`formatCurrency`) across INR, USD, EUR, GBP, AED, SAR and zero-dependency internationalization dictionaries in `@ssrone/utils`.
+- **[COMPLETED] Tenant Customization Studio & Self-Service Custom Domains ([ADR-0012](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0012-tenant-customization-studio-and-self-service-domains.md))**:
+  - Full PostgreSQL single source of truth database persistence (`tenant_app_configs` and `tenant_custom_domains`).
+  - Draft vs 1-Click Live Publishing lifecycle with automatic rollback safety and version incrementing.
+  - Multi-tiered runtime configuration resolution (Branch override -> Tenant default -> System default constants) ensuring zero downtime and 100% fallback reliability across `customer-food-web`, `customer-stay-web`, `kds-web`, `staff-web`, and `token-order-web`.
+  - Self-service custom domain registration, DNS TXT token challenge generation, automatic reactivation of soft-deleted domains, and low-latency reverse-proxy hostname resolution (`/api/v1/custom-domains/resolve`).
+  - Interactive Tenant Customization Studio on `admin-web` (`/customization`) with real-time desktop & mobile simulated iframe preview.
+  - Cleaned up Platform Home: Removed redundant connected apps bottom panel; launcher exclusively displays the 11 Business Workspace Modules.
 - **[COMPLETED] Zero-Ruination Protocol & Current State Safeguard Standard ([CURRENT_STATE_SAFEGUARD.md](file:///e:/2026/ssr_one_ai/.agents/05-quality/CURRENT_STATE_SAFEGUARD.md))**:
-  - Established 10 non-negotiable architectural invariants guaranteeing that no existing working features, dual in-memory layouts, sub-millisecond local tokens, or database SSOT contexts can ever be regressed or compromised.
+  - Established 11 non-negotiable architectural invariants guaranteeing that no existing working features, dual in-memory layouts, sub-millisecond local tokens, or database SSOT contexts can ever be regressed or compromised.
 - **[COMPLETED] Mobile Fast-Order & Queue-Buster Token Web (`apps/token-order-web`)**:
   - Standalone ultra-responsive mobile web application on port `3003`. Allows customers in queue or at tables to assemble orders and generate 3-digit queue tokens (`#104`).
   - Integrated with POS Cashier terminal: pressing `Alt + Q` recalls and claims the entire order into the active billing cart in `< 0.1s`.
