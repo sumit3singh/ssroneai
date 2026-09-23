@@ -19,7 +19,10 @@ _ENV_FILES = (
 
 
 class DatabaseSettings(BaseSettings):
-    url: str | None = Field(default=None, alias="DATABASE_URL")
+    url: str | None = Field(
+        default="postgresql://neondb_owner:npg_Nx0sXMZqRF6c@ep-solitary-snow-b55t825b-pooler.c-7.us-east-2.aws.neon.tech:5432/neondb?sslmode=require",
+        alias="DATABASE_URL"
+    )
     provider: str = Field(default="postgresql", alias="DB_PROVIDER")
     host: str = Field(default="127.0.0.1", alias="DB_HOST")
     port: int = Field(default=5432, alias="DB_PORT")
