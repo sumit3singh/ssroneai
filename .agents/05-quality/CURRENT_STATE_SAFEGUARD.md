@@ -2,14 +2,14 @@
 
 > **Status**: Accepted, Active & Non-Negotiable  
 > **Effective Date**: September 2026  
-> **Project Completion Status**: **~98–99% (Production Candidate / Release Milestone)**  
+> **Project Completion Status**: **100% OPERATIONAL & LIVE IN PRODUCTION (Railway)**  
 > **Audited By**: Enterprise System Architect AI & SSR IT INDUSTRY Leadership  
 
 ---
 
 ## 1. Executive Purpose & Context
 
-The **SSR One AI** enterprise platform is at near 100% completion. All fundamental platform tiers, vertical slice domain modules, engines, and multi-tenant isolation boundaries are fully functional, verified, and operational in production code.
+The **SSR One AI** enterprise platform is at 100% completion and live on production cloud infrastructure (Railway). All fundamental platform tiers, vertical slice domain modules, engines, and multi-tenant isolation boundaries are fully functional, verified, and operational in production code.
 
 This document serves as the **Canonical Current State Snapshot & Safeguard Standard**. Its primary directive is:
 > **ZERO RUINATION PROTOCOL**: No developer, AI assistant, automated script, or contributor may alter, regress, delete, or break any existing working architecture, module flow, or performance milestone documented herein.
@@ -22,14 +22,14 @@ This document serves as the **Canonical Current State Snapshot & Safeguard Stand
 
 | App Name | Directory | Port | Key Features & Architecture | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **Enterprise ERP Web** | `apps/admin-web` | `5173` / `3000` | React 19 + TanStack Router + Zustand. 11 domain modules (POS, Hotel, PG, CRM, Finance, Inventory, HR, Customization Studio, Forms, AI Copilot, Settings). Features **Zero-Wait POS** (< 1.2ms order saving, Dual In-Memory Hot-Mounted DOM, Dexie.js offline queue), and dedicated clean Platform Home module launcher. | 🟢 100% Operational |
+| **Enterprise ERP Web** | `apps/admin-web` | `5173` / `3000` | React 19 + TanStack Router + Zustand. 11 domain modules (POS, Hotel, PG, CRM, Finance, Inventory, HR, Customization Studio, Forms, AI Copilot, Settings). Features **Zero-Wait POS** (< 1.2ms order saving, Dual In-Memory Hot-Mounted DOM, Dexie.js offline queue), and dedicated clean Platform Home module launcher. | 🟢 100% Operational (Live) |
 | **Platform Superadmin** | `apps/platform-admin` | `5174` / `3001` | React 19 + Vite. Superadmin tenant provisioning, cluster health status, outlet licensing keys, and live Sales Lead follow-up console (`#leads`) with WhatsApp integration. | 🟢 100% Operational |
-| **Kitchen Operations System (KOS)** | `apps/kds-web` | `8083` / `3002` | Multi-Stage 5-Mode QSR KOS: Station Cook KDS, Batch Prep, EXPO Pass, Packing & Handoff, SLA Command Center. Direct PostgreSQL connection via `/api/v1/orders/kds/live`. 86 Item modal & recipe view. | 🟢 100% Operational |
+| **Kitchen Operations System (KOS)** | `apps/kds-web` | `8083` / `3002` | Multi-Stage 5-Mode QSR KOS: Station Cook KDS, Batch Prep, EXPO Pass, Packing & Handoff, SLA Command Center. Direct PostgreSQL connection via `/api/v1/orders/kds/live`. 86 Item modal & recipe view. | 🟢 100% Operational (Live) |
 | **Queue-Buster Token Web** | `apps/token-order-web` | `3003` | Mobile fast-order web app for counter QR & kiosk tablets. Generates 3-digit queue tokens (`#104`). Cashier loads entire pre-built cart in < 0.1s via `Alt+Q`. | 🟢 100% Operational |
-| **Customer Food Web** | `apps/customer-food-web` | `3000` / `3004` | Public customer QR menu, dynamic CSS token injection, tenant branding/logo, dynamic item filters, cart customization, and live order status tracker. | 🟢 100% Operational |
-| **Customer Stay Web** | `apps/customer-stay-web` | `3001` / `3005` | Hotel room booking, date range picker, room catalog, booking folio, guest check-in requests. | 🟢 100% Operational |
+| **Customer Food Web** | `apps/customer-food-web` | `3000` / `3004` | Public customer QR menu, dynamic CSS token injection, tenant branding/logo, dynamic item filters, cart customization, and live order status tracker. | 🟢 100% Operational (Live) |
+| **Customer Stay Web** | `apps/customer-stay-web` | `3001` / `3005` | Hotel room booking, date range picker, room catalog, booking folio, guest check-in requests. | 🟢 100% Operational (Live) |
 | **Staff Mobile Web** | `apps/staff-web` | `8084` / `3006` | Staff mobile operations: Housekeeping room cleaning status, room service orders, KOT table entry, staff attendance. | 🟢 100% Operational |
-| **Marketing Scrollytelling Web** | `apps/marketing-web` | `3002` / `3007` | GSAP `MotionPathPlugin` character-guided scrollytelling along a winding emerald road across 7 story beats. Warm paper daylight theme, ₹12,000/yr flat pricing, PostgreSQL lead ingestion. | 🟢 100% Operational |
+| **Marketing Scrollytelling Web** | `apps/marketing-web` | `3002` / `3007` | GSAP `MotionPathPlugin` character-guided scrollytelling along a winding emerald road across 7 story beats. Warm paper daylight theme, ₹12,000/yr flat pricing, PostgreSQL lead ingestion. | 🟢 100% Operational (Live) |
 
 ---
 
@@ -87,7 +87,7 @@ This document serves as the **Canonical Current State Snapshot & Safeguard Stand
 
 ---
 
-### 2.4 Architectural Decision Records (12 Canonical ADRs)
+### 2.4 Architectural Decision Records (14 Canonical ADRs)
 
 - **[ADR-0001](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0001-module-structure.md)**: Module Structure Standard (5-part frontend, 5-layer backend).
 - **[ADR-0002](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0002-multi-tenancy-rls.md)**: PostgreSQL Row-Level Security (RLS) & Tenant Isolation.
@@ -101,6 +101,8 @@ This document serves as the **Canonical Current State Snapshot & Safeguard Stand
 - **[ADR-0010](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0010-zero-wait-pos-architecture-and-dual-in-memory-mounted-layout.md)**: Enterprise Zero-Wait POS Architecture & Dual In-Memory Hot-Mounted DOM Layout.
 - **[ADR-0011](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0011-marketing-web-character-guided-motion-path-architecture.md)**: Marketing Web Character-Guided Motion-Path Scrollytelling Architecture.
 - **[ADR-0012](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0012-tenant-customization-studio-and-self-service-domains.md)**: Tenant Customization Studio & Self-Service Custom Domains Architecture.
+- **[ADR-0013](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0013-world-class-enterprise-pos-innovations.md)**: World-Class Enterprise POS Innovations & Zero-Ruination Hardening.
+- **[ADR-0014](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0014-production-cloud-deployment-and-zero-ruination-cd.md)**: Production Cloud Deployment & Zero-Ruination Continuous Delivery Baseline.
 
 ---
 
@@ -154,23 +156,32 @@ The following 11 invariants are strictly protected. Any proposed change violatin
 - **Mechanism**: Hierarchical resolution checks branch override first, falls back to tenant default, then platform fallback constants. Custom CSS tokens inject dynamically via `:root` CSS variables without requiring page reloads or bundle recompilation.
 - **Forbidden**: NEVER delete or bypass fallback configuration objects or allow missing tenant records to raise 404/500 errors on public routes.
 
+### 🛡️ Invariant 12: Production Cloud Monorepo & Continuous Delivery Baseline (Railway)
+- **Rule**: All frontend cloud services must execute from the monorepo root context (`Root Directory = /`) to guarantee deterministic resolution of `packages/*` and `pnpm-workspace.yaml`.
+- **Mechanisms**:
+  - `pnpm-lock.yaml` must always be synchronized before committing so `pnpm install --frozen-lockfile` never fails in CI.
+  - All frontend `vite.config.ts` files must configure `allowedHosts: true` under both `server` and `preview` blocks to prevent DNS rebinding host blocks on public cloud URLs (`*.up.railway.app` or custom domains).
+  - Backend execution must dynamically bind to container-assigned `$PORT` via `CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"]` and expose `/health` probe.
+- **Forbidden**: NEVER set service Root Directory to an isolated frontend subfolder on cloud PaaS, NEVER introduce wildcard `"*"` dependency versions in `package.json`, and NEVER remove `/health` or host-authorization flags.
+
 ---
 
 ## 4. Emergency Verification & Health Checklist
 
 Before committing any future pull request or completing any AI agent turn, verify:
 
-1. **Backend Health**: `GET /api/v1/auth/health` returns HTTP 200 with active DB session.
+1. **Backend Health**: `GET /health` and `GET /api/v1/auth/health` return HTTP 200.
 2. **ERP POS Latency**: Order KOT click latency remains `< 1.2ms` in browser devtools.
 3. **Table Floor Switch**: Table Floor ↔ Billing terminal switch completes in `< 0.2ms` with zero component remounting.
 4. **Fast-Order Token Web**: Token generation persists to `/api/v1/orders/queue-tokens` and recalls in POS cart in `< 0.1s`.
 5. **KDS Operational Modes**: Station view, Batch prep, EXPO pass, Packing, and SLA Command Center switch cleanly.
 6. **Lead Submission**: Submitting a test lead on `marketing-web` inserts a row into `lead_inquiries` table and updates Superadmin `#leads`.
 7. **Customization & Fallbacks**: `GET /api/v1/tenant-config/by-slug/{slug}/{code}/{app}` returns HTTP 200 with full fallback config even for non-existent tenants. `test_customization.py` passes 100%.
+8. **Cloud Build Integrity**: `pnpm install --frozen-lockfile` runs with exit code 0. `pnpm --filter @ssrone/admin-web build` succeeds cleanly.
 
 ---
 
 ## 5. Architectural Governance Sign-Off
 
-- **Current Status**: **FROZEN & VERIFIED (98–99% Monorepo Completion)**
-- **Protection Tier**: **CRITICAL NON-NEGOTIABLE**
+- **Current Status**: **100% OPERATIONAL & LIVE IN PRODUCTION (Railway)**
+- **Protection Tier**: **CRITICAL NON-NEGOTIABLE (ZERO-RUINATION ACTIVE)**
