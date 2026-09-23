@@ -2,6 +2,7 @@
   "name": "@ssrone/admin-web",
   "private": true,
   "version": "1.0.0",
+  "packageManager": "pnpm@9.0.0",
   "description": "SSR One AI Platform – React Admin Web App",
   "type": "module",
   "scripts": {
