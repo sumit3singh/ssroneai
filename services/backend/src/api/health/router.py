@@ -12,6 +12,13 @@ from src.core.cache.redis import get_redis_client
 router = APIRouter(prefix="/health", tags=["Health Checks"])
 
 
+@router.get("", status_code=status.HTTP_200_OK)
+@router.get("/", status_code=status.HTTP_200_OK)
+async def health_check() -> Dict[str, str]:
+    """Basic health check probe for load balancers."""
+    return {"status": "UP"}
+
+
 @router.get("/liveness", status_code=status.HTTP_200_OK)
 async def liveness_probe() -> Dict[str, str]:
     """Liveness probe verifying application process is responsive."""

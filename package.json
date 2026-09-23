@@ -26,6 +26,9 @@
     "check:structure": "python scripts/check_project_structure.py",
     "setup:bg": "python scripts/copy_bg.py"
   },
+  "dependencies": {
+    "turbo": "^2.0.0"
+  },
   "devDependencies": {
     "turbo": "^2.0.0"
   }

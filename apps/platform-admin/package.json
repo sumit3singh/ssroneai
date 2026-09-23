@@ -7,27 +7,28 @@
   "scripts": {
     "dev": "vite --port 5174",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "vite preview"
   },
   "dependencies": {
     "@ssrone/ui": "workspace:*",
     "@ssrone/api-client": "workspace:*",
-    "react": "*",
-    "react-dom": "*",
-    "lucide-react": "*",
-    "clsx": "*",
-    "tailwind-merge": "*",
-    "@tanstack/react-query": "*",
-    "react-hook-form": "*"
+    "@tanstack/react-query": "^5.56.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.462.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.53.0",
+    "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
-    "@types/react": "*",
-    "@types/react-dom": "*",
-    "@vitejs/plugin-react": "*",
-    "autoprefixer": "*",
-    "postcss": "*",
-    "tailwindcss": "*",
-    "typescript": "*",
-    "vite": "*"
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.3.2",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.8"
   }
 }

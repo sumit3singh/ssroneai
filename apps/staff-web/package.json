@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --port 8084",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "vite preview"
   },
   "dependencies": {
     "@ssrone/api-client": "workspace:*",
