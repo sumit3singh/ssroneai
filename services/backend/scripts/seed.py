@@ -137,7 +137,7 @@ async def migrate_schema(reset: bool = False) -> str:
     try:
         # Detect active schema
         current_schema = await conn.fetchval("SELECT current_schema();")
-        active_schema = current_schema or "ssroneai"
+        active_schema = current_schema or "public"
         print(f"[*] Target Database Schema: '{active_schema}'", flush=True)
 
         if reset:
@@ -194,7 +194,7 @@ async def verify_parity() -> dict:
     import asyncpg
     conn = await asyncpg.connect(db_url)
     try:
-        active_schema = await conn.fetchval("SELECT current_schema();") or "ssroneai"
+        active_schema = await conn.fetchval("SELECT current_schema();") or "public"
         await conn.execute(f"SET search_path TO {active_schema}, public;")
 
         # Fetch all tables
