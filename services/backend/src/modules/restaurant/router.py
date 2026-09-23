@@ -1456,7 +1456,7 @@ async def update_menu_item(
     if not item:
         raise HTTPException(status_code=404, detail="Menu item not found")
     
-    tenant_id = current_user.tenant_id if current_user and current_user.tenant_id else (item.tenant_id or 2)
+    tenant_id = current_user.tenant_id if current_user and current_user.tenant_id else (item.tenant_id or 1)
     user_id = current_user.id
 
     try:

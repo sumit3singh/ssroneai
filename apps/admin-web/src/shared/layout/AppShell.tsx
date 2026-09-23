@@ -166,17 +166,12 @@ export function AppShell({ children }: AppShellProps) {
           const matchCo = targetCompanyId ? companies.find((c: any) => String(c.id) === String(targetCompanyId)) : companies[0];
           setActiveCompany(matchCo || companies[0]);
           state.setSelectedCompany(matchCo || companies[0]);
-        } else {
-          setActiveCompany(null);
-          state.setSelectedCompany(null);
         }
 
         if (branchesList.length > 0) {
           if (!selected_branch || !branchesList.some((b: any) => String(b.id) === String(selected_branch.id))) {
             setSelectedBranch(branchesList[0]);
           }
-        } else {
-          setSelectedBranch(null);
         }
       } catch (err) {
         console.error("Failed to load PostgreSQL tenant branches", err);
