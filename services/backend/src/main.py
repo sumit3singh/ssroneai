@@ -146,6 +146,17 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    tb = traceback.format_exc()
+    logger.error("Unhandled API Exception", path=str(request.url), error=str(exc), traceback=tb)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc), "error_type": type(exc).__name__, "traceback": tb.splitlines()}
+    )
+
+
 # ─── Router Registrations ────────────────────────────────────
 app.include_router(health_router)
 
