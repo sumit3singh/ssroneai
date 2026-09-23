@@ -80,7 +80,7 @@ export function PGVisitorLogModal({ isOpen, onClose, onVisitorUpdated }: PGVisit
 
       toast.success(`Visitor Gatepass issued for ${formData.visitor_name}`);
       setFormData({ resident_id: "", visitor_name: "", visitor_phone: "" });
-      await fetchData();
+      fetchData().catch(() => {});
       if (onVisitorUpdated) onVisitorUpdated();
     } catch (err: any) {
       console.error("Failed to log visitor", err);
@@ -94,7 +94,7 @@ export function PGVisitorLogModal({ isOpen, onClose, onVisitorUpdated }: PGVisit
     try {
       await api.patch(`/pg/visitors/${v.id}/checkout`);
       toast.success(`Visitor ${v.visitor_name} checked out`);
-      await fetchData();
+      fetchData().catch(() => {});
       if (onVisitorUpdated) onVisitorUpdated();
     } catch (err) {
       toast.error("Failed to check out visitor");

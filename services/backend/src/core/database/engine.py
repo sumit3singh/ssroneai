@@ -140,19 +140,19 @@ async def set_rls_context(
     user_id: str | None = None,
     is_superadmin: bool = False
 ) -> None:
-    """Sets PostgreSQL Row-Level Security (RLS) session variables."""
+    """Sets PostgreSQL Row-Level Security (RLS) session variables in a single network roundtrip."""
     try:
-        await session.execute(
-            text("SELECT set_config('app.current_tenant_id', :tenant_id, false)"),
-            {"tenant_id": str(tenant_id)}
-        )
+        stmts = ["set_config('app.current_tenant_id', :tenant_id, false)"]
+        params: dict[str, Any] = {"tenant_id": str(tenant_id)}
         if user_id:
-            await session.execute(
-                text("SELECT set_config('app.current_user_id', :user_id, false)"),
-                {"user_id": str(user_id)}
-            )
+            stmts.append("set_config('app.current_user_id', :user_id, false)")
+            params["user_id"] = str(user_id)
         if is_superadmin:
-            await session.execute(text("SELECT set_config('app.is_superadmin', 'true', false)"))
+            stmts.append("set_config('app.is_superadmin', 'true', false)")
+        await session.execute(
+            text(f"SELECT {', '.join(stmts)}"),
+            params
+        )
     except Exception as e:
         logger.warning("Failed to set RLS session context variables", error=str(e))
 

@@ -114,11 +114,21 @@ async def _get_active_tenant_id(current_user: User, db: AsyncSession) -> int:
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
 
 
-async def _resolve_branch_id(branch_id: int | str | None, current_user: User | None, db: AsyncSession) -> int:
+_BRANCH_CACHE: dict[str, tuple[int, float]] = {}
 
-    """Dynamically resolve branch ID from numeric int, string branch code, or current user context, guaranteeing a valid Branch ID in PostgreSQL."""
-    tenant_id = current_user.tenant_id
+
+async def _resolve_branch_id(branch_id: int | str | None, current_user: User | None, db: AsyncSession) -> int:
+    """Dynamically resolve branch ID with in-memory caching to eliminate redundant database roundtrips."""
+    import time
+    tenant_id = current_user.tenant_id if current_user else 1
+    cache_key = f"{tenant_id}:{branch_id}:{getattr(current_user, 'branch_id', None)}"
+    now = time.time()
+    if cache_key in _BRANCH_CACHE and _BRANCH_CACHE[cache_key][1] > now:
+        return _BRANCH_CACHE[cache_key][0]
+
     from src.modules.auth.models import Branch, Company, Tenant
+
+    found_resolved_id: int | None = None
 
     # 1. Check numeric integer branch_id and verify it exists in branches table
     if branch_id is not None and str(branch_id).strip() not in ("", "undefined", "null", "none", "0"):
@@ -127,12 +137,12 @@ async def _resolve_branch_id(branch_id: int | str | None, current_user: User | N
             res = await db.execute(select(Branch.id).where(Branch.id == bid, (Branch.is_deleted == False) | (Branch.is_deleted.is_(None))))
             found_bid = res.scalar_one_or_none()
             if found_bid is not None:
-                return found_bid
+                found_resolved_id = found_bid
         except (ValueError, TypeError):
             pass
 
         # 2. Check string branch code/name (e.g. 'CUH', 'BAITHAK-CUH', 'GGN01')
-        if isinstance(branch_id, str):
+        if found_resolved_id is None and isinstance(branch_id, str):
             code_str = branch_id.strip()
             res = await db.execute(
                 select(Branch.id).where(
@@ -142,52 +152,58 @@ async def _resolve_branch_id(branch_id: int | str | None, current_user: User | N
             )
             found_id = res.scalar_one_or_none()
             if found_id is not None:
-                return found_id
+                found_resolved_id = found_id
 
     # 3. Check current user's branch_id
-    if current_user and getattr(current_user, "branch_id", None):
+    if found_resolved_id is None and current_user and getattr(current_user, "branch_id", None):
         res = await db.execute(select(Branch.id).where(Branch.id == current_user.branch_id, (Branch.is_deleted == False) | (Branch.is_deleted.is_(None))))
         user_bid = res.scalar_one_or_none()
         if user_bid is not None:
-            return user_bid
+            found_resolved_id = user_bid
 
     # 4. Fallback: Query first valid active branch for tenant
-    res = await db.execute(select(Branch.id).where(Branch.tenant_id == tenant_id, (Branch.is_deleted == False) | (Branch.is_deleted.is_(None))).order_by(Branch.id.asc()))
-    first_id = res.scalar_one_or_none()
-    if first_id is not None:
-        return first_id
+    if found_resolved_id is None:
+        res = await db.execute(select(Branch.id).where(Branch.tenant_id == tenant_id, (Branch.is_deleted == False) | (Branch.is_deleted.is_(None))).order_by(Branch.id.asc()))
+        first_id = res.scalar_one_or_none()
+        if first_id is not None:
+            found_resolved_id = first_id
 
     # 5. Fallback: Query any branch in table
-    res = await db.execute(select(Branch.id).where((Branch.is_deleted == False) | (Branch.is_deleted.is_(None))).order_by(Branch.id.asc()))
-    any_id = res.scalar_one_or_none()
-    if any_id is not None:
-        return any_id
+    if found_resolved_id is None:
+        res = await db.execute(select(Branch.id).where((Branch.is_deleted == False) | (Branch.is_deleted.is_(None))).order_by(Branch.id.asc()))
+        any_id = res.scalar_one_or_none()
+        if any_id is not None:
+            found_resolved_id = any_id
 
     # 6. Fallback: Create initial tenant, company, and branch if database was completely wiped
-    t_res = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
-    tenant_obj = t_res.scalar_one_or_none()
-    if not tenant_obj:
-        tenant_obj = Tenant(id=tenant_id, name="Main Demo Tenant", slug="baithak-cafe", is_active=True)
-        db.add(tenant_obj)
-        await db.flush()
+    if found_resolved_id is None:
+        t_res = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
+        tenant_obj = t_res.scalar_one_or_none()
+        if not tenant_obj:
+            tenant_obj = Tenant(id=tenant_id, name="Main Demo Tenant", slug="baithak-cafe", is_active=True)
+            db.add(tenant_obj)
+            await db.flush()
 
-    c_res = await db.execute(select(Company).where(Company.tenant_id == tenant_id))
-    company_obj = c_res.scalar_one_or_none()
-    if not company_obj:
-        company_obj = Company(tenant_id=tenant_id, name="SSR One Group", country_code="IN", currency_code="INR", is_active=True)
-        db.add(company_obj)
-        await db.flush()
+        c_res = await db.execute(select(Company).where(Company.tenant_id == tenant_id))
+        company_obj = c_res.scalar_one_or_none()
+        if not company_obj:
+            company_obj = Company(tenant_id=tenant_id, name="SSR One Group", country_code="IN", currency_code="INR", is_active=True)
+            db.add(company_obj)
+            await db.flush()
 
-    new_branch = Branch(
-        tenant_id=tenant_id,
-        company_id=company_obj.id,
-        name="Main Branch",
-        code="BR-001",
-        is_active=True,
-    )
-    db.add(new_branch)
-    await db.flush()
-    return new_branch.id
+        new_branch = Branch(
+            tenant_id=tenant_id,
+            company_id=company_obj.id,
+            name="Main Branch",
+            code="BR-001",
+            is_active=True,
+        )
+        db.add(new_branch)
+        await db.flush()
+        found_resolved_id = new_branch.id
+
+    _BRANCH_CACHE[cache_key] = (found_resolved_id, now + 120.0)
+    return found_resolved_id
 
 
 class UpdateTableStatusSchema(BaseModel):

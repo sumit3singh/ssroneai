@@ -42,7 +42,7 @@ interface POSTableTrackerPageProps {
   onRecallOrderToCart?: (order: POSOrder) => void;
   onSelectTableForNewOrder?: (tableId: number | string) => void;
   onSelectOrderModeForNewOrder?: (mode: "takeaway" | "delivery" | "dine_in") => void;
-  onRefresh?: () => void;
+  onRefresh?: (serverOrder?: POSOrder) => void;
   onOptimisticOrderSettle?: (orderNumber: string, tableId?: number | string) => void;
   onPrintReceipt?: (receiptPayload?: any) => void;
   isFullScreenPOS?: boolean;
@@ -824,8 +824,8 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
             setIsSettleModalOpen(false);
             setSelectedSettleOrder(null);
           }}
-          onSuccess={() => {
-            onRefresh?.();
+          onSuccess={(settledOrder) => {
+            onRefresh?.(settledOrder);
           }}
           onOptimisticOrderSettle={onOptimisticOrderSettle}
           onPrintReceipt={onPrintReceipt}

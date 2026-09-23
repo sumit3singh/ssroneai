@@ -15,7 +15,7 @@ interface POSTableQuickSettleModalProps {
   order: POSOrder;
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (settledOrder?: POSOrder) => void;
   onOptimisticOrderSettle?: (orderNumber: string, tableId?: number | string) => void;
   onPrintReceipt?: (receiptData: any) => void;
   customers?: any[];
@@ -163,9 +163,17 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
 
     playPaymentSuccessSound();
 
+    const completedOrder: POSOrder = {
+      ...order,
+      status: "completed",
+      payment_status: "paid",
+      net_amount: finalNetAmount,
+      payment_method: targetPaymentMethod,
+    };
+
     // Close modal instantly for 0ms cashier interaction
     onClose();
-    onSuccess();
+    onSuccess(completedOrder);
 
     // 3. Fire-and-forget background synchronization to PostgreSQL
     try {

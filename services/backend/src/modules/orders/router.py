@@ -863,12 +863,14 @@ async def list_orders(
     result = await db.execute(fetch_query)
     orders = result.scalars().all()
 
-    # Fetch dining tables map for table_name resolution
+    # Fetch dining tables map for table_name resolution (targeted by active page orders)
     tables_map = {}
     try:
-        tbl_res = await db.execute(select(DiningTable).where(DiningTable.tenant_id == tenant_id))
-        for tbl in tbl_res.scalars().all():
-            tables_map[tbl.id] = tbl.table_number
+        tbl_ids = [o.table_id for o in orders if o.table_id]
+        if tbl_ids:
+            tbl_res = await db.execute(select(DiningTable.id, DiningTable.table_number).where(DiningTable.id.in_(tbl_ids)))
+            for tid, tnum in tbl_res.all():
+                tables_map[tid] = tnum
     except Exception as tbl_err:
         logger.warning("Failed to fetch dining tables map in list_orders", error=str(tbl_err))
 

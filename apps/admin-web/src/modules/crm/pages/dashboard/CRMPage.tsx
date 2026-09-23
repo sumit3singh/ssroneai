@@ -78,7 +78,7 @@ export function CRMPage() {
     }
 
     try {
-      await api.post("/crm/customers", {
+      const res = await api.post<any>("/crm/customers", {
         name: `${newCustomer.first_name} ${newCustomer.last_name}`.trim(),
         first_name: newCustomer.first_name,
         last_name: newCustomer.last_name,
@@ -86,10 +86,13 @@ export function CRMPage() {
         email: newCustomer.email || null,
         city: newCustomer.city || null,
       });
+      if (res && res.id) {
+        setCustomers((prev) => [res, ...prev.filter((c) => String(c.id) !== String(res.id))]);
+      }
       toast.success(`Guest ${newCustomer.first_name} saved successfully!`);
       setShowAddModal(false);
       setNewCustomer({ first_name: "", last_name: "", phone: "", email: "", city: "" });
-      fetchCustomers();
+      fetchCustomers().catch(() => {});
     } catch (err) {
       toast.error("Failed to save guest profile to database");
     }

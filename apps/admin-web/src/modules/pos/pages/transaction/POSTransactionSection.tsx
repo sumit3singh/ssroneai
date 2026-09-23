@@ -316,8 +316,8 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
         branch_id: activeBranchId ? Number(activeBranchId) : undefined,
       });
       toast.success(`Customer "${newCustName}" created & selected!`);
-      await loadCustomers();
       if (res && res.id) {
+        setCustomers(prev => [res, ...prev.filter(c => String(c.id) !== String(res.id))]);
         setSelectedCustomerId(res.id);
       }
       setNewCustName("");
@@ -325,6 +325,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       setNewCustAddress("");
       setNewCustEmail("");
       setIsCreateCustomerModalOpen(false);
+      loadCustomers().catch(() => {});
     } catch (err: any) {
       console.error("Failed to create customer", err);
       toast.error(err?.response?.data?.detail || "Failed to create customer");

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { api } from "@ssrone/api-client";
@@ -49,6 +49,9 @@ export const POSPage: React.FC = () => {
 
   const selectedBranch = useAuthStore((s: any) => s.selected_branch);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Settlement State Lock: Locks settled orders and their tables for 60s to prevent premature background server polls from reverting tables to occupied
+  const settledOrdersLockRef = useRef<Map<string, { timestamp: number; tableId?: string | number }>>(new Map());
 
   const fetchPOSDomainData = async (isSilent = false, fullCatalog = false) => {
     if (!isSilent && menuItems.length === 0) setIsLoading(true);
@@ -130,11 +133,27 @@ export const POSPage: React.FC = () => {
           return true;
         });
 
-        // Deduplicate merged orders by order_number (prefer server orders as SSOT)
+        // Deduplicate merged orders by order_number (prefer server orders as SSOT, respecting active settlement locks)
         const orderMap = new Map<string, POSOrder>();
+        const lockNow = Date.now();
+
+        // Prune stale settlement locks older than 60s
+        for (const [lockNum, lockData] of settledOrdersLockRef.current.entries()) {
+          if (lockNow - lockData.timestamp > 60_000) {
+            settledOrdersLockRef.current.delete(lockNum);
+          }
+        }
+
         for (const o of oList) {
           if (o && o.order_number) {
-            orderMap.set(String(o.order_number), o);
+            const numStr = String(o.order_number);
+            const lockData = settledOrdersLockRef.current.get(numStr);
+            if (lockData && lockNow - lockData.timestamp <= 60_000) {
+              // Retain completed/paid status during lock window so premature background fetches cannot revert the table
+              orderMap.set(numStr, { ...o, status: "completed", payment_status: "paid" });
+            } else {
+              orderMap.set(numStr, o);
+            }
           }
         }
         for (const p of pendingOptimistic) {
@@ -150,12 +169,29 @@ export const POSPage: React.FC = () => {
         return mergedOrders;
       });
 
-      // Reconcile Tables: PostgreSQL DB is Single Source of Truth (SSOT)!
+      // Reconcile Tables: PostgreSQL DB is Single Source of Truth, respecting active settlement locks
       setTables(() => {
+        const lockNow = Date.now();
+        const lockedTableIds = new Set<string>();
+        for (const lockData of settledOrdersLockRef.current.values()) {
+          if (lockData.tableId !== undefined && lockData.tableId !== null && lockNow - lockData.timestamp <= 60_000) {
+            lockedTableIds.add(String(lockData.tableId).toLowerCase());
+          }
+        }
+
+        const reconciledTables = tList.map((t: any) => {
+          const tId = String(t.id).toLowerCase();
+          const tNum = String(t.table_number || "").toLowerCase();
+          if (lockedTableIds.has(tId) || lockedTableIds.has(tNum)) {
+            return { ...t, status: "free" as const, current_order_id: null };
+          }
+          return t;
+        });
+
         try {
-          sessionStorage.setItem("pos_cache_tables", JSON.stringify(tList));
+          sessionStorage.setItem("pos_cache_tables", JSON.stringify(reconciledTables));
         } catch (e) {}
-        return tList;
+        return reconciledTables;
       });
     } catch (err: any) {
       console.error("Failed to load PostgreSQL POS data", err);
@@ -232,7 +268,7 @@ export const POSPage: React.FC = () => {
       }
 
       toast.success(itemData.id ? "Dish updated in PostgreSQL Database!" : "New dish saved to PostgreSQL Database!");
-      await fetchPOSDomainData();
+      fetchPOSDomainData(true).catch(() => {});
     } catch (err: any) {
       const detail = err?.response?.data?.detail || err?.message || "Failed to save dish to PostgreSQL Database";
       toast.error(`Database Save Failed: ${detail}`);
@@ -247,7 +283,7 @@ export const POSPage: React.FC = () => {
         setMenuItems(prev => prev.filter(m => String(m.id) !== String(id)));
         await api.delete(`/restaurant/menu-items/${id}`);
         toast.success("Dish deleted successfully");
-        await fetchPOSDomainData();
+        fetchPOSDomainData(true).catch(() => {});
       } catch (err: any) {
         toast.error("Failed to delete dish");
         console.error("Failed to delete dish", err);
@@ -264,7 +300,7 @@ export const POSPage: React.FC = () => {
         is_available: newStatus
       });
       toast.success(`${item.name} is now ${newStatus ? "In Stock" : "Out of Stock"}`);
-      await fetchPOSDomainData();
+      fetchPOSDomainData(true).catch(() => {});
     } catch (err) {
       toast.error("Failed to update item availability");
       console.error("Failed to toggle item status", err);
@@ -279,7 +315,7 @@ export const POSPage: React.FC = () => {
   ) => {
     try {
       await api.patch(`/restaurant/tables/${tableId}/status`, { status, guests, waiter });
-      await fetchPOSDomainData();
+      fetchPOSDomainData(true).catch(() => {});
     } catch (err: any) {
       console.error("Failed to update table status", err);
     }
@@ -294,7 +330,7 @@ export const POSPage: React.FC = () => {
         branch_id: selectedBranch?.id ? Number(selectedBranch.id) : 1
       });
       toast.success(`Table #${table_number} created successfully!`);
-      await fetchPOSDomainData();
+      fetchPOSDomainData(true).catch(() => {});
     } catch (err: any) {
       console.error("Failed to create table", err);
       const detailMsg = err?.response?.data?.detail || err?.detail || err?.message || "Failed to create dining table";
@@ -311,7 +347,7 @@ export const POSPage: React.FC = () => {
         branch_id: selectedBranch?.id ? Number(selectedBranch.id) : 1
       });
       toast.success(`Table #${table_number} updated successfully!`);
-      await fetchPOSDomainData();
+      fetchPOSDomainData(true).catch(() => {});
     } catch (err: any) {
       console.error("Failed to update table", err);
       const detailMsg = err?.response?.data?.detail || err?.detail || err?.message || "Failed to update dining table";
@@ -324,7 +360,7 @@ export const POSPage: React.FC = () => {
     try {
       await api.delete<any>(`/restaurant/tables/${id}`);
       toast.success("Dining table deleted successfully!");
-      await fetchPOSDomainData();
+      fetchPOSDomainData(true).catch(() => {});
     } catch (err: any) {
       console.error("Failed to delete table", err);
       const detailMsg = err?.response?.data?.detail || err?.detail || err?.message || "Failed to delete dining table";
@@ -353,7 +389,7 @@ export const POSPage: React.FC = () => {
         setCategories(prev => [res, ...prev.filter(c => String(c.id) !== String(res.id))]);
         toast.success(`Category "${name}" saved to PostgreSQL Database!`);
       }
-      await fetchPOSDomainData();
+      fetchPOSDomainData(true).catch(() => {});
     } catch (err: any) {
       const detail = err?.response?.data?.detail || err?.message || "Failed to save category";
       toast.error(`Database Error: ${detail}`);
@@ -383,7 +419,7 @@ export const POSPage: React.FC = () => {
         setCategories(prev => prev.map(c => String(c.id) === String(id) ? { ...c, ...res } : c));
         toast.success(`Category "${name}" updated in PostgreSQL Database!`);
       }
-      await fetchPOSDomainData();
+      fetchPOSDomainData(true).catch(() => {});
     } catch (err: any) {
       const detail = err?.response?.data?.detail || err?.message || "Failed to update category";
       toast.error(`Database Error: ${detail}`);
@@ -396,7 +432,7 @@ export const POSPage: React.FC = () => {
       setCategories(prev => prev.filter(c => String(c.id) !== String(id)));
       await api.delete(`/restaurant/categories/${id}`);
       toast.success("Category deactivated in PostgreSQL Database");
-      await fetchPOSDomainData();
+      fetchPOSDomainData(true).catch(() => {});
     } catch (err: any) {
       toast.error("Failed to delete category");
       console.error("Failed to soft-deactivate category in PostgreSQL", err);
@@ -477,6 +513,12 @@ export const POSPage: React.FC = () => {
   const handleOptimisticOrderSettle = (orderNumber: string, tableId?: number | string) => {
     const targetTableId = tableId !== undefined && tableId !== null ? String(tableId) : "";
     let updatedOrdersList: POSOrder[] = [];
+
+    // Register active settlement lock for this order and table
+    settledOrdersLockRef.current.set(String(orderNumber), {
+      timestamp: Date.now(),
+      tableId: tableId !== undefined && tableId !== null ? tableId : undefined,
+    });
 
     setOrders((prev) => {
       updatedOrdersList = prev.map((o) =>

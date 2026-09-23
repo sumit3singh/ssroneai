@@ -88,7 +88,7 @@ export function PGRentAssessmentModal({ isOpen, onClose, onRentUpdated }: PGRent
       });
 
       toast.success("Rent assessed successfully in PostgreSQL");
-      await fetchData();
+      fetchData().catch(() => {});
       if (onRentUpdated) onRentUpdated();
     } catch (err: any) {
       console.error("Failed to assess rent", err);
@@ -111,7 +111,7 @@ export function PGRentAssessmentModal({ isOpen, onClose, onRentUpdated }: PGRent
       });
 
       toast.success(`Collected ₹${remaining} from ${record.resident_name}`);
-      await fetchData();
+      fetchData().catch(() => {});
       if (onRentUpdated) onRentUpdated();
     } catch (err: any) {
       toast.error(err?.message || "Failed to record payment");

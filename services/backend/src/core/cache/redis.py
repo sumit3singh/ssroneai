@@ -12,13 +12,16 @@ redis_client: Optional[Redis] = None
 
 
 async def get_redis_client() -> Redis:
-    """Get or initialize singleton Redis client."""
+    """Get or initialize singleton Redis client with fast-fail circuit breaker timeouts."""
     global redis_client
     if redis_client is None:
         redis_client = Redis.from_url(
             f"redis://{settings.redis.host}:{settings.redis.port}",
             encoding="utf-8",
             decode_responses=True,
+            socket_connect_timeout=0.15,
+            socket_timeout=0.25,
+            retry_on_timeout=False,
         )
     return redis_client
 
