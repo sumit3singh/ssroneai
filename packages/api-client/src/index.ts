@@ -16,13 +16,28 @@ const normalizeApiBaseUrl = (url: string | undefined): string | undefined => {
   return normalized.endsWith("/api/v1") ? normalized : `${normalized}/api/v1`;
 };
 
-const BASE_URL = (typeof globalThis !== "undefined" && (globalThis as { __SSR_ONE_AI_API_BASE__?: string }).__SSR_ONE_AI_API_BASE__)
-  ? normalizeApiBaseUrl((globalThis as { __SSR_ONE_AI_API_BASE__?: string }).__SSR_ONE_AI_API_BASE__)
-  : normalizeApiBaseUrl(
-    typeof import.meta !== "undefined" && (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_API_URL
-      ? (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_API_URL
-      : undefined
-  ) ?? "http://localhost:8000/api/v1";
+const resolveDynamicBaseUrl = (): string => {
+  if (typeof globalThis !== "undefined" && (globalThis as { __SSR_ONE_AI_API_BASE__?: string }).__SSR_ONE_AI_API_BASE__) {
+    const custom = normalizeApiBaseUrl((globalThis as { __SSR_ONE_AI_API_BASE__?: string }).__SSR_ONE_AI_API_BASE__);
+    if (custom) return custom;
+  }
+
+  const envUrl = typeof import.meta !== "undefined" && (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_API_URL
+    ? (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_API_URL
+    : undefined;
+  const normalizedEnv = normalizeApiBaseUrl(envUrl);
+
+  // Auto-detect Railway cloud environment when running in browser
+  if (typeof window !== "undefined" && window.location.hostname.endsWith(".railway.app")) {
+    if (!normalizedEnv || normalizedEnv.includes("localhost") || normalizedEnv.includes("127.0.0.1")) {
+      return "https://backend-production-43941.up.railway.app/api/v1";
+    }
+  }
+
+  return normalizedEnv ?? "http://localhost:8000/api/v1";
+};
+
+const BASE_URL = resolveDynamicBaseUrl();
 
 const ACCESS_TOKEN_KEY = "ssrone_access_token";
 const TENANT_SLUG_KEY = "ssrone_tenant_slug";
