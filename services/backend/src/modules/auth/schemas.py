@@ -19,6 +19,7 @@ class LoginResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: int = Field(description="Access token TTL in seconds")
     user: "UserProfile"
+    refresh_token: str | None = None
 
 
 class TokenPayload(BaseModel):
@@ -32,7 +33,7 @@ class TokenPayload(BaseModel):
 
 
 class RefreshTokenRequest(BaseModel):
-    refresh_token: str
+    refresh_token: str | None = None
 
 
 class ChangePasswordRequest(BaseModel):

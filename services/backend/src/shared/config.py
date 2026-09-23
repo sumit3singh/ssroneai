@@ -92,7 +92,7 @@ class RedisSettings(BaseSettings):
 class JWTSettings(BaseSettings):
     secret_key: str = Field(default="ssrone-jwt-secret-key-2026", alias="JWT_SECRET_KEY")
     algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
-    access_token_expire_minutes: int = Field(default=30, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
+    access_token_expire_minutes: int = Field(default=120, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
     refresh_token_expire_days: int = Field(default=30, alias="JWT_REFRESH_TOKEN_EXPIRE_DAYS")
 
     model_config = SettingsConfigDict(env_file=_ENV_FILES, extra="ignore")

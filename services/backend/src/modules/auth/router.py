@@ -147,7 +147,7 @@ async def login(
         value=raw_refresh,
         httponly=True,
         secure=settings.is_production,
-        samesite="strict",
+        samesite="lax",
         max_age=settings.jwt.refresh_token_expire_days * 86400,
         path="/api/v1/auth",
     )
@@ -156,6 +156,7 @@ async def login(
 
     return LoginResponse(
         access_token=access_token,
+        refresh_token=raw_refresh,
         expires_in=settings.jwt.access_token_expire_minutes * 60,
         user=UserProfile.model_validate(user),
     )
@@ -355,16 +356,18 @@ async def provision_superadmin(
 @router.post("/refresh", response_model=LoginResponse)
 async def refresh_token(
     response: Response,
+    body: RefreshTokenRequest | None = None,
     db: AsyncSession = Depends(get_db_session),
     refresh_token: str | None = Cookie(default=None, alias=REFRESH_COOKIE_NAME),
 ) -> LoginResponse:
-    """Exchange a valid refresh token (cookie) for a new access token."""
+    """Exchange a valid refresh token (via body or cookie) for a new access token."""
     import hashlib
 
-    if not refresh_token:
+    effective_token = (body.refresh_token.strip() if (body and body.refresh_token) else None) or refresh_token
+    if not effective_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token provided.")
 
-    hashed = hashlib.sha256(refresh_token.encode()).hexdigest()
+    hashed = hashlib.sha256(effective_token.encode()).hexdigest()
     result = await db.execute(
         select(UserSession).where(
             UserSession.refresh_token_hash == hashed,
@@ -380,16 +383,34 @@ async def refresh_token(
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive.")
 
+    # Rotate refresh token for maximum security & session renewal
+    new_raw_refresh, new_hashed_refresh = auth_service.create_refresh_token()
+    session.refresh_token_hash = new_hashed_refresh
+    session.last_used_at = datetime.now(timezone.utc)
+    session.expires_at = datetime.now(timezone.utc) + timedelta(days=settings.jwt.refresh_token_expire_days)
+    await db.commit()
+
     access_token = auth_service.create_access_token({
         "sub": str(user.id),
         "tenant_id": str(user.tenant_id),
         "email": user.email,
         "session_id": str(session.id),
     })
-    session.last_used_at = datetime.now(timezone.utc)
+
+    # Set new refresh token as cookie
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=new_raw_refresh,
+        httponly=True,
+        secure=settings.is_production,
+        samesite="lax",
+        max_age=settings.jwt.refresh_token_expire_days * 86400,
+        path="/api/v1/auth",
+    )
 
     return LoginResponse(
         access_token=access_token,
+        refresh_token=new_raw_refresh,
         expires_in=settings.jwt.access_token_expire_minutes * 60,
         user=UserProfile.model_validate(user),
     )

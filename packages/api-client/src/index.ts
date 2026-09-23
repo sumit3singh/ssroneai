@@ -40,6 +40,7 @@ const resolveDynamicBaseUrl = (): string => {
 const BASE_URL = resolveDynamicBaseUrl();
 
 const ACCESS_TOKEN_KEY = "ssrone_access_token";
+const REFRESH_TOKEN_KEY = "ssrone_refresh_token";
 const TENANT_SLUG_KEY = "ssrone_tenant_slug";
 const BRANCH_CODE_KEY = "ssrone_branch_code";
 const BRANCH_ID_KEY = "ssrone_branch_id";
@@ -50,11 +51,25 @@ export const getAccessToken = (): string | null =>
 export const setAccessToken = (token: string): void =>
   localStorage.setItem(ACCESS_TOKEN_KEY, token);
 
+export const getRefreshToken = (): string | null =>
+  localStorage.getItem(REFRESH_TOKEN_KEY);
+
+export const setRefreshToken = (token: string): void =>
+  localStorage.setItem(REFRESH_TOKEN_KEY, token);
+
 export const clearAuthData = (): void => {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(TENANT_SLUG_KEY);
   localStorage.removeItem(BRANCH_CODE_KEY);
   localStorage.removeItem(BRANCH_ID_KEY);
+};
+
+export const triggerSessionExpired = (): void => {
+  clearAuthData();
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("ssrone:auth-expired"));
+  }
 };
 
 export const getTenantSlug = (): string | null =>
@@ -125,6 +140,114 @@ apiClient.interceptors.request.use(
     return config;
   },
   (error: AxiosError) => Promise.reject(error),
+);
+
+// Concurrency lock and queue for transparent 401 token refresh & retry
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (error: any) => void;
+}> = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else if (token) {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+
+    // Check if error is 401 Unauthorized and not already retried
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+      const url = originalRequest.url || "";
+      // Avoid looping on auth endpoints
+      if (url.includes("/auth/login") || url.includes("/auth/refresh") || url.includes("/auth/logout")) {
+        return Promise.reject(error);
+      }
+
+      const refreshToken = getRefreshToken();
+      if (!refreshToken) {
+        triggerSessionExpired();
+        return Promise.reject(error);
+      }
+
+      if (isRefreshing) {
+        return new Promise<string>((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return apiClient(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const refreshResponse = await axios.post<{
+          access_token: string;
+          refresh_token?: string;
+        }>(
+          `${BASE_URL}/auth/refresh`,
+          { refresh_token: refreshToken },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...(getTenantSlug() ? { "X-Tenant-Slug": getTenantSlug()! } : {}),
+            },
+            withCredentials: true,
+          }
+        );
+
+        const newAccessToken = refreshResponse.data.access_token;
+        setAccessToken(newAccessToken);
+        if (refreshResponse.data.refresh_token) {
+          setRefreshToken(refreshResponse.data.refresh_token);
+        }
+
+        // Sync zustand persistent storage if present
+        try {
+          const rawStorage = localStorage.getItem("ssrone-auth-storage");
+          if (rawStorage) {
+            const parsed = JSON.parse(rawStorage);
+            if (parsed.state) {
+              parsed.state.access_token = newAccessToken;
+              if (refreshResponse.data.refresh_token) {
+                parsed.state.refresh_token = refreshResponse.data.refresh_token;
+              }
+              localStorage.setItem("ssrone-auth-storage", JSON.stringify(parsed));
+            }
+          }
+        } catch {
+          // ignore parsing error
+        }
+
+        apiClient.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
+        processQueue(null, newAccessToken);
+
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        return apiClient(originalRequest);
+      } catch (refreshErr) {
+        processQueue(refreshErr, null);
+        triggerSessionExpired();
+        return Promise.reject(refreshErr);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    return Promise.reject(error);
+  }
 );
 
 export const api = {

@@ -150,7 +150,7 @@ async def test_register_success():
                 "phone": "9876543210"
             })
             assert response.status_code == status.HTTP_200_OK
-            assert "Registration successful" in response.json()["message"]
+            assert "Tenant registered successfully" in response.json()["message"]
     finally:
         app.dependency_overrides.clear()
 
@@ -409,8 +409,36 @@ async def test_refresh_token_success():
                 response = await client.post("/api/v1/auth/refresh", cookies=cookies)
                 assert response.status_code == status.HTTP_200_OK
                 assert response.json()["access_token"] == "new-access-token"
+                assert response.json()["refresh_token"] is not None
     finally:
         app.dependency_overrides.clear()
+
+@pytest.mark.asyncio
+async def test_refresh_token_with_json_body_success():
+    session = UserSession(
+        id=10,
+        user_id=11,
+        refresh_token_hash="hash",
+        device_info={},
+        is_active=True,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=1),
+        created_at=datetime.now(timezone.utc)
+    )
+    user = get_mock_user()
+    mock_db = AsyncMock()
+    mock_db.execute.side_effect = [DummyResult(session), DummyResult(user)]
+    
+    app.dependency_overrides[get_db_session] = lambda: mock_db
+    try:
+        with patch("src.modules.auth.service.auth_service.create_access_token", return_value="new-access-token"):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.post("/api/v1/auth/refresh", json={"refresh_token": "some-token"})
+                assert response.status_code == status.HTTP_200_OK
+                assert response.json()["access_token"] == "new-access-token"
+                assert response.json()["refresh_token"] is not None
+    finally:
+        app.dependency_overrides.clear()
+
 
 @pytest.mark.asyncio
 async def test_list_companies_regular_user():

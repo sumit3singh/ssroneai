@@ -3,9 +3,28 @@
  */
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { api, clearAuthData, setAccessToken, setTenantSlug, getAccessToken, getTenantSlug } from "@ssrone/api-client";
+import {
+  api,
+  clearAuthData,
+  setAccessToken,
+  getAccessToken,
+  setRefreshToken,
+  getRefreshToken,
+  setTenantSlug,
+  getTenantSlug,
+} from "@ssrone/api-client";
 
-export { apiClient, api, getAccessToken, setAccessToken, clearAuthData, getTenantSlug, setTenantSlug } from "@ssrone/api-client";
+export {
+  apiClient,
+  api,
+  getAccessToken,
+  setAccessToken,
+  getRefreshToken,
+  setRefreshToken,
+  clearAuthData,
+  getTenantSlug,
+  setTenantSlug,
+} from "@ssrone/api-client";
 export { PermissionGuard, type PermissionGuardProps } from "./PermissionGuard";
 export { FeatureGate, type FeatureGateProps, type LicenseTier } from "./FeatureGate";
 
@@ -46,6 +65,7 @@ export interface FinancialYear {
 export interface AuthState {
   user: UserProfile | any;
   access_token: string | null;
+  refresh_token: string | null;
   tenant_slug: string | null;
   is_authenticated: boolean;
   isLoggedIn?: boolean;
@@ -90,6 +110,7 @@ export const useAuthStore = create<AuthStore>()(
     (set, get) => ({
       user: null,
       access_token: null,
+      refresh_token: null,
       tenant_slug: null,
       is_authenticated: false,
       isLoggedIn: false,
@@ -133,13 +154,22 @@ export const useAuthStore = create<AuthStore>()(
           throw new Error("Tenant slug, email, and password are required.");
         }
         try {
-          const response = await api.post<{ access_token: string; user: UserProfile }>("/auth/login", credentials);
+          const response = await api.post<{ access_token: string; refresh_token?: string; user: UserProfile }>("/auth/login", credentials);
           setAccessToken(response.access_token);
+          if (response.refresh_token) {
+            setRefreshToken(response.refresh_token);
+          }
           setTenantSlug(credentials.tenant_slug);
+
+          // Initialize activity timestamp upon successful login
+          if (typeof window !== "undefined") {
+            localStorage.setItem("ssrone_last_activity", String(Date.now()));
+          }
 
           set({
             user: response.user,
             access_token: response.access_token,
+            refresh_token: response.refresh_token || null,
             tenant_slug: credentials.tenant_slug,
             is_authenticated: true,
             isLoggedIn: true,
@@ -153,14 +183,25 @@ export const useAuthStore = create<AuthStore>()(
 
       logout: async () => {
         try {
-          await api.post("/auth/logout");
+          const rt = getRefreshToken();
+          await api.post("/auth/logout", { refresh_token: rt }).catch(() => {});
         } catch {
           // Ignore network errors on logout
         } finally {
           clearAuthData();
+          try {
+            sessionStorage.removeItem("pos_cache_categories");
+            sessionStorage.removeItem("pos_cache_menu_items");
+            sessionStorage.removeItem("pos_cache_tables");
+            sessionStorage.removeItem("pos_cache_waiters");
+            sessionStorage.removeItem("pos_cache_orders");
+            localStorage.removeItem("ssrone_last_activity");
+          } catch {}
+
           set({
             user: null,
             access_token: null,
+            refresh_token: null,
             tenant_slug: null,
             is_authenticated: false,
             isLoggedIn: false,
@@ -240,4 +281,101 @@ export const logout = async () => {
   return useAuthStore.getState().logout();
 };
 
+// ═════════════════════════════════════════════════════════════
+// 1-HOUR INACTIVITY AUTO-LOGOUT PROTOCOL (ENTERPRISE GRADE)
+// ═════════════════════════════════════════════════════════════
+export const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // Exactly 1 hour (3,600,000 ms)
+export const LAST_ACTIVITY_KEY = "ssrone_last_activity";
+
+export interface InactivityTrackerOptions {
+  timeoutMs?: number;
+  onTimeout?: () => void;
+}
+
+/**
+ * Initializes cross-tab synchronized user activity monitoring.
+ * If user does zero work in the software for 1 hour (or timeoutMs), executes auto-logout.
+ */
+export const initInactivityTracker = (options: InactivityTrackerOptions = {}): (() => void) => {
+  if (typeof window === "undefined") return () => {};
+
+  const timeoutMs = options.timeoutMs ?? INACTIVITY_TIMEOUT_MS;
+
+  const recordActivity = () => {
+    try {
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
+  // If no timestamp exists, initialize it
+  if (!localStorage.getItem(LAST_ACTIVITY_KEY)) {
+    recordActivity();
+  }
+
+  // Throttled activity handler (records at most once every 5 seconds)
+  let lastRecorded = 0;
+  const handleUserActivity = () => {
+    const now = Date.now();
+    if (now - lastRecorded >= 5000) {
+      lastRecorded = now;
+      recordActivity();
+    }
+  };
+
+  const activityEvents: Array<keyof WindowEventMap> = [
+    "mousemove",
+    "mousedown",
+    "keydown",
+    "touchstart",
+    "scroll",
+    "click",
+    "wheel",
+  ];
+
+  activityEvents.forEach((event) => {
+    window.addEventListener(event, handleUserActivity, { passive: true });
+  });
+
+  // Cross-tab synchronization via storage event
+  const handleStorage = (e: StorageEvent) => {
+    if (e.key === LAST_ACTIVITY_KEY && e.newValue) {
+      lastRecorded = Number(e.newValue);
+    }
+  };
+  window.addEventListener("storage", handleStorage);
+
+  // Periodic inactivity check (every 15 seconds)
+  const intervalId = window.setInterval(() => {
+    const authState = useAuthStore.getState();
+    const hasToken = getAccessToken() || authState.access_token;
+    if (!hasToken && !authState.is_authenticated && !authState.isLoggedIn) {
+      return; // Idle checks only apply to logged-in sessions
+    }
+
+    const lastActivity = Number(localStorage.getItem(LAST_ACTIVITY_KEY) || Date.now());
+    const elapsed = Date.now() - lastActivity;
+
+    if (elapsed >= timeoutMs) {
+      console.warn(`[SSR One AI] User inactive for ${Math.round(elapsed / 60000)} minutes. Executing automatic logout.`);
+      if (options.onTimeout) {
+        options.onTimeout();
+      } else {
+        void useAuthStore.getState().logout();
+      }
+    }
+  }, 15000);
+
+  // Return cleanup teardown function
+  return () => {
+    activityEvents.forEach((event) => {
+      window.removeEventListener(event, handleUserActivity);
+    });
+    window.removeEventListener("storage", handleStorage);
+    window.clearInterval(intervalId);
+  };
+};
+
 export default useAuthStore;
+
