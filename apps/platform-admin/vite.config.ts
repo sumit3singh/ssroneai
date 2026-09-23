@@ -6,12 +6,18 @@ export default defineConfig({
   server: {
     port: 5174,
     host: true,
+    allowedHosts: true,
     proxy: {
       "/api": {
         target: process.env.VITE_API_URL || process.env.BACKEND_URL || "http://localhost:8000",
         changeOrigin: true,
       },
     },
+  },
+  preview: {
+    port: process.env.PORT ? parseInt(process.env.PORT) : 5174,
+    host: true,
+    allowedHosts: true,
   },
   plugins: [react()],
   resolve: {

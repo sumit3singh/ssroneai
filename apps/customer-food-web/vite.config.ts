@@ -6,9 +6,15 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 3000,
+    allowedHosts: true,
     hmr: {
       overlay: false,
     },
+  },
+  preview: {
+    host: "::",
+    port: process.env.PORT ? parseInt(process.env.PORT) : 3000,
+    allowedHosts: true,
   },
   plugins: [react()],
   resolve: {

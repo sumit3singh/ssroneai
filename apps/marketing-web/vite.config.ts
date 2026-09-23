@@ -12,6 +12,7 @@ export default defineConfig({
   server: {
     port: 3002,
     host: true,
+    allowedHosts: true,
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',
@@ -19,5 +20,10 @@ export default defineConfig({
         secure: false
       }
     }
+  },
+  preview: {
+    port: process.env.PORT ? parseInt(process.env.PORT) : 3002,
+    host: true,
+    allowedHosts: true,
   }
 });

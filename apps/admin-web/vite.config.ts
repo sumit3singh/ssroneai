@@ -51,6 +51,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    host: true,
+    allowedHosts: true,
     fs: {
       allow: [".."],
     },
@@ -60,6 +62,11 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+  },
+  preview: {
+    port: process.env.PORT ? parseInt(process.env.PORT) : 5173,
+    host: true,
+    allowedHosts: true,
   },
   build: {
     target: "es2022",
