@@ -31,7 +31,8 @@ export const POSKeyboardCheatSheetModal: React.FC<POSKeyboardCheatSheetModalProp
     {
       group: "Navigation & Floor Management",
       items: [
-        { key: "Alt+T", desc: "Open Table Floor Grid & Live Seating layout", icon: <LayoutGrid size={14} className="text-amber-500" /> },
+        { key: "Alt+T", desc: "Select Table / Open Table Floor Grid & Live Seating layout", icon: <LayoutGrid size={14} className="text-amber-500" /> },
+        { key: "Alt+/", desc: "Focus Category Search Filter & instant numeric jump", icon: <Search size={14} className="text-amber-500" /> },
         { key: "Ctrl+K or /", desc: "Focus Item Search / Numpad input bar", icon: <Search size={14} className="text-primary" /> },
         { key: "Arrow Up / Down", desc: "Navigate filtered dishes in grid", icon: <Keyboard size={14} className="text-muted-foreground" /> },
         { key: "Enter ↵", desc: "Select highlighted item into active cart", icon: <Keyboard size={14} className="text-emerald-500" /> },

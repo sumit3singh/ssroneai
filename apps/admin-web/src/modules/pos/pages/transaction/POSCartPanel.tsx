@@ -284,19 +284,23 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
               <button
                 type="button"
                 onClick={onOpenTrackerModal}
-                className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20 transition-all flex items-center gap-1 cursor-pointer"
+                className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20 transition-all flex items-center gap-1 cursor-pointer"
+                title="Active Orders & KOT Tracker [Alt+O]"
               >
                 <ChefHat size={11} />
                 <span>KOT ({activeOrdersCount})</span>
+                <span className="text-[8.5px] font-mono opacity-70 hidden sm:inline">Alt+O</span>
               </button>
             )}
             <button
               type="button"
               onClick={onOpenHoldModal}
-              className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all flex items-center gap-1 cursor-pointer"
+              className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all flex items-center gap-1 cursor-pointer"
+              title="Held Bills [Alt+H]"
             >
               <Pause size={11} />
               <span>HELD ({heldBillsCount})</span>
+              <span className="text-[8.5px] font-mono opacity-70 hidden sm:inline">Alt+H</span>
             </button>
             <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">
               {totalItemCount} ITEMS
@@ -320,38 +324,44 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
           <button
             type="button"
             onClick={() => setOrderMode("dine_in")}
-            className={`py-1 px-1.5 rounded text-xs font-medium flex items-center justify-center gap-1 border transition-colors cursor-pointer ${
+            className={`py-1 px-1.5 rounded text-xs font-semibold flex items-center justify-center gap-1 border transition-colors cursor-pointer ${
               orderMode === "dine_in"
                 ? "bg-primary text-primary-foreground border-primary"
                 : "bg-background border-border text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
+            title="Dine-In Mode (Alt+1)"
           >
             <UtensilsCrossed size={12} />
             <span>Dine-In</span>
+            <span className="text-[8.5px] font-mono opacity-75 font-bold ml-0.5">Alt+1</span>
           </button>
           <button
             type="button"
             onClick={() => setOrderMode("takeaway")}
-            className={`py-1 px-1.5 rounded text-xs font-medium flex items-center justify-center gap-1 border transition-colors cursor-pointer ${
+            className={`py-1 px-1.5 rounded text-xs font-semibold flex items-center justify-center gap-1 border transition-colors cursor-pointer ${
               orderMode === "takeaway"
                 ? "bg-primary text-primary-foreground border-primary"
                 : "bg-background border-border text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
+            title="Takeaway Mode (Alt+2)"
           >
             <ShoppingBag size={12} />
             <span>Takeaway</span>
+            <span className="text-[8.5px] font-mono opacity-75 font-bold ml-0.5">Alt+2</span>
           </button>
           <button
             type="button"
             onClick={() => setOrderMode("delivery")}
-            className={`py-1 px-1.5 rounded text-xs font-medium flex items-center justify-center gap-1 border transition-colors cursor-pointer ${
+            className={`py-1 px-1.5 rounded text-xs font-semibold flex items-center justify-center gap-1 border transition-colors cursor-pointer ${
               orderMode === "delivery"
                 ? "bg-primary text-primary-foreground border-primary"
                 : "bg-background border-border text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
+            title="Delivery Mode (Alt+3)"
           >
             <Truck size={12} />
             <span>Delivery</span>
+            <span className="text-[8.5px] font-mono opacity-75 font-bold ml-0.5">Alt+3</span>
           </button>
         </div>
 
@@ -898,7 +908,8 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
           {/* DUAL DISCOUNT ENGINE (% or ₹) */}
           <div className="flex justify-between items-center text-xs">
             <div className="flex items-center gap-1">
-              <span>Discount</span>
+              <span className="font-medium text-foreground">Discount</span>
+              <span className="px-1 py-0.2 rounded bg-muted/90 border border-border text-[8.5px] font-mono font-bold text-muted-foreground">F4</span>
               {setDiscountType && (
                 <div className="flex bg-muted rounded-xs border border-border p-0.2">
                   <button
@@ -933,6 +944,7 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
 
             <div className="flex items-center gap-1">
               <input
+                id="pos-discount-input"
                 type="number"
                 min="0"
                 value={discountValue || ""}
@@ -942,10 +954,10 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
                   else setDiscountAmount(val);
                 }}
                 placeholder="0"
-                className="w-14 bg-background border border-border rounded-md px-1 py-0.5 text-right font-mono text-xs font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-14 bg-background border border-border rounded-md px-1 py-0.5 text-right font-mono text-xs font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary tabular-nums"
               />
               {discountType === "percent" && discountValue > 0 && (
-                <span className="text-[10px] font-mono text-primary font-bold">(-₹{discountAmount})</span>
+                <span className="text-[10px] font-mono text-primary font-bold tabular-nums">(-₹{discountAmount})</span>
               )}
             </div>
           </div>
@@ -1020,8 +1032,11 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
             onClick={onHoldBill}
             disabled={isSubmitting || cartItems.length === 0}
             className="h-10 px-1 bg-muted hover:bg-muted/80 text-foreground border border-border font-bold text-[11px] sm:text-xs rounded-md flex items-center justify-center gap-1 cursor-pointer touch-manipulation active:scale-95 whitespace-nowrap"
+            title="Hold Active Bill (F1)"
           >
-            <span className="px-1 py-0.2 rounded bg-background border border-border font-mono text-[9px] text-muted-foreground hidden xs:inline-block">F1</span>
+            <span className="px-1.5 py-0.5 rounded bg-background border border-border/80 font-mono text-[9px] font-extrabold text-foreground shrink-0 shadow-2xs">
+              F1
+            </span>
             <Pause size={12} />
             <span>Hold</span>
           </Button>
@@ -1035,10 +1050,13 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
                 ? "bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
                 : "bg-primary hover:bg-primary/90 text-primary-foreground"
             }`}
+            title="Send or Update KOT to Kitchen (F2)"
           >
-            <span className="px-1 py-0.2 rounded bg-black/20 font-mono text-[9px] hidden xs:inline-block">F2</span>
+            <span className="px-1.5 py-0.5 rounded bg-black/30 border border-white/20 font-mono text-[9px] font-extrabold text-white shrink-0 shadow-2xs">
+              F2
+            </span>
             <span>{orderNumber ? "KOT UPDATE" : "Send KOT"}</span>
-            <ChevronRight size={12} className="hidden xs:inline-block" />
+            <ChevronRight size={12} className="hidden sm:inline-block" />
           </Button>
 
           <Button
@@ -1050,10 +1068,13 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
                 ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                 : "bg-emerald-600 hover:bg-emerald-700 text-white"
             }`}
+            title="Pay & Settle Active Order (F3)"
           >
-            <span className="px-1.5 py-0.2 rounded bg-black/20 font-mono text-[9px] hidden xs:inline-block">F3</span>
-            <CheckCircle2 size={13} />
-            <span>
+            <span className="px-1.5 py-0.5 rounded bg-black/30 border border-white/20 font-mono text-[9px] font-extrabold text-white shrink-0 shadow-2xs">
+              F3
+            </span>
+            <CheckCircle2 size={13} className="shrink-0" />
+            <span className="tabular-nums">
               {isSubmitting
                 ? "Updating..."
                 : orderNumber

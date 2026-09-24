@@ -119,6 +119,14 @@ export const POSKeyboardShortcutsModal: React.FC<POSKeyboardShortcutsModalProps>
               </h3>
               <div className="space-y-1.5 font-mono text-[11px]">
                 <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-sans">Focus Category Search</span>
+                  <kbd className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-bold">Alt + /</kbd>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-sans">Select Table / Floor Grid</span>
+                  <kbd className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-bold">Alt + T</kbd>
+                </div>
+                <div className="flex justify-between items-center">
                   <span className="text-muted-foreground font-sans">Switch Dine-In Mode</span>
                   <kbd className="px-2 py-0.5 rounded bg-muted border border-border font-bold text-foreground">Alt + 1</kbd>
                 </div>
@@ -133,6 +141,18 @@ export const POSKeyboardShortcutsModal: React.FC<POSKeyboardShortcutsModalProps>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground font-sans">Focus Customer Column</span>
                   <kbd className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-bold">Alt + C</kbd>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-sans">Quick Queue Token</span>
+                  <kbd className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-bold">Alt + Q</kbd>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-sans">Active Orders / KOT</span>
+                  <kbd className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 font-bold">Alt + O</kbd>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-sans">Open Held Bills</span>
+                  <kbd className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-bold">Alt + H</kbd>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground font-sans">Focus Kitchen Order Remark</span>

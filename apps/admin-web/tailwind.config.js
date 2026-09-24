@@ -87,8 +87,8 @@ export default {
       },
       // ── Typography ─────────────────────────────────────────
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        display: ["Outfit", "Inter", "sans-serif"],
+        sans: ["Plus Jakarta Sans", "Inter", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
+        display: ["Outfit", "Plus Jakarta Sans", "Inter", "sans-serif"],
         mono: ["JetBrains Mono", "Fira Code", "monospace"],
       },
       fontSize: {

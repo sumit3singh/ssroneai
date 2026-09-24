@@ -88,15 +88,15 @@ const POSItemCard: React.FC<POSItemCardProps> = React.memo(({
               <span className="h-1 w-1 rounded-full bg-rose-600" />
             </span>
           )}
-          <span className="text-[10px] font-mono opacity-60 font-bold text-foreground shrink-0">
+          <span className="text-[10px] font-mono opacity-70 font-bold text-muted-foreground shrink-0">
             [{idx + 1}]
           </span>
-          <h4 className="font-bold text-xs text-foreground leading-snug group-hover:text-primary transition-colors line-clamp-2">
+          <h4 className="font-bold text-[12.5px] text-foreground leading-snug group-hover:text-primary transition-colors line-clamp-2 tracking-tight">
             {item.name}
           </h4>
         </div>
         {!hasVariants && (
-          <span className="font-mono font-black text-xs text-foreground shrink-0 pl-1">
+          <span className="font-mono font-extrabold text-xs text-foreground shrink-0 pl-1 tabular-nums">
             ₹{price}
           </span>
         )}
@@ -116,7 +116,7 @@ const POSItemCard: React.FC<POSItemCardProps> = React.memo(({
                   e.stopPropagation();
                   onAddToCart(item, opt);
                 }}
-                className={`px-1.5 py-0.5 rounded-sm text-[9px] font-mono font-bold transition-all cursor-pointer whitespace-nowrap shadow-2xs active:scale-95 ${
+                className={`px-1.5 py-0.5 rounded-sm text-[9.5px] font-mono font-bold transition-all cursor-pointer whitespace-nowrap shadow-2xs active:scale-95 tabular-nums ${
                   isChipActive
                     ? "bg-sky-600 text-white border border-sky-500 shadow-xs"
                     : "bg-sky-500/10 hover:bg-sky-500/20 text-sky-700 dark:text-sky-300 border border-sky-500/30"
@@ -174,20 +174,34 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
     });
   };
 
-  // Shortcut key Alt+C to focus Category Search Filter
+  // Shortcut key Alt+/ to focus Category Search Filter
   React.useEffect(() => {
-    const handleCategoryShortcut = (e: KeyboardEvent) => {
-      if (e.altKey && e.key.toLowerCase() === "c") {
-        e.preventDefault();
+    const focusCategorySearch = () => {
+      setIsVerticalCategories(true);
+      setTimeout(() => {
         const inputEl = document.getElementById("pos-category-search-input") as HTMLInputElement | null;
         if (inputEl) {
           inputEl.focus();
           inputEl.select();
         }
+      }, 50);
+    };
+
+    const handleCategoryShortcut = (e: KeyboardEvent) => {
+      if (e.altKey && (e.key === "/" || e.key === "?" || e.code === "Slash")) {
+        e.preventDefault();
+        focusCategorySearch();
       }
     };
+
+    const handleCustomFocus = () => focusCategorySearch();
+
     window.addEventListener("keydown", handleCategoryShortcut);
-    return () => window.removeEventListener("keydown", handleCategoryShortcut);
+    window.addEventListener("pos-focus-category", handleCustomFocus);
+    return () => {
+      window.removeEventListener("keydown", handleCategoryShortcut);
+      window.removeEventListener("pos-focus-category", handleCustomFocus);
+    };
   }, []);
 
   // Check if branch contains any non-veg items (for pure-veg branch toggle hiding)
@@ -563,10 +577,13 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
               }
             }}
             className="h-8 px-2.5 rounded-md text-xs font-extrabold flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white border border-amber-600 shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
-            title="View & Assign Dining Tables Floor Layout"
+            title="View & Assign Dining Tables Floor Layout (Alt+T)"
           >
             <LayoutGrid size={13} className="text-white" />
             <span>Tables</span>
+            <span className="px-1 py-0.2 rounded bg-amber-700/60 border border-amber-400/40 text-[9px] font-mono font-extrabold text-amber-100 shadow-2xs">
+              Alt+T
+            </span>
           </button>
 
           {/* Veg Only Toggle (Auto-hidden for pure-veg branches) */}
@@ -786,7 +803,7 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
                     }
                   }
                 }}
-                placeholder="Search cats (#, code)..."
+                placeholder="Search cats (Alt+/, #, code)..."
                 className="h-7 text-[11px] bg-background border-border px-2 py-0.5 rounded pr-12"
               />
               {categorySearchTerm ? (
@@ -800,7 +817,7 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
                 </button>
               ) : (
                 <kbd className="absolute right-1.5 top-1.5 px-1 py-0.2 rounded bg-muted/80 border border-border text-[8px] font-mono font-bold text-muted-foreground pointer-events-none select-none">
-                  Alt+C
+                  Alt+/
                 </kbd>
               )}
             </div>

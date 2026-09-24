@@ -14,6 +14,9 @@ export interface POSShortcutHandlers {
   onFocusSearch?: () => void;
   onSearchFocus?: () => void;
   onNavigateTables?: () => void;
+  onFocusTable?: () => void;
+  onFocusCategory?: () => void;
+  onGenerateToken?: () => void;
   onNavigateOrders?: () => void;
   onOpenHeldBills?: () => void;
   onEscape?: () => void;
@@ -151,22 +154,37 @@ export function usePOSShortcuts(handlers: POSShortcutHandlers, enabled = true) {
         return;
       }
 
-      // Ctrl + T -> Jump to Table Floor Grid
-      if (isCtrl && key.toLowerCase() === "t") {
+      // Alt + T or Ctrl + T -> Focus Table Selection / Jump to Table Floor Grid
+      if ((event.altKey || isCtrl) && (key.toLowerCase() === "t" || event.code === "KeyT")) {
         event.preventDefault();
-        h.onNavigateTables?.();
+        if (h.onFocusTable) h.onFocusTable();
+        else h.onNavigateTables?.();
         return;
       }
 
-      // Ctrl + O -> Jump to Order Tracking & Edit
-      if (isCtrl && key.toLowerCase() === "o") {
+      // Alt + / -> Focus Category Search Filter
+      if (event.altKey && (key === "/" || key === "?" || event.code === "Slash")) {
+        event.preventDefault();
+        h.onFocusCategory?.();
+        return;
+      }
+
+      // Alt + Q -> Quick Token Generation
+      if (event.altKey && (key.toLowerCase() === "q" || event.code === "KeyQ")) {
+        event.preventDefault();
+        h.onGenerateToken?.();
+        return;
+      }
+
+      // Alt + O or Ctrl + O -> Jump to Order Tracking & Edit
+      if ((event.altKey || isCtrl) && (key.toLowerCase() === "o" || event.code === "KeyO")) {
         event.preventDefault();
         h.onNavigateOrders?.();
         return;
       }
 
-      // Ctrl + H -> Open Held Bills Modal
-      if (isCtrl && key.toLowerCase() === "h") {
+      // Alt + H or Ctrl + H -> Open Held Bills Modal
+      if ((event.altKey || isCtrl) && (key.toLowerCase() === "h" || event.code === "KeyH")) {
         event.preventDefault();
         if (h.onViewHeldBills) h.onViewHeldBills();
         else h.onOpenHeldBills?.();

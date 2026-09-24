@@ -505,6 +505,33 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
         el.click();
       }
     },
+    onFocusTable: () => {
+      if (activeVirtualTab === "tables") {
+        switchVirtualTab("billing");
+        return;
+      }
+      if (orderMode !== "dine_in") {
+        setOrderMode("dine_in");
+      }
+      setTimeout(() => {
+        const el = document.getElementById("pos-table-combobox-trigger");
+        if (el) {
+          el.click();
+        } else {
+          switchVirtualTab("tables");
+        }
+      }, 40);
+    },
+    onFocusCategory: () => {
+      window.dispatchEvent(new CustomEvent("pos-focus-category"));
+    },
+    onFocusDiscount: () => {
+      const el = document.getElementById("pos-discount-input") as HTMLInputElement | null;
+      if (el) {
+        el.focus();
+        el.select();
+      }
+    },
     onFocusRemark: () => {
       window.dispatchEvent(new CustomEvent("pos-focus-remark"));
       setTimeout(() => {
@@ -514,6 +541,22 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
           inputs[inputs.length - 1].select();
         }
       }, 50);
+    },
+    onSetOrderMode: (mode) => {
+      setOrderMode(mode);
+      toast.info(`Switched to ${mode.replace("_", " ").toUpperCase()}`, { icon: "📋" });
+    },
+    onCyclePayment: () => {
+      setPaymentMethod((prev) => {
+        const methods: PaymentMethod[] = ["CASH", "UPI", "CARD"];
+        const nextIdx = (methods.indexOf(prev) + 1) % methods.length;
+        const next = methods[nextIdx];
+        toast.info(`Payment Method: ${next}`, { icon: "💳" });
+        return next;
+      });
+    },
+    onGenerateToken: () => {
+      setIsQueueTokenModalOpen(true);
     },
     onHoldBill: () => {
       handleHoldBill();
@@ -543,7 +586,14 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     onViewHeldBills: () => setIsHoldModalOpen(true),
     onViewActiveOrders: () => setIsTrackerModalOpen(true),
     onToggleKioskFullScreen: toggleKioskFullScreen,
-    onNavigateTables: () => switchVirtualTab("tables"),
+    onNavigateTables: () => {
+      const el = document.getElementById("pos-table-combobox-trigger");
+      if (el && orderMode === "dine_in") {
+        el.click();
+      } else {
+        switchVirtualTab("tables");
+      }
+    },
     onNavigateOrders: () => switchVirtualTab("orders"),
     onQuickPay: () => {
       if (cartItems.length > 0) {
@@ -559,10 +609,21 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       }
     },
     onRemoveLastItem: () => {
-      if (cartItems.length > 0) {
-        const lastItem = cartItems[cartItems.length - 1];
-        handleRemoveCartItem(lastItem.cart_id);
-      }
+      setCartItems((prev) => (prev.length > 0 ? prev.slice(0, -1) : prev));
+    },
+    onAdjustQuantity: (delta: number) => {
+      setCartItems((prev) => {
+        if (prev.length === 0) return prev;
+        const last = prev[prev.length - 1];
+        const newQty = last.quantity + delta;
+        if (newQty <= 0) {
+          return prev.slice(0, -1);
+        }
+        return prev.map((item, idx) => (idx === prev.length - 1 ? { ...item, quantity: newQty } : item));
+      });
+    },
+    onRemoveItem: () => {
+      setCartItems((prev) => (prev.length > 0 ? prev.slice(0, -1) : prev));
     },
   });
 
