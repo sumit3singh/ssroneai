@@ -121,16 +121,17 @@ interface InlineKdsStationCellProps {
 }
 
 const InlineKdsStationCell: React.FC<InlineKdsStationCellProps> = ({ item, stations, onUpdate }) => {
-  const currentStation = item.kds_station || "Main Kitchen";
+  const defaultFallback = stations.length > 0 ? stations[0] : "Main Kitchen";
+  const currentStation = item.kds_station || defaultFallback;
   const [selectedStation, setSelectedStation] = useState(currentStation);
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
-    setSelectedStation(item.kds_station || "Main Kitchen");
-  }, [item.kds_station]);
+    setSelectedStation(item.kds_station || defaultFallback);
+  }, [item.kds_station, defaultFallback]);
 
   const handleChange = async (newStation: string) => {
-    if (newStation === currentStation) return;
+    if (newStation === selectedStation) return;
     const prev = selectedStation;
     setSelectedStation(newStation);
     setIsUpdating(true);
@@ -145,15 +146,20 @@ const InlineKdsStationCell: React.FC<InlineKdsStationCellProps> = ({ item, stati
     }
   };
 
+  // If item currently has a legacy station assigned that is not in the DB list, keep it visible until changed
+  const options = stations.includes(selectedStation)
+    ? stations
+    : [selectedStation, ...stations];
+
   return (
     <div onClick={(e) => e.stopPropagation()} className="inline-block">
       <select
         value={selectedStation}
         onChange={(e) => handleChange(e.target.value)}
         disabled={isUpdating}
-        className="font-mono text-[11px] font-semibold bg-muted/60 hover:bg-muted text-foreground border border-border/80 rounded px-2 py-0.5 cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary transition-colors max-w-[130px]"
+        className="font-mono text-[11px] font-semibold bg-muted/60 hover:bg-muted text-foreground border border-border/80 rounded px-2 py-0.5 cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary transition-colors max-w-[140px]"
       >
-        {stations.map((s) => (
+        {options.map((s) => (
           <option key={s} value={s}>
             {s}
           </option>
@@ -185,7 +191,7 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
   const [variantModalItem, setVariantModalItem] = useState<POSMenuItem | null>(null);
   const [recipeModalItem, setRecipeModalItem] = useState<POSMenuItem | null>(null);
 
-  // Kitchen Stations dynamically resolved from API + menu items + standard defaults
+  // Kitchen Stations dynamically resolved strictly from DB table
   const [kitchenStations, setKitchenStations] = useState<string[]>([]);
 
   useEffect(() => {
@@ -200,23 +206,18 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
   }, []);
 
   const availableStations = useMemo(() => {
-    const set = new Set<string>([
-      "Main Kitchen",
-      "Chinese",
-      "Indian",
-      "Italian",
-      "Drinks",
-      "Tandoor & Charcoal",
-      "Chinese & Asian Wok",
-      "Beverages & Bar",
-      "Bakery & Desserts",
-      "Pizzeria & Oven",
-      ...kitchenStations,
-    ]);
-    for (const item of menuItems) {
-      if (item.kds_station) set.add(item.kds_station);
+    // When DB stations are loaded, use ONLY the real stations from PostgreSQL
+    if (kitchenStations.length > 0) {
+      return kitchenStations;
     }
-    return Array.from(set);
+    // Fallback only if database has not returned stations yet
+    const set = new Set<string>();
+    for (const item of menuItems) {
+      if (item.kds_station && item.kds_station.trim()) {
+        set.add(item.kds_station.trim());
+      }
+    }
+    return set.size > 0 ? Array.from(set) : ["Main Kitchen"];
   }, [kitchenStations, menuItems]);
 
   // Compute KPI Statistics
