@@ -1074,12 +1074,12 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
               F3
             </span>
             <CheckCircle2 size={13} className="shrink-0" />
-            <span className="tabular-nums">
+            <span>
               {isSubmitting
                 ? "Updating..."
                 : orderNumber
-                ? `PAY ₹${netAmount}`
-                : `PAY & PRINT ₹${netAmount}`}
+                ? "PAY ORDER"
+                : "PAY & PRINT"}
             </span>
           </Button>
         </div>

@@ -92,8 +92,8 @@ export const POSExpressHotbar: React.FC<POSExpressHotbarProps> = ({
               </div>
 
               {/* Title with full width and breathing room */}
-              <p className="text-[10px] font-bold text-foreground group-hover:text-primary transition-colors leading-tight line-clamp-2 mt-1">
-                {item.short_description || item.name}
+              <p className="text-[10px] font-medium text-foreground group-hover:text-primary transition-colors leading-tight line-clamp-2 mt-0.5">
+                {item.name}
               </p>
             </button>
           );

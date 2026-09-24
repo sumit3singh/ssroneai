@@ -69,7 +69,7 @@ const POSItemCard: React.FC<POSItemCardProps> = React.memo(({
       id={`pos-item-card-${idx}`}
       onClick={handleCardClick}
       style={{ contentVisibility: "auto", containIntrinsicSize: "76px" }}
-      className={`group border rounded-lg p-2 flex flex-col justify-between cursor-pointer shadow-2xs transition-all duration-150 relative min-h-[72px] shrink-0 active:scale-[0.99] select-none ${
+      className={`group border rounded-lg p-2 flex flex-col justify-between cursor-pointer shadow-2xs transition-all duration-150 relative min-h-[72px] h-auto shrink-0 active:scale-[0.99] select-none ${
         isHighlighted
           ? "ring-2 ring-primary/80 shadow-md scale-[1.01] " + (isColorCoded && categoryTheme ? `${categoryTheme.bg} ${categoryTheme.border}` : "bg-primary/5 border-primary")
           : isColorCoded && categoryTheme
@@ -78,7 +78,7 @@ const POSItemCard: React.FC<POSItemCardProps> = React.memo(({
       }`}
     >
       {/* Header: [Index] Menu Item Name & Rate */}
-      <div className="flex items-start justify-between gap-1 w-full">
+      <div className="flex items-start justify-between gap-1.5 w-full">
         <div className="flex items-start gap-1 min-w-0 flex-1">
           {!item.is_veg && (
             <span
@@ -88,15 +88,15 @@ const POSItemCard: React.FC<POSItemCardProps> = React.memo(({
               <span className="h-1 w-1 rounded-full bg-rose-600" />
             </span>
           )}
-          <span className="text-[10px] font-mono opacity-70 font-bold text-muted-foreground shrink-0">
+          <span className="text-[10px] font-mono opacity-65 font-medium text-muted-foreground shrink-0">
             [{idx + 1}]
           </span>
-          <h4 className="font-bold text-[12.5px] text-foreground leading-snug group-hover:text-primary transition-colors line-clamp-2 tracking-tight">
+          <h4 className="font-medium text-[12px] text-foreground leading-snug group-hover:text-primary transition-colors tracking-normal break-words">
             {item.name}
           </h4>
         </div>
         {!hasVariants && (
-          <span className="font-mono font-extrabold text-xs text-foreground shrink-0 pl-1 tabular-nums">
+          <span className="font-mono font-semibold text-xs text-foreground shrink-0 pl-1 tabular-nums">
             ₹{price}
           </span>
         )}
