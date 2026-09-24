@@ -22,7 +22,7 @@ import { POSUPIQRModal } from "../../components/POSUPIQRModal";
 import { playPaymentSuccessSound } from "@ssrone/utils";
 import { usePOSShortcuts, useBarcodeScanner, useAsyncPrintQueue, useZeroWaitOrderSync } from "../../hooks";
 import { renderSafeString } from "../../utils/renderSafeString";
-import { generateLocalOrderNumber, generateDailyTokenNumber, generateIdempotencyKey } from "../../utils/order-sequence";
+import { generateLocalOrderNumber, peekNextLocalOrderNumber, generateDailyTokenNumber, generateIdempotencyKey } from "../../utils/order-sequence";
 import { resolveHotbarItems, getStoredHotbarSlotIds } from "../../utils/posHotbarStorage";
 import { cacheCatalog } from "@/shared/utils/offline-store";
 
@@ -2145,7 +2145,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
         isOpen={isUPIModalOpen}
         onClose={() => setIsUPIModalOpen(false)}
         amount={netAmount}
-        orderNumber={recalledOrderNumber || generateLocalOrderNumber(activeBranchId, orderMode)}
+        orderNumber={recalledOrderNumber || peekNextLocalOrderNumber()}
         onConfirmPayment={() => handleCompleteAndSettle("UPI")}
       />
     </div>

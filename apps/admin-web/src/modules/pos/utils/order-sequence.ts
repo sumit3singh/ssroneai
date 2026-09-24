@@ -27,51 +27,52 @@ export function generateLocalOrderNumber(
   _branchId: number | string = 1,
   _orderMode: string = "dine_in"
 ): string {
-  const ddmmyy = getTodayDDMMYY();
-
   try {
-    const lastDate = localStorage.getItem("pos_order_seq_date");
-    let currentSeq = 1;
-
-    if (lastDate === ddmmyy) {
-      const savedCount = parseInt(localStorage.getItem("pos_daily_order_seq") || "0", 10);
-      currentSeq = savedCount + 1;
-    } else {
-      localStorage.setItem("pos_order_seq_date", ddmmyy);
-      currentSeq = 1;
-    }
-
-    localStorage.setItem("pos_daily_order_seq", currentSeq.toString());
-    return `${ddmmyy}${String(currentSeq).padStart(3, "0")}`;
+    const saved = parseInt(localStorage.getItem("pos_serial_order_seq") || "0", 10);
+    const nextSeq = saved >= 100001 ? saved + 1 : 100001;
+    localStorage.setItem("pos_serial_order_seq", nextSeq.toString());
+    return nextSeq.toString();
   } catch {
-    return `${ddmmyy}001`;
+    return "100001";
+  }
+}
+
+/**
+ * Non-mutating preview of the upcoming 6-digit serial order number (100001, 100002...).
+ * Use for UI rendering and modal props so that re-renders do NOT increment the sequence!
+ */
+export function peekNextLocalOrderNumber(): string {
+  try {
+    const saved = parseInt(localStorage.getItem("pos_serial_order_seq") || "0", 10);
+    const nextSeq = saved >= 100001 ? saved + 1 : 100001;
+    return nextSeq.toString();
+  } catch {
+    return "100001";
   }
 }
 
 /**
  * Synchronize local order sequence counter with existing orders loaded from server.
- * Ensures that if orders like 150926005 exist on the server, local counter advances past 5.
+ * Scans existing orders for 6-digit serial numbers (100001+) and ensures local counter advances past max.
  */
 export function syncLocalOrderSequenceWithOrders(orders: Array<{ order_number?: string }>): void {
   try {
-    const ddmmyy = getTodayDDMMYY();
     let maxSeq = 0;
 
     for (const ord of orders) {
       const numStr = ord?.order_number;
-      if (numStr && numStr.startsWith(ddmmyy) && numStr.length >= 9 && /^\d+$/.test(numStr)) {
-        const seqVal = parseInt(numStr.slice(ddmmyy.length), 10);
-        if (!isNaN(seqVal) && seqVal > maxSeq) {
+      if (numStr && numStr.length === 6 && /^\d{6}$/.test(numStr)) {
+        const seqVal = parseInt(numStr, 10);
+        if (!isNaN(seqVal) && seqVal >= 100001 && seqVal > maxSeq) {
           maxSeq = seqVal;
         }
       }
     }
 
     if (maxSeq > 0) {
-      const savedCount = parseInt(localStorage.getItem("pos_daily_order_seq") || "0", 10);
+      const savedCount = parseInt(localStorage.getItem("pos_serial_order_seq") || "0", 10);
       if (maxSeq > savedCount) {
-        localStorage.setItem("pos_order_seq_date", ddmmyy);
-        localStorage.setItem("pos_daily_order_seq", maxSeq.toString());
+        localStorage.setItem("pos_serial_order_seq", maxSeq.toString());
       }
     }
   } catch (e) {

@@ -30,25 +30,16 @@ IDEMPOTENCY_CACHE: dict[str, dict] = {}
 
 
 async def get_next_daily_order_number(db: AsyncSession, tenant_id: int = 1, branch_id: int = 1) -> str:
-    """Generates the next atomic order number in format DDMMYY001, DDMMYY002, ...
-    Resets daily per tenant and branch. Example: 150926001, 150926002
+    """Generates the next sequential 6-digit order number: 100001, 100002, 100003...
+    Guarantees atomic serial numbering per branch/tenant starting from 100001.
     """
-    try:
-        from zoneinfo import ZoneInfo
-        now = datetime.now(ZoneInfo("Asia/Kolkata"))
-    except Exception:
-        from datetime import timezone
-        now = datetime.now(timezone.utc)
-    ddmmyy = now.strftime("%d%m%y")
-    date_str = now.strftime("%Y-%m-%d")
-
     try:
         stmt = (
             select(DailyOrderSequence)
             .where(
                 DailyOrderSequence.tenant_id == tenant_id,
                 DailyOrderSequence.branch_id == branch_id,
-                DailyOrderSequence.sequence_date == date_str,
+                DailyOrderSequence.sequence_date == "SERIAL_6DIGIT",
             )
             .with_for_update()
         )
@@ -56,127 +47,95 @@ async def get_next_daily_order_number(db: AsyncSession, tenant_id: int = 1, bran
         seq_record = res.scalar_one_or_none()
 
         if seq_record is None:
-            # Query highest existing order for today to avoid any collision
+            # Query highest existing 6-digit order in DB to avoid collision
             from sqlalchemy import func
-            max_stmt = select(func.max(Order.order_number)).where(
+            max_stmt = select(Order.order_number).where(
                 Order.tenant_id == tenant_id,
                 Order.branch_id == branch_id,
-                Order.order_number.like(f"{ddmmyy}%"),
-            )
+                func.length(Order.order_number) == 6,
+            ).order_by(Order.order_number.desc()).limit(20)
             max_res = await db.execute(max_stmt)
-            max_ord = max_res.scalar_one_or_none()
-            start_seq = 1
-            if max_ord and len(max_ord) >= len(ddmmyy) + 3:
-                try:
-                    existing_seq = int(max_ord[len(ddmmyy):])
-                    start_seq = max(1, existing_seq + 1)
-                except Exception:
-                    start_seq = 1
+            existing_orders = max_res.scalars().all()
+
+            max_existing = 100000
+            for ord_str in existing_orders:
+                if ord_str and ord_str.isdigit() and len(ord_str) == 6:
+                    val = int(ord_str)
+                    if val > max_existing:
+                        max_existing = val
+
+            start_seq = max_existing + 1
 
             seq_record = DailyOrderSequence(
                 tenant_id=tenant_id,
                 branch_id=branch_id,
-                sequence_date=date_str,
+                sequence_date="SERIAL_6DIGIT",
                 last_seq=start_seq,
             )
             db.add(seq_record)
             next_val = start_seq
         else:
-            seq_record.last_seq += 1
+            if seq_record.last_seq < 100001:
+                seq_record.last_seq = 100001
+            else:
+                seq_record.last_seq += 1
             next_val = seq_record.last_seq
 
         await db.flush()
-        return f"{ddmmyy}{next_val:03d}"
+        return str(next_val)
     except Exception as err:
-        logger.warning("Daily order sequence query failed, auto-creating table DDL fallback", error=str(err))
+        logger.warning("Serial order sequence query failed, fallback check", error=str(err))
         try:
-            from sqlalchemy import text
-            await db.execute(text("""
-                CREATE TABLE IF NOT EXISTS daily_order_sequences (
-                    id BIGSERIAL PRIMARY KEY,
-                    tenant_id BIGINT NOT NULL DEFAULT 1,
-                    branch_id BIGINT NOT NULL DEFAULT 1,
-                    sequence_date VARCHAR(10) NOT NULL,
-                    last_seq INTEGER DEFAULT 0 NOT NULL,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-                    CONSTRAINT uq_tenant_branch_date_seq UNIQUE (tenant_id, branch_id, sequence_date)
-                );
-            """))
-            await db.commit()
-
-            stmt2 = (
-                select(DailyOrderSequence)
-                .where(
-                    DailyOrderSequence.tenant_id == tenant_id,
-                    DailyOrderSequence.branch_id == branch_id,
-                    DailyOrderSequence.sequence_date == date_str,
-                )
-                .with_for_update()
-            )
-            res2 = await db.execute(stmt2)
-            rec2 = res2.scalar_one_or_none()
-            if rec2 is None:
-                rec2 = DailyOrderSequence(
-                    tenant_id=tenant_id,
-                    branch_id=branch_id,
-                    sequence_date=date_str,
-                    last_seq=1,
-                )
-                db.add(rec2)
-                next_val = 1
-            else:
-                rec2.last_seq += 1
-                next_val = rec2.last_seq
-            await db.flush()
-            return f"{ddmmyy}{next_val:03d}"
-        except Exception as fallback_err:
-            logger.error("Sequence fallback error", error=str(fallback_err))
-            import time
-            return f"{ddmmyy}{(int(time.time()) % 900 + 1):03d}"
+            from sqlalchemy import func
+            max_stmt = select(Order.order_number).where(
+                Order.tenant_id == tenant_id,
+                Order.branch_id == branch_id,
+                func.length(Order.order_number) == 6,
+            ).order_by(Order.order_number.desc()).limit(20)
+            max_res = await db.execute(max_stmt)
+            existing_orders = max_res.scalars().all()
+            max_existing = 100000
+            for ord_str in existing_orders:
+                if ord_str and ord_str.isdigit() and len(ord_str) == 6:
+                    val = int(ord_str)
+                    if val > max_existing:
+                        max_existing = val
+            return str(max_existing + 1)
+        except Exception:
+            return "100001"
 
 
 async def peek_next_daily_order_number(db: AsyncSession, tenant_id: int = 1, branch_id: int = 1) -> str:
-    """Previews the upcoming order number in format DDMMYY001 without committing."""
-    try:
-        from zoneinfo import ZoneInfo
-        now = datetime.now(ZoneInfo("Asia/Kolkata"))
-    except Exception:
-        from datetime import timezone
-        now = datetime.now(timezone.utc)
-    ddmmyy = now.strftime("%d%m%y")
-    date_str = now.strftime("%Y-%m-%d")
-
+    """Previews the upcoming 6-digit order number (e.g. 100001) without committing."""
     try:
         stmt = select(DailyOrderSequence).where(
             DailyOrderSequence.tenant_id == tenant_id,
             DailyOrderSequence.branch_id == branch_id,
-            DailyOrderSequence.sequence_date == date_str,
+            DailyOrderSequence.sequence_date == "SERIAL_6DIGIT",
         )
         res = await db.execute(stmt)
         seq_record = res.scalar_one_or_none()
+        if seq_record and seq_record.last_seq >= 100001:
+            return str(seq_record.last_seq + 1)
 
-        if seq_record:
-            next_val = seq_record.last_seq + 1
-        else:
-            from sqlalchemy import func
-            max_stmt = select(func.max(Order.order_number)).where(
-                Order.tenant_id == tenant_id,
-                Order.branch_id == branch_id,
-                Order.order_number.like(f"{ddmmyy}%"),
-            )
-            max_res = await db.execute(max_stmt)
-            max_ord = max_res.scalar_one_or_none()
-            next_val = 1
-            if max_ord and len(max_ord) >= len(ddmmyy) + 3:
-                try:
-                    existing_seq = int(max_ord[len(ddmmyy):])
-                    next_val = max(1, existing_seq + 1)
-                except Exception:
-                    next_val = 1
-        return f"{ddmmyy}{next_val:03d}"
-    except Exception:
-        return f"{ddmmyy}001"
+        from sqlalchemy import func
+        max_stmt = select(Order.order_number).where(
+            Order.tenant_id == tenant_id,
+            Order.branch_id == branch_id,
+            func.length(Order.order_number) == 6,
+        ).order_by(Order.order_number.desc()).limit(20)
+        max_res = await db.execute(max_stmt)
+        existing_orders = max_res.scalars().all()
+        max_existing = 100000
+        for ord_str in existing_orders:
+            if ord_str and ord_str.isdigit() and len(ord_str) == 6:
+                val = int(ord_str)
+                if val > max_existing:
+                    max_existing = val
+        return str(max_existing + 1)
+    except Exception as err:
+        logger.warning("Could not peek order sequence", error=str(err))
+        return "100001"
 
 
 
@@ -608,14 +567,14 @@ async def create_order(
         now_dt = datetime.now(timezone.utc)
     today_prefix = now_dt.strftime("%d%m%y")
 
-    is_client_ddmmyy = (
+    is_client_serial = (
         bool(body.order_number)
-        and body.order_number.startswith(today_prefix)
-        and len(body.order_number) >= 9
+        and len(body.order_number) == 6
         and body.order_number.isdigit()
+        and int(body.order_number) >= 100001
     )
 
-    if is_client_ddmmyy and body.order_number:
+    if is_client_serial and body.order_number:
         stmt_taken = select(Order).where(
             Order.order_number == body.order_number,
             Order.tenant_id == tenant_id,
@@ -625,13 +584,13 @@ async def create_order(
         if not taken_order:
             order_number = body.order_number
             try:
-                client_seq_val = int(body.order_number[len(today_prefix):])
+                client_seq_val = int(body.order_number)
                 seq_stmt = (
                     select(DailyOrderSequence)
                     .where(
                         DailyOrderSequence.tenant_id == tenant_id,
                         DailyOrderSequence.branch_id == parsed_branch_id,
-                        DailyOrderSequence.sequence_date == now_dt.strftime("%Y-%m-%d"),
+                        DailyOrderSequence.sequence_date == "SERIAL_6DIGIT",
                     )
                     .with_for_update()
                 )
@@ -643,7 +602,7 @@ async def create_order(
                     db.add(DailyOrderSequence(
                         tenant_id=tenant_id,
                         branch_id=parsed_branch_id,
-                        sequence_date=now_dt.strftime("%Y-%m-%d"),
+                        sequence_date="SERIAL_6DIGIT",
                         last_seq=client_seq_val,
                     ))
                 await db.flush()
