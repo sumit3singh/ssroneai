@@ -66,14 +66,14 @@ export const POSExpressHotbar: React.FC<POSExpressHotbarProps> = ({
 
       <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-1.5">
         {expressItems.map((item, idx) => {
-          const keyLabel = `F${idx + 1}`;
+          const keyLabel = `⇧F${idx + 1}`;
           const isVeg = item.is_veg;
           return (
             <button
               key={item.id}
               type="button"
               onClick={() => onAddToCart(item)}
-              title={`[${keyLabel} / Shift+${keyLabel}] 1-Touch Add: ${item.name}`}
+              title={`[Shift+F${idx + 1}] 1-Touch Add: ${item.name}`}
               className="group relative flex flex-col justify-between p-1.5 rounded-md bg-background hover:bg-primary/10 border border-border hover:border-primary/50 transition-all text-left cursor-pointer active:scale-95 shadow-2xs h-[58px] overflow-hidden select-none"
             >
               {/* Top Row: Clean Key Badge */}

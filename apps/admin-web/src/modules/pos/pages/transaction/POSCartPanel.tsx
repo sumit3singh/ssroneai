@@ -280,15 +280,6 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
                 <span>TOKEN (Alt+Q)</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => setIsShortcutsModalOpen(true)}
-              className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all flex items-center gap-1 cursor-pointer"
-              title="Keyboard Shortcuts & Barcode Guide [/ or Ctrl+K]"
-            >
-              <Keyboard size={11} />
-              <span>KEYS</span>
-            </button>
             {onOpenTrackerModal && (
               <button
                 type="button"
@@ -1021,23 +1012,6 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
           </div>
         </div>
 
-        {/* Payment Method Selector */}
-        <div className="grid grid-cols-3 gap-1 pt-0.5">
-          {PAYMENT_METHODS.slice(0, 3).map((pm) => (
-            <button
-              key={pm.method}
-              type="button"
-              onClick={() => setPaymentMethod(pm.method)}
-              className={`py-1.5 px-1 rounded-md text-xs font-semibold flex items-center justify-center gap-1 border transition-all cursor-pointer touch-manipulation active:scale-95 ${
-                paymentMethod === pm.method
-                  ? "bg-primary text-primary-foreground border-primary shadow-2xs"
-                  : "bg-muted/30 border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <span>{pm.label}</span>
-            </button>
-          ))}
-        </div>
 
         {/* OPERATIONAL ACTION BUTTONS (Hold F1, Send KOT F2, Pay & Print F3) */}
         <div className="grid grid-cols-3 xs:grid-cols-[1fr_1.1fr_1.4fr] gap-1 pt-1 shrink-0">

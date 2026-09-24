@@ -62,90 +62,67 @@ const POSItemCard: React.FC<POSItemCardProps> = React.memo(({
 
   return (
     <div
+      id={`pos-item-card-${idx}`}
       onClick={handleCardClick}
-      style={{ contentVisibility: "auto", containIntrinsicSize: "82px" }}
-      className={`group border rounded-lg p-2 flex flex-col justify-between cursor-pointer shadow-2xs transition-all duration-150 relative min-h-[76px] sm:min-h-[82px] shrink-0 active:scale-[0.99] select-none ${
+      style={{ contentVisibility: "auto", containIntrinsicSize: "76px" }}
+      className={`group border rounded-lg p-2 flex flex-col justify-between cursor-pointer shadow-2xs transition-all duration-150 relative min-h-[72px] shrink-0 active:scale-[0.99] select-none ${
         isHighlighted
           ? "bg-primary/5 border-primary ring-2 ring-primary/60 shadow-md shadow-primary/10 scale-[1.01]"
           : "bg-card border-border hover:border-primary/80 hover:shadow-xs"
       }`}
     >
-      {/* Top Row: Veg/Non-Veg [Index] on Left | RATE / PRICE IN TOP MIDDLE | Status/Custom Badge on Right */}
-      <div className="flex items-center justify-between gap-1 pb-1 border-b border-border/40">
-        {/* Left: Index (Non-veg dot ONLY if not vegetarian) */}
-        <div className="flex items-center gap-1 shrink-0">
+      {/* Header: [Index] Menu Item Name & Rate */}
+      <div className="flex items-start justify-between gap-1 w-full">
+        <div className="flex items-start gap-1 min-w-0 flex-1">
           {!item.is_veg && (
             <span
               title="Non-Vegetarian"
-              className="h-3 w-3 border border-rose-600 bg-rose-50 dark:bg-rose-950/40 rounded-sm flex items-center justify-center p-0.5"
+              className="h-3 w-3 border border-rose-600 bg-rose-50 dark:bg-rose-950/40 rounded-sm flex items-center justify-center p-0.5 mt-0.5 shrink-0"
             >
               <span className="h-1 w-1 rounded-full bg-rose-600" />
             </span>
           )}
-          <span className="text-[10px] font-mono opacity-70 font-extrabold text-foreground">[{idx + 1}]</span>
+          <span className="text-[10px] font-mono opacity-60 font-bold text-foreground shrink-0">
+            [{idx + 1}]
+          </span>
+          <h4 className="font-bold text-xs text-foreground leading-snug group-hover:text-primary transition-colors line-clamp-2">
+            {item.name}
+          </h4>
         </div>
-
-        {/* Top Middle: Rate / Price (Suppressed if dish has size variants) */}
         {!hasVariants && (
-          <div className="font-mono font-black text-xs sm:text-[13px] text-foreground text-center tracking-tight flex items-center gap-1">
-            <span>₹{price}</span>
-            {matchedActiveVariant && (
-              <span className="text-[8px] font-mono font-bold text-sky-600 dark:text-sky-400 bg-sky-500/15 px-1 rounded-xs">
-                {matchedActiveVariant.name.split(" ")[0]}
-              </span>
-            )}
-          </div>
+          <span className="font-mono font-black text-xs text-foreground shrink-0 pl-1">
+            ₹{price}
+          </span>
         )}
+      </div>
 
-        {/* Right: Enter / Sizes Badge */}
-        <div className="flex items-center gap-1 shrink-0">
-          {isHighlighted && (
-            <span className="text-[9px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/20 border border-emerald-500/30 px-1 py-0.2 rounded">
-              ↵ Enter
-            </span>
-          )}
-          {hasVariants && (
-            <span className="text-[9px] font-mono font-bold text-primary bg-primary/10 border border-primary/20 px-1 py-0.2 rounded-sm uppercase">
-              Sizes
-            </span>
-          )}
+      {/* 1-Click Instant Variant Size Chips (Half ₹60, Full ₹80) */}
+      {hasVariants && variantGroups[0]?.options && (
+        <div className="flex flex-wrap items-center gap-1 pt-1.5 max-w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          {variantGroups[0].options.map((opt: any, optIdx: number) => {
+            const optPrice = Number(opt.sellingPrice ?? opt.price ?? 0);
+            const isChipActive = matchedActiveVariant && (matchedActiveVariant.id || matchedActiveVariant.name) === (opt.id || opt.name);
+            return (
+              <button
+                key={opt.id || opt.name || optIdx}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddToCart(item, opt);
+                }}
+                className={`px-1.5 py-0.5 rounded-sm text-[9px] font-mono font-bold transition-all cursor-pointer whitespace-nowrap shadow-2xs active:scale-95 ${
+                  isChipActive
+                    ? "bg-sky-600 text-white border border-sky-500 shadow-xs"
+                    : "bg-sky-500/10 hover:bg-sky-500/20 text-sky-700 dark:text-sky-300 border border-sky-500/30"
+                }`}
+                title={`Click to add ${opt.name} ₹${optPrice}`}
+              >
+                {opt.name.split(" ")[0]} ₹{optPrice}
+              </button>
+            );
+          })}
         </div>
-      </div>
-
-      {/* Card Body: Dish Name + 1-Click Variant Chips */}
-      <div className="pt-1 flex-1 flex flex-col justify-between">
-        <h4 className="font-semibold text-xs text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">
-          {item.name}
-        </h4>
-
-        {/* 1-CLICK INSTANT VARIANT SIZE CHIPS */}
-        {hasVariants && variantGroups[0]?.options && (
-          <div className="flex flex-wrap items-center gap-1 pt-1 max-w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            {variantGroups[0].options.map((opt: any, optIdx: number) => {
-              const optPrice = Number(opt.sellingPrice ?? opt.price ?? 0);
-              const isChipActive = matchedActiveVariant && (matchedActiveVariant.id || matchedActiveVariant.name) === (opt.id || opt.name);
-              return (
-                <button
-                  key={opt.id || opt.name || optIdx}
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAddToCart(item, opt);
-                  }}
-                  className={`px-1.5 py-0.5 rounded-sm text-[9px] font-mono font-bold transition-all cursor-pointer whitespace-nowrap shadow-2xs active:scale-95 ${
-                    isChipActive
-                      ? "bg-sky-600 text-white border border-sky-500 shadow-xs"
-                      : "bg-sky-500/10 hover:bg-sky-500/20 text-sky-700 dark:text-sky-300 border border-sky-500/30"
-                  }`}
-                  title={`Click to add ${opt.name} ₹${optPrice}`}
-                >
-                  {opt.name.split(" ")[0]} ₹{optPrice}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 });
@@ -191,10 +168,20 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
     });
   }, [categories, categorySearchTerm]);
 
-  // Reset highlighted index when filter results change
+  // Reset highlighted index when filter results change (active index if searching, else -1)
   React.useEffect(() => {
-    setHighlightedIndex(0);
+    setHighlightedIndex(searchTerm.trim() ? 0 : -1);
   }, [searchTerm, selectedCategoryId, vegOnlyFilter]);
+
+  // Auto-scroll catalog grid when navigating with arrow keys
+  React.useEffect(() => {
+    if (highlightedIndex >= 0) {
+      const el = document.getElementById(`pos-item-card-${highlightedIndex}`);
+      if (el) {
+        el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    }
+  }, [highlightedIndex]);
 
   // Reset active variant filter when changing category
   React.useEffect(() => {
@@ -445,121 +432,117 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
 
       {/* Search Input, Category Tabs & Controls Header Bar */}
       <div className="bg-card border border-border rounded-lg p-2 shadow-2xs space-y-1.5 shrink-0">
-        {/* Top Control Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          {/* Search Input (Compact, in front of tools line) */}
-          <div className="flex items-center gap-1.5 flex-1 min-w-[220px] max-w-xs sm:max-w-sm">
-            <div className="relative w-full">
-              <Input
-                id="pos-menu-search-input"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+        {/* Top Control Bar: Search Input + Tools in ONE SINGLE NON-WRAPPING ROW */}
+        <div className="flex items-center gap-1.5 w-full overflow-x-auto scrollbar-none">
+          {/* Search Input (Flexible width, in front of tools line) */}
+          <div className="relative flex-1 min-w-[130px] max-w-sm shrink">
+            <Input
+              id="pos-menu-search-input"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+                  e.preventDefault();
+                  setHighlightedIndex((prev) => Math.min(filteredMenuItems.length - 1, Math.max(0, prev + 1)));
+                } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+                  e.preventDefault();
+                  setHighlightedIndex((prev) => Math.max(0, prev - 1));
+                } else if (e.key === "Enter") {
+                  if (highlightedIndex >= 0 && filteredMenuItems[highlightedIndex]) {
                     e.preventDefault();
-                    setHighlightedIndex((prev) => Math.min(filteredMenuItems.length - 1, Math.max(0, prev + 1)));
-                  } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
-                    e.preventDefault();
-                    setHighlightedIndex((prev) => Math.max(0, prev - 1));
-                  } else if (e.key === "Enter") {
-                    handleNumpadEnter(e);
+                    const item = filteredMenuItems[highlightedIndex];
+                    const optToAdd = activeVariantFilter
+                      ? findVariantBySizeCode(item, activeVariantFilter.name)
+                      : undefined;
+                    onAddToCart(item, optToAdd);
+                    toast.success(`Added 1x ${item.name}`, { icon: "⚡" });
+                    setSearchTerm("");
+                    setHighlightedIndex(-1);
+                    return;
                   }
-                }}
-                placeholder="Search dish / code (or 5*1)..."
-                icon={<Search size={14} className="text-muted-foreground" />}
-                className="h-8 text-xs font-medium bg-background border-border focus:ring-1 focus:ring-primary rounded-md pr-16"
-              />
-              {searchTerm && filteredMenuItems.length > 0 ? (
-                <kbd className="absolute right-2 top-1.5 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[9px] font-mono font-extrabold pointer-events-none select-none animate-in fade-in flex items-center gap-1">
-                  <span>↵ Enter</span>
-                </kbd>
-              ) : (
-                !searchTerm && (
-                  <kbd className="absolute right-2 top-1.5 px-1.5 py-0.5 rounded bg-muted/80 border border-border text-[9px] font-mono font-bold text-muted-foreground pointer-events-none select-none hidden sm:inline">
-                    /
-                  </kbd>
-                )
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
-            {/* Multilingual AI Voice Order Taking Button */}
-            <POSVoiceOrderButton menuItems={menuItems} onAddToCart={onAddToCart} />
-
-            {/* Customer-Facing Display (CFD 2nd Monitor) Launcher */}
-            <button
-              type="button"
-              onClick={() => window.open("/pos/cfd", "_blank", "width=1200,height=800")}
-              className="h-8 px-2 sm:px-2.5 rounded text-xs font-semibold bg-background border border-border text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 cursor-pointer"
-              title="Open Customer-Facing Display (2nd Screen Kiosk Window)"
-            >
-              <Tv size={13} className="text-primary" />
-              <span className="hidden sm:inline">2nd Screen</span>
-            </button>
-
-            {/* Table Floor Tracker Button */}
-            <button
-              type="button"
-              onClick={() => {
-                if (onNavigateToTables) {
-                  onNavigateToTables();
-                } else {
-                  navigate({ to: "/pos/transaction/tables" });
+                  handleNumpadEnter(e);
                 }
               }}
-              className="h-8 px-2.5 sm:px-3 rounded-md text-xs font-extrabold flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white border border-amber-600 shadow-xs active:scale-95 transition-all cursor-pointer"
-              title="View & Assign Dining Tables Floor Layout"
-            >
-              <LayoutGrid size={14} className="text-white" />
-              <span className="hidden xs:inline">Table Floor Grid</span>
-              <span className="xs:hidden">Tables</span>
-            </button>
-
-            {/* Veg Only Toggle (Auto-hidden for pure-veg branches) */}
-            {hasNonVegItems && (
-              <button
-                type="button"
-                onClick={() => setVegOnlyFilter((prev) => !prev)}
-                className={`h-8 px-2 sm:px-2.5 rounded text-xs font-medium flex items-center gap-1.5 border transition-colors cursor-pointer ${
-                  vegOnlyFilter
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                    : "bg-background border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <Leaf size={12} className={vegOnlyFilter ? "text-emerald-600" : "text-muted-foreground"} />
-                <span>Veg</span>
-              </button>
-            )}
-
-            {/* Toggle Category Bar Position */}
-            <button
-              type="button"
-              onClick={() => setIsVerticalCategories((prev) => !prev)}
-              className="h-8 px-2 sm:px-2.5 rounded text-xs font-semibold bg-background border border-border text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 cursor-pointer"
-              title="Toggle category list position (Top Bar vs Left Sidebar)"
-            >
-              <Sparkles size={12} className="text-primary" />
-              <span>{isVerticalCategories ? "Top Cats" : "Side Cats"}</span>
-            </button>
-
-            {/* Full-Screen Workspace Toggle Button */}
-            {onToggleFullScreen && (
-              <button
-                type="button"
-                onClick={onToggleFullScreen}
-                title={isFullScreenPOS ? "Exit Fullscreen Kiosk Mode" : "Enter Fullscreen Kiosk Mode"}
-                className={`h-8 px-2 sm:px-2.5 rounded font-semibold text-xs flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-xs ${
-                  isFullScreenPOS
-                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 hover:bg-rose-500/20"
-                    : "bg-primary text-primary-foreground hover:bg-primary/90 border border-primary/20"
-                }`}
-              >
-                {isFullScreenPOS ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-                <span className="hidden sm:inline">{isFullScreenPOS ? "Exit Kiosk (F11)" : "Kiosk Fullscreen (F11)"}</span>
-              </button>
+              placeholder="Search dish / code (or 5*1)..."
+              icon={<Search size={14} className="text-muted-foreground" />}
+              className="h-8 text-xs font-medium bg-background border-border focus:ring-1 focus:ring-primary rounded-md pr-14"
+            />
+            {searchTerm && filteredMenuItems.length > 0 ? (
+              <kbd className="absolute right-2 top-1.5 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[9px] font-mono font-extrabold pointer-events-none select-none animate-in fade-in flex items-center gap-1">
+                <span>↵ Enter</span>
+              </kbd>
+            ) : (
+              !searchTerm && (
+                <kbd className="absolute right-2 top-1.5 px-1.5 py-0.5 rounded bg-muted/80 border border-border text-[9px] font-mono font-bold text-muted-foreground pointer-events-none select-none hidden sm:inline">
+                  /
+                </kbd>
+              )
             )}
           </div>
+
+          {/* Multilingual AI Voice Order Taking Button */}
+          <POSVoiceOrderButton menuItems={menuItems} onAddToCart={onAddToCart} />
+
+          {/* Table Floor Tracker Button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (onNavigateToTables) {
+                onNavigateToTables();
+              } else {
+                navigate({ to: "/pos/transaction/tables" });
+              }
+            }}
+            className="h-8 px-2.5 rounded-md text-xs font-extrabold flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white border border-amber-600 shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+            title="View & Assign Dining Tables Floor Layout"
+          >
+            <LayoutGrid size={13} className="text-white" />
+            <span>Tables</span>
+          </button>
+
+          {/* Veg Only Toggle (Auto-hidden for pure-veg branches) */}
+          {hasNonVegItems && (
+            <button
+              type="button"
+              onClick={() => setVegOnlyFilter((prev) => !prev)}
+              className={`h-8 px-2 rounded-md text-xs font-medium flex items-center gap-1.5 border transition-colors cursor-pointer shrink-0 ${
+                vegOnlyFilter
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                  : "bg-background border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              <Leaf size={12} className={vegOnlyFilter ? "text-emerald-600" : "text-muted-foreground"} />
+              <span>Veg</span>
+            </button>
+          )}
+
+          {/* Toggle Category Bar Position */}
+          <button
+            type="button"
+            onClick={() => setIsVerticalCategories((prev) => !prev)}
+            className="h-8 px-2 rounded-md text-xs font-semibold bg-background border border-border text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 cursor-pointer shrink-0"
+            title="Toggle category list position (Top Bar vs Left Sidebar)"
+          >
+            <Sparkles size={12} className="text-primary" />
+            <span>{isVerticalCategories ? "Top Cats" : "Side Cats"}</span>
+          </button>
+
+          {/* Full-Screen Workspace Toggle Button */}
+          {onToggleFullScreen && (
+            <button
+              type="button"
+              onClick={onToggleFullScreen}
+              title={isFullScreenPOS ? "Exit Fullscreen Kiosk Mode" : "Enter Fullscreen Kiosk Mode"}
+              className={`h-8 px-2 sm:px-2.5 rounded-md font-semibold text-xs flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-xs ${
+                isFullScreenPOS
+                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 hover:bg-rose-500/20"
+                  : "bg-primary text-primary-foreground hover:bg-primary/90 border border-primary/20"
+              }`}
+            >
+              {isFullScreenPOS ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+              <span>{isFullScreenPOS ? "Exit Kiosk (F11)" : "Kiosk Fullscreen (F11)"}</span>
+            </button>
+          )}
         </div>
 
         {/* Horizontal Category Bar */}
