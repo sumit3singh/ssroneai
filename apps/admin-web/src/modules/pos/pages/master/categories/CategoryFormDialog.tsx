@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { FolderPlus, X, Sparkles } from "lucide-react";
+import { FolderPlus, X, Check } from "lucide-react";
 import { Input, Button } from "@ssrone/ui";
 import { POSCategory } from "../../../types";
+import {
+  SOBER_CATEGORY_COLORS,
+  parseCategoryIcon,
+  buildCategoryIcon,
+} from "../../../utils/posCategoryColors";
 
 interface CategoryFormDialogProps {
   isOpen: boolean;
@@ -20,17 +25,21 @@ export const CategoryFormDialog: React.FC<CategoryFormDialogProps> = ({
 }) => {
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("🍛");
+  const [colorId, setColorId] = useState<string>("amber");
   const [sortOrder, setSortOrder] = useState<number>(1);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (editingCategory) {
       setName(editingCategory.name || "");
-      setIcon(editingCategory.icon || "🍛");
+      const parsed = parseCategoryIcon(editingCategory.icon);
+      setIcon(parsed.icon || "🍛");
+      setColorId(parsed.colorId || "amber");
       setSortOrder(editingCategory.sort_order ?? 1);
     } else {
       setName("");
       setIcon("🍛");
+      setColorId("amber");
       setSortOrder(1);
     }
   }, [editingCategory, isOpen]);
@@ -44,7 +53,8 @@ export const CategoryFormDialog: React.FC<CategoryFormDialogProps> = ({
     if (!name.trim()) return;
     setIsSaving(true);
     try {
-      await onSave(name.trim(), icon, {
+      const finalIcon = buildCategoryIcon(icon, colorId);
+      await onSave(name.trim(), finalIcon, {
         slug: generatedSlug || "category",
         sort_order: Number(sortOrder) || 1,
       });
@@ -132,6 +142,41 @@ export const CategoryFormDialog: React.FC<CategoryFormDialogProps> = ({
                   {emoji}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Sober Pastel Theme Color Chart */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] uppercase font-extrabold tracking-wider text-slate-500 dark:text-slate-400">
+                Category Color Theme (Light & Sober)
+              </label>
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 capitalize">
+                {SOBER_CATEGORY_COLORS.find((c) => c.id === colorId)?.name || colorId}
+              </span>
+            </div>
+            <div className="grid grid-cols-5 gap-2 p-2 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800">
+              {SOBER_CATEGORY_COLORS.map((theme) => {
+                const isSelected = colorId === theme.id;
+                return (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    onClick={() => setColorId(theme.id)}
+                    className={`h-8 rounded-xl border flex items-center justify-center gap-1.5 transition-all cursor-pointer relative ${theme.bg} ${theme.border} ${
+                      isSelected
+                        ? "ring-2 ring-slate-900 dark:ring-white shadow-sm scale-105"
+                        : "hover:scale-102 opacity-85 hover:opacity-100"
+                    }`}
+                    title={theme.name}
+                  >
+                    <span className={`w-2.5 h-2.5 rounded-full ${theme.dot}`} />
+                    {isSelected && (
+                      <Check size={11} className={theme.text} strokeWidth={3} />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

@@ -1,10 +1,13 @@
-import React, { useState } from "react";
-import { Plus, Search, Utensils, Edit2, Trash2, Layers, Package, Sparkles, ChevronDown, ChevronUp, Tag, AlertCircle, CheckCircle2, X, Zap, Scale } from "lucide-react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { Plus, Search, Utensils, Edit2, Trash2, Layers, Package, Sparkles, ChevronDown, ChevronUp, Tag, AlertCircle, CheckCircle2, X, Zap, Scale, Check } from "lucide-react";
 import { Button, Input, PageHeader, PageContainer } from "@ssrone/ui";
+import { api } from "@ssrone/api-client";
+import { toast } from "sonner";
 import { POSMenuItem, POSCategory } from "../../../types";
 import { MenuTagMasterModal } from "../MenuTagMasterModal";
 import { ItemVariantsAddonsModal } from "../ItemVariantsAddonsModal";
 import { RecipeBOMModal } from "../RecipeBOMModal";
+import { POSHotbarSetupModal } from "./POSHotbarSetupModal";
 
 interface MenuItemMasterPageProps {
   menuItems: POSMenuItem[];
@@ -14,8 +17,151 @@ interface MenuItemMasterPageProps {
   onDelete: (id: number) => Promise<void>;
   onToggleAvailability: (item: POSMenuItem) => Promise<void>;
   onTogglePopular?: (item: POSMenuItem) => Promise<void>;
+  onSaveMenuItem?: (itemData: Partial<POSMenuItem>) => Promise<void>;
   isLoading?: boolean;
 }
+
+interface InlineItemCodeCellProps {
+  item: POSMenuItem;
+  onUpdate: (newCode: string) => Promise<void>;
+}
+
+const InlineItemCodeCell: React.FC<InlineItemCodeCellProps> = ({ item, onUpdate }) => {
+  const currentCode = item.item_code || (item as any).itemCode || `P${item.id}`;
+  const [isEditing, setIsEditing] = useState(false);
+  const [codeValue, setCodeValue] = useState(currentCode);
+  const [isSaving, setIsSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setCodeValue(item.item_code || (item as any).itemCode || `P${item.id}`);
+  }, [item.item_code, (item as any).itemCode, item.id]);
+
+  useEffect(() => {
+    if (isEditing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [isEditing]);
+
+  const handleCommit = async () => {
+    const trimmed = codeValue.trim();
+    if (!trimmed || trimmed === currentCode) {
+      setCodeValue(currentCode);
+      setIsEditing(false);
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await onUpdate(trimmed);
+      toast.success(`Item code updated to "${trimmed}"`);
+      setIsEditing(false);
+    } catch {
+      setCodeValue(currentCode);
+      setIsEditing(false);
+      toast.error("Failed to update item code");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleCommit();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setCodeValue(currentCode);
+      setIsEditing(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={codeValue}
+          onChange={(e) => setCodeValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={handleCommit}
+          disabled={isSaving}
+          className="font-mono text-xs font-bold text-primary bg-background border border-primary rounded px-1.5 py-0.5 w-24 focus:outline-none focus:ring-1 focus:ring-primary shadow-xs"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={(e) => {
+        e.stopPropagation();
+        setIsEditing(true);
+      }}
+      title="Click to edit item code"
+      className="group/code inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 hover:border-primary cursor-pointer transition-colors"
+    >
+      <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
+        {codeValue}
+      </span>
+      <Edit2
+        size={10}
+        className="text-muted-foreground opacity-0 group-hover/code:opacity-100 transition-opacity"
+      />
+    </div>
+  );
+};
+
+interface InlineKdsStationCellProps {
+  item: POSMenuItem;
+  stations: string[];
+  onUpdate: (newStation: string) => Promise<void>;
+}
+
+const InlineKdsStationCell: React.FC<InlineKdsStationCellProps> = ({ item, stations, onUpdate }) => {
+  const currentStation = item.kds_station || "Main Kitchen";
+  const [selectedStation, setSelectedStation] = useState(currentStation);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  useEffect(() => {
+    setSelectedStation(item.kds_station || "Main Kitchen");
+  }, [item.kds_station]);
+
+  const handleChange = async (newStation: string) => {
+    if (newStation === currentStation) return;
+    const prev = selectedStation;
+    setSelectedStation(newStation);
+    setIsUpdating(true);
+    try {
+      await onUpdate(newStation);
+      toast.success(`Station for "${item.name}" updated to "${newStation}"`);
+    } catch {
+      setSelectedStation(prev);
+      toast.error("Failed to update KDS station");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  return (
+    <div onClick={(e) => e.stopPropagation()} className="inline-block">
+      <select
+        value={selectedStation}
+        onChange={(e) => handleChange(e.target.value)}
+        disabled={isUpdating}
+        className="font-mono text-[11px] font-semibold bg-muted/60 hover:bg-muted text-foreground border border-border/80 rounded px-2 py-0.5 cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary transition-colors max-w-[130px]"
+      >
+        {stations.map((s) => (
+          <option key={s} value={s}>
+            {s}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+};
 
 export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
   menuItems = [],
@@ -25,6 +171,7 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
   onDelete,
   onToggleAvailability,
   onTogglePopular,
+  onSaveMenuItem,
   isLoading = false
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -34,8 +181,43 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
 
   // Sub-modals state for Enterprise Features
   const [isTagModalOpen, setIsTagModalOpen] = useState(false);
+  const [isHotbarModalOpen, setIsHotbarModalOpen] = useState(false);
   const [variantModalItem, setVariantModalItem] = useState<POSMenuItem | null>(null);
   const [recipeModalItem, setRecipeModalItem] = useState<POSMenuItem | null>(null);
+
+  // Kitchen Stations dynamically resolved from API + menu items + standard defaults
+  const [kitchenStations, setKitchenStations] = useState<string[]>([]);
+
+  useEffect(() => {
+    api.get<any[]>("/restaurant/kitchen-stations")
+      .then((res) => {
+        if (Array.isArray(res)) {
+          const names = res.map((s) => s.name).filter(Boolean);
+          if (names.length > 0) setKitchenStations(names);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const availableStations = useMemo(() => {
+    const set = new Set<string>([
+      "Main Kitchen",
+      "Chinese",
+      "Indian",
+      "Italian",
+      "Drinks",
+      "Tandoor & Charcoal",
+      "Chinese & Asian Wok",
+      "Beverages & Bar",
+      "Bakery & Desserts",
+      "Pizzeria & Oven",
+      ...kitchenStations,
+    ]);
+    for (const item of menuItems) {
+      if (item.kds_station) set.add(item.kds_station);
+    }
+    return Array.from(set);
+  }, [kitchenStations, menuItems]);
 
   // Compute KPI Statistics
   const totalCount = menuItems.length;
@@ -85,6 +267,14 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
         badge={`${totalCount} Dishes`}
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsHotbarModalOpen(true)}
+              size="sm"
+              className="text-xs font-bold gap-1.5 cursor-pointer shadow-xs border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+            >
+              <Zap size={14} className="fill-amber-500 text-amber-500" /> Hotbar Setup (F1–F12)
+            </Button>
             <Button
               variant="outline"
               onClick={() => setIsTagModalOpen(true)}
@@ -316,10 +506,15 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                             </button>
                           )}
                         </td>
-                        <td className="p-2.5 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400" onClick={() => toggleExpandRow(item.id)}>
-                          <span className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60">
-                            {displayCode}
-                          </span>
+                        <td className="p-2.5">
+                          <InlineItemCodeCell
+                            item={item}
+                            onUpdate={async (newCode) => {
+                              if (onSaveMenuItem) {
+                                await onSaveMenuItem({ ...item, item_code: newCode });
+                              }
+                            }}
+                          />
                         </td>
                         <td className="p-2.5 font-medium text-foreground" onClick={() => toggleExpandRow(item.id)}>
                           <div className="flex items-center gap-2">
@@ -393,7 +588,17 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                             </span>
                           )}
                         </td>
-                        <td className="p-2.5 font-mono text-xs text-muted-foreground">{item.kds_station || "Main Kitchen"}</td>
+                        <td className="p-2.5">
+                          <InlineKdsStationCell
+                            item={item}
+                            stations={availableStations}
+                            onUpdate={async (newStation) => {
+                              if (onSaveMenuItem) {
+                                await onSaveMenuItem({ ...item, kds_station: newStation });
+                              }
+                            }}
+                          />
+                        </td>
                         <td className="p-2.5 text-center font-mono text-xs text-muted-foreground">
                           {item.packaging_charge ? `₹${item.packaging_charge}` : "--"}
                         </td>
@@ -591,6 +796,14 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
         isOpen={!!recipeModalItem}
         menuItem={recipeModalItem}
         onClose={() => setRecipeModalItem(null)}
+      />
+
+      <POSHotbarSetupModal
+        isOpen={isHotbarModalOpen}
+        onClose={() => setIsHotbarModalOpen(false)}
+        menuItems={menuItems}
+        categories={categories}
+        onSaveMenuItem={onSaveMenuItem}
       />
     </PageContainer>
   );

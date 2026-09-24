@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { FolderPlus, Search, Utensils, Edit2, Power, CheckCircle2, Sparkles } from "lucide-react";
+import { FolderPlus, Search, Utensils, Edit2, Power, Sparkles } from "lucide-react";
 import { Button, Input, PageHeader, PageContainer } from "@ssrone/ui";
 import { POSCategory } from "../../../types";
+import { getCategoryColor, renderCategoryIcon } from "../../../utils/posCategoryColors";
 
 interface CategoryListPageProps {
   categories: POSCategory[];
@@ -109,48 +110,51 @@ export const CategoryListPage: React.FC<CategoryListPageProps> = ({
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-          {filteredCategories.map((cat) => (
-            <div
-              key={cat.id}
-              className="bg-card border border-border rounded-md p-3 flex items-center justify-between hover:border-primary/40 transition-colors"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span className="text-lg p-2 rounded bg-muted/60 text-foreground shrink-0 border border-border">
-                  {cat.icon || "🍛"}
-                </span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <h4 className="font-semibold text-xs text-foreground truncate">{cat.name}</h4>
-                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
-                      Active
-                    </span>
+          {filteredCategories.map((cat, idx) => {
+            const theme = getCategoryColor(cat, idx);
+            return (
+              <div
+                key={cat.id}
+                className={`${theme.bg} ${theme.border} border rounded-xl p-3 flex items-center justify-between hover:shadow-xs transition-all`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`p-2 rounded-lg bg-white/80 dark:bg-slate-900/80 ${theme.text} ${theme.border} border shrink-0 flex items-center justify-center shadow-2xs`}>
+                    {renderCategoryIcon(cat.icon, 18)}
                   </div>
-                  <p className="text-[10px] text-muted-foreground font-mono truncate">slug: {cat.slug || cat.name.toLowerCase()}</p>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <h4 className={`font-bold text-xs ${theme.text} truncate`}>{cat.name}</h4>
+                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
+                        Active
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate">slug: {cat.slug || cat.name.toLowerCase()}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => onOpenEdit(cat)}
+                    title="Edit Category"
+                    className="p-1 rounded text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors border-none bg-transparent cursor-pointer"
+                  >
+                    <Edit2 size={14} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm(`Deactivate/Close Category "${cat.name}"?`)) {
+                        onDelete(cat.id);
+                      }
+                    }}
+                    title="Deactivate Category"
+                    className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors border-none bg-transparent cursor-pointer"
+                  >
+                    <Power size={14} />
+                  </button>
                 </div>
               </div>
-
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  onClick={() => onOpenEdit(cat)}
-                  title="Edit Category"
-                  className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border-none bg-transparent cursor-pointer"
-                >
-                  <Edit2 size={14} />
-                </button>
-                <button
-                  onClick={() => {
-                    if (confirm(`Deactivate/Close Category "${cat.name}"?`)) {
-                      onDelete(cat.id);
-                    }
-                  }}
-                  title="Deactivate Category"
-                  className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted transition-colors border-none bg-transparent cursor-pointer"
-                >
-                  <Power size={14} />
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </PageContainer>

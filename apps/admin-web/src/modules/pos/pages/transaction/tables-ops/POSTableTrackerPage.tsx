@@ -351,7 +351,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={onRefresh}
+                  onClick={() => onRefresh()}
                   className="h-8 text-xs font-semibold rounded-md px-2 cursor-pointer hover:bg-muted"
                   title="Refresh Table States"
                 >

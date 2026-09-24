@@ -132,6 +132,7 @@ export const POSMasterSection: React.FC<POSMasterSectionProps> = ({
             const nextStatus = !item.is_popular;
             await onSaveMenuItem({ ...item, is_popular: nextStatus });
           }}
+          onSaveMenuItem={onSaveMenuItem}
         />
       )}
 

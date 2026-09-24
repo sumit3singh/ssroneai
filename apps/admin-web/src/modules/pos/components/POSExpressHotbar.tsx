@@ -5,6 +5,8 @@ import { IndianLiveClock } from "./IndianLiveClock";
 import { POSSyncStatusBar } from "./POSSyncStatusBar";
 import { POSKeyboardCheatSheetModal } from "./POSKeyboardCheatSheetModal";
 
+import { useExpressHotbar } from "../utils/posHotbarStorage";
+
 interface POSExpressHotbarProps {
   menuItems: POSMenuItem[];
   onAddToCart: (item: POSMenuItem) => void;
@@ -15,6 +17,7 @@ export const POSExpressHotbar: React.FC<POSExpressHotbarProps> = ({
   onAddToCart,
 }) => {
   const [isCheatSheetOpen, setIsCheatSheetOpen] = useState(false);
+  const { expressItems } = useExpressHotbar(menuItems);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -26,21 +29,6 @@ export const POSExpressHotbar: React.FC<POSExpressHotbarProps> = ({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
-
-  // Top 12 popular fast-moving items or top sort_order items (prioritizing is_popular / is_bestseller)
-  const expressItems = React.useMemo(() => {
-    const popular = menuItems.filter(
-      (i) => (i.is_popular || (i as any).is_bestseller) && !i.is_deleted && i.is_available !== false
-    );
-    if (popular.length >= 12) {
-      return popular.slice(0, 12);
-    }
-    const popularIds = new Set(popular.map((p) => String(p.id)));
-    const remaining = menuItems.filter(
-      (i) => !popularIds.has(String(i.id)) && !i.is_deleted && i.is_available !== false
-    );
-    return [...popular, ...remaining].slice(0, 12);
-  }, [menuItems]);
 
   if (expressItems.length === 0) return null;
 
@@ -78,29 +66,29 @@ export const POSExpressHotbar: React.FC<POSExpressHotbarProps> = ({
 
       <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-1.5">
         {expressItems.map((item, idx) => {
-          const keyLabel = `⇧F${idx + 1}`;
+          const keyLabel = `F${idx + 1}`;
           const isVeg = item.is_veg;
           return (
             <button
               key={item.id}
               type="button"
               onClick={() => onAddToCart(item)}
-              title={`[Shift+F${idx + 1}] 1-Touch Add: ${item.name}`}
+              title={`[${keyLabel} / Shift+${keyLabel}] 1-Touch Add: ${item.name}`}
               className="group relative flex flex-col justify-between p-1.5 rounded-md bg-background hover:bg-primary/10 border border-border hover:border-primary/50 transition-all text-left cursor-pointer active:scale-95 shadow-2xs h-[58px] overflow-hidden select-none"
             >
-              {/* Top Row: Shortcut Badge + Veg/Non-Veg Dot */}
+              {/* Top Row: Clean Key Badge */}
               <div className="flex items-center justify-between w-full">
-                <span className="px-1.5 py-0.5 rounded bg-primary/15 text-primary text-[8.5px] font-mono font-black">
+                <span className="px-1.5 py-0.5 rounded bg-primary/15 text-primary text-[9px] font-mono font-black">
                   {keyLabel}
                 </span>
-                <span
-                  title={isVeg ? "Vegetarian" : "Non-Vegetarian"}
-                  className={`h-2.5 w-2.5 rounded-xs border flex items-center justify-center p-0.5 ${
-                    isVeg ? "border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40" : "border-rose-600 bg-rose-50 dark:bg-rose-950/40"
-                  }`}
-                >
-                  <span className={`h-1 w-1 rounded-full ${isVeg ? "bg-emerald-600" : "bg-rose-600"}`} />
-                </span>
+                {!isVeg && (
+                  <span
+                    title="Non-Vegetarian"
+                    className="h-2.5 w-2.5 rounded-xs border border-rose-600 bg-rose-50 dark:bg-rose-950/40 flex items-center justify-center p-0.5"
+                  >
+                    <span className="h-1 w-1 rounded-full bg-rose-600" />
+                  </span>
+                )}
               </div>
 
               {/* Title with full width and breathing room */}

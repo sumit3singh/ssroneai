@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { POSCategory, POSMenuItem, POSTable, POSWaiter, getParsedVariantGroups, getParsedAddonGroups, POSCartItem } from "../../types";
 import { POSExpressHotbar } from "../../components/POSExpressHotbar";
 import { POSVoiceOrderButton } from "../../components/POSVoiceOrderButton";
+import { getCategoryColor } from "../../utils/posCategoryColors";
 
 interface POSItemGridProps {
   categories: POSCategory[];
@@ -71,28 +72,30 @@ const POSItemCard: React.FC<POSItemCardProps> = React.memo(({
     >
       {/* Top Row: Veg/Non-Veg [Index] on Left | RATE / PRICE IN TOP MIDDLE | Status/Custom Badge on Right */}
       <div className="flex items-center justify-between gap-1 pb-1 border-b border-border/40">
-        {/* Left: Veg/Non-veg Dot + Index */}
+        {/* Left: Index (Non-veg dot ONLY if not vegetarian) */}
         <div className="flex items-center gap-1 shrink-0">
-          <span
-            title={item.is_veg ? "Vegetarian" : "Non-Vegetarian"}
-            className={`h-3 w-3 border rounded-sm flex items-center justify-center p-0.5 ${
-              item.is_veg ? "border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40" : "border-rose-600 bg-rose-50 dark:bg-rose-950/40"
-            }`}
-          >
-            <span className={`h-1 w-1 rounded-full ${item.is_veg ? "bg-emerald-600" : "bg-rose-600"}`} />
-          </span>
-          <span className="text-[9px] font-mono opacity-60 font-bold">[{idx + 1}]</span>
-        </div>
-
-        {/* Top Middle: Rate / Price */}
-        <div className="font-mono font-black text-xs sm:text-[13px] text-foreground text-center tracking-tight flex items-center gap-1">
-          <span>₹{price}</span>
-          {matchedActiveVariant && (
-            <span className="text-[8px] font-mono font-bold text-sky-600 dark:text-sky-400 bg-sky-500/15 px-1 rounded-xs">
-              {matchedActiveVariant.name.split(" ")[0]}
+          {!item.is_veg && (
+            <span
+              title="Non-Vegetarian"
+              className="h-3 w-3 border border-rose-600 bg-rose-50 dark:bg-rose-950/40 rounded-sm flex items-center justify-center p-0.5"
+            >
+              <span className="h-1 w-1 rounded-full bg-rose-600" />
             </span>
           )}
+          <span className="text-[10px] font-mono opacity-70 font-extrabold text-foreground">[{idx + 1}]</span>
         </div>
+
+        {/* Top Middle: Rate / Price (Suppressed if dish has size variants) */}
+        {!hasVariants && (
+          <div className="font-mono font-black text-xs sm:text-[13px] text-foreground text-center tracking-tight flex items-center gap-1">
+            <span>₹{price}</span>
+            {matchedActiveVariant && (
+              <span className="text-[8px] font-mono font-bold text-sky-600 dark:text-sky-400 bg-sky-500/15 px-1 rounded-xs">
+                {matchedActiveVariant.name.split(" ")[0]}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Right: Enter / Sizes Badge */}
         <div className="flex items-center gap-1 shrink-0">
@@ -161,7 +164,7 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
   onNavigateToTables
 }) => {
   const navigate = useNavigate();
-  const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
+  const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
   const [vegOnlyFilter, setVegOnlyFilter] = useState<boolean>(false);
   // Default Side Categories to OPEN (true) as requested
   const [isVerticalCategories, setIsVerticalCategories] = useState<boolean>(true);
@@ -444,39 +447,40 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
       <div className="bg-card border border-border rounded-lg p-2 shadow-2xs space-y-1.5 shrink-0">
         {/* Top Control Bar */}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          {/* Search Input */}
-          <div className="relative flex-1 min-w-[200px]">
-            <Input
-              id="pos-menu-search-input"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "ArrowDown" || e.key === "ArrowRight") {
-                  e.preventDefault();
-                  setHighlightedIndex((prev) => Math.min(filteredMenuItems.length - 1, prev + 1));
-                } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
-                  e.preventDefault();
-                  setHighlightedIndex((prev) => Math.max(0, prev - 1));
-                } else if (e.key === "Enter") {
-                  handleNumpadEnter(e);
-                }
-              }}
-              placeholder="Numpad e.g. 5*1 or 2*6 or search name/code..."
-              icon={<Search size={14} className="text-muted-foreground" />}
-              className="h-8 text-xs font-medium bg-background border-border focus:ring-1 focus:ring-primary rounded-md pr-20 sm:pr-28"
-            />
-            {searchTerm && filteredMenuItems.length > 0 ? (
-              <kbd className="absolute right-2 top-1.5 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[9px] font-mono font-extrabold pointer-events-none select-none animate-in fade-in flex items-center gap-1">
-                <span>Enter ↵</span>
-                <span className="opacity-70 text-[8px] hidden sm:inline">(Item #{highlightedIndex + 1})</span>
-              </kbd>
-            ) : (
-              !searchTerm && (
-                <kbd className="absolute right-2 top-1.5 px-1.5 py-0.5 rounded bg-muted/80 border border-border text-[9px] font-mono font-bold text-muted-foreground pointer-events-none select-none hidden sm:inline">
-                  / or Ctrl+K
+          {/* Search Input (Compact, in front of tools line) */}
+          <div className="flex items-center gap-1.5 flex-1 min-w-[220px] max-w-xs sm:max-w-sm">
+            <div className="relative w-full">
+              <Input
+                id="pos-menu-search-input"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+                    e.preventDefault();
+                    setHighlightedIndex((prev) => Math.min(filteredMenuItems.length - 1, Math.max(0, prev + 1)));
+                  } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+                    e.preventDefault();
+                    setHighlightedIndex((prev) => Math.max(0, prev - 1));
+                  } else if (e.key === "Enter") {
+                    handleNumpadEnter(e);
+                  }
+                }}
+                placeholder="Search dish / code (or 5*1)..."
+                icon={<Search size={14} className="text-muted-foreground" />}
+                className="h-8 text-xs font-medium bg-background border-border focus:ring-1 focus:ring-primary rounded-md pr-16"
+              />
+              {searchTerm && filteredMenuItems.length > 0 ? (
+                <kbd className="absolute right-2 top-1.5 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[9px] font-mono font-extrabold pointer-events-none select-none animate-in fade-in flex items-center gap-1">
+                  <span>↵ Enter</span>
                 </kbd>
-              )
-            )}
+              ) : (
+                !searchTerm && (
+                  <kbd className="absolute right-2 top-1.5 px-1.5 py-0.5 rounded bg-muted/80 border border-border text-[9px] font-mono font-bold text-muted-foreground pointer-events-none select-none hidden sm:inline">
+                    /
+                  </kbd>
+                )
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
@@ -584,24 +588,26 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
             {categories.map((c, idx) => {
               const catCount = categoryCounts[String(c.id)] || 0;
               const isSelected = selectedCategoryId === c.id;
+              const theme = getCategoryColor(c, idx);
               return (
                 <button
                   key={c.id}
                   type="button"
                   onClick={() => setSelectedCategoryId(c.id)}
-                  className={`px-2.5 py-1 rounded text-xs font-medium uppercase tracking-wider whitespace-nowrap cursor-pointer transition-colors flex items-center gap-1.5 ${
+                  className={`px-2.5 py-1 rounded text-xs font-semibold whitespace-nowrap cursor-pointer transition-all flex items-center gap-1.5 ${
                     isSelected
-                      ? "bg-primary text-primary-foreground shadow-2xs"
-                      : "bg-background text-muted-foreground border border-border hover:bg-muted hover:text-foreground"
+                      ? "bg-slate-900 text-white dark:bg-white dark:text-slate-950 shadow-xs font-bold border border-slate-900 dark:border-white"
+                      : `${theme.bg} ${theme.border} ${theme.text} border hover:brightness-95`
                   }`}
                 >
-                  <span className="text-[10px] font-mono opacity-60 font-bold">[{idx + 1}]</span>
+                  <span className={`w-2 h-2 rounded-full ${theme.dot} shrink-0`} />
+                  <span className="text-[10px] font-mono opacity-70 font-bold">[{idx + 1}]</span>
                   <span>{c.name}</span>
                   {catCount > 0 && (
                     <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-mono font-black ${
                       isSelected
                         ? "bg-white/20 text-white border border-white/30"
-                        : "bg-primary/15 text-primary border border-primary/30"
+                        : "bg-slate-900/10 dark:bg-white/15 text-slate-800 dark:text-slate-200 border border-slate-400/30"
                     }`}>
                       {catCount}
                     </span>
@@ -734,6 +740,7 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
                 const originalIndex = categories.findIndex((orig) => orig.id === c.id) + 1;
                 const catCount = categoryCounts[String(c.id)] || 0;
                 const isSelected = selectedCategoryId === c.id;
+                const theme = getCategoryColor(c, originalIndex - 1);
                 return (
                   <button
                     key={c.id}
@@ -741,11 +748,12 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
                     onClick={() => setSelectedCategoryId(c.id)}
                     className={`w-full px-2 py-1.5 rounded text-xs font-semibold text-left truncate cursor-pointer transition-all flex items-center justify-between gap-1 ${
                       isSelected
-                        ? "bg-primary text-primary-foreground shadow-2xs font-bold"
-                        : "bg-background text-muted-foreground border border-border hover:bg-muted hover:text-foreground"
+                        ? "bg-slate-900 text-white dark:bg-white dark:text-slate-950 shadow-xs font-bold border border-slate-900 dark:border-white"
+                        : `${theme.bg} ${theme.border} ${theme.text} border hover:brightness-95`
                     }`}
                   >
                     <div className="flex items-center gap-1.5 truncate">
+                      <span className={`w-2 h-2 rounded-full ${theme.dot} shrink-0`} />
                       <span className="text-[10px] font-mono opacity-70 font-bold shrink-0">[{originalIndex}]</span>
                       <span className="truncate">{c.name}</span>
                     </div>
@@ -753,7 +761,7 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
                       <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-mono font-black shrink-0 ${
                         isSelected
                           ? "bg-white/20 text-white border border-white/30"
-                          : "bg-primary/15 text-primary border border-primary/30"
+                          : "bg-slate-900/10 dark:bg-white/15 text-slate-800 dark:text-slate-200 border border-slate-400/30"
                       }`}>
                         {catCount}
                       </span>

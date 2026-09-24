@@ -310,6 +310,17 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
             <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">
               {totalItemCount} ITEMS
             </span>
+            {cartItems.length > 0 && onClearCart && (
+              <button
+                type="button"
+                onClick={onClearCart}
+                className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 hover:bg-rose-500/20 transition-all flex items-center gap-1 cursor-pointer"
+                title="Clear All Items From Cart"
+              >
+                <Trash2 size={11} />
+                <span>Clear</span>
+              </button>
+            )}
           </div>
         </div>
 

@@ -23,6 +23,7 @@ import { playPaymentSuccessSound } from "@ssrone/utils";
 import { usePOSShortcuts, useBarcodeScanner, useAsyncPrintQueue, useZeroWaitOrderSync } from "../../hooks";
 import { renderSafeString } from "../../utils/renderSafeString";
 import { generateLocalOrderNumber, generateDailyTokenNumber, generateIdempotencyKey } from "../../utils/order-sequence";
+import { resolveHotbarItems, getStoredHotbarSlotIds } from "../../utils/posHotbarStorage";
 import { cacheCatalog } from "@/shared/utils/offline-store";
 
 export type POSVirtualTab = "billing" | "tables" | "orders" | "kds" | "shift";
@@ -444,31 +445,34 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
 
   const toggleKioskFullScreen = () => {
     try {
-      const isCurrentlyFs = Boolean(document.fullscreenElement);
-      if (!isCurrentlyFs) {
+      const next = !isFullScreenPOS;
+      setIsFullScreenPOS(next);
+      localStorage.setItem("pos_kiosk_fullscreen", next ? "true" : "false");
+      if (next) {
         if (document.documentElement.requestFullscreen) {
           document.documentElement.requestFullscreen().catch(() => {});
         }
-        setIsFullScreenPOS(true);
-        localStorage.setItem("pos_kiosk_fullscreen", "true");
       } else {
-        if (document.exitFullscreen) {
+        if (document.fullscreenElement && document.exitFullscreen) {
           document.exitFullscreen().catch(() => {});
         }
-        setIsFullScreenPOS(false);
-        localStorage.setItem("pos_kiosk_fullscreen", "false");
       }
     } catch (err) {
-      setIsFullScreenPOS(Boolean(document.fullscreenElement));
+      console.error("toggleKioskFullScreen error:", err);
     }
   };
 
   // Sync React state with native browser fullscreen change events (F11, browser exit)
+  // Keeps Kiosk mode active during print dialogs and only exits on explicit user action
   useEffect(() => {
     const handleFullscreenChange = () => {
       const isFs = Boolean(document.fullscreenElement);
-      setIsFullScreenPOS(isFs);
-      localStorage.setItem("pos_kiosk_fullscreen", isFs ? "true" : "false");
+      if (isFs) {
+        setIsFullScreenPOS(true);
+        localStorage.setItem("pos_kiosk_fullscreen", "true");
+      } else if (localStorage.getItem("pos_kiosk_fullscreen") !== "true") {
+        setIsFullScreenPOS(false);
+      }
     };
     handleFullscreenChange();
     document.addEventListener("fullscreenchange", handleFullscreenChange);
@@ -529,9 +533,8 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       }
     },
     onAddExpressItem: (index: number) => {
-      const popular = menuItems.filter((i) => i.is_popular);
-      const source = popular.length >= 8 ? popular : menuItems;
-      const expressItems = source.slice(0, 12);
+      const slotIds = getStoredHotbarSlotIds();
+      const expressItems = resolveHotbarItems(menuItems, slotIds);
       if (expressItems[index]) {
         handleAddToCart(expressItems[index]);
         toast.success(`Quick Added: ${expressItems[index].name}`, { icon: "⚡" });
@@ -1479,9 +1482,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       });
     } else if (isUpdate) {
       toast.info(`ℹ️ Order #${assignedNum} updated. No new items to print for kitchen.`);
-      if (orderMode === "dine_in") {
-        switchVirtualTab("tables");
-      }
+      switchVirtualTab("tables");
     }
 
     // Update baseline snapshot so any further update knows latest sent state
@@ -1528,10 +1529,8 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     setDiscountAmount(0);
     setOrderNotes("");
 
-    // 6. Virtual view transition immediately for Dine-In orders
-    if (orderMode === "dine_in") {
-      switchVirtualTab("tables");
-    }
+    // 6. Virtual view transition immediately to Table Floor for all orders
+    switchVirtualTab("tables");
 
     // 7. Instant success toast (< 0.1ms)
     const elapsed = (performance.now() - startTime).toFixed(1);
@@ -2136,9 +2135,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
         isOpen={isReceiptModalOpen}
         onClose={() => {
           setIsReceiptModalOpen(false);
-          if (orderMode === "dine_in") {
-            switchVirtualTab("tables");
-          }
+          switchVirtualTab("tables");
         }}
         receiptData={receiptData}
       />

@@ -80,6 +80,7 @@ export interface POSMenuItem {
   variant_groups?: POSVariantGroup[];
   addon_groups?: POSAddonGroup[];
   kds_station?: string;
+  sort_order?: number;
 }
 
 export function getParsedVariantGroups(item: any): POSVariantGroup[] {
