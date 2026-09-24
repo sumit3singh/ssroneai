@@ -979,6 +979,7 @@ async def list_categories(
                         id=c.id,
                         name=c.name,
                         icon=getattr(c, "icon", "🍛") or "🍛",
+                        color=getattr(c, "color", None),
                         slug=getattr(c, "slug", "") or "",
                         tenant_id=getattr(c, "tenant_id", tenant_id) or tenant_id,
                         branch_id=getattr(c, "branch_id", 1) or 1
@@ -1004,6 +1005,7 @@ async def create_category(
         branch_id=target_branch_id,
         name=body.name,
         icon=body.icon or "🍛",
+        color=body.color,
         slug=body.slug or body.name.lower().replace(" ", "-"),
         parent_id=body.parent_id,
         level=body.level or 1,
@@ -1039,6 +1041,8 @@ async def update_category(
     
     category.name = body.name
     category.icon = body.icon or "🍛"
+    if body.color is not None:
+        category.color = body.color
     if body.slug:
         category.slug = body.slug
     category.parent_id = body.parent_id

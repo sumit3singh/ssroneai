@@ -374,12 +374,14 @@ export const POSPage: React.FC = () => {
     slug?: string,
     sort_order?: number,
     branch_id?: number | null,
-    company_id?: number | null
+    company_id?: number | null,
+    color?: string
   ) => {
     try {
       const res = await api.post<any>("/restaurant/categories", {
         name,
         icon: icon || "🍛",
+        color: color || null,
         slug: slug || name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "category",
         sort_order: Number(sort_order) || 1,
         branch_id: branch_id ?? (selectedBranch?.id ? Number(selectedBranch.id) : 1),
@@ -404,12 +406,14 @@ export const POSPage: React.FC = () => {
     slug?: string,
     sort_order?: number,
     branch_id?: number | null,
-    company_id?: number | null
+    company_id?: number | null,
+    color?: string
   ) => {
     try {
       const res = await api.put<any>(`/restaurant/categories/${id}`, {
         name,
         icon: icon || "🍛",
+        color: color || null,
         slug: slug || name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "category",
         sort_order: Number(sort_order) || 1,
         branch_id: branch_id ?? (selectedBranch?.id ? Number(selectedBranch.id) : 1),

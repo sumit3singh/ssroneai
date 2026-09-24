@@ -46,6 +46,7 @@ class MenuCategory(BigIntTenantBaseModel):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
 
     icon: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    color: Mapped[str | None] = mapped_column(String(30), nullable=True, default=None)
     slug: Mapped[str | None] = mapped_column(String(100), nullable=True)
     parent_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("menu_categories.id", ondelete="SET NULL"), nullable=True)
     level: Mapped[int] = mapped_column(Integer, default=1)

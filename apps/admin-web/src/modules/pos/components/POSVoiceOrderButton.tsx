@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Mic,
   MicOff,
-  Globe,
   Sparkles,
   Volume2,
   VolumeX,
@@ -12,11 +11,11 @@ import {
   Layers
 } from "lucide-react";
 import { toast } from "sonner";
-import { POSMenuItem } from "../types";
+import { POSMenuItem, getParsedVariantGroups } from "../types";
 
 interface POSVoiceOrderButtonProps {
   menuItems: POSMenuItem[];
-  onAddToCart: (item: POSMenuItem, count?: number) => void;
+  onAddToCart: (item: POSMenuItem, explicitVariant?: any) => void;
   className?: string;
 }
 
@@ -27,7 +26,7 @@ const QUANTITY_MAP: Record<string, number> = {
   "11": 11, "12": 12, "15": 15, "20": 20,
   // English words
   "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
-  "single": 1, "double": 2, "triple": 3, "couple": 2, "half": 1, "quarter": 1, "full": 1,
+  "single": 1, "double": 2, "triple": 3, "couple": 2,
   // Hinglish Latin words
   "ek": 1, "aik": 1, "do": 2, "doo": 2, "teen": 3, "tin": 3, "chaar": 4, "char": 4,
   "paanch": 5, "panch": 5, "cheh": 6, "chheh": 6, "che": 6, "saat": 7, "sat": 7,
@@ -43,15 +42,21 @@ const QUANTITY_MAP: Record<string, number> = {
 const FILLER_WORDS = new Set([
   "bhaiya", "bhai", "please", "kripya", "chahiye", "kar", "do", "dena", "dijiye", "bhi",
   "plate", "plates", "cup", "cups", "glass", "glasses", "piece", "pieces", "pcs",
-  "portion", "portions", "dish", "dishes", "pack", "packs", "order"
+  "portion", "portions", "dish", "dishes", "pack", "packs", "order", "laga", "lagao",
+  "daal", "daalo", "karo", "parcel", "table", "pe"
 ]);
 
-// Common spoken culinary aliases
+// Common spoken culinary aliases & vernacular training
 const DISH_SYNONYMS: Record<string, string[]> = {
-  "tea": ["chai", "tea"],
-  "coffee": ["coffee", "cold coffee", "cappuccino"],
-  "fries": ["french fries", "fries"],
-  "roll": ["spring roll", "roll", "rolls", "wrap"],
+  "tea": ["chai", "tea", "kulhad chai"],
+  "coffee": ["coffee", "cold coffee", "cappuccino", "iced coffee", "shake"],
+  "fries": ["french fries", "fries", "french"],
+  "roll": ["spring roll", "roll", "rolls", "kathi roll", "kati roll", "wrap"],
+  "momos": ["momo", "momos", "dimsum", "dumpling"],
+  "kurkure": ["kurkure", "crispy", "crunchy"],
+  "noodles": ["noodle", "noodles", "chowmein", "chow mein", "maggi"],
+  "paneer": ["paneer", "panir", "panner"],
+  "chaap": ["chaap", "champ", "chap"],
   "burger": ["burger", "burgers"],
   "pizza": ["pizza", "pizzas"],
   "sandwich": ["sandwich", "sandwiches"],
@@ -137,7 +142,10 @@ export const POSVoiceOrderButton: React.FC<POSVoiceOrderButtonProps> = ({
   /**
    * Matches an individual segment (e.g. "two kulhad chai") against the menu catalog.
    */
-  const matchSingleSegment = (segment: string): { item: POSMenuItem; qty: number } | null => {
+  /**
+   * Matches an individual segment (e.g. "two veg steam momos half", "2 kulhad chai") against the menu catalog.
+   */
+  const matchSingleSegment = (segment: string): { item: POSMenuItem; qty: number; variant?: any } | null => {
     const cleanTokens = segment
       .trim()
       .toLowerCase()
@@ -147,14 +155,20 @@ export const POSVoiceOrderButton: React.FC<POSVoiceOrderButtonProps> = ({
     if (cleanTokens.length === 0) return null;
 
     let qty = 1;
+    let requestedSize: string | null = null;
     let dishTokens: string[] = [];
 
-    // 1. Extract quantity from tokens
+    // 1. Extract quantity and variant size from tokens
     for (let i = 0; i < cleanTokens.length; i++) {
       const token = cleanTokens[i];
+      if (token === "half" || token === "adha" || token === "aadha") {
+        requestedSize = "half";
+      } else if (token === "full" || token === "pura") {
+        requestedSize = "full";
+      }
       if (QUANTITY_MAP[token] !== undefined) {
         qty = QUANTITY_MAP[token];
-      } else if (!FILLER_WORDS.has(token)) {
+      } else if (!FILLER_WORDS.has(token) && token !== "half" && token !== "full" && token !== "adha" && token !== "aadha" && token !== "pura") {
         dishTokens.push(token);
       }
     }
@@ -187,7 +201,7 @@ export const POSVoiceOrderButton: React.FC<POSVoiceOrderButtonProps> = ({
           if (itemNameLower.includes(token)) {
             score += 2;
           }
-          // Check synonyms (e.g. "tea" -> "chai")
+          // Check synonyms (e.g. "tea" -> "chai", "momos" -> "momo")
           for (const [key, syns] of Object.entries(DISH_SYNONYMS)) {
             if (syns.includes(token)) {
               if (syns.some((s) => itemNameLower.includes(s))) {
@@ -208,12 +222,23 @@ export const POSVoiceOrderButton: React.FC<POSVoiceOrderButtonProps> = ({
       }
     }
 
-    return match ? { item: match, qty } : null;
+    // Resolve variant (e.g. Half / Full) if item supports it
+    let matchedVariant: any = null;
+    if (match && requestedSize) {
+      const vGroups = getParsedVariantGroups(match);
+      if (vGroups.length > 0 && vGroups[0]?.options) {
+        matchedVariant = vGroups[0].options.find((opt: any) =>
+          (opt.name || "").toLowerCase().includes(requestedSize!)
+        );
+      }
+    }
+
+    return match ? { item: match, qty, variant: matchedVariant } : null;
   };
 
   /**
    * Processes compound voice commands like:
-   * "2 chai and 1 veg pizza aur 2 cold coffee"
+   * "2 chai and 1 veg steam momos half aur 2 cold coffee"
    * Splitting on delimiters and adding each matched dish to the cart.
    */
   const handleProcessCompoundVoiceCommand = (rawText: string) => {
@@ -228,7 +253,7 @@ export const POSVoiceOrderButton: React.FC<POSVoiceOrderButtonProps> = ({
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
 
-    const matchesFound: Array<{ item: POSMenuItem; qty: number }> = [];
+    const matchesFound: Array<{ item: POSMenuItem; qty: number; variant?: any }> = [];
 
     for (const seg of segments) {
       const result = matchSingleSegment(seg);
@@ -248,11 +273,11 @@ export const POSVoiceOrderButton: React.FC<POSVoiceOrderButtonProps> = ({
     if (matchesFound.length > 0) {
       const summaryList: string[] = [];
 
-      for (const { item, qty } of matchesFound) {
+      for (const { item, qty, variant } of matchesFound) {
         for (let i = 0; i < qty; i++) {
-          onAddToCart(item);
+          onAddToCart(item, variant);
         }
-        summaryList.push(`${qty}x ${item.name}`);
+        summaryList.push(`${qty}x ${item.name}${variant ? ` (${variant.name})` : ""}`);
       }
 
       setLastMatched(summaryList);
@@ -290,11 +315,7 @@ export const POSVoiceOrderButton: React.FC<POSVoiceOrderButtonProps> = ({
       try {
         recognitionRef.current?.start();
         setIsListening(true);
-        toast.info(
-          lang === "hi-IN"
-            ? "🎙️ सुन रहा हूँ... (उदा: 'दो चाय और एक पिज़्ज़ा')"
-            : "🎙️ Listening... (e.g. '2 Chai and 1 Veg Pizza')"
-        );
+        toast.info("🎙️ Listening for orders... (e.g. '2 Steam Momos, 1 Paneer Fry, 2 Chai')");
       } catch (err) {
         console.error("Failed to start speech recognition", err);
       }
@@ -303,17 +324,6 @@ export const POSVoiceOrderButton: React.FC<POSVoiceOrderButtonProps> = ({
 
   return (
     <div className={`relative inline-flex items-center gap-1 ${className}`}>
-      {/* Language Switcher (EN / हिन्दी) */}
-      <button
-        type="button"
-        onClick={() => setLang((prev) => (prev === "en-IN" ? "hi-IN" : "en-IN"))}
-        className="h-8 px-2 rounded-md bg-background border border-border text-[11px] font-bold text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-        title="Toggle Voice Language (English / Hindi & Hinglish)"
-      >
-        <Globe size={12} className="text-primary" />
-        <span>{lang === "hi-IN" ? "हिन्दी" : "EN"}</span>
-      </button>
-
       {/* Main Microphone Button */}
       <button
         type="button"

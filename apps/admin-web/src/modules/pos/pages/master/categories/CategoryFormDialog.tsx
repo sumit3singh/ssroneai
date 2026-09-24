@@ -6,12 +6,13 @@ import {
   SOBER_CATEGORY_COLORS,
   parseCategoryIcon,
   buildCategoryIcon,
+  getCategoryColor,
 } from "../../../utils/posCategoryColors";
 
 interface CategoryFormDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (name: string, icon: string, formData?: { slug?: string; sort_order?: number; branch_id?: number | null; company_id?: number | null }) => Promise<void>;
+  onSave: (name: string, icon: string, formData?: { slug?: string; sort_order?: number; color?: string; branch_id?: number | null; company_id?: number | null }) => Promise<void>;
   editingCategory?: POSCategory | null;
 }
 
@@ -34,7 +35,8 @@ export const CategoryFormDialog: React.FC<CategoryFormDialogProps> = ({
       setName(editingCategory.name || "");
       const parsed = parseCategoryIcon(editingCategory.icon);
       setIcon(parsed.icon || "🍛");
-      setColorId(parsed.colorId || "amber");
+      const currentTheme = getCategoryColor(editingCategory);
+      setColorId(editingCategory.color || parsed.colorId || currentTheme.id || "amber");
       setSortOrder(editingCategory.sort_order ?? 1);
     } else {
       setName("");
@@ -57,6 +59,7 @@ export const CategoryFormDialog: React.FC<CategoryFormDialogProps> = ({
       await onSave(name.trim(), finalIcon, {
         slug: generatedSlug || "category",
         sort_order: Number(sortOrder) || 1,
+        color: colorId,
       });
       onClose();
     } catch (err) {
@@ -177,6 +180,31 @@ export const CategoryFormDialog: React.FC<CategoryFormDialogProps> = ({
                   </button>
                 );
               })}
+            </div>
+
+            {/* Live Category Appearance Preview */}
+            <div className="pt-1">
+              {(() => {
+                const currentTheme = SOBER_CATEGORY_COLORS.find((c) => c.id === colorId) || SOBER_CATEGORY_COLORS[0];
+                return (
+                  <div className={`p-2.5 rounded-xl border flex items-center justify-between ${currentTheme.bg} ${currentTheme.border}`}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl p-1 rounded-lg bg-white/90 dark:bg-slate-900/90 shadow-2xs">
+                        {icon || "🍛"}
+                      </span>
+                      <div>
+                        <h5 className={`font-bold text-xs ${currentTheme.text}`}>
+                          {name.trim() || "Category Preview"}
+                        </h5>
+                        <p className="text-[10px] font-mono opacity-70">
+                          Color Theme: {currentTheme.name}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`w-3 h-3 rounded-full ${currentTheme.dot} shadow-2xs`} />
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

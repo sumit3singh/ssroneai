@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Search, Leaf, Maximize2, Minimize2, Sparkles, Coffee, Utensils, Pizza, Sandwich, Flame, LayoutGrid, Zap, X, Tv } from "lucide-react";
+import { Search, Leaf, Maximize2, Minimize2, Sparkles, Coffee, Utensils, Pizza, Sandwich, Flame, LayoutGrid, Zap, X, Tv, Palette } from "lucide-react";
 import { Input } from "@ssrone/ui";
 import { toast } from "sonner";
 import { POSCategory, POSMenuItem, POSTable, POSWaiter, getParsedVariantGroups, getParsedAddonGroups, POSCartItem } from "../../types";
 import { POSExpressHotbar } from "../../components/POSExpressHotbar";
 import { POSVoiceOrderButton } from "../../components/POSVoiceOrderButton";
-import { getCategoryColor } from "../../utils/posCategoryColors";
+import { getCategoryColor, CategoryColorTheme } from "../../utils/posCategoryColors";
 
 interface POSItemGridProps {
   categories: POSCategory[];
@@ -30,6 +30,8 @@ interface POSItemCardProps {
   isHighlighted: boolean;
   matchedActiveVariant: any | null;
   onAddToCart: (item: POSMenuItem, explicitVariant?: any) => void;
+  categoryTheme?: CategoryColorTheme;
+  isColorCoded?: boolean;
 }
 
 const POSItemCard: React.FC<POSItemCardProps> = React.memo(({
@@ -38,6 +40,8 @@ const POSItemCard: React.FC<POSItemCardProps> = React.memo(({
   isHighlighted,
   matchedActiveVariant,
   onAddToCart,
+  categoryTheme,
+  isColorCoded = false,
 }) => {
   const variantGroups = getParsedVariantGroups(item);
   const hasVariants = variantGroups.length > 0;
@@ -67,7 +71,9 @@ const POSItemCard: React.FC<POSItemCardProps> = React.memo(({
       style={{ contentVisibility: "auto", containIntrinsicSize: "76px" }}
       className={`group border rounded-lg p-2 flex flex-col justify-between cursor-pointer shadow-2xs transition-all duration-150 relative min-h-[72px] shrink-0 active:scale-[0.99] select-none ${
         isHighlighted
-          ? "bg-primary/5 border-primary ring-2 ring-primary/60 shadow-md shadow-primary/10 scale-[1.01]"
+          ? "ring-2 ring-primary/80 shadow-md scale-[1.01] " + (isColorCoded && categoryTheme ? `${categoryTheme.bg} ${categoryTheme.border}` : "bg-primary/5 border-primary")
+          : isColorCoded && categoryTheme
+          ? `${categoryTheme.bg} ${categoryTheme.border} hover:brightness-95 hover:shadow-xs`
           : "bg-card border-border hover:border-primary/80 hover:shadow-xs"
       }`}
     >
@@ -147,6 +153,42 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
   const [isVerticalCategories, setIsVerticalCategories] = useState<boolean>(true);
   const [categorySearchTerm, setCategorySearchTerm] = useState<string>("");
   const [activeVariantFilter, setActiveVariantFilter] = useState<any | null>(null);
+
+  // Category Color Tint Toggle State (Persisted in localStorage; default is false/normal)
+  const [isColorCodedItems, setIsColorCodedItems] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("pos_color_coded_items") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleColorCodedItems = () => {
+    setIsColorCodedItems((prev) => {
+      const nextVal = !prev;
+      try {
+        localStorage.setItem("pos_color_coded_items", String(nextVal));
+      } catch {}
+      toast.info(nextVal ? "🎨 Category color tint ON dishes" : "⚪ Normal dish card style");
+      return nextVal;
+    });
+  };
+
+  // Shortcut key Alt+C to focus Category Search Filter
+  React.useEffect(() => {
+    const handleCategoryShortcut = (e: KeyboardEvent) => {
+      if (e.altKey && e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        const inputEl = document.getElementById("pos-category-search-input") as HTMLInputElement | null;
+        if (inputEl) {
+          inputEl.focus();
+          inputEl.select();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleCategoryShortcut);
+    return () => window.removeEventListener("keydown", handleCategoryShortcut);
+  }, []);
 
   // Check if branch contains any non-veg items (for pure-veg branch toggle hiding)
   const hasNonVegItems = React.useMemo(() => {
@@ -441,10 +483,37 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  const gridEl = document.getElementById("pos-catalog-grid");
+                  let cols = 4;
+                  if (gridEl) {
+                    const comp = window.getComputedStyle(gridEl);
+                    const tmpl = comp.getPropertyValue("grid-template-columns");
+                    if (tmpl) cols = tmpl.split(/\s+/).filter(Boolean).length || 4;
+                  }
+                  setHighlightedIndex((prev) => {
+                    const current = prev < 0 ? 0 : prev;
+                    const next = current + cols;
+                    return next < filteredMenuItems.length ? next : Math.min(filteredMenuItems.length - 1, current);
+                  });
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  const gridEl = document.getElementById("pos-catalog-grid");
+                  let cols = 4;
+                  if (gridEl) {
+                    const comp = window.getComputedStyle(gridEl);
+                    const tmpl = comp.getPropertyValue("grid-template-columns");
+                    if (tmpl) cols = tmpl.split(/\s+/).filter(Boolean).length || 4;
+                  }
+                  setHighlightedIndex((prev) => {
+                    const current = prev < 0 ? 0 : prev;
+                    return Math.max(0, current - cols);
+                  });
+                } else if (e.key === "ArrowRight") {
                   e.preventDefault();
                   setHighlightedIndex((prev) => Math.min(filteredMenuItems.length - 1, Math.max(0, prev + 1)));
-                } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+                } else if (e.key === "ArrowLeft") {
                   e.preventDefault();
                   setHighlightedIndex((prev) => Math.max(0, prev - 1));
                 } else if (e.key === "Enter") {
@@ -644,27 +713,63 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
         {/* Left Vertical Category Sidebar */}
         {isVerticalCategories && (
           <div className="w-32 sm:w-44 shrink-0 bg-card border border-border rounded-lg p-1.5 flex flex-col gap-1.5 overflow-hidden">
-            {/* Sidebar Top Header with Close Button */}
+            {/* Sidebar Top Header with Color Tint Toggle & Close Button */}
             <div className="flex items-center justify-between px-1 pt-0.5 pb-1 border-b border-border/60 shrink-0">
               <span className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                 <Sparkles size={11} className="text-primary" />
                 Categories
               </span>
-              <button
-                type="button"
-                onClick={() => setIsVerticalCategories(false)}
-                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                title="Close Side Categories (Switch to Top Bar)"
-              >
-                <X size={13} />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={toggleColorCodedItems}
+                  className={`p-1 rounded-md transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold ${
+                    isColorCodedItems
+                      ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40 shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                  title={isColorCodedItems ? "Category Color Tint ON Dishes (Click for Normal Cards)" : "Category Color Tint OFF (Click to Color Items by Category)"}
+                >
+                  <Palette size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsVerticalCategories(false)}
+                  className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                  title="Close Side Categories (Switch to Top Bar)"
+                >
+                  <X size={13} />
+                </button>
+              </div>
             </div>
 
-            {/* Category Search Input */}
+            {/* Category Search Input with [Alt+C] Shortcut & Instant Numeric Selection */}
             <div className="relative shrink-0">
               <Input
+                id="pos-category-search-input"
                 value={categorySearchTerm}
-                onChange={(e) => setCategorySearchTerm(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCategorySearchTerm(val);
+                  const clean = val.trim().toLowerCase();
+                  if (!clean) return;
+                  if (clean === "0" || clean === "all") {
+                    setSelectedCategoryId(null);
+                    return;
+                  }
+                  // Instant numeric resolution (e.g. typing "1" selects Category 1 immediately without Enter)
+                  if (/^\d+$/.test(clean)) {
+                    const idx = parseInt(clean, 10) - 1;
+                    if (categories[idx]) {
+                      setSelectedCategoryId(categories[idx].id);
+                    }
+                  } else {
+                    const match = categories.find((c) => c.name.toLowerCase().startsWith(clean) || c.name.toLowerCase() === clean);
+                    if (match) {
+                      setSelectedCategoryId(match.id);
+                    }
+                  }
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -682,9 +787,9 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
                   }
                 }}
                 placeholder="Search cats (#, code)..."
-                className="h-7 text-[11px] bg-background border-border px-2 py-0.5 rounded pr-6"
+                className="h-7 text-[11px] bg-background border-border px-2 py-0.5 rounded pr-12"
               />
-              {categorySearchTerm && (
+              {categorySearchTerm ? (
                 <button
                   type="button"
                   onClick={() => setCategorySearchTerm("")}
@@ -693,6 +798,10 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
                 >
                   <X size={11} />
                 </button>
+              ) : (
+                <kbd className="absolute right-1.5 top-1.5 px-1 py-0.2 rounded bg-muted/80 border border-border text-[8px] font-mono font-bold text-muted-foreground pointer-events-none select-none">
+                  Alt+C
+                </kbd>
               )}
             </div>
 
@@ -757,7 +866,10 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
         )}
 
         {/* Catalog Auto-Fit Product Grid */}
-        <div className="flex-1 grid grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2 min-h-0 overflow-y-auto p-1.5 scrollbar-thin auto-rows-max items-start">
+        <div
+          id="pos-catalog-grid"
+          className="flex-1 grid grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2 min-h-0 overflow-y-auto p-1.5 scrollbar-thin auto-rows-max items-start"
+        >
         {filteredMenuItems.length === 0 ? (
           <div className="col-span-full py-12 text-center border border-dashed border-border rounded-lg">
             <Utensils size={28} className="mx-auto text-muted-foreground/60 mb-2" />
@@ -772,6 +884,10 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
                 ) || null
               : null;
 
+            const itemCat = categories.find((c) => String(c.id) === String(item.category_id));
+            const itemCatIdx = categories.findIndex((c) => String(c.id) === String(item.category_id));
+            const catTheme = getCategoryColor(itemCat, itemCatIdx >= 0 ? itemCatIdx : 0);
+
             return (
               <POSItemCard
                 key={item.id}
@@ -780,6 +896,8 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
                 isHighlighted={idx === highlightedIndex}
                 matchedActiveVariant={matchedActiveVariant}
                 onAddToCart={onAddToCart}
+                categoryTheme={catTheme}
+                isColorCoded={isColorCodedItems}
               />
             );
           })

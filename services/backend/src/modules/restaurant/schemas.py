@@ -179,6 +179,7 @@ class MenuTagResponse(BaseModel):
 class CategoryCreateSchema(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     icon: str | None = None
+    color: str | None = None
     slug: str | None = None
     parent_id: int | None = None
     level: int = 1
@@ -191,6 +192,7 @@ class CategoryResponseSchema(BaseModel):
     id: int
     name: str
     icon: str | None = "🍛"
+    color: str | None = None
     slug: str | None = None
     parent_id: int | None = None
     level: int = 1

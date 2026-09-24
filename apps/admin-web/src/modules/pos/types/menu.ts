@@ -3,6 +3,7 @@ export interface POSCategory {
   name: string;
   slug?: string;
   icon?: string;
+  color?: string;
   sort_order?: number;
   parent_id?: number | null;
   level?: number;

@@ -25,8 +25,8 @@ interface POSMasterSectionProps {
   onCreateTable: (tableNumber: string, capacity: number, section: string) => Promise<void>;
   onUpdateTable?: (id: number | string, tableNumber: string, capacity: number, section: string) => Promise<void>;
   onDeleteTable?: (id: number | string) => Promise<void>;
-  onCreateCategory: (name: string, icon: string, slug?: string, sort_order?: number, branch_id?: number | null, company_id?: number | null) => Promise<void>;
-  onUpdateCategory: (id: number, name: string, icon: string, slug?: string, sort_order?: number, branch_id?: number | null, company_id?: number | null) => Promise<void>;
+  onCreateCategory: (name: string, icon: string, slug?: string, sort_order?: number, branch_id?: number | null, company_id?: number | null, color?: string) => Promise<void>;
+  onUpdateCategory: (id: number, name: string, icon: string, slug?: string, sort_order?: number, branch_id?: number | null, company_id?: number | null, color?: string) => Promise<void>;
   onDeleteCategory: (id: number) => Promise<void>;
   isLoading?: boolean;
 }
@@ -153,11 +153,11 @@ export const POSMasterSection: React.FC<POSMasterSectionProps> = ({
       <CategoryFormDialog
         isOpen={isCatModalOpen}
         onClose={() => setIsCatModalOpen(false)}
-        onSave={async (name: string, icon: string, formData?: { slug?: string; sort_order?: number; branch_id?: number | null; company_id?: number | null }) => {
+        onSave={async (name: string, icon: string, formData?: { slug?: string; sort_order?: number; color?: string; branch_id?: number | null; company_id?: number | null }) => {
           if (editingCategory) {
-            await onUpdateCategory(editingCategory.id, name, icon, formData?.slug, formData?.sort_order, formData?.branch_id, formData?.company_id);
+            await onUpdateCategory(editingCategory.id, name, icon, formData?.slug, formData?.sort_order, formData?.branch_id, formData?.company_id, formData?.color);
           } else {
-            await onCreateCategory(name, icon, formData?.slug, formData?.sort_order, formData?.branch_id, formData?.company_id);
+            await onCreateCategory(name, icon, formData?.slug, formData?.sort_order, formData?.branch_id, formData?.company_id, formData?.color);
           }
           setIsCatModalOpen(false);
         }}

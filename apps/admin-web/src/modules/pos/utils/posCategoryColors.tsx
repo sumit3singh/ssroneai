@@ -138,9 +138,12 @@ export function buildCategoryIcon(icon: string, colorId?: string): string {
  * If explicitly saved, uses that color. Otherwise, picks deterministically by ID/name.
  */
 export function getCategoryColor(cat: POSCategory | any, fallbackIndex = 0): CategoryColorTheme {
-  const { colorId } = parseCategoryIcon(cat?.icon);
-  if (colorId) {
-    const found = SOBER_CATEGORY_COLORS.find((c) => c.id === colorId);
+  const explicitColor = cat?.color || parseCategoryIcon(cat?.icon).colorId;
+  if (explicitColor) {
+    const clean = String(explicitColor).trim().toLowerCase();
+    const found = SOBER_CATEGORY_COLORS.find(
+      (c) => c.id.toLowerCase() === clean || c.name.toLowerCase() === clean
+    );
     if (found) return found;
   }
   const numericId = typeof cat?.id === "number" ? cat.id : fallbackIndex;
