@@ -29,8 +29,7 @@ async def search_all(
     cust_stmt = select(Customer).where(
         Customer.tenant_id == tenant_id,
         or_(
-            Customer.first_name.ilike(q_pattern),
-            Customer.last_name.ilike(q_pattern),
+            Customer.name.ilike(q_pattern),
             Customer.email.ilike(q_pattern),
             Customer.phone.ilike(q_pattern),
         )
@@ -39,7 +38,7 @@ async def search_all(
     customers = [
         {
             "id": str(c.id),
-            "title": f"{c.first_name} {c.last_name}",
+            "title": c.name or f"{c.first_name} {c.last_name}".strip(),
             "subtitle": c.phone or c.email or "No Contact Info",
             "type": "customer",
             "url": f"/crm",

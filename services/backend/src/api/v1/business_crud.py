@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from src.core.database.engine import get_db_session
+from src.core.database.engine import get_db_session, set_rls_context
+from src.modules.auth.dependencies import get_optional_user
 from src.modules.auth.models import (
     Tenant, Company, Branch, Role, User, UserRole, UserSession,
     FeatureMaster, FeatureLicense, FileMasterERP
@@ -114,6 +115,7 @@ async def list_entities(
     company_id: Optional[int] = None,
     limit: int = 500,
     offset: int = 0,
+    current_user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> List[Dict[str, Any]]:
     """List records for any master or transaction entity from PostgreSQL."""
@@ -124,9 +126,15 @@ async def list_entities(
             detail=f"Entity '{entity_key}' is not recognized.",
         )
 
+    effective_tenant_id = tenant_id
+    if current_user:
+        await set_rls_context(db, str(current_user.tenant_id), str(current_user.id), is_superadmin=current_user.is_superadmin)
+        if not current_user.is_superadmin:
+            effective_tenant_id = current_user.tenant_id
+
     stmt = select(model).limit(limit).offset(offset)
-    if tenant_id is not None and hasattr(model, "tenant_id"):
-        stmt = stmt.where(model.tenant_id == tenant_id)
+    if effective_tenant_id is not None and hasattr(model, "tenant_id"):
+        stmt = stmt.where(model.tenant_id == effective_tenant_id)
     if company_id is not None and hasattr(model, "company_id"):
         stmt = stmt.where(model.company_id == company_id)
     if hasattr(model, "is_deleted"):
@@ -145,6 +153,7 @@ async def get_entity(
     entity_key: str,
     entity_id: int,
     tenant_id: Optional[int] = None,
+    current_user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> Dict[str, Any]:
     """Retrieve a single master or transaction entity record by ID."""
@@ -152,9 +161,15 @@ async def get_entity(
     if not model:
         raise HTTPException(status_code=404, detail=f"Entity '{entity_key}' not found.")
 
+    effective_tenant_id = tenant_id
+    if current_user:
+        await set_rls_context(db, str(current_user.tenant_id), str(current_user.id), is_superadmin=current_user.is_superadmin)
+        if not current_user.is_superadmin:
+            effective_tenant_id = current_user.tenant_id
+
     stmt = select(model).where(model.id == entity_id)
-    if tenant_id is not None and hasattr(model, "tenant_id"):
-        stmt = stmt.where(model.tenant_id == tenant_id)
+    if effective_tenant_id is not None and hasattr(model, "tenant_id"):
+        stmt = stmt.where(model.tenant_id == effective_tenant_id)
     if hasattr(model, "is_deleted"):
         stmt = stmt.where(model.is_deleted == False)
 
@@ -172,6 +187,7 @@ async def create_entity(
     payload: Dict[str, Any],
     request: Request,
     tenant_id: Optional[int] = None,
+    current_user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> Dict[str, Any]:
     """Create a new master or transaction record in PostgreSQL, auto-populating tenant, company, branch context."""
@@ -181,6 +197,12 @@ async def create_entity(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Entity '{entity_key}' is not recognized.",
         )
+
+    effective_tenant_id = tenant_id
+    if current_user:
+        await set_rls_context(db, str(current_user.tenant_id), str(current_user.id), is_superadmin=current_user.is_superadmin)
+        if not current_user.is_superadmin:
+            effective_tenant_id = current_user.tenant_id
 
     co_hdr = request.headers.get("x-company-id")
     br_hdr = request.headers.get("x-branch-id")
@@ -194,8 +216,17 @@ async def create_entity(
             except (ValueError, TypeError):
                 pass
 
-    if hasattr(model, "tenant_id") and "tenant_id" not in payload and tenant_id is not None:
-        payload["tenant_id"] = tenant_id
+    if hasattr(model, "tenant_id"):
+        if current_user and not current_user.is_superadmin:
+            payload["tenant_id"] = current_user.tenant_id
+        elif "tenant_id" not in payload and effective_tenant_id is not None:
+            payload["tenant_id"] = effective_tenant_id
+
+    if current_user:
+        if hasattr(model, "created_by") and "created_by" not in payload:
+            payload["created_by"] = current_user.id
+        if hasattr(model, "updated_by") and "updated_by" not in payload:
+            payload["updated_by"] = current_user.id
 
     if co_hdr and hasattr(model, "company_id") and "company_id" not in payload:
         try:
@@ -388,6 +419,7 @@ async def update_entity(
     entity_id: int,
     payload: Dict[str, Any],
     tenant_id: Optional[int] = None,
+    current_user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> Dict[str, Any]:
     """Update an existing master or transaction record in PostgreSQL."""
@@ -395,9 +427,15 @@ async def update_entity(
     if not model:
         raise HTTPException(status_code=404, detail=f"Entity '{entity_key}' not found.")
 
+    effective_tenant_id = tenant_id
+    if current_user:
+        await set_rls_context(db, str(current_user.tenant_id), str(current_user.id), is_superadmin=current_user.is_superadmin)
+        if not current_user.is_superadmin:
+            effective_tenant_id = current_user.tenant_id
+
     stmt = select(model).where(model.id == entity_id)
-    if tenant_id is not None and hasattr(model, "tenant_id"):
-        stmt = stmt.where(model.tenant_id == tenant_id)
+    if effective_tenant_id is not None and hasattr(model, "tenant_id"):
+        stmt = stmt.where(model.tenant_id == effective_tenant_id)
     if hasattr(model, "is_deleted"):
         stmt = stmt.where(model.is_deleted == False)
 
@@ -410,6 +448,9 @@ async def update_entity(
         if hasattr(instance, key) and key not in ("id", "tenant_id", "created_at"):
             setattr(instance, key, val)
 
+    if current_user and hasattr(instance, "updated_by"):
+        setattr(instance, "updated_by", current_user.id)
+
     await db.commit()
     return {col.name: getattr(instance, col.name) for col in instance.__table__.columns}
 
@@ -419,6 +460,7 @@ async def delete_entity(
     entity_key: str,
     entity_id: int,
     tenant_id: Optional[int] = None,
+    current_user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> Dict[str, Any]:
     """Soft-delete a record in PostgreSQL."""
@@ -426,9 +468,15 @@ async def delete_entity(
     if not model:
         raise HTTPException(status_code=404, detail=f"Entity '{entity_key}' not found.")
 
+    effective_tenant_id = tenant_id
+    if current_user:
+        await set_rls_context(db, str(current_user.tenant_id), str(current_user.id), is_superadmin=current_user.is_superadmin)
+        if not current_user.is_superadmin:
+            effective_tenant_id = current_user.tenant_id
+
     stmt = select(model).where(model.id == entity_id)
-    if tenant_id is not None and hasattr(model, "tenant_id"):
-        stmt = stmt.where(model.tenant_id == tenant_id)
+    if effective_tenant_id is not None and hasattr(model, "tenant_id"):
+        stmt = stmt.where(model.tenant_id == effective_tenant_id)
 
     res = await db.execute(stmt)
     instance = res.scalar_one_or_none()
@@ -437,6 +485,8 @@ async def delete_entity(
 
     if hasattr(instance, "is_deleted"):
         instance.is_deleted = True
+        if current_user and hasattr(instance, "updated_by"):
+            setattr(instance, "updated_by", current_user.id)
     else:
         await db.delete(instance)
 

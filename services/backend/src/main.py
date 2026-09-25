@@ -151,6 +151,16 @@ async def global_exception_handler(request: Request, exc: Exception):
     import traceback
     tb = traceback.format_exc()
     logger.error("Unhandled API Exception", path=str(request.url), error=str(exc), traceback=tb)
+    
+    app_env = os.getenv("APP_ENV", "development").lower()
+    if app_env == "production":
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": "An internal server error occurred. Please contact system administrator.",
+                "error_type": "InternalServerError"
+            }
+        )
     return JSONResponse(
         status_code=500,
         content={"detail": str(exc), "error_type": type(exc).__name__, "traceback": tb.splitlines()}

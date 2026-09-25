@@ -20,6 +20,7 @@ build/
 package-lock.json
 bun.lock
 bun.lockb
+.turbo/
 
 # Environment & IDE
 .env

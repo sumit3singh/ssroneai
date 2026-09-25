@@ -20,6 +20,7 @@ async def test_search_all_combines_modules():
     # Mock Customer
     mock_cust = MagicMock()
     mock_cust.id = 2
+    mock_cust.name = "Amit Sharma"
     mock_cust.first_name = "Amit"
     mock_cust.last_name = "Sharma"
     mock_cust.phone = "9876543210"

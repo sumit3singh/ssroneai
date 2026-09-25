@@ -240,7 +240,7 @@ async def create_employee(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    tenant_id = body.tenant_id or current_user.tenant_id
+    tenant_id = body.tenant_id if (getattr(current_user, "is_superadmin", False) and body.tenant_id) else current_user.tenant_id
     company_id = body.company_id or getattr(current_user, 'company_id', None)
     branch_id = body.branch_id or getattr(current_user, 'branch_id', None)
 

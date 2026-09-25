@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import HTTPException
 from src.modules.restaurant.router import (
     list_categories, create_category, update_category, delete_category,
@@ -26,6 +26,7 @@ class DummyResult:
 
 
 @pytest.mark.asyncio
+@patch("src.modules.restaurant.router._resolve_branch_id", AsyncMock(return_value=1))
 async def test_category_crud():
     mock_user = MagicMock()
     mock_user.tenant_id = 1
@@ -87,6 +88,7 @@ async def test_category_crud():
     assert res["message"] == "Category deleted successfully"
 
 @pytest.mark.asyncio
+@patch("src.modules.restaurant.router._resolve_branch_id", AsyncMock(return_value=1))
 async def test_menu_item_crud():
     mock_user = MagicMock()
     mock_user.tenant_id = 2
@@ -110,9 +112,6 @@ async def test_menu_item_crud():
         is_popular=False,
         is_available=True,
         gst_percent=5.0,
-        tags=[],
-        variant_groups=[],
-        addon_groups=[],
         branch_id=None,
         tenant_id=mock_user.tenant_id,
         variant_groups_rel=[],
@@ -126,7 +125,8 @@ async def test_menu_item_crud():
     db = MagicMock()
     db.execute = AsyncMock(return_value=DummyResult([mock_item]))
     
-    items = await list_menu_items(category_id=1, branch_id=None, current_user=mock_user, db=db)
+    mock_req = MagicMock()
+    items = await list_menu_items(request=mock_req, category_id=1, branch_id=None, current_user=mock_user, db=db)
     assert len(items) == 1
     assert items[0].name == "Gulab Jamun"
     

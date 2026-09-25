@@ -8,8 +8,7 @@ FROM python:3.12-slim AS base
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    DATABASE_URL="postgresql://neondb_owner:npg_Nx0sXMZqRF6c@ep-solitary-snow-b55t825b-pooler.c-7.us-east-2.aws.neon.tech:5432/neondb?sslmode=require"
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
 

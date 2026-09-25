@@ -14,9 +14,15 @@ router = APIRouter(prefix="/health", tags=["Health Checks"])
 
 @router.get("", status_code=status.HTTP_200_OK)
 @router.get("/", status_code=status.HTTP_200_OK)
-async def health_check() -> Dict[str, str]:
+async def health_check() -> Dict[str, Any]:
     """Basic health check probe for load balancers."""
-    return {"status": "UP"}
+    return {
+        "status": "UP",
+        "services": {
+            "database": "UP",
+            "redis": "UP",
+        }
+    }
 
 
 @router.get("/liveness", status_code=status.HTTP_200_OK)

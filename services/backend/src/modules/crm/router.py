@@ -61,7 +61,7 @@ async def list_customers(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    resolved_tenant = tenant_id or current_user.tenant_id
+    resolved_tenant = tenant_id if (getattr(current_user, "is_superadmin", False) and tenant_id) else current_user.tenant_id
     query = select(Customer).where(
         Customer.tenant_id == resolved_tenant, Customer.is_deleted == False
     )
@@ -95,7 +95,7 @@ async def create_customer(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> CustomerResponse:
-    resolved_tenant = body.tenant_id or current_user.tenant_id
+    resolved_tenant = body.tenant_id if (getattr(current_user, "is_superadmin", False) and body.tenant_id) else current_user.tenant_id
     resolved_company = body.company_id or getattr(current_user, "company_id", None)
     resolved_branch = body.branch_id or getattr(current_user, "branch_id", None)
     full_name = (body.name or f"{body.first_name or ''} {body.last_name or ''}").strip() or "Guest Customer"

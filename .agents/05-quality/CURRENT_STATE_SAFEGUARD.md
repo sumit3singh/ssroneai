@@ -103,6 +103,7 @@ This document serves as the **Canonical Current State Snapshot & Safeguard Stand
 - **[ADR-0012](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0012-tenant-customization-studio-and-self-service-domains.md)**: Tenant Customization Studio & Self-Service Custom Domains Architecture.
 - **[ADR-0013](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0013-world-class-enterprise-pos-innovations.md)**: World-Class Enterprise POS Innovations & Zero-Ruination Hardening.
 - **[ADR-0014](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0014-production-cloud-deployment-and-zero-ruination-cd.md)**: Production Cloud Deployment & Zero-Ruination Continuous Delivery Baseline.
+- **[ADR-0015](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0015-production-audit-security-and-data-integrity-hardening.md)**: Final Production Audit, Secret Sanitization & Multi-Tenant Data-Integrity Hardening.
 
 ---
 

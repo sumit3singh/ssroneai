@@ -15,20 +15,27 @@ class DummyResult:
 
 @pytest.mark.asyncio
 async def test_get_current_user_no_credentials():
+    from src.modules.auth.dependencies import settings
     request = MagicMock()
-    with pytest.raises(HTTPException) as exc_info:
-        await get_current_user(request, credentials=None)
-    assert exc_info.value.status_code == 401
+    mock_db = AsyncMock()
+    mock_db.execute.return_value = DummyResult(None)
+    with patch.object(settings, "app_env", "production"):
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_user(request, credentials=None, db=mock_db)
+        assert exc_info.value.status_code == 401
 
 @pytest.mark.asyncio
 async def test_get_current_user_jwt_error():
+    from src.modules.auth.dependencies import settings
     request = MagicMock()
     credentials = MagicMock()
     credentials.credentials = "invalid-token"
+    mock_db = AsyncMock()
+    mock_db.execute.return_value = DummyResult(None)
     
-    with patch("src.modules.auth.dependencies.auth_service.decode_access_token", side_effect=JWTError("Invalid token")):
+    with patch.object(settings, "app_env", "production"):
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(request, credentials=credentials)
+            await get_current_user(request, credentials=credentials, db=mock_db)
         assert exc_info.value.status_code == 401
 
 @pytest.mark.asyncio

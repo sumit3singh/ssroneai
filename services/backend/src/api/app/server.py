@@ -62,8 +62,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan: startup checks and graceful shutdown."""
     logger.info("🚀 The ssrone Backend API Server Online")
     yield
-    await dispose_engine()
-    logger.info("Shutdown complete")  # ── Application Running ──────────────
 
     # ── Shutdown ───────────────────────────────
     logger.info("🛑 Shutting down The ssrone Platform...")
