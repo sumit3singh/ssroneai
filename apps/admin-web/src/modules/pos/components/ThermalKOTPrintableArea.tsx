@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom";
 import { renderSafeString } from "../utils/renderSafeString";
+import { cleanTableName, formatItemWithVariantAndAddons } from "../utils/posPrintFormatters";
 
 export interface StationKOTItem {
   cart_id?: string;
@@ -89,9 +90,9 @@ export const ThermalKOTPrintableArea: React.FC<ThermalKOTPrintableAreaProps> = (
       `}</style>
 
       {slips.map((slip, idx) => {
-        const displayTable = slip.tableName
-          ? (String(slip.tableName).toLowerCase().startsWith("table") ? slip.tableName : `Table ${slip.tableName}`)
-          : (slip.orderType || "N/A");
+        const rawTable = cleanTableName(slip.tableName);
+        const displayTable = rawTable || (slip.orderType || "N/A");
+        const totalQty = slip.items.reduce((sum, it) => sum + (it.quantity || 1), 0);
 
         return (
           <div key={`${slip.stationName}-${slip.orderNumber}-${idx}`} className="kot-station-slip">
@@ -102,80 +103,68 @@ export const ThermalKOTPrintableArea: React.FC<ThermalKOTPrintableAreaProps> = (
                 fontSize: "16px",
                 fontWeight: "900",
                 textTransform: "uppercase",
-                borderBottom: "2px solid #000000",
-                paddingBottom: "4px",
-                marginBottom: "6px",
+                marginBottom: "4px",
               }}
             >
               {slip.stationName}
             </div>
 
-            {/* 2. Table Name, 3. Order No, 4. Time */}
+            {/* 2. Table Name & Order No on One Line */}
             <div
               style={{
+                display: "flex",
+                justifyContent: "space-between",
                 fontSize: "12px",
-                lineHeight: "1.4",
-                borderBottom: "1px dashed #000000",
-                paddingBottom: "5px",
-                marginBottom: "6px",
+                fontWeight: "bold",
+                marginBottom: "2px",
               }}
             >
-              <div><strong>TABLE:</strong> {displayTable}</div>
-              <div><strong>ORDER NO:</strong> {slip.orderNumber}</div>
-              <div><strong>TIME:</strong> {slip.timestamp}</div>
+              <span>TABLE: {displayTable}</span>
+              <span>ORDER NO: {slip.orderNumber}</span>
             </div>
 
-            {/* 5. Menu Items */}
+            {/* 3. Time */}
+            <div style={{ fontSize: "11px", marginBottom: "4px" }}>
+              TIME: {slip.timestamp}
+            </div>
+
+            {/* 4. Dashed Divider */}
+            <div style={{ borderBottom: "1px dashed #000000", marginBottom: "6px" }} />
+
+            {/* 5. Menu Items with Inlined Variant & Addons */}
             <div style={{ fontSize: "12px", lineHeight: "1.3" }}>
               {slip.items.map((it, itemIdx) => {
-                const addonsList = it.addons || [];
-                const addonStr = Array.isArray(addonsList)
-                  ? addonsList
-                      .map((a: any) => (typeof a === "string" ? a : renderSafeString(a?.name || a?.title || a?.label)))
-                      .filter(Boolean)
-                      .join(", ")
-                  : "";
+                const itemTitle = formatItemWithVariantAndAddons(
+                  it.name,
+                  it.variant_name,
+                  it.addons,
+                  "spaced"
+                );
 
                 return (
-                  <div
-                    key={`${it.name}-${itemIdx}`}
-                    style={{
-                      paddingBottom: "5px",
-                      marginBottom: "5px",
-                      borderBottom: itemIdx === slip.items.length - 1 ? "none" : "1px dotted #999",
-                    }}
-                  >
-                    {/* Item Name & Qty */}
+                  <div key={`${it.name}-${itemIdx}`} style={{ marginBottom: "5px" }}>
                     <div
                       style={{
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "flex-start",
                         fontWeight: "900",
-                        fontSize: "13px",
+                        fontSize: "12.5px",
                       }}
                     >
-                      <span style={{ flex: 1, paddingRight: "8px" }}>{it.name}</span>
+                      <span style={{ flex: 1, paddingRight: "8px" }}>{itemTitle}</span>
                       <span style={{ whiteSpace: "nowrap" }}>QTY: {it.quantity}</span>
                     </div>
 
-                    {/* Variant name if have */}
-                    {it.variant_name && (
-                      <div style={{ fontSize: "11px", fontWeight: "600", marginTop: "2px", color: "#111" }}>
-                        Variant: {it.variant_name}
-                      </div>
-                    )}
-
-                    {/* Addons if have */}
-                    {addonStr && (
-                      <div style={{ fontSize: "11px", marginTop: "2px", color: "#222" }}>
-                        Addons: {addonStr}
-                      </div>
-                    )}
-
-                    {/* Remark if have */}
                     {it.notes && it.notes.trim() && (
-                      <div style={{ fontSize: "11px", fontWeight: "700", marginTop: "2px", color: "#000" }}>
+                      <div
+                        style={{
+                          fontSize: "10.5px",
+                          fontWeight: "700",
+                          marginTop: "1px",
+                          color: "#111",
+                        }}
+                      >
                         Remark: {it.notes.trim()}
                       </div>
                     )}
@@ -183,6 +172,24 @@ export const ThermalKOTPrintableArea: React.FC<ThermalKOTPrintableAreaProps> = (
                 );
               })}
             </div>
+
+            {/* 6. Summary */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontWeight: "bold",
+                fontSize: "11px",
+                marginTop: "6px",
+                paddingTop: "4px",
+              }}
+            >
+              <span>ITEMS: {slip.items.length}</span>
+              <span>TOTAL QTY: {totalQty}</span>
+            </div>
+
+            {/* 7. Bottom Dashed Divider */}
+            <div style={{ borderBottom: "1px dashed #000000", marginTop: "4px", marginBottom: "6px" }} />
           </div>
         );
       })}
@@ -204,54 +211,50 @@ export async function printKOTSlipsDirectly(slips: StationKOTSlip[]) {
   if (!slips || slips.length === 0) return;
 
   const slipsHtml = slips.map((slip) => {
-    const displayTable = slip.tableName
-      ? (String(slip.tableName).toLowerCase().startsWith("table") ? slip.tableName : `Table ${slip.tableName}`)
-      : (slip.orderType || "N/A");
+    const rawTable = cleanTableName(slip.tableName);
+    const displayTable = rawTable || (slip.orderType || "N/A");
+    const totalQty = slip.items.reduce((sum, it) => sum + (it.quantity || 1), 0);
 
-    const itemsHtml = slip.items.map((it, itemIdx) => {
-      const addonsList = it.addons || [];
-      const addonStr = Array.isArray(addonsList)
-        ? addonsList
-            .map((a: any) => (typeof a === "string" ? a : renderSafeString(a?.name || a?.title || a?.label)))
-            .filter(Boolean)
-            .join(", ")
-        : "";
+    const itemsHtml = slip.items.map((it) => {
+      const itemTitle = formatItemWithVariantAndAddons(
+        it.name,
+        it.variant_name,
+        it.addons,
+        "spaced"
+      );
 
       return `
-        <div style="padding-bottom: 5px; margin-bottom: 5px; border-bottom: ${itemIdx === slip.items.length - 1 ? "none" : "1px dotted #888"};">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; font-weight: 900; font-size: 13px;">
-            <span style="flex: 1; padding-right: 8px;">${it.name}</span>
+        <div style="margin-bottom: 5px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; font-weight: 900; font-size: 12.5px;">
+            <span style="flex: 1; padding-right: 8px;">${itemTitle}</span>
             <span style="white-space: nowrap;">QTY: ${it.quantity}</span>
           </div>
-          ${it.variant_name ? `<div style="font-size: 11px; font-weight: 600; margin-top: 2px; color: #111;">Variant: ${it.variant_name}</div>` : ""}
-          ${addonStr ? `<div style="font-size: 11px; margin-top: 2px; color: #222;">Addons: ${addonStr}</div>` : ""}
-          ${it.notes && it.notes.trim() ? `<div style="font-size: 11px; font-weight: 700; margin-top: 2px; color: #000;">Remark: ${it.notes.trim()}</div>` : ""}
+          ${it.notes && it.notes.trim() ? `<div style="font-size: 10.5px; font-weight: 700; margin-top: 1px; color: #111;">Remark: ${it.notes.trim()}</div>` : ""}
         </div>
       `;
     }).join("");
 
-    const totalQty = slip.items.reduce((sum, it) => sum + (it.quantity || 1), 0);
-
     return `
       <div class="kot-station-slip">
-        <div style="text-align: center; font-size: 16px; font-weight: 900; text-transform: uppercase; border-bottom: 2px solid #000000; padding-bottom: 4px; margin-bottom: 6px;">
+        <div style="text-align: center; font-size: 16px; font-weight: 900; text-transform: uppercase; margin-bottom: 4px;">
           ${slip.stationName}
         </div>
-        <div style="font-size: 12px; line-height: 1.4; border-bottom: 1px dashed #000000; padding-bottom: 5px; margin-bottom: 6px;">
-          <div><strong>TABLE:</strong> ${displayTable}</div>
-          <div><strong>ORDER NO:</strong> ${slip.orderNumber} (${slip.kotType})</div>
-          <div><strong>TIME:</strong> ${slip.timestamp}</div>
+        <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 2px;">
+          <span>TABLE: ${displayTable}</span>
+          <span>ORDER NO: ${slip.orderNumber}</span>
         </div>
+        <div style="font-size: 11px; margin-bottom: 4px;">
+          TIME: ${slip.timestamp}
+        </div>
+        <div style="border-bottom: 1px dashed #000000; margin-bottom: 6px;"></div>
         <div style="font-size: 12px; line-height: 1.3;">
           ${itemsHtml}
         </div>
-        <div style="border-top: 1px dashed #000; margin-top: 6px; padding-top: 4px; display: flex; justify-content: space-between; font-weight: bold; font-size: 11px;">
+        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 11px; margin-top: 6px; padding-top: 4px;">
           <span>ITEMS: ${slip.items.length}</span>
           <span>TOTAL QTY: ${totalQty}</span>
         </div>
-        <div style="text-align: center; font-size: 9px; color: #666; margin-top: 8px; letter-spacing: 1px;">
-          - - - - - TEAR / CUT HERE - - - - -
-        </div>
+        <div style="border-bottom: 1px dashed #000000; margin-top: 4px; margin-bottom: 6px;"></div>
       </div>
     `;
   }).join("");

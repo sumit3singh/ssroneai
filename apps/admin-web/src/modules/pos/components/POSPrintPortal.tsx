@@ -3,6 +3,12 @@ import ReactDOM from "react-dom";
 import { renderSafeString } from "../utils/renderSafeString";
 import { useAuthStore } from "@ssrone/auth";
 import { usePOSPrinterStore } from "../store/printer.store";
+import {
+  cleanTableName,
+  cleanString,
+  formatBranchAddress,
+  formatItemWithVariantAndAddons,
+} from "../utils/posPrintFormatters";
 
 export interface StationKOTItem {
   cart_id?: string;
@@ -71,23 +77,19 @@ export const POSPrintPortal: React.FC<POSPrintPortalProps> = ({
     settings.customerReceiptHeader?.trim() ||
     selected_branch?.name ||
     selected_company?.name ||
-    "RESTAURANT & CAFE";
-  const venueAddress =
-    (selected_branch as any)?.address ||
-    (selected_company as any)?.address ||
-    "Main Outlet";
-  const venueGstin =
-    (selected_branch as any)?.gstin ||
-    (selected_company as any)?.gstin ||
-    "";
-  const venueFssai =
-    (selected_branch as any)?.fssai_number ||
-    (selected_company as any)?.fssai_number ||
-    "";
-  const venuePhone =
-    (selected_branch as any)?.phone ||
-    (selected_company as any)?.phone ||
-    "";
+    "BAITHAK CAFE CUH";
+  const venueAddress = formatBranchAddress(
+    (selected_branch as any)?.address || (selected_company as any)?.address
+  );
+  const venueGstin = cleanString(
+    (selected_branch as any)?.gstin || (selected_company as any)?.gstin
+  );
+  const venueFssai = cleanString(
+    (selected_branch as any)?.fssai_number || (selected_company as any)?.fssai_number
+  );
+  const venuePhone = cleanString(
+    (selected_branch as any)?.phone || (selected_company as any)?.phone
+  );
 
   if (!printType) return null;
   if (printType === "KOT" && (!kotSlips || kotSlips.length === 0)) return null;
@@ -472,7 +474,7 @@ export const POSPrintPortal: React.FC<POSPrintPortalProps> = ({
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1px" }}>
               <span><strong>DATE:</strong> {receiptData.timestamp}</span>
               {settings.customerShowTableWaiter && receiptData.tableName && (
-                <span><strong>TABLE:</strong> {receiptData.tableName}</span>
+                <span><strong>TABLE:</strong> {cleanTableName(receiptData.tableName)}</span>
               )}
             </div>
             {settings.customerShowTableWaiter && receiptData.waiterName && (
@@ -502,13 +504,19 @@ export const POSPrintPortal: React.FC<POSPrintPortalProps> = ({
               }}
             >
               <span style={{ width: "28px" }}>QTY</span>
-              <span style={{ flex: 1 }}>ITEM</span>
+              <span style={{ flex: 1 }}>ITEM & SIZE</span>
               <span style={{ width: "45px", textAlign: "right" }}>AMOUNT</span>
             </div>
 
             {receiptData.items.map((item, idx) => {
               const unitPrice = item.selling_price ?? item.price ?? 0;
               const totalLine = unitPrice * item.quantity;
+              const itemTitle = formatItemWithVariantAndAddons(
+                item.name,
+                item.variant_name,
+                (item as any).addons,
+                "compact"
+              );
               return (
                 <div
                   key={`bill-item-${idx}`}
@@ -521,12 +529,7 @@ export const POSPrintPortal: React.FC<POSPrintPortalProps> = ({
                 >
                   <span style={{ width: "28px", fontWeight: "bold" }}>{item.quantity}x</span>
                   <span style={{ flex: 1, paddingRight: "4px" }}>
-                    {item.name}
-                    {item.variant_name && (
-                      <span style={{ fontSize: "9px", fontStyle: "italic", display: "block" }}>
-                        ({item.variant_name})
-                      </span>
-                    )}
+                    {itemTitle}
                   </span>
                   <span style={{ width: "45px", textAlign: "right", fontWeight: "bold" }}>
                     ₹{totalLine > 0 ? totalLine : "—"}
@@ -598,11 +601,8 @@ export const POSPrintPortal: React.FC<POSPrintPortalProps> = ({
               fontSize: "9px",
             }}
           >
-            <div style={{ fontWeight: "bold", textTransform: "uppercase" }}>
-              {settings.customerReceiptFooter || "Thank You For Dining With Us! Please Visit Again."}
-            </div>
-            <div style={{ fontSize: "8px", color: "#666", marginTop: "2px" }}>
-              Powered by SSR ONE AI
+            <div style={{ fontWeight: "bold" }}>
+              {settings.customerReceiptFooter || "Thank You For Dining With Us! Visit Again"}
             </div>
             <div style={{ marginTop: "6px", fontSize: "8.5px", color: "#444" }}>
               ✂ - - - - - TEAR / CUT HERE - - - - - ✂

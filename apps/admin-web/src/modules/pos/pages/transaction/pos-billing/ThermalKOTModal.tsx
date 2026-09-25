@@ -3,6 +3,7 @@ import { Printer, ChefHat, X } from "lucide-react";
 import { Button } from "@ssrone/ui";
 import { useAuthStore } from "@ssrone/auth";
 import { renderSafeString } from "../../../utils/renderSafeString";
+import { cleanTableName, formatItemWithVariantAndAddons } from "../../../utils/posPrintFormatters";
 
 export interface StationKOTItem {
   cart_id?: string;
@@ -149,84 +150,68 @@ export const ThermalKOTModal: React.FC<ThermalKOTModalProps> = ({
         <div className="overflow-y-auto flex-1 pr-1 space-y-3 max-h-[65vh]">
           <div id="thermal-kot-printable-area" className="space-y-3">
             {slips.map((slip, idx) => {
-              const totalQty = slip.items.reduce((sum, it) => sum + it.quantity, 0);
-              const isUpdate = slip.kotType === "UPDATE";
-              const displayTable = slip.tableName
-                ? (String(slip.tableName).toLowerCase().startsWith("table") ? slip.tableName : `Table ${slip.tableName}`)
-                : (slip.orderType || "N/A");
+              const rawTable = cleanTableName(slip.tableName);
+              const displayTable = rawTable || (slip.orderType || "N/A");
+              const totalQty = slip.items.reduce((sum, it) => sum + (it.quantity || 1), 0);
 
               return (
                 <div
                   key={`${slip.stationName}-${slip.orderNumber}-${idx}`}
                   className="kot-station-slip bg-white text-black p-3 rounded-lg border border-neutral-300 shadow-2xs font-mono text-[11px] leading-tight space-y-1.5"
                 >
-                  {/* Ultra-Compact Station & Table Header (Minimum Paper Waste) */}
-                  <div className="border-b-2 border-black pb-1">
-                    <div className="flex items-center justify-between">
-                      <span className="bg-black text-white px-2 py-0.5 rounded text-xs font-black uppercase tracking-wide">
-                        {slip.stationName}
-                      </span>
-                      <span className="font-black text-xs text-black">
-                        {displayTable}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] text-neutral-800 mt-1 font-bold">
-                      <span>KOT #{slip.orderNumber} ({slip.orderType})</span>
-                      <span>{isUpdate ? "⚡ ADD-ON" : "★ NEW"}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[9px] text-neutral-600">
-                      <span>{slip.timestamp}</span>
-                      {slip.waiterName && <span>Srvr: {slip.waiterName}</span>}
-                    </div>
+                  {/* Station Name */}
+                  <div className="text-center font-black text-sm uppercase">
+                    {slip.stationName}
                   </div>
 
-                  {/* Compact Items List (Zero Unnecessary Gap) */}
+                  {/* Table & Order No on One Line */}
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span>TABLE: {displayTable}</span>
+                    <span>ORDER NO: {slip.orderNumber}</span>
+                  </div>
+
+                  {/* Time */}
+                  <div className="text-[10px] text-neutral-600">
+                    TIME: {slip.timestamp}
+                  </div>
+
+                  {/* Dashed Divider */}
+                  <div className="border-b border-dashed border-black my-1" />
+
+                  {/* Items List */}
                   <div className="space-y-1 py-0.5">
                     {slip.items.map((it, itemIdx) => {
-                      const addonsList = it.addons || [];
-                      const addonStr = Array.isArray(addonsList)
-                        ? addonsList
-                            .map((a: any) => (typeof a === "string" ? a : renderSafeString(a?.name || a?.title || a?.label)))
-                            .filter(Boolean)
-                            .join(", ")
-                        : "";
+                      const itemTitle = formatItemWithVariantAndAddons(
+                        it.name,
+                        it.variant_name,
+                        it.addons,
+                        "spaced"
+                      );
 
                       return (
-                        <div key={`${it.name}-${itemIdx}`} className="border-b border-dotted border-neutral-300 pb-1">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 pr-1">
-                              <span className="font-black text-xs text-neutral-900">{it.name}</span>
-                              {it.variant_name && (
-                                <span className="text-[9.5px] italic text-neutral-600 block">↳ {it.variant_name}</span>
-                              )}
-                              {addonStr && (
-                                <span className="text-[9px] text-neutral-600 block">+ {addonStr}</span>
-                              )}
-                              {it.notes && it.notes.trim() && (
-                                <div className="text-[9.5px] font-black mt-0.5 bg-neutral-100 px-1 py-0.5 border border-dashed border-black inline-block">
-                                  *** {it.notes.trim().toUpperCase()} ***
-                                </div>
-                              )}
-                            </div>
-                            <span className="font-black text-sm text-neutral-900 shrink-0">
-                              {it.quantity}x
-                            </span>
+                        <div key={`${it.name}-${itemIdx}`} className="space-y-0.5">
+                          <div className="flex items-start justify-between font-black text-xs text-neutral-900">
+                            <span className="flex-1 pr-2">{itemTitle}</span>
+                            <span className="whitespace-nowrap">QTY: {it.quantity}</span>
                           </div>
+                          {it.notes && it.notes.trim() && (
+                            <div className="text-[10px] font-bold text-neutral-800">
+                              Remark: {it.notes.trim()}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
                   </div>
 
-                  {/* Ultra-Compact Footer */}
-                  <div className="border-t border-dashed border-black pt-1 text-[10px]">
-                    <div className="flex justify-between font-black">
-                      <span>ITEMS: {slip.items.length}</span>
-                      <span>TOTAL QTY: {totalQty}</span>
-                    </div>
-                    <div className="text-center text-[8.5px] text-neutral-500 mt-1 border-t border-dotted border-neutral-400 pt-0.5">
-                      - - - - - - - - - - TEAR / CUT HERE - - - - - - - - - -
-                    </div>
+                  {/* Summary */}
+                  <div className="flex justify-between font-black text-[11px] pt-1">
+                    <span>ITEMS: {slip.items.length}</span>
+                    <span>TOTAL QTY: {totalQty}</span>
                   </div>
+
+                  {/* Bottom Divider */}
+                  <div className="border-b border-dashed border-black mt-1" />
                 </div>
               );
             })}

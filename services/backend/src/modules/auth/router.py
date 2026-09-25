@@ -524,7 +524,18 @@ async def list_branches(
         )
     res = await db.execute(stmt)
     branches = res.scalars().all()
-    return [{"id": str(b.id), "name": b.name, "code": b.code, "timezone": b.timezone} for b in branches]
+    return [
+        {
+            "id": str(b.id),
+            "name": b.name,
+            "code": b.code,
+            "timezone": getattr(b, "timezone", "Asia/Kolkata") or "Asia/Kolkata",
+            "address": getattr(b, "address", None) or "",
+            "phone": getattr(b, "phone", None) or "",
+            "gstin": getattr(b, "gstin", None) or "",
+        }
+        for b in branches
+    ]
 
 
 @router.get("/public/tenants", response_model=list[dict])
@@ -802,6 +813,9 @@ async def get_public_context(
                 "company_id": str(b.company_id),
                 "name": b.name,
                 "code": b.code,
+                "address": getattr(b, "address", None) or "",
+                "phone": getattr(b, "phone", None) or "",
+                "gstin": getattr(b, "gstin", None) or "",
                 "timezone": getattr(b, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
             }
             for b in branches

@@ -6,6 +6,12 @@ import { useAuthStore } from "@ssrone/auth";
 import { POSCartItem } from "../../../types";
 import { renderSafeString } from "../../../utils/renderSafeString";
 import { safePrintWithFullscreenRestore } from "../../../utils/printUtils";
+import {
+  cleanTableName,
+  cleanString,
+  formatBranchAddress,
+  formatItemWithVariantAndAddons,
+} from "../../../utils/posPrintFormatters";
 
 interface ThermalReceiptModalProps {
   isOpen: boolean;
@@ -54,21 +60,20 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
   };
 
   // Dynamic multi-tenant venue details with safe fallbacks
-  const venueName = selected_branch?.name || selected_company?.name || "RESTAURANT & CAFE";
-  const venueAddress = (selected_branch as any)?.address || (selected_company as any)?.address || "Branch Outlet";
-  const venueGstin = (selected_branch as any)?.gstin || (selected_company as any)?.gstin || "";
-  const venuePhone = (selected_branch as any)?.phone || (selected_company as any)?.phone || "";
-  const venueFssai = (selected_branch as any)?.fssai_number || (selected_company as any)?.fssai_number || "";
-  const upiVpa = (selected_branch as any)?.upi_vpa || (selected_company as any)?.upi_vpa || "merchant@upi";
+  const venueName = cleanString(selected_branch?.name || selected_company?.name || "BAITHAK CAFE CUH");
+  const venueAddress = formatBranchAddress((selected_branch as any)?.address || (selected_company as any)?.address);
+  const venueGstin = cleanString((selected_branch as any)?.gstin || (selected_company as any)?.gstin);
+  const venuePhone = cleanString((selected_branch as any)?.phone || (selected_company as any)?.phone);
+  const venueFssai = cleanString((selected_branch as any)?.fssai_number || (selected_company as any)?.fssai_number);
 
-  const custName = renderSafeString(receiptData.customerName);
-  const custPhone = renderSafeString(receiptData.customerPhone);
-  const custAddress = renderSafeString(receiptData.customerAddress);
-  const tableName = renderSafeString(receiptData.tableName);
-  const waiterName = renderSafeString(receiptData.waiterName);
-  const orderNumber = renderSafeString(receiptData.orderNumber);
-  const orderType = renderSafeString(receiptData.orderType);
-  const paymentMethod = renderSafeString(receiptData.paymentMethod);
+  const custName = cleanString(receiptData.customerName);
+  const custPhone = cleanString(receiptData.customerPhone);
+  const custAddress = cleanString(receiptData.customerAddress);
+  const cleanTable = cleanTableName(receiptData.tableName);
+  const waiterName = cleanString(receiptData.waiterName);
+  const orderNumber = cleanString(receiptData.orderNumber);
+  const orderType = cleanString(receiptData.orderType);
+  const paymentMethod = cleanString(receiptData.paymentMethod);
 
   const handleSendWhatsApp = () => {
     const rawPhone = (phoneInput || custPhone || "").replace(/\D/g, "");
@@ -79,12 +84,52 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
     }
     const cleanPhone = rawPhone.length === 10 ? `91${rawPhone}` : rawPhone;
 
-    const itemsSummary = receiptData.items
-      .map((it) => `• ${it.quantity}x ${it.name} — ₹${(it.unit_price * it.quantity).toFixed(0)}`)
-      .join("\n");
+    const lines: string[] = [];
+    lines.push("╔═══════════════════════════════════╗");
+    lines.push(`   🍽️ *${venueName.toUpperCase()}*`);
+    lines.push("╚═══════════════════════════════════╝");
+    if (venueAddress) lines.push(`📍 *Address:* ${venueAddress}`);
+    if (venueGstin) lines.push(`🧾 *Gst:* ${venueGstin}`);
+    if (venuePhone) lines.push(`📞 *Mobile no.* ${venuePhone}`);
+    lines.push("------------------------------------");
+    lines.push(`*Order No:* ${orderNumber} ,*Mode:* ${orderType}`);
+    lines.push(`*Date/Time:* ${receiptData.timestamp}`);
+    if (cleanTable) lines.push(`*Dining Table:* ${cleanTable}`);
+    lines.push("------------------------------------");
+    lines.push(`👤 *Customer Name:* ${custName || "Walk-in Guest"}`);
+    lines.push("------------------------------------");
+    lines.push("*ITEM & SIZE*        *QTY X PRICE*   *AMT*");
+    lines.push("------------------------------------");
 
-    const message = `🍽️ *${venueName.toUpperCase()}*\n━━━━━━━━━━━━━━━━━━━\n*Bill Receipt #${orderNumber}*\nDate: ${receiptData.timestamp}\nType: ${orderType}\n━━━━━━━━━━━━━━━━━━━\n${itemsSummary}\n━━━━━━━━━━━━━━━━━━━\nSubtotal: ₹${receiptData.subtotal}\n${receiptData.discountAmount > 0 ? `Discount: -₹${receiptData.discountAmount}\n` : ""}${receiptData.taxAmount > 0 ? `GST: ₹${receiptData.taxAmount}\n` : ""}*Total Paid: ₹${receiptData.netAmount}*\nPayment: ${paymentMethod}\n━━━━━━━━━━━━━━━━━━━\n🙏 *Thank you for dining with us!* Have a wonderful day!`;
+    (receiptData.items || []).forEach((it) => {
+      const rawName = renderSafeString(it.name || (it as any).product_name || (it as any).item_name || "Item");
+      const variantName = renderSafeString(it.variant_name);
+      const addonsList = it.addons || (it as any).selected_addons || (it as any).addon_options || [];
+      const itemTitle = formatItemWithVariantAndAddons(rawName, variantName, addonsList, "compact");
+      const qtyPriceStr = `${it.quantity} x ₹${Number(it.unit_price).toFixed(2)}`;
+      const amtStr = `₹${(it.quantity * it.unit_price).toFixed(0)}`;
 
+      lines.push(`• *${itemTitle}*`);
+      lines.push(`   ${qtyPriceStr} = ${amtStr}`);
+    });
+
+    lines.push("------------------------------------");
+    lines.push(`Subtotal: ₹${receiptData.subtotal}`);
+    if (receiptData.packagingChargeTotal > 0) {
+      lines.push(`Packaging Fee: +₹${receiptData.packagingChargeTotal}`);
+    }
+    if (receiptData.discountAmount > 0) {
+      lines.push(`Discount: -₹${receiptData.discountAmount}`);
+    }
+    lines.push(`GST: ₹${receiptData.taxAmount}`);
+    lines.push(`*Grand Total: ₹${receiptData.netAmount}*`);
+    if (paymentMethod) {
+      lines.push(`Paid Via: ${paymentMethod}`);
+    }
+    lines.push("------------------------------------");
+    lines.push("✨ *Thank You For Dining With Us! Visit Again* ✨");
+
+    const message = lines.join("\n");
     const encoded = encodeURIComponent(message);
     window.open(`https://wa.me/${cleanPhone}?text=${encoded}`, "_blank");
     toast.success(`WhatsApp receipt opened for +${cleanPhone}!`);
@@ -146,149 +191,116 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
           className="bg-amber-500/5 dark:bg-slate-950 border border-border rounded-2xl p-4 space-y-3 font-mono text-2xs overflow-y-auto max-h-[460px] shadow-inner"
         >
           {/* Dynamic Restaurant Header */}
-          <div className="text-center space-y-0.5 border-b border-dashed border-border pb-2.5">
+          <div className="text-center space-y-0.5 border-b border-dashed border-neutral-400 dark:border-neutral-600 print:border-black pb-2">
             <h4 className="font-black text-sm text-foreground tracking-wider uppercase">
               {venueName}
             </h4>
-            <p className="text-[10px] text-muted-foreground">{venueAddress}</p>
-            {venueGstin && <p className="text-[10px] text-muted-foreground font-bold">GSTIN: {venueGstin}</p>}
-            {venueFssai && <p className="text-[10px] text-muted-foreground font-bold">FSSAI: {venueFssai}</p>}
-            {venuePhone && <p className="text-[10px] text-muted-foreground font-bold">Tel: {venuePhone}</p>}
+            {venueAddress && <p className="text-[10px] text-muted-foreground print:text-black">Address: {venueAddress}</p>}
+            {venueGstin && <p className="text-[10px] text-muted-foreground print:text-black font-bold">Gst: {venueGstin}</p>}
+            {venuePhone && <p className="text-[10px] text-muted-foreground print:text-black font-bold">Mobile no. {venuePhone}</p>}
+            {venueFssai && <p className="text-[10px] text-muted-foreground print:text-black font-bold">FSSAI: {venueFssai}</p>}
           </div>
 
           {/* Order Details Header */}
-          <div className="space-y-1 text-[11px] border-b border-dashed border-border pb-2">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Order No:</span>
-              <span className="font-bold text-foreground">{orderNumber}</span>
+          <div className="space-y-0.5 text-[11px] border-b border-dashed border-neutral-400 dark:border-neutral-600 print:border-black pb-2">
+            <div className="font-bold text-foreground">
+              Order No: {orderNumber} ,Mode: {orderType}
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Date/Time:</span>
-              <span>{receiptData.timestamp}</span>
+            <div className="text-muted-foreground print:text-black">
+              Date/Time: {receiptData.timestamp}
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Order Mode:</span>
-              <span className="font-bold text-primary uppercase">{orderType}</span>
-            </div>
-            {tableName && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Dining Table:</span>
-                <span className="font-bold text-foreground">Table {tableName}</span>
+            {cleanTable && (
+              <div className="font-bold text-foreground">
+                Dining Table: {cleanTable}
               </div>
             )}
             {waiterName && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Staff Server:</span>
-                <span>{waiterName}</span>
+              <div className="text-muted-foreground print:text-black text-[10px]">
+                Server: {waiterName}
               </div>
             )}
           </div>
 
-          {/* Customer Details Header Section (When Available) */}
-          {(custName || custPhone || custAddress) && (
-            <div className="space-y-0.5 text-[11px] border-b border-dashed border-border pb-2 bg-primary/5 p-2 rounded-lg border border-primary/20">
-              <div className="text-[10px] font-bold text-primary uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                <span>👤 Customer Slip Info:</span>
-              </div>
-              {custName && (
-                <div className="flex justify-between font-extrabold text-foreground">
-                  <span className="text-muted-foreground font-normal">Customer Name:</span>
-                  <span>{custName}</span>
-                </div>
-              )}
-              {custPhone && (
-                <div className="flex justify-between font-bold">
-                  <span className="text-muted-foreground font-normal">Mobile Phone:</span>
-                  <span className="font-mono text-primary">{custPhone}</span>
-                </div>
-              )}
-              {custAddress && (
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-muted-foreground font-normal shrink-0">Address:</span>
-                  <span className="font-medium text-right text-foreground max-w-[170px] truncate">{custAddress}</span>
-                </div>
-              )}
+          {/* Customer Details Header Section */}
+          <div className="space-y-0.5 text-[11px] border-b border-dashed border-neutral-400 dark:border-neutral-600 print:border-black pb-2">
+            <div className="font-extrabold text-foreground">
+              👤Customer Name: {custName || "Walk-in Guest"}
             </div>
-          )}
+            {custPhone && (
+              <div className="text-[10px] text-muted-foreground print:text-black">
+                Mobile Phone: {custPhone}
+              </div>
+            )}
+            {custAddress && (
+              <div className="text-[10px] text-muted-foreground print:text-black truncate">
+                Address: {custAddress}
+              </div>
+            )}
+          </div>
 
           {/* Itemized Table */}
-          <div className="space-y-1.5 border-b border-dashed border-border pb-2.5">
-            <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase border-b border-border pb-1">
-              <span>Item & Size</span>
-              <span>Qty x Price</span>
-              <span>Amt</span>
+          <div className="space-y-1.5 border-b border-dashed border-neutral-400 dark:border-neutral-600 print:border-black pb-2.5">
+            <div className="flex justify-between text-[10px] font-black text-foreground uppercase border-b border-neutral-300 dark:border-neutral-700 print:border-black pb-1">
+              <span className="flex-1">ITEM & SIZE</span>
+              <span className="text-right px-2">QTY X PRICE</span>
+              <span className="w-14 text-right">AMT</span>
             </div>
 
             {(receiptData.items || []).map((it, idx) => {
-              const itemName = renderSafeString(it.name || (it as any).product_name || (it as any).item_name || "Item");
+              const rawName = renderSafeString(it.name || (it as any).product_name || (it as any).item_name || "Item");
               const variantName = renderSafeString(it.variant_name);
+              const addonsList = it.addons || (it as any).selected_addons || (it as any).addon_options || [];
+              const itemTitle = formatItemWithVariantAndAddons(rawName, variantName, addonsList, "compact");
+              const qtyPriceStr = `${it.quantity} x ₹${Number(it.unit_price).toFixed(2)}`;
+              const amtStr = `₹${(it.quantity * it.unit_price).toFixed(0)}`;
+
               return (
-                <div key={idx} className="space-y-0.5">
-                  <div className="flex justify-between font-bold text-foreground">
-                    <span className="truncate max-w-[140px]">{itemName}</span>
-                    <span>{it.quantity} x ₹{it.unit_price}</span>
-                    <span>₹{it.quantity * it.unit_price}</span>
-                  </div>
-                  {variantName && (
-                    <p className="text-[9px] text-primary italic pl-2">Size: {variantName}</p>
-                  )}
-                  {(() => {
-                    const addonsList = it.addons || it.selected_addons || it.addon_options || [];
-                    const addonStr = Array.isArray(addonsList)
-                      ? addonsList
-                          .map((a: any) => (typeof a === "string" ? a : renderSafeString(a?.name || a?.title || a?.addon_name || a?.label)))
-                          .filter(Boolean)
-                          .join(", ")
-                      : "";
-                    if (!addonStr) return null;
-                    return (
-                      <p className="text-[9px] text-amber-600 dark:text-amber-400 pl-2">
-                        + Addons: {addonStr}
-                      </p>
-                    );
-                  })()}
+                <div key={idx} className="flex justify-between items-baseline text-[11px] font-bold text-foreground">
+                  <span className="flex-1 pr-2 break-words leading-tight">{itemTitle}</span>
+                  <span className="text-right px-2 whitespace-nowrap text-muted-foreground print:text-black">{qtyPriceStr}</span>
+                  <span className="w-14 text-right whitespace-nowrap">{amtStr}</span>
                 </div>
               );
             })}
           </div>
 
           {/* Financial Totals */}
-          <div className="space-y-1 pt-1 text-[11px]">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Subtotal:</span>
+          <div className="space-y-1 pt-1 text-[11px] border-b border-dashed border-neutral-400 dark:border-neutral-600 print:border-black pb-2">
+            <div className="flex justify-between text-muted-foreground print:text-black">
+              <span>Subtotal:</span>
               <span>₹{receiptData.subtotal}</span>
             </div>
             {receiptData.packagingChargeTotal > 0 && (
-              <div className="flex justify-between text-amber-600">
-                <span>Packaging Fee:</span>
+              <div className="flex justify-between text-amber-600 print:text-black">
+                <span>Packaging:</span>
                 <span>+₹{receiptData.packagingChargeTotal}</span>
               </div>
             )}
             {receiptData.discountAmount > 0 && (
-              <div className="flex justify-between text-emerald-600 font-bold">
+              <div className="flex justify-between text-emerald-600 print:text-black font-bold">
                 <span>Discount:</span>
                 <span>-₹{receiptData.discountAmount}</span>
               </div>
             )}
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">GST:</span>
+            <div className="flex justify-between text-muted-foreground print:text-black">
+              <span>GST:</span>
               <span>₹{receiptData.taxAmount}</span>
             </div>
-            <div className="flex justify-between text-xs font-black text-foreground border-t border-border pt-1.5">
+            <div className="flex justify-between text-xs font-black text-foreground border-t border-neutral-300 dark:border-neutral-700 print:border-black pt-1">
               <span>Grand Total:</span>
-              <span className="text-primary font-mono text-sm">₹{receiptData.netAmount}</span>
+              <span className="text-primary print:text-black font-mono text-sm">₹{receiptData.netAmount}</span>
             </div>
-            <div className="flex justify-between text-[10px] text-muted-foreground pt-1">
-              <span>Paid Via:</span>
-              <span className="font-bold uppercase text-foreground">{paymentMethod}</span>
-            </div>
+            {paymentMethod && (
+              <div className="flex justify-between text-[10px] text-muted-foreground print:text-black pt-0.5">
+                <span>Paid Via:</span>
+                <span className="font-bold uppercase text-foreground">{paymentMethod}</span>
+              </div>
+            )}
           </div>
 
-
           {/* Bill Footer */}
-          <div className="text-center pt-2 border-t border-dashed border-border text-[9px] text-muted-foreground">
-            <p className="font-bold">Thank You For Dining With Us!</p>
-            <p>Visit Again • Powered by SSR ONE AI</p>
+          <div className="text-center pt-2 text-[10px] font-bold text-muted-foreground print:text-black">
+            <p>Thank You For Dining With Us! Visit Again</p>
           </div>
         </div>
 

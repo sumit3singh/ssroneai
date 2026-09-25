@@ -47,6 +47,10 @@ export interface Branch {
   id: string;
   name: string;
   code?: string;
+  address?: any;
+  phone?: string;
+  gstin?: string;
+  timezone?: string;
 }
 
 export interface Role {
