@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom";
 import { renderSafeString } from "../utils/renderSafeString";
 import { cleanTableName, formatItemWithVariantAndAddons } from "../utils/posPrintFormatters";
+import { registerFullscreenRestoreAfterPrint } from "../utils/printUtils";
 
 export interface StationKOTItem {
   cart_id?: string;
@@ -332,10 +333,12 @@ export async function printKOTSlipsDirectly(slips: StationKOTSlip[]) {
 
   setTimeout(() => {
     try {
+      registerFullscreenRestoreAfterPrint(iframe.contentWindow);
       iframe.contentWindow?.focus();
       iframe.contentWindow?.print();
     } catch (e) {
       console.warn("Iframe print error, falling back to window.print()", e);
+      registerFullscreenRestoreAfterPrint();
       window.print();
     }
   }, 100);

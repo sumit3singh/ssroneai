@@ -4,6 +4,7 @@ import { Button } from "@ssrone/ui";
 import { useAuthStore } from "@ssrone/auth";
 import { renderSafeString } from "../../../utils/renderSafeString";
 import { cleanTableName, formatItemWithVariantAndAddons } from "../../../utils/posPrintFormatters";
+import { safePrintWithFullscreenRestore } from "../../../utils/printUtils";
 
 export interface StationKOTItem {
   cart_id?: string;
@@ -47,7 +48,7 @@ export const ThermalKOTModal: React.FC<ThermalKOTModalProps> = ({
   useEffect(() => {
     if (isOpen && slips && slips.length > 0) {
       const timer = setTimeout(() => {
-        window.print();
+        safePrintWithFullscreenRestore();
       }, 150);
       return () => clearTimeout(timer);
     }
@@ -66,7 +67,7 @@ export const ThermalKOTModal: React.FC<ThermalKOTModalProps> = ({
   if (!isOpen || !slips || slips.length === 0) return null;
 
   const handlePrint = () => {
-    window.print();
+    safePrintWithFullscreenRestore();
   };
 
   return (
