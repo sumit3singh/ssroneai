@@ -76,6 +76,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
     }
   };
   const [selectedSection, setSelectedSection] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "OCCUPIED" | "FREE">("ALL");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [previewOrderModal, setPreviewOrderModal] = useState<POSOrder | null>(null);
   const [selectedSettleOrder, setSelectedSettleOrder] = useState<POSOrder | null>(null);
@@ -267,6 +268,15 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
     activeRevenueTotal += Number(ord.net_amount || ord.subtotal || 0);
   });
 
+  const getFilteredCountForSection = (secName: string) => {
+    const list = secName === "ALL" ? tables : (sectionMap[secName] || []);
+    if (statusFilter === "ALL") return list.length;
+    return list.filter((t) => {
+      const isOccupied = getAllActiveOrdersForTable(t).length > 0;
+      return statusFilter === "OCCUPIED" ? isOccupied : !isOccupied;
+    }).length;
+  };
+
   // Handle clicking an Occupied Table -> Recalls order to cart in Edit mode
   const handleTableClick = (table: POSTable, activeOrder?: POSOrder) => {
     const rawTableId = table?.id !== undefined && table?.id !== null ? table.id : table?.table_number;
@@ -329,18 +339,45 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
           {/* KPI Counters & Action Buttons */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono">
-              <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-muted/60 text-muted-foreground rounded-md border border-border font-medium">
-                Total: <strong className="text-foreground font-bold">{tables.length}</strong>
-              </span>
-              <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-md border border-amber-500/30 font-bold flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-amber-500 inline-block"></span>
+              <button
+                type="button"
+                onClick={() => setStatusFilter("ALL")}
+                className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md border font-medium cursor-pointer transition-all select-none ${
+                  statusFilter === "ALL"
+                    ? "bg-foreground text-background border-foreground font-bold shadow-xs scale-[1.02]"
+                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border-border"
+                }`}
+                title="Show all tables"
+              >
+                Total: <strong className={statusFilter === "ALL" ? "text-background font-bold" : "text-foreground font-bold"}>{tables.length}</strong>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter(statusFilter === "OCCUPIED" ? "ALL" : "OCCUPIED")}
+                className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md border font-bold flex items-center gap-1.5 cursor-pointer transition-all select-none ${
+                  statusFilter === "OCCUPIED"
+                    ? "bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-500/30 scale-[1.02]"
+                    : "bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 border-amber-500/30"
+                }`}
+                title="Filter to show only occupied tables (Click again to show all)"
+              >
+                <span className={`h-2 w-2 rounded-full inline-block ${statusFilter === "OCCUPIED" ? "bg-white animate-pulse" : "bg-amber-500"}`}></span>
                 Occupied: <strong>{occupiedCount}</strong>
-              </span>
-              <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-md border border-emerald-500/30 font-bold flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block"></span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter(statusFilter === "FREE" ? "ALL" : "FREE")}
+                className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md border font-bold flex items-center gap-1.5 cursor-pointer transition-all select-none ${
+                  statusFilter === "FREE"
+                    ? "bg-emerald-600 text-white border-emerald-700 shadow-xs ring-2 ring-emerald-500/30 scale-[1.02]"
+                    : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/30"
+                }`}
+                title="Filter to show only free / available tables (Click again to show all)"
+              >
+                <span className={`h-2 w-2 rounded-full inline-block ${statusFilter === "FREE" ? "bg-white animate-pulse" : "bg-emerald-500"}`}></span>
                 Free: <strong>{freeCount}</strong>
-              </span>
-              <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-muted text-foreground rounded-md border border-border font-bold">
+              </button>
+              <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-muted text-foreground rounded-md border border-border font-bold select-none">
                 Active: <strong className="text-primary">₹{activeRevenueTotal.toLocaleString("en-IN")}</strong>
               </span>
             </div>
@@ -363,10 +400,14 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                   variant={isFullScreenPOS ? "danger" : "outline"}
                   size="sm"
                   onClick={onToggleFullScreen}
-                  className="h-8 gap-1 text-xs font-semibold rounded-md cursor-pointer px-2"
-                  title={isFullScreenPOS ? "Exit Fullscreen (Press F11)" : "Enter Fullscreen (Press F11)"}
+                  className={`h-8 gap-1.5 text-xs font-bold rounded-md cursor-pointer px-2.5 transition-all shadow-2xs ${
+                    isFullScreenPOS
+                      ? "bg-rose-500 hover:bg-rose-600 text-white border-rose-600 dark:bg-rose-600 dark:hover:bg-rose-700 ring-2 ring-rose-500/25 active:scale-95"
+                      : "bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800"
+                  }`}
+                  title={isFullScreenPOS ? "Exit Fullscreen Kiosk Mode (F11)" : "Enter Fullscreen Kiosk Mode (F11)"}
                 >
-                  {isFullScreenPOS ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                  {isFullScreenPOS ? <Minimize2 size={13} className="text-white" /> : <Maximize2 size={13} />}
                   <span className="hidden sm:inline">{isFullScreenPOS ? "Exit Fullscreen" : "Fullscreen (F11)"}</span>
                 </Button>
               )}
@@ -410,11 +451,11 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
               onClick={() => setSelectedSection("ALL")}
               className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer whitespace-nowrap border ${
                 selectedSection === "ALL"
-                  ? "bg-foreground text-background border-foreground font-bold"
+                  ? "bg-foreground text-background border-foreground font-bold shadow-2xs"
                   : "bg-muted/40 text-muted-foreground border-border hover:bg-muted hover:text-foreground"
               }`}
             >
-              All Zones ({tables.length})
+              All Zones ({getFilteredCountForSection("ALL")})
             </button>
             {availableSections.map((sec) => (
               <button
@@ -422,11 +463,11 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                 onClick={() => setSelectedSection(sec)}
                 className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer whitespace-nowrap border ${
                   selectedSection.toLowerCase() === sec.toLowerCase()
-                    ? "bg-foreground text-background border-foreground font-bold"
+                    ? "bg-foreground text-background border-foreground font-bold shadow-2xs"
                     : "bg-muted/40 text-muted-foreground border-border hover:bg-muted hover:text-foreground"
                 }`}
               >
-                {sec} ({sectionMap[sec]?.length || 0})
+                {sec} ({getFilteredCountForSection(sec)})
               </button>
             ))}
           </div>
@@ -490,15 +531,51 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
 
       {/* Main Floor Rectangular Tiles Container */}
       <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-3.5 scrollbar-thin">
-        {displaySections.length === 0 ? (
-          <div className="bg-card border border-border rounded-md p-6 text-center text-muted-foreground space-y-1">
-            <AlertCircle size={24} className="mx-auto text-muted-foreground/50" />
-            <p className="font-semibold text-xs text-foreground">No dining tables found matching filter.</p>
+        {displaySections.length === 0 ||
+        displaySections.every((secName) =>
+          (sectionMap[secName] || []).filter((t) => {
+            const tableOrds = getAllActiveOrdersForTable(t);
+            const isOccupied = tableOrds.length > 0;
+            if (statusFilter === "OCCUPIED" && !isOccupied) return false;
+            if (statusFilter === "FREE" && isOccupied) return false;
+            const activeOrd = getActiveOrderForTable(t);
+            return (
+              t.table_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              (activeOrd && activeOrd.order_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
+              (activeOrd && activeOrd.waiter_name && activeOrd.waiter_name.toLowerCase().includes(searchTerm.toLowerCase()))
+            );
+          }).length === 0
+        ) ? (
+          <div className="bg-card border border-border rounded-md p-8 text-center text-muted-foreground space-y-2 shadow-2xs">
+            <AlertCircle size={28} className="mx-auto text-muted-foreground/50" />
+            <p className="font-semibold text-xs text-foreground">
+              {statusFilter === "OCCUPIED"
+                ? "No occupied tables currently on the floor."
+                : statusFilter === "FREE"
+                ? "All tables are currently occupied!"
+                : "No dining tables found matching filter criteria."}
+            </p>
+            {statusFilter !== "ALL" && (
+              <button
+                type="button"
+                onClick={() => setStatusFilter("ALL")}
+                className="text-xs text-primary hover:underline font-bold cursor-pointer"
+              >
+                Clear status filter (Show All Tables)
+              </button>
+            )}
           </div>
         ) : (
           displaySections.map((secName) => {
             const secTables = sectionMap[secName] || [];
             const filteredTables = secTables.filter((t) => {
+              const tableOrds = getAllActiveOrdersForTable(t);
+              const isOccupied = tableOrds.length > 0;
+
+              // Status filter: ALL, OCCUPIED, FREE
+              if (statusFilter === "OCCUPIED" && !isOccupied) return false;
+              if (statusFilter === "FREE" && isOccupied) return false;
+
               const activeOrd = getActiveOrderForTable(t);
               const matchesSearch =
                 t.table_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
