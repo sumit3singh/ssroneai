@@ -356,7 +356,7 @@ class DailyOrderSequence(TenantBaseModel):
     __tablename__ = "daily_order_sequences"
 
     branch_id: Mapped[int] = mapped_column(BigInteger, default=1, index=True)
-    sequence_date: Mapped[str] = mapped_column(String(10), nullable=False)  # 'YYYY-MM-DD'
+    sequence_date: Mapped[str] = mapped_column(String(30), nullable=False)  # 'YYYY-MM-DD' or 'SERIAL_6'
     last_seq: Mapped[int] = mapped_column(Integer, default=0)
 
     __table_args__ = (

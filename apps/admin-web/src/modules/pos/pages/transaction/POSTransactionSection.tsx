@@ -236,7 +236,22 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
 
   useEffect(() => {
     loadCustomers();
-  }, []);
+    // Silent background sync of upcoming serial order number from server
+    api.get<{ next_order_number: string }>("/orders/next-number-preview", {
+      params: { branch_id: activeBranchId }
+    }).then((res) => {
+      const nextNum = res?.next_order_number;
+      if (nextNum && /^\d{6}$/.test(nextNum)) {
+        const val = parseInt(nextNum, 10);
+        if (val >= 100001) {
+          const currentLocal = parseInt(localStorage.getItem("pos_serial_order_seq") || "0", 10);
+          if (val - 1 > currentLocal) {
+            localStorage.setItem("pos_serial_order_seq", (val - 1).toString());
+          }
+        }
+      }
+    }).catch(() => {});
+  }, [activeBranchId]);
 
   // Kitchen Stations Registry & KOT Slips for Station-Wise Thermal Routing
   const [kitchenStations, setKitchenStations] = useState<any[]>([]);

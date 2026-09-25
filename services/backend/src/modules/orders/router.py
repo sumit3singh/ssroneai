@@ -39,7 +39,7 @@ async def get_next_daily_order_number(db: AsyncSession, tenant_id: int = 1, bran
             .where(
                 DailyOrderSequence.tenant_id == tenant_id,
                 DailyOrderSequence.branch_id == branch_id,
-                DailyOrderSequence.sequence_date == "SERIAL_6DIGIT",
+                DailyOrderSequence.sequence_date.in_(["SERIAL_6DIGIT", "SERIAL_6"]),
             )
             .with_for_update()
         )
@@ -69,7 +69,7 @@ async def get_next_daily_order_number(db: AsyncSession, tenant_id: int = 1, bran
             seq_record = DailyOrderSequence(
                 tenant_id=tenant_id,
                 branch_id=branch_id,
-                sequence_date="SERIAL_6DIGIT",
+                sequence_date="SERIAL_6",
                 last_seq=start_seq,
             )
             db.add(seq_record)
@@ -111,7 +111,7 @@ async def peek_next_daily_order_number(db: AsyncSession, tenant_id: int = 1, bra
         stmt = select(DailyOrderSequence).where(
             DailyOrderSequence.tenant_id == tenant_id,
             DailyOrderSequence.branch_id == branch_id,
-            DailyOrderSequence.sequence_date == "SERIAL_6DIGIT",
+            DailyOrderSequence.sequence_date.in_(["SERIAL_6DIGIT", "SERIAL_6"]),
         )
         res = await db.execute(stmt)
         seq_record = res.scalar_one_or_none()
@@ -590,7 +590,7 @@ async def create_order(
                     .where(
                         DailyOrderSequence.tenant_id == tenant_id,
                         DailyOrderSequence.branch_id == parsed_branch_id,
-                        DailyOrderSequence.sequence_date == "SERIAL_6DIGIT",
+                        DailyOrderSequence.sequence_date.in_(["SERIAL_6DIGIT", "SERIAL_6"]),
                     )
                     .with_for_update()
                 )
@@ -602,10 +602,9 @@ async def create_order(
                     db.add(DailyOrderSequence(
                         tenant_id=tenant_id,
                         branch_id=parsed_branch_id,
-                        sequence_date="SERIAL_6DIGIT",
+                        sequence_date="SERIAL_6",
                         last_seq=client_seq_val,
                     ))
-                await db.flush()
             except Exception as seq_sync_err:
                 logger.warning("Could not sync DailyOrderSequence with client sequence", error=str(seq_sync_err))
         else:
@@ -716,7 +715,7 @@ async def create_order(
         logger.error("Order commit error in PostgreSQL", error=str(commit_err))
         raise HTTPException(status_code=500, detail=f"Database Order Commit Error: {str(commit_err)}")
 
-    # Emit event to Event Bus
+    # Emit event to Event Bus (non-blocking task to ensure 0ms latency for order creation response)
     try:
         event = order_created_event(
             tenant_id=str(tenant_id),
@@ -725,7 +724,7 @@ async def create_order(
             branch_id=str(body.branch_id or 1),
             grand_total=float(grand_total),
         )
-        await event_bus.publish(event)
+        asyncio.create_task(event_bus.publish(event))
     except Exception as e:
         logger.warning("Event bus publish failed (Redis offline)", error=str(e))
 
@@ -969,25 +968,17 @@ async def update_order_status(
     tenant_id = current_user.tenant_id
     user_id = current_user.id
 
-    parsed_id = int(order_id) if str(order_id).isdigit() and len(str(order_id)) < 9 else None
-    stmt = select(Order).where(
+    stmt_base = select(Order).where(
         Order.tenant_id == tenant_id,
         (Order.is_deleted == False) | (Order.is_deleted.is_(None))
     )
-    if parsed_id:
-        stmt = stmt.where((Order.id == parsed_id) | (Order.order_number == str(order_id)))
-    else:
-        stmt = stmt.where(Order.order_number == str(order_id))
-
-    result = await db.execute(stmt)
-    order = result.scalar_one_or_none()
+    # Check if matches order_number first (e.g. 100001, 240926059)
+    stmt_num = stmt_base.where(Order.order_number == str(order_id))
+    order = (await db.execute(stmt_num)).scalar_one_or_none()
+    # If not found and order_id is numeric, lookup by primary key id
     if not order and str(order_id).isdigit():
-        stmt_fallback = select(Order).where(
-            Order.id == int(order_id),
-            Order.tenant_id == tenant_id,
-            (Order.is_deleted == False) | (Order.is_deleted.is_(None))
-        )
-        order = (await db.execute(stmt_fallback)).scalar_one_or_none()
+        stmt_pk = stmt_base.where(Order.id == int(order_id))
+        order = (await db.execute(stmt_pk)).scalar_one_or_none()
 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")

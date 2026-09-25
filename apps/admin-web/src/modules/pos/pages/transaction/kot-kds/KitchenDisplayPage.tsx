@@ -240,8 +240,8 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
   const handleStartPrep = async (orderId: number | string, orderNum: string) => {
     setBumpingId(orderId);
     try {
-      const numId = parseInt(String(orderId).replace(/\D/g, ""), 10);
-      await api.patch(`/orders/${numId || orderId}/status?status=in_kitchen`);
+      const targetId = orderId && !String(orderId).startsWith("local-") ? orderId : orderNum;
+      await api.patch(`/orders/${targetId}/status?status=in_kitchen`);
       toast.info(`Ticket #${orderNum} marked In Kitchen`);
       await loadKDSOrders();
       if (onRefresh) onRefresh();
@@ -255,8 +255,8 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
   const handleBumpOrder = async (orderId: number | string, orderNum: string) => {
     setBumpingId(orderId);
     try {
-      const numId = parseInt(String(orderId).replace(/\D/g, ""), 10);
-      await api.patch(`/orders/${numId || orderId}/status?status=ready`);
+      const targetId = orderId && !String(orderId).startsWith("local-") ? orderId : orderNum;
+      await api.patch(`/orders/${targetId}/status?status=ready`);
       toast.success(`Ticket #${orderNum} marked Ready`);
       await loadKDSOrders();
       if (onRefresh) onRefresh();
@@ -270,8 +270,8 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
   const handleCompleteOrder = async (orderId: number | string, orderNum: string) => {
     setBumpingId(orderId);
     try {
-      const numId = parseInt(String(orderId).replace(/\D/g, ""), 10);
-      await api.patch(`/orders/${numId || orderId}/status?status=completed`);
+      const targetId = orderId && !String(orderId).startsWith("local-") ? orderId : orderNum;
+      await api.patch(`/orders/${targetId}/status?status=completed`);
       toast.success(`Ticket #${orderNum} Completed`);
       await loadKDSOrders();
       if (onRefresh) onRefresh();

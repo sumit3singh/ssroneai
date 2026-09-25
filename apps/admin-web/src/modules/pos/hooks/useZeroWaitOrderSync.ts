@@ -27,7 +27,7 @@ export function useZeroWaitOrderSync(branchId: number | string = 1) {
   const updatePendingCount = useCallback(async () => {
     try {
       const count = await offlineDB.offlineOrders
-        .filter((item) => !item.synced && !item.inFlight && !inFlightLocalIds.has(item.localId))
+        .filter((item) => !item.synced)
         .count();
       setPendingCount(count);
     } catch {
@@ -129,9 +129,14 @@ export function useZeroWaitOrderSync(branchId: number | string = 1) {
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
     try {
+      // Unstick any stale inFlight records from prior sessions or page reloads
+      await offlineDB.offlineOrders
+        .filter((item) => Boolean(!item.synced && item.inFlight && !inFlightLocalIds.has(item.localId)))
+        .modify({ inFlight: false });
+
       // Find orders that are NOT synced and NOT currently in-flight
       const pending = await offlineDB.offlineOrders
-        .filter((item) => !item.synced && !item.inFlight && !inFlightLocalIds.has(item.localId))
+        .filter((item) => Boolean(!item.synced && !item.inFlight && !inFlightLocalIds.has(item.localId)))
         .toArray();
 
       if (!pending || pending.length === 0) {

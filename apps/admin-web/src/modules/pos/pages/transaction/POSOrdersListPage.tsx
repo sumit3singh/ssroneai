@@ -248,7 +248,11 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
       // 1. Optimistic settle & table free (< 0.1ms)
       onOptimisticOrderSettle?.(selectedOrderForSettle.order_number, selectedOrderForSettle.table_id);
 
-      await api.patch(`/orders/${selectedOrderForSettle.id}/status?status=completed`);
+      const targetId = selectedOrderForSettle.id && !String(selectedOrderForSettle.id).startsWith("local-")
+        ? selectedOrderForSettle.id
+        : selectedOrderForSettle.order_number;
+
+      await api.patch(`/orders/${targetId}/status?status=completed`);
       toast.success(`Bill #${selectedOrderForSettle.order_number} settled via ${method}!`);
       
       setReceiptData({
@@ -283,7 +287,8 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
       const ordToCancel = orders.find(o => String(o.id) === String(id) || o.order_number === num);
       onOptimisticOrderSettle?.(num, ordToCancel?.table_id);
 
-      await api.patch(`/orders/${id}/status?status=cancelled`);
+      const targetId = id && !String(id).startsWith("local-") ? id : num;
+      await api.patch(`/orders/${targetId}/status?status=cancelled`);
       toast.success(`Order #${num} marked as Cancelled (Soft Void)`);
       fetchOrders();
       onRefresh?.();
