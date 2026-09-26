@@ -70,10 +70,8 @@ export function syncLocalOrderSequenceWithOrders(orders: Array<{ order_number?: 
     }
 
     if (maxSeq > 0) {
-      const savedCount = parseInt(localStorage.getItem("pos_serial_order_seq") || "0", 10);
-      if (maxSeq > savedCount) {
-        localStorage.setItem("pos_serial_order_seq", maxSeq.toString());
-      }
+      // Database is Single Source of Truth: sync local sequence to highest existing order
+      localStorage.setItem("pos_serial_order_seq", maxSeq.toString());
     }
   } catch (e) {
     // Ignore localStorage errors

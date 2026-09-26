@@ -188,6 +188,17 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isSubmittingRef = useRef(false);
+
+  // Packaging Charge State (Optional & Editable in Cart)
+  const [isPackagingEnabled, setIsPackagingEnabled] = useState<boolean>(() => {
+    try {
+      const mode = localStorage.getItem("selected_pos_order_mode");
+      return mode === "takeaway" || mode === "delivery";
+    } catch {
+      return false;
+    }
+  });
+  const [customPackagingCharge, setCustomPackagingCharge] = useState<number | null>(null);
   const [isFullScreenPOS, setIsFullScreenPOS] = useState<boolean>(() => {
     try {
       return typeof document !== "undefined"
@@ -239,10 +250,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       if (nextNum && /^\d{6}$/.test(nextNum)) {
         const val = parseInt(nextNum, 10);
         if (val >= 100001) {
-          const currentLocal = parseInt(localStorage.getItem("pos_serial_order_seq") || "0", 10);
-          if (val - 1 > currentLocal) {
-            localStorage.setItem("pos_serial_order_seq", (val - 1).toString());
-          }
+          localStorage.setItem("pos_serial_order_seq", (val - 1).toString());
         }
       }
     }).catch(() => {});
@@ -1154,8 +1162,13 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     ? Math.round((subtotal * Math.min(100, Math.max(0, discountValue || 0))) / 100)
     : Math.min(subtotal, Math.max(0, discountValue || 0));
 
+  // Packaging Charge Calculation (Optionable & Changeable in Cart)
   const rawPackagingCharge = cartItems.reduce((sum, c) => sum + (c.packaging_charge || 10) * c.quantity, 0);
-  const packagingChargeTotal = orderMode === "dine_in" ? 0 : Math.min(rawPackagingCharge, 40);
+  const autoPackagingCharge = Math.min(rawPackagingCharge, 40);
+  const effectivePackagingAmount = customPackagingCharge !== null
+    ? customPackagingCharge
+    : (autoPackagingCharge > 0 ? autoPackagingCharge : 10);
+  const packagingChargeTotal = isPackagingEnabled ? Math.max(0, effectivePackagingAmount) : 0;
   const taxableAmount = subtotal + packagingChargeTotal - discountAmount;
   
   // Optional GST (5%) — Default Unselected (₹0 unless checked by cashier)
@@ -1193,6 +1206,11 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     if (mode !== "dine_in") {
       setSelectedTableId("");
       setSelectedWaiterId("");
+      setIsPackagingEnabled(true);
+      setCustomPackagingCharge(null);
+    } else {
+      setIsPackagingEnabled(false);
+      setCustomPackagingCharge(null);
     }
   };
 
@@ -1406,6 +1424,13 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       } else {
         setApplyGst(false);
       }
+      if (targetOrder.packaging_charge !== undefined && Number(targetOrder.packaging_charge) > 0) {
+        setIsPackagingEnabled(true);
+        setCustomPackagingCharge(Number(targetOrder.packaging_charge));
+      } else if (targetOrder.packaging_charge !== undefined) {
+        setIsPackagingEnabled(false);
+        setCustomPackagingCharge(0);
+      }
 
       toast.success(`Order #${targetOrder.order_number} loaded into cart for editing!`);
       setActiveMobileTab("cart");
@@ -1421,6 +1446,8 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     setDiscountAmount(0);
     setSelectedCustomerId("");
     setOrderNotes("");
+    setIsPackagingEnabled(orderMode !== "dine_in");
+    setCustomPackagingCharge(null);
     baselineOrderItemsRef.current = {};
     setActiveKOTSlips([]);
     try {
@@ -1777,6 +1804,13 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
               subtotal={subtotal}
               taxAmount={taxAmount}
               packagingChargeTotal={packagingChargeTotal}
+              isPackagingEnabled={isPackagingEnabled}
+              setIsPackagingEnabled={setIsPackagingEnabled}
+              packagingChargeAmount={effectivePackagingAmount}
+              setPackagingChargeAmount={(val) => {
+                setCustomPackagingCharge(val);
+                setIsPackagingEnabled(true);
+              }}
               discountAmount={discountAmount}
               setDiscountAmount={setDiscountAmount}
               applyGst={applyGst}

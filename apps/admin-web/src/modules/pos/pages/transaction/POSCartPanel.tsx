@@ -19,6 +19,10 @@ interface POSCartPanelProps {
   subtotal: number;
   taxAmount: number;
   packagingChargeTotal: number;
+  isPackagingEnabled?: boolean;
+  setIsPackagingEnabled?: (enabled: boolean) => void;
+  packagingChargeAmount?: number;
+  setPackagingChargeAmount?: (amount: number) => void;
   discountAmount: number;
   setDiscountAmount: (discount: number) => void;
   applyGst?: boolean;
@@ -76,6 +80,10 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
   subtotal,
   taxAmount,
   packagingChargeTotal,
+  isPackagingEnabled = false,
+  setIsPackagingEnabled,
+  packagingChargeAmount = 0,
+  setPackagingChargeAmount,
   discountAmount,
   setDiscountAmount,
   applyGst = false,
@@ -898,12 +906,48 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
             <span className="font-mono text-foreground font-semibold">₹{subtotal}</span>
           </div>
 
-          {orderMode !== "dine_in" && (
-            <div className="flex justify-between text-amber-600 dark:text-amber-400">
-              <span>Packaging Charge</span>
-              <span className="font-mono font-semibold">+₹{packagingChargeTotal}</span>
-            </div>
-          )}
+          {/* OPTIONAL & CHANGEABLE PACKAGING CHARGE */}
+          <div className="flex justify-between items-center text-xs py-0.5">
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isPackagingEnabled}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setIsPackagingEnabled?.(checked);
+                  if (checked && packagingChargeAmount === 0 && setPackagingChargeAmount) {
+                    setPackagingChargeAmount(10);
+                  }
+                }}
+                className="w-3.5 h-3.5 rounded border-border text-amber-600 focus:ring-amber-500 accent-amber-600 cursor-pointer"
+              />
+              <span className={`transition-colors ${isPackagingEnabled ? "text-amber-600 dark:text-amber-400 font-semibold" : "text-muted-foreground font-medium"}`}>
+                Packaging Charge
+              </span>
+            </label>
+
+            {isPackagingEnabled ? (
+              <div className="flex items-center gap-0.5">
+                <span className="font-mono text-xs text-amber-600 dark:text-amber-400 font-bold">+₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={packagingChargeAmount || ""}
+                  onChange={(e) => {
+                    const val = Math.max(0, parseFloat(e.target.value) || 0);
+                    setPackagingChargeAmount?.(val);
+                  }}
+                  placeholder="0"
+                  className="w-14 bg-background border border-amber-500/50 rounded-md px-1 py-0.5 text-right font-mono text-xs font-bold text-amber-600 dark:text-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-500 tabular-nums"
+                  title="Change packaging charge amount (₹)"
+                />
+              </div>
+            ) : (
+              <span className="text-[10px] font-mono text-muted-foreground italic">
+                Disabled (₹0)
+              </span>
+            )}
+          </div>
 
           {/* DUAL DISCOUNT ENGINE (% or ₹) */}
           <div className="flex justify-between items-center text-xs">
