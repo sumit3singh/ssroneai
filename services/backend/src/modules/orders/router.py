@@ -266,7 +266,7 @@ class OrderResponse(BaseModel):
     items: list[OrderItemResponse] = Field(default_factory=list)
     created_at: datetime | None = None
     confirmed_at: datetime | None = None
-    metadata_payload: dict | None = Field(default_factory=dict, alias="metadata")
+    metadata_payload: dict | None = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def populate_display_fields(self):

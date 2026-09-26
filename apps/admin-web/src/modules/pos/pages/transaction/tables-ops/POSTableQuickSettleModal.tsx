@@ -1,15 +1,19 @@
 import React, { useState } from "react";
 import {
   Receipt, X, Check, DollarSign, QrCode, CreditCard, User, UserPlus,
-  AlertCircle, Sparkles, Percent, Tag, ArrowRight, Wallet
+  AlertCircle, Sparkles, Percent, Tag, ArrowRight, Wallet,
+  MessageSquare, Printer, CheckCircle2
 } from "lucide-react";
 import { Button, Input } from "@ssrone/ui";
 import { api } from "@ssrone/api-client";
 import { toast } from "sonner";
+import { useAuthStore } from "@ssrone/auth";
 import { POSOrder, PaymentMethod } from "../../../types";
 import { renderSafeString } from "../../../utils/renderSafeString";
 import { DynamicUpiQrCode } from "../../../components/DynamicUpiQrCode";
 import { playPaymentSuccessSound } from "@ssrone/utils";
+import { printCustomerReceiptDirectly } from "../../../utils/printUtils";
+import { cleanTableName, formatBranchAddress, formatItemWithVariantAndAddons } from "../../../utils/posPrintFormatters";
 
 interface POSTableQuickSettleModalProps {
   order: POSOrder;
@@ -32,6 +36,7 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
   customers = [],
   onRefreshCustomers,
 }) => {
+  const { selected_branch, selected_company } = useAuthStore();
   const originalNet = Number(order?.net_amount || order?.grand_total || order?.subtotal || 0);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "CREDIT_ACCOUNT">("CASH");
@@ -39,6 +44,7 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
   const [tenderedAmount, setTenderedAmount] = useState<number>(() => originalNet);
   const [underpaymentResolution, setUnderpaymentResolution] = useState<"DISCOUNT" | "DEBT">("DEBT");
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | string>(() => order?.customer_id || "");
+  const [whatsappPhoneInput, setWhatsappPhoneInput] = useState<string>(() => order?.customer_phone || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Sync state whenever order or open status changes
@@ -47,6 +53,8 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
       const net = Number(order.net_amount || order.grand_total || order.subtotal || 0);
       setTenderedAmount(net);
       setSelectedCustomerId(order.customer_id || "");
+      const selCust = customers.find((c) => String(c.id) === String(order.customer_id));
+      setWhatsappPhoneInput(selCust?.phone || order.customer_phone || "");
       setPaymentMethod("CASH");
       setImmediatePaymentMethod("CASH");
       setUnderpaymentResolution("DEBT");
@@ -110,27 +118,46 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
     }
   };
 
-  const handleCompleteSettlement = async () => {
+  const handleCompleteSettlement = async (action: "whatsapp" | "print" | "close") => {
     if (isDebt && balanceDue > 0 && !selectedCustomerId) {
       toast.error("Customer selection is strictly required for Udhar / Debt settlement! Please select or register a customer.");
       return;
     }
 
+    setIsSubmitting(true);
+
     // 1. Zero-Wait Optimistic UI Mutation (< 0.1ms): Free table & complete order immediately
     onOptimisticOrderSettle?.(order.order_number, order.table_id);
 
-    // 2. Format Receipt Payload & Print immediately
+    // 2. Format Receipt & Venue Payload
     const selCust = customers.find((c) => String(c.id) === String(selectedCustomerId));
     const rawCustName = renderSafeString(selCust ? selCust.name : order.customer_name);
-    const rawCustPhone = renderSafeString(selCust ? selCust.phone : order.customer_phone);
+    const rawCustPhone = renderSafeString(whatsappPhoneInput || (selCust ? selCust.phone : order.customer_phone));
     const rawCustAddr = renderSafeString(selCust ? selCust.address : order.customer_address);
 
+    const venueName = renderSafeString(selected_branch?.name || selected_company?.name || "BAITHAK CAFE CUH");
+    const venueAddress = formatBranchAddress((selected_branch as any)?.address || (selected_company as any)?.address);
+    const venueGstin = renderSafeString((selected_branch as any)?.gstin || (selected_company as any)?.gstin);
+    const venuePhone = renderSafeString((selected_branch as any)?.phone || (selected_company as any)?.phone);
+    const venueFssai = renderSafeString((selected_branch as any)?.fssai_number || (selected_company as any)?.fssai_number);
+
+    const orderNumber = renderSafeString(order.order_number);
+    const orderType = renderSafeString(order.order_mode || order.order_type || "DINE_IN").toUpperCase();
+    const cleanTable = order.table_name ? cleanTableName(order.table_name) : "";
+    const waiterName = renderSafeString(order.waiter_name);
+    const effectivePaymentMethod = balanceDue > 0 && amountPaid > 0
+      ? `${targetPaymentMethod} (₹${amountPaid}) + UDHAR (₹${balanceDue})`
+      : balanceDue > 0
+      ? "CREDIT / DEBT ACCOUNT"
+      : targetPaymentMethod;
+    const currentTimestamp = new Date().toLocaleString();
+
     const receiptPayload = {
-      orderNumber: renderSafeString(order.order_number),
-      orderType: renderSafeString(order.order_mode || order.order_type || "DINE_IN").toUpperCase(),
-      tableName: renderSafeString(order.table_name),
-      waiterName: renderSafeString(order.waiter_name),
-      customerName: rawCustName,
+      orderNumber,
+      orderType,
+      tableName: cleanTable,
+      waiterName,
+      customerName: rawCustName || "Walk-in Guest",
       customerPhone: rawCustPhone,
       customerAddress: rawCustAddr,
       items: order.items || [],
@@ -139,26 +166,92 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
       taxAmount: Number(order.tax_amount || 0),
       discountAmount: finalDiscount,
       netAmount: finalNetAmount,
-      paymentMethod: balanceDue > 0 && amountPaid > 0
-        ? `${targetPaymentMethod} (₹${amountPaid}) + UDHAR (₹${balanceDue})`
-        : balanceDue > 0
-        ? "CREDIT / DEBT ACCOUNT"
-        : targetPaymentMethod,
-      timestamp: new Date().toLocaleString()
+      paymentMethod: effectivePaymentMethod,
+      timestamp: currentTimestamp,
+      venueName,
+      venueAddress,
+      venueGstin,
+      venuePhone,
+      venueFssai,
     };
 
-    if (onPrintReceipt) {
-      onPrintReceipt(receiptPayload);
-    }
+    // 3. Dispatch Selected Action directly (No secondary preview screen)
+    if (action === "print") {
+      printCustomerReceiptDirectly(receiptPayload);
+      toast.success(`⚡ Bill #${order.order_number} settled & printed directly!`);
+    } else if (action === "whatsapp") {
+      let phoneToSend = rawCustPhone.replace(/\D/g, "");
+      if (!phoneToSend || phoneToSend.length < 10) {
+        const promptPhone = window.prompt("Enter customer 10-digit WhatsApp number:", "");
+        if (promptPhone) {
+          phoneToSend = promptPhone.replace(/\D/g, "");
+        }
+      }
+      const cleanPhone = phoneToSend && phoneToSend.length === 10 ? `91${phoneToSend}` : phoneToSend;
 
-    if (balanceDue > 0 && amountPaid > 0) {
-      toast.success(`⚡ Bill #${order.order_number} settled: ₹${amountPaid} paid via ${targetPaymentMethod}, ₹${balanceDue} saved to Udhar Khata (${rawCustName || "Customer"})!`);
-    } else if (balanceDue > 0) {
-      toast.success(`⚡ Bill #${order.order_number} transferred to Customer Debt Account (${rawCustName || "Customer"})!`);
-    } else if (isDiscount) {
-      toast.success(`⚡ Bill #${order.order_number} settled with ₹${finalDiscount} discount concession!`);
+      const lines: string[] = [];
+      lines.push("╔═══════════════════════════════════╗");
+      lines.push(`   🍽️ *${venueName.toUpperCase()}*`);
+      lines.push("╚═══════════════════════════════════╝");
+      if (venueAddress) lines.push(`📍 *Address:* ${venueAddress}`);
+      if (venueGstin) lines.push(`🧾 *Gst:* ${venueGstin}`);
+      if (venuePhone) lines.push(`📞 *Mobile no.* ${venuePhone}`);
+      lines.push("------------------------------------");
+      lines.push(`*Order No:* ${orderNumber} ,*Mode:* ${orderType}`);
+      lines.push(`*Date/Time:* ${currentTimestamp}`);
+      if (cleanTable) lines.push(`*Dining Table:* ${cleanTable}`);
+      lines.push("------------------------------------");
+      lines.push(`👤 *Customer Name:* ${rawCustName || "Walk-in Guest"}`);
+      lines.push("------------------------------------");
+      lines.push("*ITEM & SIZE*        *QTY X PRICE*   *AMT*");
+      lines.push("------------------------------------");
+
+      (order.items || []).forEach((it: any) => {
+        const rawName = renderSafeString(it.name || it.product_name || it.item_name || "Item");
+        const variantName = renderSafeString(it.variant_name);
+        const addonsList = it.addons || it.selected_addons || it.addon_options || [];
+        const itemTitle = formatItemWithVariantAndAddons(rawName, variantName, addonsList, "compact");
+        const qtyPriceStr = `${it.quantity} x ₹${Number(it.unit_price).toFixed(2)}`;
+        const amtStr = `₹${(it.quantity * it.unit_price).toFixed(0)}`;
+
+        lines.push(`• *${itemTitle}*`);
+        lines.push(`   ${qtyPriceStr} = ${amtStr}`);
+      });
+
+      lines.push("------------------------------------");
+      lines.push(`Subtotal: ₹${order.subtotal || 0}`);
+      if (Number(order.packaging_charge || 0) > 0) {
+        lines.push(`Packaging Fee: +₹${order.packaging_charge}`);
+      }
+      if (finalDiscount > 0) {
+        lines.push(`Discount: -₹${finalDiscount}`);
+      }
+      lines.push(`GST: ₹${order.tax_amount || 0}`);
+      lines.push(`*Grand Total: ₹${finalNetAmount}*`);
+      if (effectivePaymentMethod) {
+        lines.push(`Paid Via: ${effectivePaymentMethod}`);
+      }
+      lines.push("------------------------------------");
+      lines.push("✨ *Thank You For Dining With Us! Visit Again* ✨");
+
+      const message = lines.join("\n");
+      const encoded = encodeURIComponent(message);
+      const waUrl = cleanPhone
+        ? `https://wa.me/${cleanPhone}?text=${encoded}`
+        : `https://wa.me/?text=${encoded}`;
+      window.open(waUrl, "_blank");
+      toast.success(`⚡ Bill #${order.order_number} settled & WhatsApp opened${cleanPhone ? ` for +${cleanPhone}` : ""}!`);
     } else {
-      toast.success(`⚡ Bill #${order.order_number} settled successfully via ${targetPaymentMethod}!`);
+      // action === "close"
+      if (balanceDue > 0 && amountPaid > 0) {
+        toast.success(`⚡ Bill #${order.order_number} settled: ₹${amountPaid} paid via ${targetPaymentMethod}, ₹${balanceDue} saved to Udhar Khata (${rawCustName || "Customer"})!`);
+      } else if (balanceDue > 0) {
+        toast.success(`⚡ Bill #${order.order_number} transferred to Customer Debt Account (${rawCustName || "Customer"})!`);
+      } else if (isDiscount) {
+        toast.success(`⚡ Bill #${order.order_number} settled with ₹${finalDiscount} discount concession!`);
+      } else {
+        toast.success(`⚡ Bill #${order.order_number} settled successfully via ${targetPaymentMethod}!`);
+      }
     }
 
     playPaymentSuccessSound();
@@ -172,6 +265,7 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
     };
 
     // Close modal instantly for 0ms cashier interaction
+    setIsSubmitting(false);
     onClose();
     onSuccess(completedOrder);
 
@@ -244,7 +338,7 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150 select-none">
-      <div className="bg-card border border-border rounded-2xl w-full max-w-lg p-4 space-y-3.5 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-2xl p-4 sm:p-5 space-y-3.5 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-border pb-2.5 shrink-0">
           <div className="flex items-center gap-2">
@@ -560,7 +654,14 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
 
             <select
               value={selectedCustomerId}
-              onChange={(e) => setSelectedCustomerId(e.target.value)}
+              onChange={(e) => {
+                const custId = e.target.value;
+                setSelectedCustomerId(custId);
+                const selCust = customers.find((c) => String(c.id) === String(custId));
+                if (selCust && selCust.phone) {
+                  setWhatsappPhoneInput(selCust.phone);
+                }
+              }}
               className={`w-full h-8 bg-background border rounded px-2 text-xs font-medium text-foreground focus:ring-1 focus:ring-primary outline-none transition-colors ${
                 paymentMethod === "CREDIT_ACCOUNT" && !selectedCustomerId
                   ? "border-amber-500 ring-1 ring-amber-500/30"
@@ -582,11 +683,26 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
                 );
               })}
             </select>
+
+            {/* Quick WhatsApp / Mobile Phone Input for Direct WhatsApp Receipts */}
+            <div className="flex items-center gap-2 pt-1 border-t border-border/40">
+              <span className="text-[11px] font-semibold text-muted-foreground shrink-0 flex items-center gap-1">
+                <MessageSquare size={12} className="text-green-600" /> WhatsApp Mobile:
+              </span>
+              <input
+                type="tel"
+                maxLength={10}
+                placeholder="10-digit customer mobile (for instant WhatsApp bill)..."
+                value={whatsappPhoneInput}
+                onChange={(e) => setWhatsappPhoneInput(e.target.value.replace(/\D/g, ""))}
+                className="flex-1 h-7 bg-background border border-border rounded px-2 text-xs font-mono text-foreground placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-green-500 outline-none"
+              />
+            </div>
           </div>
         </div>
 
         {/* Footer Actions */}
-        <div className="pt-2.5 border-t border-border flex items-center justify-between shrink-0">
+        <div className="pt-2.5 border-t border-border flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
           <div>
             <span className="text-[10px] uppercase font-bold text-muted-foreground block">
               {isDebt ? "Total Bill Amount" : "Final Settlement"}
@@ -603,31 +719,58 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2">
             <Button variant="outline" size="sm" onClick={onClose} className="h-8 text-xs font-medium cursor-pointer">
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              size="sm"
+
+            {/* 1. Complete & WhatsApp */}
+            <button
+              type="button"
               disabled={isSubmitting || (isDebt && balanceDue > 0 && !selectedCustomerId)}
-              onClick={handleCompleteSettlement}
-              className={`h-9 gap-2 text-xs font-extrabold cursor-pointer px-4 text-white shadow-md hover:shadow-lg transition-all active:scale-98 rounded-lg ${
+              onClick={() => handleCompleteSettlement("whatsapp")}
+              className={`h-9 inline-flex items-center gap-1.5 text-xs font-bold px-3 text-white shadow-xs hover:shadow transition-all active:scale-98 rounded-lg cursor-pointer ${
                 isDebt && balanceDue > 0 && !selectedCustomerId
-                  ? "bg-muted-foreground/30 text-muted-foreground opacity-60 cursor-not-allowed border border-border"
-                  : "bg-emerald-600 hover:bg-emerald-700"
+                  ? "bg-muted text-muted-foreground opacity-50 cursor-not-allowed border border-border"
+                  : "bg-green-600 hover:bg-green-700 active:bg-green-800"
               }`}
+              title="Complete settlement & send receipt directly to WhatsApp"
             >
-              {isDebt && balanceDue > 0 && !selectedCustomerId
-                ? "Select Customer for Udhar"
-                : isSubmitting
-                ? "Settling..."
-                : isDebt && amountPaid > 0
-                ? `Complete (₹${amountPaid} Paid + ₹${balanceDue} Udhar)`
-                : isDebt
-                ? `Complete Full Udhar (₹${balanceDue})`
-                : "Complete & Close Bill"} <ArrowRight size={14} className="font-bold" />
-            </Button>
+              <MessageSquare size={14} className="shrink-0" />
+              <span>Complete & WhatsApp</span>
+            </button>
+
+            {/* 2. Complete & Print */}
+            <button
+              type="button"
+              disabled={isSubmitting || (isDebt && balanceDue > 0 && !selectedCustomerId)}
+              onClick={() => handleCompleteSettlement("print")}
+              className={`h-9 inline-flex items-center gap-1.5 text-xs font-bold px-3 text-white shadow-xs hover:shadow transition-all active:scale-98 rounded-lg cursor-pointer ${
+                isDebt && balanceDue > 0 && !selectedCustomerId
+                  ? "bg-muted text-muted-foreground opacity-50 cursor-not-allowed border border-border"
+                  : "bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900"
+              }`}
+              title="Complete settlement & print 80mm thermal receipt directly"
+            >
+              <Printer size={14} className="shrink-0" />
+              <span>Complete & Print</span>
+            </button>
+
+            {/* 3. Complete & Close */}
+            <button
+              type="button"
+              disabled={isSubmitting || (isDebt && balanceDue > 0 && !selectedCustomerId)}
+              onClick={() => handleCompleteSettlement("close")}
+              className={`h-9 inline-flex items-center gap-1.5 text-xs font-bold px-3 text-white shadow-xs hover:shadow transition-all active:scale-98 rounded-lg cursor-pointer ${
+                isDebt && balanceDue > 0 && !selectedCustomerId
+                  ? "bg-muted text-muted-foreground opacity-50 cursor-not-allowed border border-border"
+                  : "bg-slate-700 hover:bg-slate-800 active:bg-slate-900 dark:bg-slate-600 dark:hover:bg-slate-500"
+              }`}
+              title="Complete settlement & close screen immediately (no print, no WhatsApp)"
+            >
+              <CheckCircle2 size={14} className="shrink-0" />
+              <span>Complete & Close</span>
+            </button>
           </div>
         </div>
       </div>
