@@ -205,11 +205,6 @@ export const ThermalKOTModal: React.FC<ThermalKOTModalProps> = ({
                     })}
                   </div>
 
-                  {/* Summary */}
-                  <div className="flex justify-between font-black text-[11px] pt-1">
-                    <span>ITEMS: {slip.items.length}</span>
-                    <span>TOTAL QTY: {totalQty}</span>
-                  </div>
 
                   {/* Bottom Divider */}
                   <div className="border-b border-dashed border-black mt-1" />

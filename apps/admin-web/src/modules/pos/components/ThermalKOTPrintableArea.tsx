@@ -174,20 +174,6 @@ export const ThermalKOTPrintableArea: React.FC<ThermalKOTPrintableAreaProps> = (
               })}
             </div>
 
-            {/* 6. Summary */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                fontWeight: "bold",
-                fontSize: "11px",
-                marginTop: "6px",
-                paddingTop: "4px",
-              }}
-            >
-              <span>ITEMS: {slip.items.length}</span>
-              <span>TOTAL QTY: {totalQty}</span>
-            </div>
 
             {/* 7. Bottom Dashed Divider */}
             <div style={{ borderBottom: "1px dashed #000000", marginTop: "4px", marginBottom: "6px" }} />
@@ -250,10 +236,6 @@ export async function printKOTSlipsDirectly(slips: StationKOTSlip[]) {
         <div style="border-bottom: 1px dashed #000000; margin-bottom: 6px;"></div>
         <div style="font-size: 12px; line-height: 1.3;">
           ${itemsHtml}
-        </div>
-        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 11px; margin-top: 6px; padding-top: 4px;">
-          <span>ITEMS: ${slip.items.length}</span>
-          <span>TOTAL QTY: ${totalQty}</span>
         </div>
         <div style="border-bottom: 1px dashed #000000; margin-top: 4px; margin-bottom: 6px;"></div>
       </div>

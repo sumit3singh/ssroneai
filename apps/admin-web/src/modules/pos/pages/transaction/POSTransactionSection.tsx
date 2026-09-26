@@ -13,9 +13,11 @@ import { POSVariantAddonModal } from "./POSVariantAddonModal";
 import { HoldBillsModal, HeldBill } from "./pos-billing/HoldBillsModal";
 import { ThermalReceiptModal } from "./pos-billing/ThermalReceiptModal";
 import { ThermalKOTPrintableArea, StationKOTSlip, printKOTSlipsDirectly } from "../../components/ThermalKOTPrintableArea";
+import { isKioskFullscreenActive, requestKioskFullscreen, exitKioskFullscreen, initGlobalKioskFullscreenWatcher } from "../../utils/printUtils";
 import { ActiveOrdersTrackerModal } from "./pos-billing/ActiveOrdersTrackerModal";
 import { POSQueueTokenModal } from "./pos-billing/POSQueueTokenModal";
 import { POSTableTrackerPage } from "./tables-ops/POSTableTrackerPage";
+import { POSTableQuickSettleModal } from "./tables-ops/POSTableQuickSettleModal";
 import { POSTableTrackerModal } from "./tables-ops/POSTableTrackerModal";
 import { POSOrdersListPage } from "./POSOrdersListPage";
 import { POSUPIQRModal } from "../../components/POSUPIQRModal";
@@ -109,13 +111,9 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       const ce = e as CustomEvent<{ tab: POSVirtualTab; fullscreen?: boolean }>;
       if (ce.detail?.tab) {
         switchVirtualTab(ce.detail.tab);
-        if (ce.detail.fullscreen) {
+        if (ce.detail.fullscreen || isKioskFullscreenActive()) {
           setIsFullScreenPOS(true);
-          try {
-            if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-              document.documentElement.requestFullscreen().catch(() => {});
-            }
-          } catch {}
+          requestKioskFullscreen();
         }
       }
     };
@@ -125,13 +123,9 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
         setIsFullScreenPOS(ce.detail.fullscreen);
         try {
           if (ce.detail.fullscreen) {
-            if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-              document.documentElement.requestFullscreen().catch(() => {});
-            }
+            requestKioskFullscreen();
           } else {
-            if (document.fullscreenElement && document.exitFullscreen) {
-              document.exitFullscreen().catch(() => {});
-            }
+            exitKioskFullscreen();
           }
         } catch {}
       }
@@ -196,7 +190,9 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
   const isSubmittingRef = useRef(false);
   const [isFullScreenPOS, setIsFullScreenPOS] = useState<boolean>(() => {
     try {
-      return typeof document !== "undefined" ? Boolean(document.fullscreenElement) : false;
+      return typeof document !== "undefined"
+        ? Boolean(document.fullscreenElement) || isKioskFullscreenActive() || sessionStorage.getItem("pos_open_kiosk_fullscreen") === "true"
+        : false;
     } catch {
       return false;
     }
@@ -205,11 +201,10 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
   // Check if navigation requested Fullscreen Kiosk Mode on path change
   useEffect(() => {
     try {
-      if (sessionStorage.getItem("pos_open_kiosk_fullscreen") === "true") {
+      if (sessionStorage.getItem("pos_open_kiosk_fullscreen") === "true" || isKioskFullscreenActive()) {
         sessionStorage.removeItem("pos_open_kiosk_fullscreen");
-        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-          document.documentElement.requestFullscreen().catch(() => {});
-        }
+        setIsFullScreenPOS(true);
+        requestKioskFullscreen();
       }
     } catch {}
   }, [currentPath]);
@@ -252,6 +247,10 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       }
     }).catch(() => {});
   }, [activeBranchId]);
+
+  // Cart Settlement Modal State (Invoked when clicking Pay & Print on Cart)
+  const [cartSettleOrder, setCartSettleOrder] = useState<POSOrder | null>(null);
+  const [isCartSettleModalOpen, setIsCartSettleModalOpen] = useState(false);
 
   // Kitchen Stations Registry & KOT Slips for Station-Wise Thermal Routing
   const [kitchenStations, setKitchenStations] = useState<any[]>([]);
@@ -462,22 +461,22 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     try {
       const next = !isFullScreenPOS;
       setIsFullScreenPOS(next);
-      localStorage.setItem("pos_kiosk_fullscreen", next ? "true" : "false");
       if (next) {
-        if (document.documentElement.requestFullscreen) {
-          document.documentElement.requestFullscreen().catch(() => {});
-        }
+        requestKioskFullscreen();
       } else {
-        if (document.fullscreenElement && document.exitFullscreen) {
-          document.exitFullscreen().catch(() => {});
-        }
+        exitKioskFullscreen();
       }
     } catch (err) {
       console.error("toggleKioskFullScreen error:", err);
     }
   };
 
-  // Sync React state with native browser fullscreen change events (F11, browser exit)
+  // 1. Initialize persistent global kiosk fullscreen watcher
+  useEffect(() => {
+    return initGlobalKioskFullscreenWatcher();
+  }, []);
+
+  // 2. Sync React state with native browser fullscreen change events (F11, browser exit)
   // Keeps Kiosk mode active during print dialogs and only exits on explicit user action
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -485,7 +484,9 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       if (isFs) {
         setIsFullScreenPOS(true);
         localStorage.setItem("pos_kiosk_fullscreen", "true");
-      } else if (localStorage.getItem("pos_kiosk_fullscreen") !== "true") {
+      } else if (isKioskFullscreenActive()) {
+        setIsFullScreenPOS(true);
+      } else {
         setIsFullScreenPOS(false);
       }
     };
@@ -1647,10 +1648,12 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
   };
 
   // Complete Payment & Settle Bill (Pay & Print)
-  // Zero-Wait Architecture: Optimistic settlement (< 1.2ms) + Background Sync
-  const handleCompleteAndSettle = async (overridePaymentMethod?: PaymentMethod) => {
-    if (isSubmittingRef.current) return;
-    if (cartItems.length === 0) return;
+  // Zero-Wait Architecture: Launches POSTableQuickSettleModal for seamless tender selection & instant 80mm slip print
+  const handleCompleteAndSettle = (overridePaymentMethod?: PaymentMethod) => {
+    if (cartItems.length === 0) {
+      toast.error("Cart is empty - add items first before settling bill");
+      return;
+    }
     if (orderMode === "dine_in" && !selectedTableId) {
       toast.error("Please select a dining table for Dine-In orders!");
       return;
@@ -1661,29 +1664,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       return;
     }
 
-    const effectivePaymentMethod = overridePaymentMethod || paymentMethod;
-    if ((effectivePaymentMethod === "CREDIT_ACCOUNT" || (effectivePaymentMethod as string) === "credit") && !selectedCustomerId) {
-      toast.error("Customer Account is strictly required for Udhar / Debt settlement! Please select or register a customer.");
-      setIsCreateCustomerModalOpen(true);
-      return;
-    }
-
-    isSubmittingRef.current = true;
-    setIsSubmitting(true);
-    setTimeout(() => {
-      isSubmittingRef.current = false;
-      setIsSubmitting(false);
-    }, 800);
-
-    const startTime = performance.now();
-    const cartBackup = [...cartItems];
-    const orderNum = recalledOrderNumber || undefined;
-
-    // 1. Generate client-side token & local order number & UUIDv4 idempotency key (< 0.1ms)
-    const idempotencyKey = generateIdempotencyKey();
-    const isUpdate = Boolean(recalledOrderNumber);
-    const assignedNum = orderNum || generateLocalOrderNumber(activeBranchId, orderMode);
-
+    const assignedNum = recalledOrderNumber || generateLocalOrderNumber(activeBranchId, orderMode);
     const isDineIn = orderMode === "dine_in";
     const selectedTable = isDineIn
       ? tables.find((t) => String(t.id) === String(selectedTableId) || String(t.table_number).toLowerCase() === String(selectedTableId).toLowerCase())
@@ -1693,129 +1674,38 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       : null;
     const selectedCust = customers.find((c) => String(c.id) === String(selectedCustomerId));
 
-    // 2. Dispatch Multi-Station KOT Prints to Kitchen Printers
-    const stationGroups: Record<string, POSCartItem[]> = {};
-    cartBackup.forEach((item) => {
-      const menuItem = menuItems.find((m) => String(m.id) === String(item.item_id));
-      const cat = categories.find((c) => String(c.id) === String(menuItem?.category_id));
-      const stationName = cat?.name || menuItem?.category_name || "Kitchen Main";
-      if (!stationGroups[stationName]) {
-        stationGroups[stationName] = [];
-      }
-      stationGroups[stationName].push(item);
-    });
+    const existingOrd = recalledOrderNumber ? orders.find((o) => o.order_number === recalledOrderNumber) : null;
 
-    Object.keys(stationGroups).forEach((stName) => {
-      const formattedStationItems = stationGroups[stName].map((it) => ({
-        ...it,
-        notes: it.notes || undefined,
-        kotRemark: it.notes?.trim() ? `*** REMARK: ${it.notes.trim().toUpperCase()} ***` : undefined,
-      }));
-      enqueuePrintJob(assignedNum, "KOT", {
-        station: stName,
-        orderNumber: assignedNum,
-        orderType: orderMode.toUpperCase(),
-        tableName: selectedTable?.table_number,
-        waiterName: selectedWaiter?.name,
-        items: formattedStationItems,
-        timestamp: new Date().toLocaleString(),
-      });
-    });
-
-    // 3. Dispatch Customer Final Bill Receipt to Cashier Thermal Printer
-    const printPayload = {
-      orderNumber: renderSafeString(assignedNum),
-      orderType: renderSafeString(orderMode).toUpperCase(),
-      tableName: renderSafeString(selectedTable?.table_number),
-      waiterName: renderSafeString(selectedWaiter?.name),
-      customerName: renderSafeString(selectedCust ? selectedCust.name : undefined),
-      customerPhone: renderSafeString(selectedCust ? selectedCust.phone : undefined),
-      customerAddress: renderSafeString(selectedCust ? selectedCust.address : undefined),
-      items: [...cartBackup],
-      subtotal,
-      packagingChargeTotal,
-      taxAmount,
-      discountAmount,
-      netAmount,
-      paymentMethod: renderSafeString(effectivePaymentMethod, "CASH"),
-      timestamp: new Date().toLocaleString(),
-    };
-
-    setReceiptData(printPayload);
-    enqueuePrintJob(assignedNum, "RECEIPT", printPayload);
-    setIsReceiptModalOpen(true);
-
-    // 4. Optimistically update table status to free & order status to COMPLETED (< 0.1ms)
-    onOptimisticOrderSettle?.(
-      assignedNum,
-      isDineIn && selectedTable ? selectedTable.id : undefined
-    );
-
-    // 5. Clear cart & inputs immediately (< 0.1ms)
-    setCartItems([]);
-    setRecalledOrderNumber(null);
-    setDiscountAmount(0);
-    setOrderNotes("");
-    baselineOrderItemsRef.current = {};
-    setActiveKOTSlips([]);
-
-    // 6. Instant success toast (< 0.1ms) & Soundbox Chime
-    const elapsed = (performance.now() - startTime).toFixed(1);
-    toast.success(
-      orderNum
-        ? `⚡ Order #${assignedNum} updated & settled in ${elapsed}ms!`
-        : `⚡ Bill #${assignedNum} settled & completed in ${elapsed}ms!`
-    );
-
-    playPaymentSuccessSound();
-
-    try {
-      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
-        const channel = new BroadcastChannel("ssrone_cfd_sync");
-        channel.postMessage({
-          type: "ORDER_SETTLED",
-          orderNumber: assignedNum,
-          netAmount,
-        });
-        channel.close();
-      }
-    } catch {}
-
-    // 7. Fire-and-forget background synchronization to IndexedDB & PostgreSQL
-    const orderPayload = {
+    const settleOrder: POSOrder = {
+      id: existingOrd?.id || `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       order_number: assignedNum,
-      is_update: isUpdate,
-      branch_id: Number(activeBranchId),
       order_type: orderMode.toUpperCase() as OrderType,
       order_mode: orderMode,
-      customer_id: selectedCustomerId ? (Number(selectedCustomerId) || selectedCustomerId) : null,
-      table_id: isDineIn && selectedTable ? selectedTable.id : null,
+      customer_id: selectedCustomerId ? (Number(selectedCustomerId) || selectedCustomerId) : undefined,
+      customer_name: selectedCust ? selectedCust.name : existingOrd?.customer_name,
+      customer_phone: selectedCust ? selectedCust.phone : existingOrd?.customer_phone,
+      customer_address: selectedCust ? selectedCust.address : existingOrd?.customer_address,
+      table_id: isDineIn && selectedTable ? selectedTable.id : undefined,
       table_name: isDineIn && selectedTable ? selectedTable.table_number : undefined,
-      waiter_id: isDineIn && selectedWaiter ? selectedWaiter.id : null,
+      waiter_id: isDineIn && selectedWaiter ? Number(selectedWaiter.id) : undefined,
       waiter_name: isDineIn && selectedWaiter ? selectedWaiter.name : undefined,
-      items: cartBackup,
+      items: [...cartItems],
       subtotal,
       packaging_charge: packagingChargeTotal,
       tax_amount: taxAmount,
       discount_amount: discountAmount,
       net_amount: netAmount,
-      payment_method: effectivePaymentMethod,
-      status: "COMPLETED",
+      grand_total: netAmount,
+      payment_method: overridePaymentMethod || paymentMethod || "CASH",
+      status: "CONFIRMED",
+      created_at: existingOrd?.created_at || new Date().toISOString(),
     };
 
-    syncOrderInBackground(orderPayload, idempotencyKey, {
-      onSuccess: (serverOrder) => {
-        onRefresh?.(serverOrder);
-      },
-    });
+    setCartSettleOrder(settleOrder);
+    setIsCartSettleModalOpen(true);
   };
 
   const handleSettleAndPay = (method?: PaymentMethod) => {
-    const targetMethod = method || paymentMethod;
-    if (targetMethod === "UPI") {
-      setIsUPIModalOpen(true);
-      return;
-    }
     if (method) setPaymentMethod(method);
     handleCompleteAndSettle(method);
   };
@@ -2212,6 +2102,10 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
         onClose={() => {
           setIsReceiptModalOpen(false);
           switchVirtualTab("tables");
+          if (isKioskFullscreenActive()) {
+            setIsFullScreenPOS(true);
+            requestKioskFullscreen();
+          }
         }}
         receiptData={receiptData}
       />
@@ -2224,6 +2118,45 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
         orderNumber={recalledOrderNumber || peekNextLocalOrderNumber()}
         onConfirmPayment={() => handleCompleteAndSettle("UPI")}
       />
+
+      {/* Quick Settlement Modal Invoked Directly from Cart Pay & Print (F3) */}
+      {cartSettleOrder && (
+        <POSTableQuickSettleModal
+          order={cartSettleOrder}
+          isOpen={isCartSettleModalOpen}
+          onClose={() => {
+            setIsCartSettleModalOpen(false);
+            setCartSettleOrder(null);
+          }}
+          onSuccess={(settledOrder) => {
+            setIsCartSettleModalOpen(false);
+            setCartSettleOrder(null);
+            setCartItems([]);
+            setRecalledOrderNumber(null);
+            setDiscountAmount(0);
+            setOrderNotes("");
+            baselineOrderItemsRef.current = {};
+            setActiveKOTSlips([]);
+            switchVirtualTab("tables");
+            onRefresh?.(settledOrder);
+          }}
+          onOptimisticOrderSettle={(orderNumber, tableId) => {
+            onOptimisticOrderSettle?.(orderNumber, tableId);
+            setCartItems([]);
+            setRecalledOrderNumber(null);
+            setDiscountAmount(0);
+            setOrderNotes("");
+            baselineOrderItemsRef.current = {};
+            setActiveKOTSlips([]);
+          }}
+          onPrintReceipt={(receiptPayload: any) => {
+            setReceiptData(receiptPayload);
+            setIsReceiptModalOpen(true);
+          }}
+          customers={customers}
+          onRefreshCustomers={loadCustomers}
+        />
+      )}
     </div>
   );
 };

@@ -55,37 +55,60 @@ export const CashierSettlementReport: React.FC<CashierSettlementReportProps> = (
   const getOrderNet = (o: POSOrder) =>
     safeNum(o.net_amount ?? o.grand_total ?? o.total_amount ?? 0);
 
-  // Payment Breakdown
-  const cashSales = useMemo(() => {
-    return validOrders
-      .filter((o) => (o.payment_method || "CASH").toUpperCase() === "CASH")
-      .reduce((s, o) => s + (o.amount_paid !== undefined && o.amount_paid !== null ? Number(o.amount_paid) : getOrderNet(o)), 0);
+  // Payment Breakdown with exact tender attribution and Udhar (Debt) segregation
+  const paymentBreakdown = useMemo(() => {
+    let cash = 0;
+    let upi = 0;
+    let card = 0;
+    let debt = 0;
+
+    validOrders.forEach((o: any) => {
+      const net = getOrderNet(o);
+      const isUnpaid = (o.payment_status || "").toLowerCase() === "unpaid";
+      const isPartial = (o.payment_status || "").toLowerCase() === "partial";
+      const hasBalanceDue = safeNum(o.balance_due) > 0;
+
+      let paid = 0;
+      let due = 0;
+
+      if (o.amount_paid !== undefined && o.amount_paid !== null) {
+        paid = safeNum(o.amount_paid);
+      } else {
+        paid = isUnpaid ? 0 : net;
+      }
+
+      if (hasBalanceDue) {
+        due = safeNum(o.balance_due);
+      } else if (isUnpaid) {
+        due = net;
+      } else if (isPartial) {
+        due = Math.max(0, net - paid);
+      }
+
+      if (due > 0) {
+        debt += due;
+      }
+
+      if (paid > 0) {
+        const pm = (o.payment_method || "CASH").toUpperCase();
+        if (pm.includes("UPI") || pm.includes("QR") || pm.includes("GPAY") || pm.includes("PAYTM") || pm.includes("PHONEPE")) {
+          upi += paid;
+        } else if (pm.includes("CARD")) {
+          card += paid;
+        } else {
+          cash += paid;
+        }
+      }
+    });
+
+    return { cash, upi, card, debt };
   }, [validOrders]);
 
-  const upiSales = useMemo(() => {
-    return validOrders
-      .filter((o) => {
-        const pm = (o.payment_method || "").toUpperCase();
-        return pm === "UPI" || pm === "QR";
-      })
-      .reduce((s, o) => s + (o.amount_paid !== undefined && o.amount_paid !== null ? Number(o.amount_paid) : getOrderNet(o)), 0);
-  }, [validOrders]);
-
-  const cardSales = useMemo(() => {
-    return validOrders
-      .filter((o) => (o.payment_method || "").toUpperCase() === "CARD")
-      .reduce((s, o) => s + (o.amount_paid !== undefined && o.amount_paid !== null ? Number(o.amount_paid) : getOrderNet(o)), 0);
-  }, [validOrders]);
-
-  const debtSales = useMemo(() => {
-    return validOrders.reduce((s, o) => {
-      const bal = safeNum(o.balance_due);
-      if (bal > 0) return s + bal;
-      const pm = (o.payment_method || "").toUpperCase();
-      if (pm === "CREDIT_ACCOUNT" || pm === "DEBT") return s + getOrderNet(o);
-      return s;
-    }, 0);
-  }, [validOrders]);
+  const cashSales = paymentBreakdown.cash;
+  const upiSales = paymentBreakdown.upi;
+  const cardSales = paymentBreakdown.card;
+  const debtSales = paymentBreakdown.debt;
+  const totalSales = cashSales + upiSales + cardSales + debtSales;
 
   const totalSettlementConcessions = useMemo(() => {
     return validOrders.reduce((sum, o: any) => {
@@ -93,8 +116,6 @@ export const CashierSettlementReport: React.FC<CashierSettlementReportProps> = (
       return sum + disc;
     }, 0);
   }, [validOrders]);
-
-  const totalSales = cashSales + upiSales + cardSales + debtSales;
 
   // Drawer Reconciliation
   const expectedCashInDrawer = openingFloat + cashSales - pettyCash;

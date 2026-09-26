@@ -181,17 +181,52 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
         ? order.id
         : order.order_number;
 
-      await api.patch(`/orders/${targetIdentifier}/status`, null, {
-        params: {
-          status: "completed",
-          payment_status: targetPaymentStatus,
-          amount_paid: amountPaid,
-          discount_amount: isDiscount ? finalDiscount : undefined,
-          balance_due: balanceDue > 0 ? balanceDue : undefined,
-          customer_id: selectedCustomerId ? Number(selectedCustomerId) : undefined,
-          payment_method: targetPaymentMethod,
+      let synced = false;
+      try {
+        await api.patch(`/orders/${targetIdentifier}/status`, null, {
+          params: {
+            status: "completed",
+            payment_status: targetPaymentStatus,
+            amount_paid: amountPaid,
+            discount_amount: isDiscount ? finalDiscount : undefined,
+            balance_due: balanceDue > 0 ? balanceDue : undefined,
+            customer_id: selectedCustomerId ? Number(selectedCustomerId) : undefined,
+            payment_method: targetPaymentMethod,
+          }
+        });
+        synced = true;
+      } catch (patchErr: any) {
+        // If order does not exist on backend yet (404), create and settle directly via POST /orders
+        if (patchErr?.response?.status === 404 || String(order.id).startsWith("local-")) {
+          const activeBranchId = localStorage.getItem("active_branch_id") || 1;
+          const createPayload = {
+            order_number: order.order_number,
+            branch_id: Number(activeBranchId),
+            order_type: (order.order_mode || order.order_type || "DINE_IN").toUpperCase(),
+            order_mode: (order.order_mode || order.order_type || "dine_in").toLowerCase(),
+            customer_id: selectedCustomerId ? Number(selectedCustomerId) : null,
+            table_id: order.table_id || null,
+            table_name: order.table_name || undefined,
+            waiter_id: order.waiter_id || null,
+            waiter_name: order.waiter_name || undefined,
+            items: order.items || [],
+            subtotal: Number(order.subtotal || 0),
+            packaging_charge: Number(order.packaging_charge || 0),
+            tax_amount: Number(order.tax_amount || 0),
+            discount_amount: isDiscount ? finalDiscount : Number(order.discount_amount || 0),
+            net_amount: finalNetAmount,
+            payment_method: targetPaymentMethod,
+            payment_status: targetPaymentStatus,
+            amount_paid: amountPaid,
+            balance_due: balanceDue,
+            status: "COMPLETED",
+          };
+          await api.post("/orders", createPayload);
+          synced = true;
+        } else {
+          throw patchErr;
         }
-      });
+      }
 
       if (order.table_id) {
         await api.patch(`/restaurant/tables/${order.table_id}/status`, {

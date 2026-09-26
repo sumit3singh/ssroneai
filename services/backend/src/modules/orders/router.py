@@ -194,6 +194,9 @@ class OrderCreateSchema(BaseModel):
     net_amount: Any = None
     payment_method: str = "CASH"
     status: str = "COMPLETED"
+    payment_status: str | None = None
+    amount_paid: Any = None
+    balance_due: Any = None
 
 
 
@@ -250,6 +253,7 @@ class OrderResponse(BaseModel):
     grand_total: Decimal | float = Decimal("0")
     amount_paid: Decimal | float = Decimal("0")
     balance_due: Decimal | float = Decimal("0")
+    payment_method: str | None = None
     notes: str | None = None
     customer_id: int | None = None
     customer_name: str | None = None
@@ -262,6 +266,7 @@ class OrderResponse(BaseModel):
     items: list[OrderItemResponse] = Field(default_factory=list)
     created_at: datetime | None = None
     confirmed_at: datetime | None = None
+    metadata_payload: dict | None = Field(default_factory=dict, alias="metadata")
 
     @model_validator(mode="after")
     def populate_display_fields(self):
@@ -274,6 +279,13 @@ class OrderResponse(BaseModel):
         if (self.order_mode or "").lower() != "dine_in":
             self.table_id = None
             self.table_name = None
+        if not self.payment_method:
+            if self.metadata_payload and self.metadata_payload.get("payment_method"):
+                self.payment_method = str(self.metadata_payload.get("payment_method")).upper()
+            elif float(self.balance_due or 0) > 0 and float(self.amount_paid or 0) == 0:
+                self.payment_method = "CREDIT_ACCOUNT"
+            else:
+                self.payment_method = "CASH"
         return self
 
     model_config = {"from_attributes": True}
@@ -415,9 +427,20 @@ async def create_order(
     grand_total = Decimal(str(body.net_amount)) if body.net_amount is not None else (taxable + total_tax)
 
     target_status = body.status.lower() if body.status else "completed"
-    payment_status = "paid" if target_status in ("completed", "paid") else "unpaid"
-    amount_paid = grand_total if payment_status == "paid" else Decimal("0")
-    balance_due = Decimal("0") if payment_status == "paid" else grand_total
+    if body.payment_status:
+        payment_status = body.payment_status.lower()
+    else:
+        payment_status = "paid" if target_status in ("completed", "paid") else "unpaid"
+
+    if body.amount_paid is not None:
+        amount_paid = Decimal(str(body.amount_paid))
+    else:
+        amount_paid = grand_total if payment_status == "paid" else Decimal("0")
+
+    if body.balance_due is not None:
+        balance_due = Decimal(str(body.balance_due))
+    else:
+        balance_due = Decimal("0") if payment_status == "paid" else grand_total
 
     # CHECK FOR EXISTING ORDER (Strict Idempotency & In-Place Update - Avoid Duplicate Order Creation!)
     existing_order = None
@@ -464,6 +487,43 @@ async def create_order(
         existing_order.grand_total = grand_total
         existing_order.amount_paid = amount_paid
         existing_order.balance_due = balance_due
+        if existing_order.metadata_payload is None:
+            existing_order.metadata_payload = {}
+        if body.payment_method:
+            existing_order.metadata_payload["payment_method"] = (body.payment_method or "CASH").upper()
+        if target_status in ("completed", "paid"):
+            pm_upper = (body.payment_method or "CASH").upper()
+            if pm_upper == "CREDIT_ACCOUNT" or (balance_due > 0 and amount_paid == 0):
+                db.add(OrderPayment(
+                    tenant_id=tenant_id,
+                    order_id=existing_order.id,
+                    payment_mode="CREDIT_ACCOUNT",
+                    amount=Decimal("0.00"),
+                    status="PENDING",
+                    transaction_reference=f"UDHAR-{existing_order.order_number}",
+                    created_by=user_id,
+                ))
+            else:
+                if amount_paid > 0:
+                    db.add(OrderPayment(
+                        tenant_id=tenant_id,
+                        order_id=existing_order.id,
+                        payment_mode=pm_upper,
+                        amount=amount_paid,
+                        status="SUCCESS",
+                        transaction_reference=f"SETTLE-{existing_order.order_number}",
+                        created_by=user_id,
+                    ))
+                if balance_due > 0:
+                    db.add(OrderPayment(
+                        tenant_id=tenant_id,
+                        order_id=existing_order.id,
+                        payment_mode="CREDIT_ACCOUNT",
+                        amount=balance_due,
+                        status="PENDING",
+                        transaction_reference=f"UDHAR-PARTIAL-{existing_order.order_number}",
+                        created_by=user_id,
+                    ))
         if body.notes:
             existing_order.notes = body.notes
 
@@ -637,9 +697,44 @@ async def create_order(
         special_instructions=body.special_instructions,
         source_channel=body.source_channel or "pos",
         created_by=user_id,
+        metadata_payload={"payment_method": (body.payment_method or "CASH").upper()},
     )
     db.add(order)
     await db.flush()
+
+    if target_status in ("completed", "paid"):
+        pm_upper = (body.payment_method or "CASH").upper()
+        if pm_upper == "CREDIT_ACCOUNT" or (balance_due > 0 and amount_paid == 0):
+            db.add(OrderPayment(
+                tenant_id=tenant_id,
+                order_id=order.id,
+                payment_mode="CREDIT_ACCOUNT",
+                amount=Decimal("0.00"),
+                status="PENDING",
+                transaction_reference=f"UDHAR-{order.order_number}",
+                created_by=user_id,
+            ))
+        else:
+            if amount_paid > 0:
+                db.add(OrderPayment(
+                    tenant_id=tenant_id,
+                    order_id=order.id,
+                    payment_mode=pm_upper,
+                    amount=amount_paid,
+                    status="SUCCESS",
+                    transaction_reference=f"SETTLE-{order.order_number}",
+                    created_by=user_id,
+                ))
+            if balance_due > 0:
+                db.add(OrderPayment(
+                    tenant_id=tenant_id,
+                    order_id=order.id,
+                    payment_mode="CREDIT_ACCOUNT",
+                    amount=balance_due,
+                    status="PENDING",
+                    transaction_reference=f"UDHAR-PARTIAL-{order.order_number}",
+                    created_by=user_id,
+                ))
 
     # Update dining table status if assigned
     if parsed_table_id:
@@ -810,7 +905,7 @@ async def list_orders(
     total = (await db.execute(count_query)).scalar() or 0
 
     # Add sorting and eager loading options for data fetch
-    fetch_query = base_query.options(selectinload(Order.items))
+    fetch_query = base_query.options(selectinload(Order.items), selectinload(Order.payments))
     if sort_order == "asc":
         fetch_query = fetch_query.order_by(Order.created_at.asc(), Order.id.asc())
     else:
@@ -861,6 +956,11 @@ async def list_orders(
     for o in orders:
         try:
             item_dto = OrderResponse.model_validate(o)
+            if hasattr(o, "payments") and o.payments:
+                for p in o.payments:
+                    if getattr(p, "status", None) == "SUCCESS" and getattr(p, "payment_mode", None):
+                        item_dto.payment_method = p.payment_mode.upper()
+                        break
             if item_dto.table_id and not item_dto.table_name:
                 item_dto.table_name = tables_map.get(item_dto.table_id)
             if item_dto.customer_id and item_dto.customer_id in customers_map:
@@ -901,12 +1001,17 @@ async def get_order(
             Order.tenant_id == tenant_id,
             (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
         )
-        .options(selectinload(Order.items))
+        .options(selectinload(Order.items), selectinload(Order.payments))
     )
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     res = OrderResponse.model_validate(order)
+    if hasattr(order, "payments") and order.payments:
+        for p in order.payments:
+            if getattr(p, "status", None) == "SUCCESS" and getattr(p, "payment_mode", None):
+                res.payment_method = p.payment_mode.upper()
+                break
     if order.customer_id:
         try:
             from src.modules.crm.models import Customer
@@ -1045,6 +1150,9 @@ async def update_order_status(
         order.payment_status = "unpaid"
         order.amount_paid = Decimal("0.00")
         order.balance_due = order.grand_total or Decimal("0.00")
+        if order.metadata_payload is None:
+            order.metadata_payload = {}
+        order.metadata_payload["payment_method"] = "CREDIT_ACCOUNT"
 
         # Record Credit Audit Payment Entry
         debt_payment = OrderPayment(
@@ -1111,6 +1219,9 @@ async def update_order_status(
                         transaction_reference=f"SETTLE-{order.order_number}",
                         created_by=user_id,
                     ))
+            if order.metadata_payload is None:
+                order.metadata_payload = {}
+            order.metadata_payload["payment_method"] = pm_str.upper() if pm_str else "CASH"
         elif order.status == "cancelled":
             order.cancelled_at = datetime.now(timezone.utc)
 

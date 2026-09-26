@@ -410,10 +410,6 @@ export const POSPrintPortal: React.FC<POSPrintPortalProps> = ({
                       fontSize: "9.5px",
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold" }}>
-                      <span>ITEMS: {slip.items.length}</span>
-                      <span>TOTAL QTY: {totalQty}</span>
-                    </div>
                     <div style={{ marginTop: "3px", fontWeight: "900" }}>
                       {isUpdate ? ">>> PREPARE NEW ITEMS ONLY <<<" : ">>> PREPARE IMMEDIATELY <<<"}
                     </div>

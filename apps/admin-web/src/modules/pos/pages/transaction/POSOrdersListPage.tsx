@@ -391,6 +391,7 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
                   variant={isFullScreenPOS ? "danger" : "secondary"}
                   size="sm"
                   onClick={onToggleFullScreen}
+                  data-exit-fullscreen={isFullScreenPOS ? "true" : undefined}
                   className="h-8 gap-1 text-xs font-bold rounded cursor-pointer px-2.5 shadow-2xs"
                 >
                   {isFullScreenPOS ? <Minimize2 size={13} /> : <Maximize2 size={13} />}

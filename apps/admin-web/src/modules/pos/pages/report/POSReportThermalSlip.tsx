@@ -38,28 +38,49 @@ export const POSReportThermalSlip: React.FC<POSReportThermalSlipProps> = ({
   const totalDiscounts = completedOrders.reduce((s, o) => s + safeNum(o.discount_amount || 0), 0);
   const netSales = completedOrders.reduce((s, o) => s + safeNum(o.net_amount || 0), 0);
 
-  const cashSales = completedOrders
-    .filter((o) => (o.payment_method || "CASH").toUpperCase() === "CASH")
-    .reduce((s, o: any) => s + (o.amount_paid !== undefined && o.amount_paid !== null ? Number(o.amount_paid) : safeNum(o.net_amount || 0)), 0);
+  let cashSales = 0;
+  let upiSales = 0;
+  let cardSales = 0;
+  let debtSales = 0;
 
-  const upiSales = completedOrders
-    .filter((o) => {
-      const pm = (o.payment_method || "").toUpperCase();
-      return pm === "UPI" || pm === "QR";
-    })
-    .reduce((s, o: any) => s + (o.amount_paid !== undefined && o.amount_paid !== null ? Number(o.amount_paid) : safeNum(o.net_amount || 0)), 0);
+  completedOrders.forEach((o: any) => {
+    const net = safeNum(o.net_amount || o.grand_total || 0);
+    const isUnpaid = (o.payment_status || "").toLowerCase() === "unpaid";
+    const isPartial = (o.payment_status || "").toLowerCase() === "partial";
+    const hasBalanceDue = safeNum(o.balance_due) > 0;
 
-  const cardSales = completedOrders
-    .filter((o) => (o.payment_method || "").toUpperCase() === "CARD")
-    .reduce((s, o: any) => s + (o.amount_paid !== undefined && o.amount_paid !== null ? Number(o.amount_paid) : safeNum(o.net_amount || 0)), 0);
+    let paid = 0;
+    let due = 0;
 
-  const debtSales = completedOrders.reduce((s, o: any) => {
-    const bal = safeNum(o.balance_due);
-    if (bal > 0) return s + bal;
-    const pm = (o.payment_method || "").toUpperCase();
-    if (pm === "CREDIT_ACCOUNT" || pm === "DEBT") return s + safeNum(o.net_amount || 0);
-    return s;
-  }, 0);
+    if (o.amount_paid !== undefined && o.amount_paid !== null) {
+      paid = safeNum(o.amount_paid);
+    } else {
+      paid = isUnpaid ? 0 : net;
+    }
+
+    if (hasBalanceDue) {
+      due = safeNum(o.balance_due);
+    } else if (isUnpaid) {
+      due = net;
+    } else if (isPartial) {
+      due = Math.max(0, net - paid);
+    }
+
+    if (due > 0) {
+      debtSales += due;
+    }
+
+    if (paid > 0) {
+      const pm = (o.payment_method || "CASH").toUpperCase();
+      if (pm.includes("UPI") || pm.includes("QR") || pm.includes("GPAY") || pm.includes("PAYTM") || pm.includes("PHONEPE")) {
+        upiSales += paid;
+      } else if (pm.includes("CARD")) {
+        cardSales += paid;
+      } else {
+        cashSales += paid;
+      }
+    }
+  });
 
   const settlementConcessions = completedOrders.reduce((s, o: any) => {
     return s + safeNum(o.metadata_payload?.settlement_discount || 0);

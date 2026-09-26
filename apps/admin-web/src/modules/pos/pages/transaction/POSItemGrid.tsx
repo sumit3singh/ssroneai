@@ -618,6 +618,7 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
             <button
               type="button"
               onClick={onToggleFullScreen}
+              data-exit-fullscreen={isFullScreenPOS ? "true" : undefined}
               title={isFullScreenPOS ? "Exit Fullscreen Kiosk Mode" : "Enter Fullscreen Kiosk Mode"}
               className={`h-8 px-2 sm:px-2.5 rounded-md font-semibold text-xs flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-xs ${
                 isFullScreenPOS

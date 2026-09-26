@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useAuthStore } from "@ssrone/auth";
 import { POSCartItem } from "../../../types";
 import { renderSafeString } from "../../../utils/renderSafeString";
-import { safePrintWithFullscreenRestore } from "../../../utils/printUtils";
+import { safePrintWithFullscreenRestore, printCustomerReceiptDirectly } from "../../../utils/printUtils";
 import {
   cleanTableName,
   cleanString,
@@ -55,10 +55,6 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
 
   if (!isOpen || !receiptData) return null;
 
-  const handlePrint = () => {
-    safePrintWithFullscreenRestore();
-  };
-
   // Dynamic multi-tenant venue details with safe fallbacks
   const venueName = cleanString(selected_branch?.name || selected_company?.name || "BAITHAK CAFE CUH");
   const venueAddress = formatBranchAddress((selected_branch as any)?.address || (selected_company as any)?.address);
@@ -74,6 +70,32 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
   const orderNumber = cleanString(receiptData.orderNumber);
   const orderType = cleanString(receiptData.orderType);
   const paymentMethod = cleanString(receiptData.paymentMethod);
+
+  const handlePrint = () => {
+    printCustomerReceiptDirectly({
+      orderNumber,
+      orderType,
+      tableName: cleanTable,
+      waiterName,
+      customerName: custName,
+      customerPhone: custPhone || phoneInput,
+      customerAddress: custAddress,
+      items: receiptData.items || [],
+      subtotal: receiptData.subtotal,
+      packagingChargeTotal: receiptData.packagingChargeTotal,
+      taxAmount: receiptData.taxAmount,
+      discountAmount: receiptData.discountAmount,
+      netAmount: receiptData.netAmount,
+      paymentMethod,
+      timestamp: receiptData.timestamp,
+      venueName,
+      venueAddress,
+      venueGstin,
+      venuePhone,
+      venueFssai,
+    });
+    onClose();
+  };
 
   const handleSendWhatsApp = () => {
     const rawPhone = (phoneInput || custPhone || "").replace(/\D/g, "");
@@ -345,7 +367,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
                 <MessageSquare size={14} /> WhatsApp Bill
               </Button>
               <Button onClick={handlePrint} className="bg-primary text-white font-bold text-xs gap-1.5 cursor-pointer shadow-xs active:scale-95">
-                <Printer size={14} /> Print 80mm Slip
+                <Printer size={14} /> Print
               </Button>
             </div>
           </div>

@@ -400,6 +400,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                   variant={isFullScreenPOS ? "danger" : "outline"}
                   size="sm"
                   onClick={onToggleFullScreen}
+                  data-exit-fullscreen={isFullScreenPOS ? "true" : undefined}
                   className={`h-8 gap-1.5 text-xs font-bold rounded-md cursor-pointer px-2.5 transition-all shadow-2xs ${
                     isFullScreenPOS
                       ? "bg-rose-500 hover:bg-rose-600 text-white border-rose-600 dark:bg-rose-600 dark:hover:bg-rose-700 ring-2 ring-rose-500/25 active:scale-95"
