@@ -211,6 +211,7 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
           totalAmount: o.grand_total,
           amountPaid: o.amount_paid,
           balanceDue: o.balance_due,
+          itemsSummary: o.items_summary || undefined,
         }));
 
       const receiptPayload: CustomerDebtSettlementReceiptData = {
@@ -229,22 +230,6 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
 
       setSettlementReceiptData(receiptPayload);
       setIsSettlementReceiptOpen(true);
-
-      // Print debt collection receipt if supported
-      if (onPrintReceipt) {
-        onPrintReceipt({
-          receiptType: "CUSTOMER_DEBT_PAYMENT",
-          receiptNumber: res.receipt_number,
-          customerName: customerLedger.customer.name,
-          customerPhone: customerLedger.customer.phone,
-          amountReceived: Number(settleAmount),
-          previousDebt: res.previous_debt,
-          remainingDebt: res.remaining_debt,
-          paymentMethod: settlePaymentMethod,
-          timestamp: new Date().toLocaleString(),
-          notes: settleNotes || undefined,
-        });
-      }
 
       setIsSettleModalOpen(false);
       setSettleRefNumber("");

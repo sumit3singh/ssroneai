@@ -951,7 +951,6 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
       <CustomerDebtRegisterModal
         isOpen={isDebtRegisterOpen}
         onClose={() => setIsDebtRegisterOpen(false)}
-        onPrintReceipt={onPrintReceipt}
         onRefreshData={onRefresh}
       />
     </div>

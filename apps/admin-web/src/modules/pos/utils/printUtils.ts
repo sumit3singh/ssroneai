@@ -426,6 +426,7 @@ export interface CustomerDebtSettlementReceiptData {
     totalAmount: number;
     amountPaid?: number;
     balanceDue?: number;
+    itemsSummary?: string;
   }>;
   totalDebtBefore: number;
   amountReceived: number;
@@ -456,10 +457,13 @@ export function printCustomerDebtSettlementReceiptDirectly(data: CustomerDebtSet
   const paymentMethod = (data.paymentMethod || "CASH").toUpperCase();
 
   const ordersHtml = (data.settledOrders || []).map((o) => `
-    <div style="display: flex; justify-content: space-between; font-size: 10.5px; margin-bottom: 2px;">
-      <span style="font-weight: bold;">${o.orderNumber}</span>
-      <span style="color: #444;">${o.date ? new Date(o.date).toLocaleDateString() : ""}</span>
-      <span style="font-weight: bold;">${Number(o.totalAmount).toFixed(2)}</span>
+    <div style="margin-bottom: 4px; padding-bottom: 3px; border-bottom: 1px dotted #ccc;">
+      <div style="display: flex; justify-content: space-between; font-size: 10.5px;">
+        <span style="font-weight: bold;">${o.orderNumber}</span>
+        <span style="color: #444;">${o.date ? new Date(o.date).toLocaleDateString() : ""}</span>
+        <span style="font-weight: bold;">₹${Number(o.totalAmount).toFixed(2)}</span>
+      </div>
+      ${o.itemsSummary ? `<div style="font-size: 9.5px; color: #444; margin-top: 1px; font-style: italic; line-height: 1.2;">${o.itemsSummary}</div>` : ""}
     </div>
   `).join("");
 

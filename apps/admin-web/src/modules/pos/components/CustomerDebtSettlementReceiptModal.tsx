@@ -79,7 +79,10 @@ export const CustomerDebtSettlementReceiptModal: React.FC<CustomerDebtSettlement
     if (data.settledOrders && data.settledOrders.length > 0) {
       lines.push("*SETTLED BILLS:*");
       data.settledOrders.forEach((o) => {
-        lines.push(`• Order #${o.orderNumber}: ${Number(o.totalAmount).toFixed(2)}`);
+        lines.push(`• Order #${o.orderNumber}: ₹${Number(o.totalAmount).toFixed(2)}`);
+        if (o.itemsSummary) {
+          lines.push(`   ↳ ${o.itemsSummary}`);
+        }
       });
       lines.push("------------------------------------");
     }
@@ -161,21 +164,28 @@ export const CustomerDebtSettlementReceiptModal: React.FC<CustomerDebtSettlement
 
           {/* Settled Bills Breakdown */}
           {data.settledOrders && data.settledOrders.length > 0 && (
-            <div className="border-b border-dashed border-border pb-2 space-y-1">
+            <div className="border-b border-dashed border-border pb-2 space-y-1.5">
               <div className="flex justify-between text-[9.5px] font-bold text-muted-foreground border-b border-border/50 pb-0.5">
                 <span>SETTLED BILL</span>
                 <span>DATE</span>
                 <span>BILL AMT</span>
               </div>
               {data.settledOrders.map((ord, idx) => (
-                <div key={idx} className="flex justify-between text-[10.5px]">
-                  <span className="font-bold text-foreground">{ord.orderNumber}</span>
-                  <span className="text-muted-foreground text-[10px]">
-                    {ord.date ? new Date(ord.date).toLocaleDateString() : "—"}
-                  </span>
-                  <span className="font-mono font-bold text-foreground">
-                    {Number(ord.totalAmount).toFixed(2)}
-                  </span>
+                <div key={idx} className="border-b border-dotted border-border/40 pb-1 last:border-b-0 space-y-0.5">
+                  <div className="flex justify-between text-[10.5px]">
+                    <span className="font-bold text-foreground">{ord.orderNumber}</span>
+                    <span className="text-muted-foreground text-[10px]">
+                      {ord.date ? new Date(ord.date).toLocaleDateString() : "—"}
+                    </span>
+                    <span className="font-mono font-bold text-foreground">
+                      ₹{Number(ord.totalAmount).toFixed(2)}
+                    </span>
+                  </div>
+                  {ord.itemsSummary && (
+                    <div className="text-[9.5px] text-muted-foreground italic pl-1 leading-tight">
+                      {ord.itemsSummary}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

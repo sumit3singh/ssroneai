@@ -55,7 +55,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
     setShowPhoneInput(false);
   }, [receiptData]);
 
-  if (!isOpen || !receiptData) return null;
+  if (!isOpen || !receiptData || (receiptData as any).receiptType === "CUSTOMER_DEBT_PAYMENT") return null;
 
   // Dynamic multi-tenant venue details with safe fallbacks
   const venueName = cleanString(selected_branch?.name || selected_company?.name || "BAITHAK CAFE CUH");
@@ -273,27 +273,27 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
           <div className="space-y-1 pt-1 text-[11px] border-b border-dashed border-neutral-400 dark:border-neutral-600 print:border-black pb-2">
             <div className="flex justify-between text-muted-foreground print:text-black">
               <span>Subtotal:</span>
-              <span>{Number(receiptData.subtotal).toFixed(2)}</span>
+              <span>{Number(receiptData.subtotal || 0).toFixed(2)}</span>
             </div>
-            {receiptData.packagingChargeTotal > 0 && (
+            {Number(receiptData.packagingChargeTotal || 0) > 0 && (
               <div className="flex justify-between text-amber-600 print:text-black">
                 <span>Packaging:</span>
-                <span>+{Number(receiptData.packagingChargeTotal).toFixed(2)}</span>
+                <span>+{Number(receiptData.packagingChargeTotal || 0).toFixed(2)}</span>
               </div>
             )}
-            {receiptData.discountAmount > 0 && (
+            {Number(receiptData.discountAmount || 0) > 0 && (
               <div className="flex justify-between text-emerald-600 print:text-black font-bold">
                 <span>Discount:</span>
-                <span>-{Number(receiptData.discountAmount).toFixed(2)}</span>
+                <span>-{Number(receiptData.discountAmount || 0).toFixed(2)}</span>
               </div>
             )}
             <div className="flex justify-between text-muted-foreground print:text-black">
               <span>GST:</span>
-              <span>{Number(receiptData.taxAmount).toFixed(2)}</span>
+              <span>{Number(receiptData.taxAmount || 0).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-xs font-black text-foreground border-t border-neutral-300 dark:border-neutral-700 print:border-black pt-1">
               <span>Grand Total:</span>
-              <span className="text-primary print:text-black font-mono text-sm">{Number(receiptData.netAmount).toFixed(2)}</span>
+              <span className="text-primary print:text-black font-mono text-sm">{Number(receiptData.netAmount || 0).toFixed(2)}</span>
             </div>
             {paymentMethod && (
               <div className="flex justify-between text-[10px] text-muted-foreground print:text-black pt-0.5">
