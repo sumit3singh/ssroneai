@@ -111,10 +111,6 @@ export const POSPage: React.FC = () => {
       // Reconcile Orders: Merge server orders with local pending optimistic orders (id: "local-...")
       setOrders((prev) => {
         const serverOrderNumbers = new Set(oList.map((o: any) => String(o.order_number || "")));
-        const serverDailyNumbers = new Set(oList.map((o: any) => o.daily_order_number ? String(o.daily_order_number) : ""));
-        serverDailyNumbers.delete("");
-        const serverDisplayNumbers = new Set(oList.map((o: any) => getDisplayOrderNumber(o)));
-        serverDisplayNumbers.delete("");
         const serverOrderIds = new Set(oList.map((o: any) => String(o.id)));
 
         // Keep any active optimistic orders that have not yet appeared in server oList
@@ -122,16 +118,9 @@ export const POSPage: React.FC = () => {
         const pendingOptimistic = prev.filter((p) => {
           if (!String(p.id).startsWith("local-")) return false;
           const numStr = String(p.order_number || "");
-          const dailyStr = p.daily_order_number ? String(p.daily_order_number) : "";
-          const dispStr = getDisplayOrderNumber(p);
 
-          // If the server order list already contains this order (by order_number, daily_order_number, display number, or ID), DROP IT!
-          if (
-            serverOrderNumbers.has(numStr) ||
-            serverOrderIds.has(String(p.id)) ||
-            (dailyStr !== "" && serverDailyNumbers.has(dailyStr)) ||
-            (dispStr !== "" && serverDisplayNumbers.has(dispStr))
-          ) {
+          // If the server order list already contains this order (by exact order_number or ID), DROP IT!
+          if (serverOrderNumbers.has(numStr) || serverOrderIds.has(String(p.id))) {
             return false;
           }
           const st = (p.status || "").toLowerCase();
@@ -160,7 +149,7 @@ export const POSPage: React.FC = () => {
         for (const o of oList) {
           if (o && o.order_number) {
             const numStr = String(o.order_number);
-            const lockData = settledOrdersLockRef.current.get(numStr) || (o.daily_order_number ? settledOrdersLockRef.current.get(String(o.daily_order_number)) : undefined);
+            const lockData = settledOrdersLockRef.current.get(numStr);
             if (lockData && lockNow - lockData.timestamp <= 60_000) {
               // Retain completed/paid status during lock window so premature background fetches cannot revert the table
               orderMap.set(numStr, { ...o, status: "completed", payment_status: "paid" });
@@ -172,18 +161,7 @@ export const POSPage: React.FC = () => {
         for (const p of pendingOptimistic) {
           if (!p || !p.order_number) continue;
           const pNum = String(p.order_number);
-          const pDisp = getDisplayOrderNumber(p);
-          const pDaily = p.daily_order_number ? String(p.daily_order_number) : "";
-
-          const alreadyExists = Array.from(orderMap.values()).some((existing) => {
-            return (
-              String(existing.order_number) === pNum ||
-              (pDisp !== "" && getDisplayOrderNumber(existing) === pDisp) ||
-              (pDaily !== "" && String(existing.daily_order_number) === pDaily)
-            );
-          });
-
-          if (!alreadyExists) {
+          if (!orderMap.has(pNum)) {
             orderMap.set(pNum, p);
           }
         }
@@ -525,8 +503,10 @@ export const POSPage: React.FC = () => {
         ...prev.filter((o) => {
           if (String(o.id) === String(optimisticOrder.id)) return false;
           if (String(o.order_number) === optNum) return false;
-          if (optDisp !== "" && getDisplayOrderNumber(o) === optDisp) return false;
-          if (optDaily !== "" && String(o.daily_order_number) === optDaily) return false;
+          if (String(o.id).startsWith("local-")) {
+            if (optDisp !== "" && getDisplayOrderNumber(o) === optDisp) return false;
+            if (optDaily !== "" && String(o.daily_order_number) === optDaily) return false;
+          }
           return true;
         }),
       ];
@@ -551,25 +531,16 @@ export const POSPage: React.FC = () => {
     const targetTableId = tableId !== undefined && tableId !== null ? String(tableId) : "";
     let updatedOrdersList: POSOrder[] = [];
 
-    // Register active settlement lock for this order and table (both full string and short sequence)
+    // Register active settlement lock for this order and table
     settledOrdersLockRef.current.set(String(orderNumber), {
       timestamp: Date.now(),
       tableId: tableId !== undefined && tableId !== null ? tableId : undefined,
     });
-    if (orderNumber.includes("-")) {
-      const seq = orderNumber.split("-")[1];
-      if (seq) {
-        settledOrdersLockRef.current.set(seq, {
-          timestamp: Date.now(),
-          tableId: tableId !== undefined && tableId !== null ? tableId : undefined,
-        });
-      }
-    }
 
     setOrders((prev) => {
       const cleanNum = String(orderNumber).replace(/^#/, "").trim();
       updatedOrdersList = prev.map((o) => {
-        const matchesNum = String(o.order_number) === cleanNum || getDisplayOrderNumber(o) === cleanNum;
+        const matchesNum = String(o.order_number) === cleanNum || String(o.id) === cleanNum;
         return matchesNum ? { ...o, status: "completed", payment_status: "paid" } : o;
       });
       try {

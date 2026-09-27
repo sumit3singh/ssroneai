@@ -190,18 +190,20 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
     const map: Record<string, any[]> = {};
     if (!orders || orders.length === 0) return map;
 
-    // Deduplicate active orders first by display number / order_number
+    // Deduplicate active orders per table by display number / order_number
     const dedupedMap = new Map<string, any>();
     orders.forEach((o: any) => {
       if (!o || !o.order_number) return;
       const s = (o.status || "").toLowerCase();
       if (["completed", "paid", "cancelled", "settled"].includes(s)) return;
+      const tblKey = o.table_id || o.table_name || o.order_mode || o.order_type || "order";
       const dispNum = getDisplayOrderNumber(o) || String(o.order_number);
-      const existing = dedupedMap.get(dispNum);
+      const dedupeKey = `${tblKey}_${dispNum}`;
+      const existing = dedupedMap.get(dedupeKey);
       if (!existing) {
-        dedupedMap.set(dispNum, o);
+        dedupedMap.set(dedupeKey, o);
       } else if (String(existing.id).startsWith("local-") && !String(o.id).startsWith("local-")) {
-        dedupedMap.set(dispNum, o);
+        dedupedMap.set(dedupeKey, o);
       }
     });
 

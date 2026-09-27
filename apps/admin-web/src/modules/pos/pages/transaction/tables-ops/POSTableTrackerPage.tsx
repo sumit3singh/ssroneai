@@ -172,9 +172,9 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
   };
 
   // Filter active orders (status not completed/paid/cancelled)
-  // Deduplicate by display order number / daily sequence so an order can never appear twice!
+  // Deduplicate by table + display order number so an order can never appear twice on the same table!
   const activeOrders = React.useMemo(() => {
-    // 1. Build set of settled/completed order numbers
+    // 1. Build set of settled/completed order numbers & IDs
     const settledOrderNumbers = new Set<string>();
     for (const o of orders) {
       if (!o || !o.order_number) continue;
@@ -182,33 +182,43 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
       const p = (o.payment_status || "").toLowerCase();
       if (s === "completed" || s === "paid" || s === "cancelled" || p === "paid") {
         settledOrderNumbers.add(String(o.order_number));
-        if (o.daily_order_number) settledOrderNumbers.add(String(o.daily_order_number));
-        settledOrderNumbers.add(getDisplayOrderNumber(o));
+        if (o.id) settledOrderNumbers.add(String(o.id));
       }
     }
 
-    // 2. Filter active orders: must not be in settledOrderNumbers, deduplicate by display order number
-    const activeMap = new Map<string, POSOrder>();
-    for (const o of orders) {
-      if (!o || !o.order_number) continue;
+    // 2. Filter active orders: status not completed/paid/cancelled and not in settledOrderNumbers
+    const activeList = orders.filter((o) => {
+      if (!o || !o.order_number) return false;
       const numStr = String(o.order_number);
-      const dispNum = getDisplayOrderNumber(o) || numStr;
-      if (settledOrderNumbers.has(numStr) || (dispNum !== "" && settledOrderNumbers.has(dispNum))) continue;
+      const idStr = String(o.id || "");
+      if (settledOrderNumbers.has(numStr) || (idStr && settledOrderNumbers.has(idStr))) return false;
 
       const s = (o.status || "").toLowerCase();
       const p = (o.payment_status || "").toLowerCase();
-      if (["completed", "paid", "cancelled"].includes(s) || p === "paid") continue;
+      if (["completed", "paid", "cancelled", "settled"].includes(s) || p === "paid") return false;
 
-      // Key by display number (e.g. "6") or order_number so Order 6 CAN ONLY EVER HAVE ONE ENTRY!
-      const existing = activeMap.get(dispNum);
+      return true;
+    });
+
+    // 3. Deduplicate active orders:
+    // If a server order (non-local ID) exists for a table with display number X,
+    // drop any local temporary order ("local-...") on that table with the same display number X!
+    const dedupedMap = new Map<string, POSOrder>();
+    for (const o of activeList) {
+      const tblKey = o.table_id || o.table_name || o.order_mode || o.order_type || "order";
+      const dispNum = getDisplayOrderNumber(o) || String(o.order_number);
+      const dedupeKey = `${tblKey}_${dispNum}`;
+
+      const existing = dedupedMap.get(dedupeKey);
       if (!existing) {
-        activeMap.set(dispNum, o);
+        dedupedMap.set(dedupeKey, o);
       } else if (String(existing.id).startsWith("local-") && !String(o.id).startsWith("local-")) {
-        // Overwrite local optimistic order with real server order
-        activeMap.set(dispNum, o);
+        // Real server order replaces local optimistic order!
+        dedupedMap.set(dedupeKey, o);
       }
     }
-    return Array.from(activeMap.values());
+
+    return Array.from(dedupedMap.values());
   }, [orders]);
 
   // Helper to find ALL active orders for a given table (Multi-Order / Table Sharing)
