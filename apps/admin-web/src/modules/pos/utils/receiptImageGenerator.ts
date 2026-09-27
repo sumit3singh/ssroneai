@@ -93,7 +93,7 @@ export async function generateReceiptImageBlob(data: CustomerReceiptSlipData): P
   ctx.textAlign = "left";
   ctx.font = "bold 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
   ctx.fillStyle = "#000000";
-  ctx.fillText(`ORDER NO: #${displayOrderNum}`, padding, y);
+  ctx.fillText(`ORDER NO: ${displayOrderNum}`, padding, y);
 
   ctx.textAlign = "right";
   ctx.font = "bold 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
@@ -332,7 +332,7 @@ export async function shareReceiptPhotoToWhatsApp(
       `🍽️ *${(data.venueName || "BAITHAK CAFE CUH").toUpperCase()}*`,
       data.venueAddress ? `📍 ${data.venueAddress}` : null,
       data.venuePhone ? `📞 Mobile: ${data.venuePhone}` : null,
-      `🧾 *Order No:* #${displayNum} | *Mode:* ${data.orderType || "DINE_IN"}`,
+      `🧾 *Order No:* ${displayNum} | *Mode:* ${data.orderType || "DINE_IN"}`,
       data.tableName ? `🪑 *Table:* ${cleanTableName(data.tableName)}` : null,
       data.customerName && data.customerName !== "Walk-in Guest" ? `👤 *Customer:* ${data.customerName}` : null,
       `📅 *Date:* ${data.timestamp}`,

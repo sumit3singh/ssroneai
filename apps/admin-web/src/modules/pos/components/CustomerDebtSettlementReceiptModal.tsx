@@ -141,7 +141,7 @@ export const CustomerDebtSettlementReceiptModal: React.FC<CustomerDebtSettlement
           <div className="space-y-0.5 text-[11px] border-b border-dashed border-border pb-2">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Receipt No:</span>
-              <span className="font-bold text-foreground">#{receiptNo}</span>
+              <span className="font-bold text-foreground">{receiptNo}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Date:</span>
@@ -169,7 +169,7 @@ export const CustomerDebtSettlementReceiptModal: React.FC<CustomerDebtSettlement
               </div>
               {data.settledOrders.map((ord, idx) => (
                 <div key={idx} className="flex justify-between text-[10.5px]">
-                  <span className="font-bold text-foreground">#{ord.orderNumber}</span>
+                  <span className="font-bold text-foreground">{ord.orderNumber}</span>
                   <span className="text-muted-foreground text-[10px]">
                     {ord.date ? new Date(ord.date).toLocaleDateString() : "—"}
                   </span>

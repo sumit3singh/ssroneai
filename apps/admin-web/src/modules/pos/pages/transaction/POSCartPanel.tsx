@@ -260,7 +260,7 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
             <h3 className="font-mono font-black text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
               {orderNumber ? (
                 <>
-                  <span className="text-amber-600 dark:text-amber-400 font-extrabold">EDIT #{getDisplayOrderNumber({ order_number: orderNumber }) || orderNumber}</span>
+                  <span className="text-amber-600 dark:text-amber-400 font-extrabold">EDIT {getDisplayOrderNumber({ order_number: orderNumber }) || orderNumber}</span>
                   <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40">UPDATE MODE</span>
                   {onClearCart && (
                     <button
@@ -448,7 +448,7 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
                         className="px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 dark:text-amber-200 border border-amber-500/40 text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-all"
                         title="Click to load and edit this active order in cart"
                       >
-                        <Edit3 size={10} /> Edit #{getDisplayOrderNumber(o)} (₹{o.net_amount || o.subtotal || 0})
+                        <Edit3 size={10} /> Edit {getDisplayOrderNumber(o)} (₹{o.net_amount || o.subtotal || 0})
                       </button>
                     </POSOrderHoverTooltip>
                   ))}
@@ -488,7 +488,7 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
                         className="px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 dark:text-amber-200 border border-amber-500/40 text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-all"
                         title="Click to load and edit this active takeaway order in cart"
                       >
-                        <Edit3 size={10} /> Edit #{getDisplayOrderNumber(o)} (₹{o.net_amount || o.subtotal || 0})
+                        <Edit3 size={10} /> Edit {getDisplayOrderNumber(o)} (₹{o.net_amount || o.subtotal || 0})
                       </button>
                     </POSOrderHoverTooltip>
                   ))}
@@ -528,7 +528,7 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
                         className="px-1.5 py-0.5 rounded bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-800 dark:text-indigo-200 border border-indigo-500/40 text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-all"
                         title="Click to load and edit this active delivery order in cart"
                       >
-                        <Edit3 size={10} /> Edit #{getDisplayOrderNumber(o)} (₹{o.net_amount || o.subtotal || 0})
+                        <Edit3 size={10} /> Edit {getDisplayOrderNumber(o)} (₹{o.net_amount || o.subtotal || 0})
                       </button>
                     </POSOrderHoverTooltip>
                   ))}

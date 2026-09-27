@@ -230,7 +230,7 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
       if (onRecallOrderToCart) {
         await onRecallOrderToCart(ord);
       } else {
-        toast.success(`Order #${getDisplayOrderNumber(ord)} loaded into Billing Cart!`);
+        toast.success(`Order ${getDisplayOrderNumber(ord)} loaded into Billing Cart!`);
       }
       goToView("billing");
     } catch (err) {
@@ -255,7 +255,7 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
         : selectedOrderForSettle.order_number;
 
       await api.patch(`/orders/${targetId}/status?status=completed`);
-      toast.success(`Bill #${getDisplayOrderNumber(selectedOrderForSettle)} settled via ${method}!`);
+      toast.success(`Bill ${getDisplayOrderNumber(selectedOrderForSettle)} settled via ${method}!`);
       
       setReceiptData({
         orderNumber: selectedOrderForSettle.order_number,
@@ -284,14 +284,14 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
   };
 
   const handleCancelOrder = async (id: number | string, num: string) => {
-    if (!window.confirm(`Are you sure you want to void/cancel Order #${num}? Orders are never deleted to maintain audit integrity.`)) return;
+    if (!window.confirm(`Are you sure you want to void/cancel Order ${num}? Orders are never deleted to maintain audit integrity.`)) return;
     try {
       const ordToCancel = orders.find(o => String(o.id) === String(id) || o.order_number === num);
       onOptimisticOrderSettle?.(num, ordToCancel?.table_id);
 
       const targetId = id && !String(id).startsWith("local-") ? id : num;
       await api.patch(`/orders/${targetId}/status?status=cancelled`);
-      toast.success(`Order #${num} marked as Cancelled (Soft Void)`);
+      toast.success(`Order ${num} marked as Cancelled (Soft Void)`);
       fetchOrders();
       onRefresh?.();
     } catch (err) {
@@ -453,7 +453,7 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search Order #, Customer..."
+              placeholder="Search Order No, Customer..."
               className="w-full pl-8 pr-2.5 py-1 text-xs font-medium bg-background border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
@@ -556,7 +556,7 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-muted/50 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                <th className="py-2.5 px-3">Order #</th>
+                <th className="py-2.5 px-3">Order No</th>
                 <th className="py-2.5 px-3">Order Source Channel</th>
                 <th className="py-2.5 px-3">Mode / Table</th>
                 <th className="py-2.5 px-3">Customer</th>
@@ -585,7 +585,7 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
                         <POSOrderHoverTooltip order={ord}>
                           <div className="flex items-center gap-1.5">
                             <span className="text-primary hover:underline cursor-pointer font-bold">
-                              #{getDisplayOrderNumber(ord)}
+                              {getDisplayOrderNumber(ord)}
                             </span>
                             {ord.order_number && ord.order_number !== getDisplayOrderNumber(ord) && (
                               <span className="text-[10px] text-muted-foreground font-normal">({ord.order_number})</span>
@@ -603,7 +603,7 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
                             const isDelivery = rawMode.includes("DELIV") || rawMode === "DELIVERY";
                             const isTakeaway = rawMode.includes("TAKE") || rawMode.includes("PICKUP") || rawMode === "TAKEAWAY";
                             const isDineIn = !isTakeaway && !isDelivery;
-                            const tblRaw = ord.table_name || (ord.table_id ? `Table #${ord.table_id}` : "");
+                            const tblRaw = ord.table_name || (ord.table_id ? `Table ${ord.table_id}` : "");
 
                             return (
                               <>

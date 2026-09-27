@@ -501,7 +501,7 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
                   <div className="flex items-center justify-between gap-1 text-xs">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="text-[10px] font-mono font-semibold bg-background px-1.5 py-0.2 rounded border border-border text-foreground">
-                        #{orderIdx + 1}
+                        {orderIdx + 1}
                       </span>
                       <span className="font-semibold truncate text-foreground">
                         {order.table_name ? `Table ${order.table_name}` : (order.table_number ? `Table ${order.table_number}` : orderTypeLabel)}
@@ -514,7 +514,7 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between text-[11px] text-muted-foreground font-mono">
-                    <span className="truncate font-bold text-foreground">KOT #{getDisplayOrderNumber(order)}</span>
+                    <span className="truncate font-bold text-foreground">KOT {getDisplayOrderNumber(order)}</span>
                     <span className="shrink-0">{elapsedMins > 0 ? `${elapsedMins}m ago` : "Just now"}</span>
                   </div>
                 </div>

@@ -39,20 +39,25 @@ export function getTodayPrefix(): string {
  */
 export function getDisplayOrderNumber(order?: { order_number?: string; daily_order_number?: number | string | null; token_number?: string | null } | null): string {
   if (!order) return "";
+  let res = "";
   if (order.daily_order_number !== undefined && order.daily_order_number !== null) {
-    return String(order.daily_order_number);
-  }
-  if (order.token_number && /^\d+$/.test(order.token_number)) {
-    return order.token_number;
-  }
-  const ordStr = order.order_number || "";
-  if (ordStr.includes("-")) {
-    const parts = ordStr.split("-");
-    if (parts.length === 2 && /^\d+$/.test(parts[1])) {
-      return parts[1];
+    res = String(order.daily_order_number);
+  } else if (order.token_number && /^\d+$/.test(String(order.token_number).replace(/^#/, ""))) {
+    res = String(order.token_number).replace(/^#/, "");
+  } else {
+    const ordStr = String(order.order_number || "").replace(/^#/, "");
+    if (ordStr.includes("-")) {
+      const parts = ordStr.split("-");
+      if (parts.length === 2 && /^\d+$/.test(parts[1])) {
+        res = parts[1];
+      } else {
+        res = ordStr;
+      }
+    } else {
+      res = ordStr;
     }
   }
-  return ordStr;
+  return res.replace(/^#/, "").trim();
 }
 
 export function generateLocalOrderNumber(
@@ -151,10 +156,10 @@ export function generateDailyTokenNumber(): string {
     }
 
     localStorage.setItem("pos_daily_token_count", currentToken.toString());
-    return `#${String(currentToken).padStart(3, "0")}`;
+    return String(currentToken);
   } catch {
     const randomNum = Math.floor(Math.random() * 900) + 100;
-    return `#${randomNum}`;
+    return String(randomNum);
   }
 }
 

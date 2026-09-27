@@ -126,7 +126,7 @@ export const ThermalKOTPrintableArea: React.FC<ThermalKOTPrintableAreaProps> = (
               }}
             >
               <span>TABLE: {displayTable}</span>
-              <span>ORDER NO: #{displayOrderNum}</span>
+              <span>ORDER NO: {displayOrderNum}</span>
             </div>
 
             {/* 3. Time */}

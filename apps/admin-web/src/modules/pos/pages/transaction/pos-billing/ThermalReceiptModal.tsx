@@ -209,7 +209,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
           {/* Order Details Header */}
           <div className="space-y-0.5 text-[11px] border-b border-dashed border-neutral-400 dark:border-neutral-600 print:border-black pb-2">
             <div className="font-bold text-foreground">
-              Order No: #{displayOrderNum} ,Mode: {orderType}
+              Order No: {displayOrderNum} ,Mode: {orderType}
             </div>
             <div className="text-muted-foreground print:text-black">
               Date/Time: {receiptData.timestamp}

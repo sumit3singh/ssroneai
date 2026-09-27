@@ -586,7 +586,7 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                                     }`}
                                   >
                                     <td className="p-2.5 font-mono font-bold text-foreground whitespace-nowrap">
-                                      #{ord.order_number}
+                                      {ord.order_number}
                                     </td>
                                     <td className="p-2.5 text-[11px] font-mono text-muted-foreground whitespace-nowrap">
                                       {ord.created_at ? new Date(ord.created_at).toLocaleString() : "—"}
@@ -669,7 +669,7 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                                     {p.created_at ? new Date(p.created_at).toLocaleString() : "—"}
                                   </td>
                                   <td className="p-2.5 font-mono font-bold text-foreground whitespace-nowrap">
-                                    #{p.order_number}
+                                    {p.order_number}
                                   </td>
                                   <td className="p-2.5 whitespace-nowrap">
                                     <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-muted border border-border text-foreground">
@@ -848,7 +848,7 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                               readOnly
                               className="accent-emerald-600 rounded cursor-pointer shrink-0"
                             />
-                            <span className="font-mono font-bold text-foreground">#{ord.order_number}</span>
+                            <span className="font-mono font-bold text-foreground">{ord.order_number}</span>
                             <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">
                               {ord.items_summary || `${ord.items_count} items`}
                             </span>

@@ -306,7 +306,7 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold text-sm text-foreground leading-none">
-                  Settle Bill #{getDisplayOrderNumber(order) || order.order_number}
+                  Settle Bill {getDisplayOrderNumber(order) || order.order_number}
                 </h3>
                 {order.table_name && (
                   <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">

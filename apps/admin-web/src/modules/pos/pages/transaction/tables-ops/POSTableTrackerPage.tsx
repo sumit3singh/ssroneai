@@ -669,7 +669,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                               {tableOrds.map((ord) => (
                                 <POSOrderHoverTooltip key={ord.id} order={ord}>
                                   <div className="bg-background border border-border rounded p-1 text-[10px] font-mono flex items-center justify-between gap-1 overflow-hidden min-w-0 shadow-2xs">
-                                    <span className="truncate min-w-0 font-bold text-foreground">#{getDisplayOrderNumber(ord)}</span>
+                                    <span className="truncate min-w-0 font-bold text-foreground">{getDisplayOrderNumber(ord)}</span>
                                     <div className="flex items-center gap-1 shrink-0">
                                       <button
                                         type="button"
@@ -752,7 +752,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                   <POSOrderHoverTooltip key={ord.id} order={ord}>
                     <div className="bg-background border border-border rounded p-2 text-xs flex flex-col justify-between space-y-1.5">
                       <div className="flex items-center justify-between font-mono">
-                        <span className="font-bold text-primary">#{getDisplayOrderNumber(ord)}</span>
+                        <span className="font-bold text-primary">{getDisplayOrderNumber(ord)}</span>
                         <span className="font-extrabold text-foreground">₹{ord.net_amount || ord.subtotal || 0}</span>
                       </div>
                       <p className="text-[10px] text-muted-foreground truncate">
@@ -810,7 +810,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                   <POSOrderHoverTooltip key={ord.id} order={ord}>
                     <div className="bg-background border border-border rounded p-2 text-xs flex flex-col justify-between space-y-1.5">
                       <div className="flex items-center justify-between font-mono">
-                        <span className="font-bold text-primary">#{getDisplayOrderNumber(ord)}</span>
+                        <span className="font-bold text-primary">{getDisplayOrderNumber(ord)}</span>
                         <span className="font-extrabold text-foreground">₹{ord.net_amount || ord.subtotal || 0}</span>
                       </div>
                       <p className="text-[10px] text-muted-foreground truncate">
@@ -856,7 +856,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
               <div>
                 <span className="text-[9px] font-bold uppercase text-muted-foreground">Order Preview</span>
                 <h3 className="font-sans font-bold text-sm text-foreground flex items-center gap-1.5">
-                  Order #{getDisplayOrderNumber(previewOrderModal) || previewOrderModal.order_number}
+                  Order {getDisplayOrderNumber(previewOrderModal) || previewOrderModal.order_number}
                 </h3>
               </div>
               <button

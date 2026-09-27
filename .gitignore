@@ -44,3 +44,6 @@ coverage/
 # Local Dev Wrapper
 powershell.cmd
 
+# Temporary build & cache
+tmp/
+

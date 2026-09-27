@@ -1287,7 +1287,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     try {
       const st = (order.status || "").toLowerCase();
       if (st === "completed" || st === "paid" || st === "settled") {
-        toast.error(`🚫 Order #${order.order_number} is fully closed & settled! Completed orders cannot be modified.`);
+        toast.error(`🚫 Order ${order.order_number} is fully closed & settled! Completed orders cannot be modified.`);
         return;
       }
 
@@ -1442,7 +1442,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
         setCustomPackagingCharge(0);
       }
 
-      toast.success(`Order #${targetOrder.order_number} loaded into cart for editing!`);
+      toast.success(`Order ${targetOrder.order_number} loaded into cart for editing!`);
       setActiveMobileTab("cart");
     } catch (err: any) {
       console.error("Failed to recall order to cart", err);
@@ -1595,7 +1595,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
         });
       });
     } else if (isUpdate) {
-      toast.info(`ℹ️ Order #${assignedNum} updated. No new items to print for kitchen.`);
+      toast.info(`ℹ️ Order ${assignedNum} updated. No new items to print for kitchen.`);
       switchVirtualTab("tables");
     }
 
@@ -1654,8 +1654,8 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     const displayNum = optimisticDailyOrderNumber ? String(optimisticDailyOrderNumber) : assignedNum;
     toast.success(
       orderNum
-        ? `⚡ Order #${displayNum} updated in ${elapsed}ms & ${generatedSlips.length > 0 ? "KOT dispatched!" : "saved!"}`
-        : `⚡ KOT #${displayNum} sent to KDS & ${generatedSlips.length} Kitchen Station(s) in ${elapsed}ms!`
+        ? `⚡ Order ${displayNum} updated in ${elapsed}ms & ${generatedSlips.length > 0 ? "KOT dispatched!" : "saved!"}`
+        : `⚡ KOT ${displayNum} sent to KDS & ${generatedSlips.length} Kitchen Station(s) in ${elapsed}ms!`
     );
 
     // 8. Fire-and-forget background synchronization to IndexedDB & PostgreSQL

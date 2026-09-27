@@ -304,7 +304,7 @@ export function printCustomerReceiptDirectly(data: CustomerReceiptSlipData): voi
     <html>
       <head>
         <meta charset="utf-8">
-        <title>Receipt #${displayOrderNum}</title>
+        <title>Receipt ${displayOrderNum}</title>
         <style>
           @page {
             size: 80mm auto;
@@ -347,7 +347,7 @@ export function printCustomerReceiptDirectly(data: CustomerReceiptSlipData): voi
           </div>
 
           <div style="margin-bottom: 6px; border-bottom: 1px dashed #000; padding-bottom: 6px; font-size: 11px;">
-            <div style="font-weight: 900; font-size: 13px;">ORDER NO: #${displayOrderNum}</div>
+            <div style="font-weight: 900; font-size: 13px;">ORDER NO: ${displayOrderNum}</div>
             <div style="margin-top: 1px; font-weight: bold;">Mode: ${orderType}</div>
             <div style="margin-top: 1px; font-size: 10px;">Date/Time: ${data.timestamp}</div>
             ${cleanTable ? `<div style="font-weight: bold; margin-top: 1px;">Table: ${cleanTable}</div>` : ""}
@@ -457,7 +457,7 @@ export function printCustomerDebtSettlementReceiptDirectly(data: CustomerDebtSet
 
   const ordersHtml = (data.settledOrders || []).map((o) => `
     <div style="display: flex; justify-content: space-between; font-size: 10.5px; margin-bottom: 2px;">
-      <span style="font-weight: bold;">#${o.orderNumber}</span>
+      <span style="font-weight: bold;">${o.orderNumber}</span>
       <span style="color: #444;">${o.date ? new Date(o.date).toLocaleDateString() : ""}</span>
       <span style="font-weight: bold;">${Number(o.totalAmount).toFixed(2)}</span>
     </div>
