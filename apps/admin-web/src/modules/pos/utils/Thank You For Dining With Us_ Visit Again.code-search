@@ -1,0 +1,6 @@
+# Query: Thank You For Dining With Us! Visit Again
+
+1 result - 1 file
+
+apps\admin-web\src\modules\settings\pages\CommunicationPage.tsx:
+  761:                   <p className="text-[10px] text-zinc-600 dark:text-zinc-300">Thank you for being part of Baithak Family! ❤️</p>
