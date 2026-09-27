@@ -19,9 +19,9 @@ export function requestKioskFullscreen(): void {
   try {
     localStorage.setItem(POS_KIOSK_FULLSCREEN_KEY, "true");
     if (!document.fullscreenElement && document.documentElement?.requestFullscreen) {
-      document.documentElement.requestFullscreen().catch(() => {});
+      document.documentElement.requestFullscreen().catch(() => { });
     }
-  } catch {}
+  } catch { }
 }
 
 /**
@@ -33,9 +33,9 @@ export function exitKioskFullscreen(): void {
   try {
     localStorage.setItem(POS_KIOSK_FULLSCREEN_KEY, "false");
     if (document.fullscreenElement && document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().catch(() => { });
     }
-  } catch {}
+  } catch { }
 }
 
 /**
@@ -55,9 +55,9 @@ export function registerFullscreenRestoreAfterPrint(targetWindow?: Window | null
   const tryRestoreFullscreen = () => {
     try {
       if (isKioskFullscreenActive() && !document.fullscreenElement && document.documentElement?.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => {});
+        document.documentElement.requestFullscreen().catch(() => { });
       }
-    } catch {}
+    } catch { }
   };
 
   const onPrintFinished = () => {
@@ -85,7 +85,7 @@ export function registerFullscreenRestoreAfterPrint(targetWindow?: Window | null
   if (targetWindow && targetWindow !== window) {
     try {
       targetWindow.addEventListener("afterprint", onPrintFinished, { once: true });
-    } catch {}
+    } catch { }
   }
 }
 
@@ -108,15 +108,15 @@ export async function safePrintWithFullscreenRestore(
  */
 export function initGlobalKioskFullscreenWatcher(): () => void {
   if (typeof window === "undefined" || typeof document === "undefined") {
-    return () => {};
+    return () => { };
   }
 
   const tryRestoreIfKiosk = () => {
     try {
       if (isKioskFullscreenActive() && !document.fullscreenElement && document.documentElement?.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => {});
+        document.documentElement.requestFullscreen().catch(() => { });
       }
-    } catch {}
+    } catch { }
   };
 
   // Re-engage fullscreen on any user click or pointer down if kiosk mode is preferred
@@ -183,7 +183,7 @@ export function initGlobalKioskFullscreenWatcher(): () => void {
       }
     };
     mql.addEventListener("change", handleMql);
-  } catch {}
+  } catch { }
 
   return () => {
     window.removeEventListener("pointerdown", handleUserGesture, true);
@@ -395,7 +395,7 @@ export function printCustomerReceiptDirectly(data: CustomerReceiptSlipData): voi
           </div>
 
           <div style="text-align: center; font-size: 10px; font-weight: bold; padding-top: 4px;">
-            Thank You For Dining With Us! Visit Again
+            Thank you for being part of Baithak Family! ❤️
           </div>
         </div>
       </body>

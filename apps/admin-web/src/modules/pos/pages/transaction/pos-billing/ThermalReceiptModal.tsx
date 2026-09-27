@@ -305,7 +305,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
 
           {/* Bill Footer */}
           <div className="text-center pt-2 text-[10px] font-bold text-muted-foreground print:text-black">
-            <p>Thank You For Dining With Us! Visit Again</p>
+            <p>Thank you for being part of Baithak Family! ❤️</p>
           </div>
         </div>
 

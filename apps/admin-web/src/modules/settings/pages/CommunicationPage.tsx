@@ -557,11 +557,10 @@ export function CommunicationPage() {
             {/* Mode 1: Free Direct Click-to-Chat */}
             <div
               onClick={() => setWaMode("DIRECT_FREE")}
-              className={`p-5 rounded-2xl border-2 transition-all cursor-pointer relative ${
-                waMode === "DIRECT_FREE"
+              className={`p-5 rounded-2xl border-2 transition-all cursor-pointer relative ${waMode === "DIRECT_FREE"
                   ? "border-emerald-500 bg-emerald-500/5 shadow-md"
                   : "border-border hover:border-border/80 bg-card"
-              }`}
+                }`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2.5">
@@ -599,11 +598,10 @@ export function CommunicationPage() {
             {/* Mode 2: Automated Meta Cloud API */}
             <div
               onClick={() => setWaMode("META_CLOUD_API")}
-              className={`p-5 rounded-2xl border-2 transition-all cursor-pointer relative ${
-                waMode === "META_CLOUD_API"
+              className={`p-5 rounded-2xl border-2 transition-all cursor-pointer relative ${waMode === "META_CLOUD_API"
                   ? "border-emerald-500 bg-emerald-500/5 shadow-md"
                   : "border-border hover:border-border/80 bg-card"
-              }`}
+                }`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2.5">
@@ -758,7 +756,7 @@ export function CommunicationPage() {
                   <p>SGST (2.5%): ₹12.25</p>
                   <p className="font-bold text-emerald-700 dark:text-emerald-400">NET TOTAL: ₹514.50</p>
                   <p className="text-zinc-400">--------------------------------</p>
-                  <p className="text-[10px] text-zinc-600 dark:text-zinc-300">Thank you for dining with us! Visit again.</p>
+                  <p className="text-[10px] text-zinc-600 dark:text-zinc-300">Thank you for being part of Baithak Family! ❤️</p>
                   <div className="text-right text-[9px] text-zinc-400 pt-1">11:42 PM ✓✓</div>
                 </div>
               </div>

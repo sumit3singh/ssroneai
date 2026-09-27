@@ -336,13 +336,13 @@ export const POSPrintPortal: React.FC<POSPrintPortalProps> = ({
                       const addonsList = it.addons || [];
                       const addonStr = Array.isArray(addonsList)
                         ? addonsList
-                            .map((a: any) =>
-                              typeof a === "string"
-                                ? a
-                                : renderSafeString(a?.name || a?.title || a?.label)
-                            )
-                            .filter(Boolean)
-                            .join(", ")
+                          .map((a: any) =>
+                            typeof a === "string"
+                              ? a
+                              : renderSafeString(a?.name || a?.title || a?.label)
+                          )
+                          .filter(Boolean)
+                          .join(", ")
                         : "";
 
                       return (
@@ -598,7 +598,7 @@ export const POSPrintPortal: React.FC<POSPrintPortalProps> = ({
             }}
           >
             <div style={{ fontWeight: "bold" }}>
-              {settings.customerReceiptFooter || "Thank You For Dining With Us! Visit Again"}
+              {settings.customerReceiptFooter || "Thank you for being part of Baithak Family! ❤️"}
             </div>
             <div style={{ marginTop: "6px", fontSize: "8.5px", color: "#444" }}>
               ✂ - - - - - TEAR / CUT HERE - - - - - ✂

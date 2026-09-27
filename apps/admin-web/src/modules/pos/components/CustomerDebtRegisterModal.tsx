@@ -95,6 +95,8 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
   const [activeLedgerTab, setActiveLedgerTab] = useState<"bills" | "payments">("bills");
   const [filterTab, setFilterTab] = useState<"debt" | "all">("debt");
 
+  const [billStatusFilter, setBillStatusFilter] = useState<"unpaid" | "all" | "paid">("unpaid");
+
   // Payment modal state
   const [isSettleModalOpen, setIsSettleModalOpen] = useState(false);
   const [settleAmount, setSettleAmount] = useState<number>(0);
@@ -111,7 +113,8 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
       setSelectedOrderIdsForSettlement([order.id]);
       setSettleAmount(order.balance_due);
     } else {
-      setSelectedOrderIdsForSettlement([]);
+      const unpaidOrders = (customerLedger?.orders || []).filter((o) => o.balance_due > 0);
+      setSelectedOrderIdsForSettlement(unpaidOrders.map((o) => o.id));
       setSettleAmount(customerLedger?.summary?.total_balance_due || 0);
     }
     setIsSettleModalOpen(true);
@@ -203,16 +206,20 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
       );
 
       // Construct comprehensive Debt Settlement Receipt payload
-      const settledOrderDetails = (customerLedger.orders || [])
-        .filter((o) => selectedOrderIdsForSettlement.length === 0 || selectedOrderIdsForSettlement.includes(o.id))
-        .map((o) => ({
-          orderNumber: o.order_number,
-          date: o.created_at || undefined,
-          totalAmount: o.grand_total,
-          amountPaid: o.amount_paid,
-          balanceDue: o.balance_due,
-          itemsSummary: o.items_summary || undefined,
-        }));
+      // Strictly restrict settled bills to those that were unpaid and targeted in this settlement
+      const candidateOrders = (customerLedger.orders || []).filter((o) => o.balance_due > 0);
+      const targetOrders = selectedOrderIdsForSettlement.length > 0
+        ? candidateOrders.filter((o) => selectedOrderIdsForSettlement.includes(o.id))
+        : candidateOrders;
+
+      const settledOrderDetails = targetOrders.map((o) => ({
+        orderNumber: o.order_number,
+        date: o.created_at || undefined,
+        totalAmount: o.grand_total,
+        amountPaid: o.amount_paid,
+        balanceDue: o.balance_due,
+        itemsSummary: o.items_summary || undefined,
+      }));
 
       const receiptPayload: CustomerDebtSettlementReceiptData = {
         receiptNumber: res.receipt_number || `RCPT-${Date.now().toString().slice(-6)}`,
@@ -513,119 +520,190 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                   </div>
                 </div>
 
-                {/* Ledger Tabs */}
-                <div className="flex items-center gap-2 px-4 border-b border-border bg-muted/20 shrink-0 text-xs font-semibold">
-                  <button
-                    onClick={() => setActiveLedgerTab("bills")}
-                    className={`py-2 px-3 border-b-2 transition-colors cursor-pointer ${
-                      activeLedgerTab === "bills"
-                        ? "border-primary text-primary font-bold"
-                        : "border-transparent text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Unpaid & Credit Bills ({customerLedger.orders.filter(o => o.balance_due > 0).length})
-                  </button>
-                  <button
-                    onClick={() => setActiveLedgerTab("payments")}
-                    className={`py-2 px-3 border-b-2 transition-colors cursor-pointer ${
-                      activeLedgerTab === "payments"
-                        ? "border-primary text-primary font-bold"
-                        : "border-transparent text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Payment Receipts History ({customerLedger.payments.length})
-                  </button>
+                {/* Ledger Tabs & Bill Status Filter Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-1.5 border-b border-border bg-muted/20 shrink-0 text-xs">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setActiveLedgerTab("bills")}
+                      className={`py-1.5 px-3 border-b-2 transition-colors cursor-pointer font-semibold ${
+                        activeLedgerTab === "bills"
+                          ? "border-primary text-primary font-bold"
+                          : "border-transparent text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Bills Ledger ({customerLedger.orders.length})
+                    </button>
+                    <button
+                      onClick={() => setActiveLedgerTab("payments")}
+                      className={`py-1.5 px-3 border-b-2 transition-colors cursor-pointer font-semibold ${
+                        activeLedgerTab === "payments"
+                          ? "border-primary text-primary font-bold"
+                          : "border-transparent text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Payment Receipts History ({customerLedger.payments.length})
+                    </button>
+                  </div>
+
+                  {activeLedgerTab === "bills" && (
+                    <div className="flex items-center gap-1 bg-background border border-border rounded-lg p-0.5 shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setBillStatusFilter("unpaid")}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                          billStatusFilter === "unpaid"
+                            ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Unpaid Only ({customerLedger.orders.filter((o) => o.balance_due > 0).length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBillStatusFilter("all")}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                          billStatusFilter === "all"
+                            ? "bg-primary/15 text-primary border border-primary/30"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        All Bills ({customerLedger.orders.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBillStatusFilter("paid")}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                          billStatusFilter === "paid"
+                            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Paid ({customerLedger.orders.filter((o) => o.balance_due <= 0).length})
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Tab Content */}
                 <div className="flex-1 overflow-y-auto p-4 scrollbar-thin">
-                  {activeLedgerTab === "bills" && (
-                    <div className="space-y-2">
-                      {customerLedger.orders.length === 0 ? (
-                        <div className="p-8 text-center text-xs text-muted-foreground">
-                          No order bills found for this customer.
-                        </div>
-                      ) : (
-                        <div className="border border-border rounded-xl overflow-x-auto scrollbar-thin shadow-2xs bg-card">
-                          <table className="w-full min-w-[780px] text-left text-xs">
-                            <thead className="bg-muted/50 text-[10px] uppercase tracking-wider text-muted-foreground font-mono border-b border-border">
-                              <tr>
-                                <th className="p-2.5 whitespace-nowrap">Bill / Order #</th>
-                                <th className="p-2.5 whitespace-nowrap">Date & Time</th>
-                                <th className="p-2.5">Items Summary</th>
-                                <th className="p-2.5 text-right whitespace-nowrap">Bill Total</th>
-                                <th className="p-2.5 text-right whitespace-nowrap">Paid</th>
-                                <th className="p-2.5 text-right whitespace-nowrap">Balance Due</th>
-                                <th className="p-2.5 text-center whitespace-nowrap">Status</th>
-                                <th className="p-2.5 text-center whitespace-nowrap">Action</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border">
-                              {customerLedger.orders.map((ord) => {
-                                const hasDebt = ord.balance_due > 0;
-                                return (
-                                  <tr
-                                    key={ord.id}
-                                    className={`hover:bg-muted/20 transition-colors ${
-                                      hasDebt ? "bg-amber-500/5 font-medium" : "text-muted-foreground"
-                                    }`}
+                  {activeLedgerTab === "bills" && (() => {
+                    const unpaidList = customerLedger.orders.filter((o) => o.balance_due > 0);
+                    const paidList = customerLedger.orders.filter((o) => o.balance_due <= 0);
+                    const displayedBills =
+                      billStatusFilter === "unpaid"
+                        ? unpaidList
+                        : billStatusFilter === "paid"
+                        ? paidList
+                        : customerLedger.orders;
+
+                    return (
+                      <div className="space-y-2">
+                        {displayedBills.length === 0 ? (
+                          <div className="p-8 text-center bg-card border border-border rounded-xl space-y-2.5 shadow-2xs">
+                            {billStatusFilter === "unpaid" ? (
+                              <>
+                                <div className="text-emerald-600 dark:text-emerald-400 font-extrabold text-sm flex items-center justify-center gap-1.5">
+                                  <CheckCircle2 size={18} /> All Bills Fully Settled!
+                                </div>
+                                <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                                  This customer currently has zero outstanding balance. All previous bills have been paid in full.
+                                </p>
+                                {customerLedger.orders.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setBillStatusFilter("all")}
+                                    className="px-3 py-1 rounded-md bg-muted hover:bg-accent text-foreground text-xs font-bold border border-border cursor-pointer transition-colors"
                                   >
-                                    <td className="p-2.5 font-mono font-bold text-foreground whitespace-nowrap">
-                                      {ord.order_number}
-                                    </td>
-                                    <td className="p-2.5 text-[11px] font-mono text-muted-foreground whitespace-nowrap">
-                                      {ord.created_at ? new Date(ord.created_at).toLocaleString() : "—"}
-                                    </td>
-                                    <td className="p-2.5 text-[11px] truncate max-w-[200px]" title={ord.items_summary}>
-                                      {ord.items_summary || `${ord.items_count} items`}
-                                    </td>
-                                    <td className="p-2.5 text-right font-mono font-semibold text-foreground whitespace-nowrap">
-                                      ₹{ord.grand_total.toLocaleString("en-IN")}
-                                    </td>
-                                    <td className="p-2.5 text-right font-mono text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                                      ₹{ord.amount_paid.toLocaleString("en-IN")}
-                                    </td>
-                                    <td className="p-2.5 text-right font-mono font-bold whitespace-nowrap">
-                                      <span className={hasDebt ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}>
-                                        ₹{ord.balance_due.toLocaleString("en-IN")}
-                                      </span>
-                                    </td>
-                                    <td className="p-2.5 text-center whitespace-nowrap">
-                                      <span
-                                        className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase border ${
-                                          ord.payment_status === "paid"
-                                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                                            : ord.payment_status === "partial"
-                                            ? "bg-blue-500/10 text-blue-600 border-blue-500/20"
-                                            : "bg-amber-500/10 text-amber-600 border-amber-500/20"
-                                        }`}
-                                      >
-                                        {ord.payment_status || "UNPAID"}
-                                      </span>
-                                    </td>
-                                    <td className="p-2.5 text-center whitespace-nowrap">
-                                      {hasDebt ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => openSettleModal(ord)}
-                                          className="h-6 px-2.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-md cursor-pointer transition-colors"
-                                          title={`Settle specific Bill #${ord.order_number}`}
+                                    View All Past Bills ({customerLedger.orders.length})
+                                  </button>
+                                )}
+                              </>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">No bills found under this filter.</p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="border border-border rounded-xl overflow-x-auto scrollbar-thin shadow-2xs bg-card">
+                            <table className="w-full min-w-[780px] text-left text-xs">
+                              <thead className="bg-muted/50 text-[10px] uppercase tracking-wider text-muted-foreground font-mono border-b border-border">
+                                <tr>
+                                  <th className="p-2.5 whitespace-nowrap">Bill / Order #</th>
+                                  <th className="p-2.5 whitespace-nowrap">Date & Time</th>
+                                  <th className="p-2.5">Items Summary</th>
+                                  <th className="p-2.5 text-right whitespace-nowrap">Bill Total</th>
+                                  <th className="p-2.5 text-right whitespace-nowrap">Paid</th>
+                                  <th className="p-2.5 text-right whitespace-nowrap">Balance Due</th>
+                                  <th className="p-2.5 text-center whitespace-nowrap">Status</th>
+                                  <th className="p-2.5 text-center whitespace-nowrap">Action</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border">
+                                {displayedBills.map((ord) => {
+                                  const hasDebt = ord.balance_due > 0;
+                                  return (
+                                    <tr
+                                      key={ord.id}
+                                      className={`hover:bg-muted/20 transition-colors ${
+                                        hasDebt ? "bg-amber-500/5 font-medium" : "text-muted-foreground"
+                                      }`}
+                                    >
+                                      <td className="p-2.5 font-mono font-bold text-foreground whitespace-nowrap">
+                                        {ord.order_number}
+                                      </td>
+                                      <td className="p-2.5 text-[11px] font-mono text-muted-foreground whitespace-nowrap">
+                                        {ord.created_at ? new Date(ord.created_at).toLocaleString() : "—"}
+                                      </td>
+                                      <td className="p-2.5 text-[11px] truncate max-w-[200px]" title={ord.items_summary}>
+                                        {ord.items_summary || `${ord.items_count} items`}
+                                      </td>
+                                      <td className="p-2.5 text-right font-mono font-semibold text-foreground whitespace-nowrap">
+                                        ₹{ord.grand_total.toLocaleString("en-IN")}
+                                      </td>
+                                      <td className="p-2.5 text-right font-mono text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                                        ₹{ord.amount_paid.toLocaleString("en-IN")}
+                                      </td>
+                                      <td className="p-2.5 text-right font-mono font-bold whitespace-nowrap">
+                                        <span className={hasDebt ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}>
+                                          ₹{ord.balance_due.toLocaleString("en-IN")}
+                                        </span>
+                                      </td>
+                                      <td className="p-2.5 text-center whitespace-nowrap">
+                                        <span
+                                          className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase border ${
+                                            ord.payment_status === "paid"
+                                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                              : ord.payment_status === "partial"
+                                              ? "bg-blue-500/10 text-blue-600 border-blue-500/20"
+                                              : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                                          }`}
                                         >
-                                          Pay Bill
-                                        </button>
-                                      ) : (
-                                        <span className="text-[10px] text-muted-foreground font-mono">Paid</span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                                          {ord.payment_status || "UNPAID"}
+                                        </span>
+                                      </td>
+                                      <td className="p-2.5 text-center whitespace-nowrap">
+                                        {hasDebt ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => openSettleModal(ord)}
+                                            className="h-6 px-2.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-md cursor-pointer transition-colors"
+                                            title={`Settle specific Bill #${ord.order_number}`}
+                                          >
+                                            Pay Bill
+                                          </button>
+                                        ) : (
+                                          <span className="text-[10px] text-muted-foreground font-mono">Paid</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {activeLedgerTab === "payments" && (
                     <div className="space-y-2">
@@ -788,11 +866,11 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                         type="button"
                         onClick={() => {
                           setSelectedOrderIdsForSettlement([]);
-                          setSettleAmount(customerLedger.summary.total_balance_due);
+                          setSettleAmount(0);
                         }}
                         className="text-muted-foreground hover:text-foreground cursor-pointer font-medium"
                       >
-                        Auto FIFO (All)
+                        Clear All
                       </button>
                     </div>
                   </div>
@@ -817,7 +895,7 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                                 .reduce((acc, o) => acc + o.balance_due, 0);
                               setSettleAmount(sumSelected);
                             } else {
-                              setSettleAmount(customerLedger.summary.total_balance_due);
+                              setSettleAmount(0);
                             }
                           }}
                           className={`p-1.5 rounded-lg border text-xs cursor-pointer flex items-center justify-between transition-colors ${

@@ -159,7 +159,7 @@ export async function generateReceiptImageBlob(data: CustomerReceiptSlipData): P
     ctx.textAlign = "left";
     ctx.fillStyle = "#000000";
     ctx.font = "bold 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-    
+
     // Truncate item title if too long to prevent overlapping
     const maxTitleWidth = contentWidth - 230;
     let displayTitle = itemTitle;
@@ -265,7 +265,7 @@ export async function generateReceiptImageBlob(data: CustomerReceiptSlipData): P
   ctx.textAlign = "center";
   ctx.fillStyle = "#4b5563";
   ctx.font = "bold 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-  ctx.fillText("Thank You For Dining With Us! Visit Again", width / 2, y);
+  ctx.fillText("Thank you for being part of Baithak Family! ❤️", width / 2, y);
 
   // Return canvas as Blob
   return new Promise((resolve, reject) => {
