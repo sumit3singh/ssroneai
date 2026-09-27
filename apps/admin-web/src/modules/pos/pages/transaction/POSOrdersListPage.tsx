@@ -14,7 +14,7 @@ import { ThermalReceiptModal } from "./pos-billing/ThermalReceiptModal";
 import { POSOrderHoverTooltip } from "../../components/POSOrderHoverTooltip";
 import { renderSafeString } from "../../utils/renderSafeString";
 import { IndianLiveClock } from "../../components/IndianLiveClock";
-import { syncLocalOrderSequenceWithOrders } from "../../utils/order-sequence";
+import { syncLocalOrderSequenceWithOrders, getDisplayOrderNumber } from "../../utils/order-sequence";
 
 const safeNum = (val: any): number => {
   if (val === null || val === undefined) return 0;
@@ -163,6 +163,8 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
       const matchesSearch =
         !search ||
         ord.order_number?.toLowerCase().includes(search.toLowerCase()) ||
+        String(ord.daily_order_number || "").includes(search) ||
+        getDisplayOrderNumber(ord).toLowerCase().includes(search.toLowerCase()) ||
         (ord.customer_name && ord.customer_name.toLowerCase().includes(search.toLowerCase())) ||
         (ord.table_name && ord.table_name.toLowerCase().includes(search.toLowerCase()));
 
@@ -228,7 +230,7 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
       if (onRecallOrderToCart) {
         await onRecallOrderToCart(ord);
       } else {
-        toast.success(`Order #${ord.order_number} loaded into Billing Cart!`);
+        toast.success(`Order #${getDisplayOrderNumber(ord)} loaded into Billing Cart!`);
       }
       goToView("billing");
     } catch (err) {
@@ -253,7 +255,7 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
         : selectedOrderForSettle.order_number;
 
       await api.patch(`/orders/${targetId}/status?status=completed`);
-      toast.success(`Bill #${selectedOrderForSettle.order_number} settled via ${method}!`);
+      toast.success(`Bill #${getDisplayOrderNumber(selectedOrderForSettle)} settled via ${method}!`);
       
       setReceiptData({
         orderNumber: selectedOrderForSettle.order_number,
@@ -581,7 +583,14 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
                     <tr key={ord.id} className="hover:bg-muted/40 transition-colors">
                       <td className="py-2.5 px-3 font-mono font-semibold text-foreground">
                         <POSOrderHoverTooltip order={ord}>
-                          <span className="text-primary hover:underline cursor-pointer">{ord.order_number}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-primary hover:underline cursor-pointer font-bold">
+                              #{getDisplayOrderNumber(ord)}
+                            </span>
+                            {ord.order_number && ord.order_number !== getDisplayOrderNumber(ord) && (
+                              <span className="text-[10px] text-muted-foreground font-normal">({ord.order_number})</span>
+                            )}
+                          </div>
                         </POSOrderHoverTooltip>
                       </td>
                       <td className="py-2.5 px-3 font-medium">

@@ -454,6 +454,7 @@ export const POSPage: React.FC = () => {
 
       const payload = {
         order_number: newOrder.order_number || undefined,
+        daily_order_number: newOrder.daily_order_number || undefined,
         branch_id: selectedBranch?.id ? Number(selectedBranch.id) : 1,
         order_type: typeStr,
         order_mode: isTakeaway ? "takeaway" : (isDelivery ? "delivery" : "dine_in"),

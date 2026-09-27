@@ -29,6 +29,8 @@ export interface POSCartItem {
 export interface POSOrder {
   id: number | string;
   order_number: string;
+  daily_order_number?: number | null;
+  token_number?: string | null;
   table_id?: number | string;
   table_name?: string;
   table_number?: string;

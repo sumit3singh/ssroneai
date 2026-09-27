@@ -24,7 +24,7 @@ import { POSUPIQRModal } from "../../components/POSUPIQRModal";
 import { playPaymentSuccessSound } from "@ssrone/utils";
 import { usePOSShortcuts, useBarcodeScanner, useAsyncPrintQueue, useZeroWaitOrderSync } from "../../hooks";
 import { renderSafeString } from "../../utils/renderSafeString";
-import { generateLocalOrderNumber, peekNextLocalOrderNumber, generateDailyTokenNumber, generateIdempotencyKey } from "../../utils/order-sequence";
+import { generateLocalOrderNumber, peekNextLocalOrderNumber, generateDailyTokenNumber, generateIdempotencyKey, syncLocalOrderSequenceWithOrders, getDisplayOrderNumber } from "../../utils/order-sequence";
 import { resolveHotbarItems, getStoredHotbarSlotIds } from "../../utils/posHotbarStorage";
 import { cacheCatalog } from "@/shared/utils/offline-store";
 
@@ -242,19 +242,29 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
 
   useEffect(() => {
     loadCustomers();
-    // Silent background sync of upcoming serial order number from server
-    api.get<{ next_order_number: string }>("/orders/next-number-preview", {
+    // Silent background sync of upcoming daily order number from server
+    api.get<{ next_order_number?: string; daily_order_number?: number; display_order_number?: string }>("/orders/next-number-preview", {
       params: { branch_id: activeBranchId }
     }).then((res) => {
-      const nextNum = res?.next_order_number;
-      if (nextNum && /^\d{6}$/.test(nextNum)) {
-        const val = parseInt(nextNum, 10);
-        if (val >= 100001) {
-          localStorage.setItem("pos_serial_order_seq", (val - 1).toString());
+      const today = new Date().toISOString().slice(0, 10);
+      localStorage.setItem("pos_order_date", today);
+      if (res?.daily_order_number != null && res.daily_order_number > 0) {
+        localStorage.setItem("pos_daily_order_seq", (res.daily_order_number - 1).toString());
+      } else if (res?.next_order_number) {
+        const parts = res.next_order_number.split("-");
+        if (parts.length === 2 && /^\d+$/.test(parts[1])) {
+          localStorage.setItem("pos_daily_order_seq", (parseInt(parts[1], 10) - 1).toString());
         }
       }
     }).catch(() => {});
   }, [activeBranchId]);
+
+  // Synchronize local order counter whenever orders list refreshes
+  useEffect(() => {
+    if (orders && orders.length > 0) {
+      syncLocalOrderSequenceWithOrders(orders);
+    }
+  }, [orders]);
 
   // Cart Settlement Modal State (Invoked when clicking Pay & Print on Cart)
   const [cartSettleOrder, setCartSettleOrder] = useState<POSOrder | null>(null);
@@ -1598,9 +1608,12 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     baselineOrderItemsRef.current = newBaseline;
 
     // 3. Construct optimistic POSOrder for local memory (< 0.1ms)
+    const existingOrd = recalledOrderNumber ? orders.find((o) => o.order_number === recalledOrderNumber) : null;
+    const optimisticDailyOrderNumber = existingOrd?.daily_order_number || (/^\d+$/.test(assignedNum) ? parseInt(assignedNum, 10) : undefined);
     const optimisticOrder: POSOrder = {
       id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       order_number: assignedNum,
+      daily_order_number: optimisticDailyOrderNumber,
       order_type: orderMode.toUpperCase() as OrderType,
       order_mode: orderMode,
       customer_id: selectedCustomerId ? (Number(selectedCustomerId) || selectedCustomerId) : undefined,
@@ -1638,15 +1651,17 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
 
     // 7. Instant success toast (< 0.1ms)
     const elapsed = (performance.now() - startTime).toFixed(1);
+    const displayNum = optimisticDailyOrderNumber ? String(optimisticDailyOrderNumber) : assignedNum;
     toast.success(
       orderNum
-        ? `⚡ Order #${assignedNum} updated in ${elapsed}ms & ${generatedSlips.length > 0 ? "KOT dispatched!" : "saved!"}`
-        : `⚡ KOT #${assignedNum} sent to KDS & ${generatedSlips.length} Kitchen Station(s) in ${elapsed}ms!`
+        ? `⚡ Order #${displayNum} updated in ${elapsed}ms & ${generatedSlips.length > 0 ? "KOT dispatched!" : "saved!"}`
+        : `⚡ KOT #${displayNum} sent to KDS & ${generatedSlips.length} Kitchen Station(s) in ${elapsed}ms!`
     );
 
     // 8. Fire-and-forget background synchronization to IndexedDB & PostgreSQL
     const orderPayload = {
       order_number: assignedNum,
+      daily_order_number: optimisticDailyOrderNumber || null,
       is_update: isUpdate,
       branch_id: Number(activeBranchId),
       order_type: orderMode.toUpperCase() as OrderType,
@@ -1706,6 +1721,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     const settleOrder: POSOrder = {
       id: existingOrd?.id || `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       order_number: assignedNum,
+      daily_order_number: existingOrd?.daily_order_number || (/^\d+$/.test(assignedNum) ? parseInt(assignedNum, 10) : undefined),
       order_type: orderMode.toUpperCase() as OrderType,
       order_mode: orderMode,
       customer_id: selectedCustomerId ? (Number(selectedCustomerId) || selectedCustomerId) : undefined,

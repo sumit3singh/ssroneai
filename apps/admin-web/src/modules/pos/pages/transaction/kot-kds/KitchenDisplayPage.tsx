@@ -20,6 +20,7 @@ import { api } from "@ssrone/api-client";
 import { toast } from "sonner";
 import { POSOrder } from "../../../types";
 import { renderSafeString } from "../../../utils/renderSafeString";
+import { getDisplayOrderNumber } from "../../../utils/order-sequence";
 
 interface KitchenStationItem {
   id: number | string;
@@ -513,7 +514,7 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between text-[11px] text-muted-foreground font-mono">
-                    <span className="truncate">{order.order_number}</span>
+                    <span className="truncate font-bold text-foreground">KOT #{getDisplayOrderNumber(order)}</span>
                     <span className="shrink-0">{elapsedMins > 0 ? `${elapsedMins}m ago` : "Just now"}</span>
                   </div>
                 </div>
@@ -638,7 +639,7 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
                             await api.post(`/orders/${numId}/alert`, {});
                             playKitchenChime();
                             toast.success("Expedite Alert Dispatched!", {
-                              description: `Order #${order.order_number} alert sent to KDS terminal!`
+                              description: `KOT #${getDisplayOrderNumber(order)} alert sent to KDS terminal!`
                             });
                             loadKDSOrders();
                           }

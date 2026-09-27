@@ -14,6 +14,8 @@ import { DynamicUpiQrCode } from "../../../components/DynamicUpiQrCode";
 import { playPaymentSuccessSound } from "@ssrone/utils";
 import { printCustomerReceiptDirectly } from "../../../utils/printUtils";
 import { cleanTableName, formatBranchAddress, formatItemWithVariantAndAddons } from "../../../utils/posPrintFormatters";
+import { getDisplayOrderNumber } from "../../../utils/order-sequence";
+import { shareReceiptPhotoToWhatsApp } from "../../../utils/receiptImageGenerator";
 
 interface POSTableQuickSettleModalProps {
   order: POSOrder;
@@ -175,10 +177,12 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
       venueFssai,
     };
 
+    const displayOrderNum = getDisplayOrderNumber(order) || orderNumber;
+
     // 3. Dispatch Selected Action directly (No secondary preview screen)
     if (action === "print") {
       printCustomerReceiptDirectly(receiptPayload);
-      toast.success(`⚡ Bill #${order.order_number} settled & printed directly!`);
+      toast.success(`⚡ Bill #${displayOrderNum} settled & printed directly!`);
     } else if (action === "whatsapp") {
       let phoneToSend = rawCustPhone.replace(/\D/g, "");
       if (!phoneToSend || phoneToSend.length < 10) {
@@ -189,68 +193,22 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
       }
       const cleanPhone = phoneToSend && phoneToSend.length === 10 ? `91${phoneToSend}` : phoneToSend;
 
-      const lines: string[] = [];
-      lines.push("╔═══════════════════════════════════╗");
-      lines.push(`   🍽️ *${venueName.toUpperCase()}*`);
-      lines.push("╚═══════════════════════════════════╝");
-      if (venueAddress) lines.push(`📍 *Address:* ${venueAddress}`);
-      if (venueGstin) lines.push(`🧾 *Gst:* ${venueGstin}`);
-      if (venuePhone) lines.push(`📞 *Mobile no.* ${venuePhone}`);
-      lines.push("------------------------------------");
-      lines.push(`*Order No:* ${orderNumber} ,*Mode:* ${orderType}`);
-      lines.push(`*Date/Time:* ${currentTimestamp}`);
-      if (cleanTable) lines.push(`*Dining Table:* ${cleanTable}`);
-      lines.push("------------------------------------");
-      lines.push(`👤 *Customer Name:* ${rawCustName || "Walk-in Guest"}`);
-      lines.push("------------------------------------");
-      lines.push("*ITEM & SIZE*        *QTY X PRICE*   *AMT*");
-      lines.push("------------------------------------");
-
-      (order.items || []).forEach((it: any) => {
-        const rawName = renderSafeString(it.name || it.product_name || it.item_name || "Item");
-        const variantName = renderSafeString(it.variant_name);
-        const addonsList = it.addons || it.selected_addons || it.addon_options || [];
-        const itemTitle = formatItemWithVariantAndAddons(rawName, variantName, addonsList, "compact");
-        const qtyPriceStr = `${it.quantity} x ₹${Number(it.unit_price).toFixed(2)}`;
-        const amtStr = `₹${(it.quantity * it.unit_price).toFixed(0)}`;
-
-        lines.push(`• *${itemTitle}*`);
-        lines.push(`   ${qtyPriceStr} = ${amtStr}`);
-      });
-
-      lines.push("------------------------------------");
-      lines.push(`Subtotal: ₹${order.subtotal || 0}`);
-      if (Number(order.packaging_charge || 0) > 0) {
-        lines.push(`Packaging Fee: +₹${order.packaging_charge}`);
+      const photoRes = await shareReceiptPhotoToWhatsApp(receiptPayload, cleanPhone);
+      if (photoRes.copiedToClipboard) {
+        toast.success(`⚡ Bill #${displayOrderNum} settled! Receipt photo copied to clipboard (Press Ctrl+V in WhatsApp)!`);
+      } else {
+        toast.success(`⚡ Bill #${displayOrderNum} settled & receipt photo downloaded!`);
       }
-      if (finalDiscount > 0) {
-        lines.push(`Discount: -₹${finalDiscount}`);
-      }
-      lines.push(`GST: ₹${order.tax_amount || 0}`);
-      lines.push(`*Grand Total: ₹${finalNetAmount}*`);
-      if (effectivePaymentMethod) {
-        lines.push(`Paid Via: ${effectivePaymentMethod}`);
-      }
-      lines.push("------------------------------------");
-      lines.push("✨ *Thank You For Dining With Us! Visit Again* ✨");
-
-      const message = lines.join("\n");
-      const encoded = encodeURIComponent(message);
-      const waUrl = cleanPhone
-        ? `https://wa.me/${cleanPhone}?text=${encoded}`
-        : `https://wa.me/?text=${encoded}`;
-      window.open(waUrl, "_blank");
-      toast.success(`⚡ Bill #${order.order_number} settled & WhatsApp opened${cleanPhone ? ` for +${cleanPhone}` : ""}!`);
     } else {
       // action === "close"
       if (balanceDue > 0 && amountPaid > 0) {
-        toast.success(`⚡ Bill #${order.order_number} settled: ₹${amountPaid} paid via ${targetPaymentMethod}, ₹${balanceDue} saved to Udhar Khata (${rawCustName || "Customer"})!`);
+        toast.success(`⚡ Bill #${displayOrderNum} settled: ₹${amountPaid} paid via ${targetPaymentMethod}, ₹${balanceDue} saved to Udhar Khata (${rawCustName || "Customer"})!`);
       } else if (balanceDue > 0) {
-        toast.success(`⚡ Bill #${order.order_number} transferred to Customer Debt Account (${rawCustName || "Customer"})!`);
+        toast.success(`⚡ Bill #${displayOrderNum} transferred to Customer Debt Account (${rawCustName || "Customer"})!`);
       } else if (isDiscount) {
-        toast.success(`⚡ Bill #${order.order_number} settled with ₹${finalDiscount} discount concession!`);
+        toast.success(`⚡ Bill #${displayOrderNum} settled with ₹${finalDiscount} discount concession!`);
       } else {
-        toast.success(`⚡ Bill #${order.order_number} settled successfully via ${targetPaymentMethod}!`);
+        toast.success(`⚡ Bill #${displayOrderNum} settled successfully via ${targetPaymentMethod}!`);
       }
     }
 
@@ -348,7 +306,7 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold text-sm text-foreground leading-none">
-                  Settle Bill {order.order_number}
+                  Settle Bill #{getDisplayOrderNumber(order) || order.order_number}
                 </h3>
                 {order.table_name && (
                   <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">

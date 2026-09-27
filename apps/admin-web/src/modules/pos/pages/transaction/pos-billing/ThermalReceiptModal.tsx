@@ -12,6 +12,8 @@ import {
   formatBranchAddress,
   formatItemWithVariantAndAddons,
 } from "../../../utils/posPrintFormatters";
+import { getDisplayOrderNumber } from "../../../utils/order-sequence";
+import { shareReceiptPhotoToWhatsApp } from "../../../utils/receiptImageGenerator";
 
 interface ThermalReceiptModalProps {
   isOpen: boolean;
@@ -68,6 +70,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
   const cleanTable = cleanTableName(receiptData.tableName);
   const waiterName = cleanString(receiptData.waiterName);
   const orderNumber = cleanString(receiptData.orderNumber);
+  const displayOrderNum = getDisplayOrderNumber({ order_number: orderNumber }) || orderNumber;
   const orderType = cleanString(receiptData.orderType);
   const paymentMethod = cleanString(receiptData.paymentMethod);
 
@@ -97,7 +100,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
     onClose();
   };
 
-  const handleSendWhatsApp = () => {
+  const handleSendWhatsApp = async () => {
     const rawPhone = (phoneInput || custPhone || "").replace(/\D/g, "");
     if (!rawPhone || rawPhone.length < 10) {
       setShowPhoneInput(true);
@@ -106,55 +109,35 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
     }
     const cleanPhone = rawPhone.length === 10 ? `91${rawPhone}` : rawPhone;
 
-    const lines: string[] = [];
-    lines.push("╔═══════════════════════════════════╗");
-    lines.push(`   🍽️ *${venueName.toUpperCase()}*`);
-    lines.push("╚═══════════════════════════════════╝");
-    if (venueAddress) lines.push(`📍 *Address:* ${venueAddress}`);
-    if (venueGstin) lines.push(`🧾 *Gst:* ${venueGstin}`);
-    if (venuePhone) lines.push(`📞 *Mobile no.* ${venuePhone}`);
-    lines.push("------------------------------------");
-    lines.push(`*Order No:* ${orderNumber} ,*Mode:* ${orderType}`);
-    lines.push(`*Date/Time:* ${receiptData.timestamp}`);
-    if (cleanTable) lines.push(`*Dining Table:* ${cleanTable}`);
-    lines.push("------------------------------------");
-    lines.push(`👤 *Customer Name:* ${custName || "Walk-in Guest"}`);
-    lines.push("------------------------------------");
-    lines.push("*ITEM & SIZE*        *QTY X PRICE*   *AMT*");
-    lines.push("------------------------------------");
+    const receiptPayload = {
+      orderNumber,
+      orderType,
+      tableName: cleanTable,
+      waiterName,
+      customerName: custName,
+      customerPhone: custPhone || phoneInput,
+      customerAddress: custAddress,
+      items: receiptData.items || [],
+      subtotal: receiptData.subtotal,
+      packagingChargeTotal: receiptData.packagingChargeTotal,
+      taxAmount: receiptData.taxAmount,
+      discountAmount: receiptData.discountAmount,
+      netAmount: receiptData.netAmount,
+      paymentMethod,
+      timestamp: receiptData.timestamp,
+      venueName,
+      venueAddress,
+      venueGstin,
+      venuePhone,
+      venueFssai,
+    };
 
-    (receiptData.items || []).forEach((it) => {
-      const rawName = renderSafeString(it.name || (it as any).product_name || (it as any).item_name || "Item");
-      const variantName = renderSafeString(it.variant_name);
-      const addonsList = it.addons || (it as any).selected_addons || (it as any).addon_options || [];
-      const itemTitle = formatItemWithVariantAndAddons(rawName, variantName, addonsList, "compact");
-      const qtyPriceStr = `${it.quantity} x ₹${Number(it.unit_price).toFixed(2)}`;
-      const amtStr = `₹${(it.quantity * it.unit_price).toFixed(0)}`;
-
-      lines.push(`• *${itemTitle}*`);
-      lines.push(`   ${qtyPriceStr} = ${amtStr}`);
-    });
-
-    lines.push("------------------------------------");
-    lines.push(`Subtotal: ₹${receiptData.subtotal}`);
-    if (receiptData.packagingChargeTotal > 0) {
-      lines.push(`Packaging Fee: +₹${receiptData.packagingChargeTotal}`);
+    const photoRes = await shareReceiptPhotoToWhatsApp(receiptPayload, cleanPhone);
+    if (photoRes.copiedToClipboard) {
+      toast.success(`Receipt photo copied to clipboard! (Press Ctrl+V in WhatsApp to send image)`);
+    } else {
+      toast.success(`Receipt photo downloaded & WhatsApp opened for +${cleanPhone}!`);
     }
-    if (receiptData.discountAmount > 0) {
-      lines.push(`Discount: -₹${receiptData.discountAmount}`);
-    }
-    lines.push(`GST: ₹${receiptData.taxAmount}`);
-    lines.push(`*Grand Total: ₹${receiptData.netAmount}*`);
-    if (paymentMethod) {
-      lines.push(`Paid Via: ${paymentMethod}`);
-    }
-    lines.push("------------------------------------");
-    lines.push("✨ *Thank You For Dining With Us! Visit Again* ✨");
-
-    const message = lines.join("\n");
-    const encoded = encodeURIComponent(message);
-    window.open(`https://wa.me/${cleanPhone}?text=${encoded}`, "_blank");
-    toast.success(`WhatsApp receipt opened for +${cleanPhone}!`);
   };
 
   return (
@@ -226,7 +209,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
           {/* Order Details Header */}
           <div className="space-y-0.5 text-[11px] border-b border-dashed border-neutral-400 dark:border-neutral-600 print:border-black pb-2">
             <div className="font-bold text-foreground">
-              Order No: {orderNumber} ,Mode: {orderType}
+              Order No: #{displayOrderNum} ,Mode: {orderType}
             </div>
             <div className="text-muted-foreground print:text-black">
               Date/Time: {receiptData.timestamp}
@@ -273,8 +256,8 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
               const variantName = renderSafeString(it.variant_name);
               const addonsList = it.addons || (it as any).selected_addons || (it as any).addon_options || [];
               const itemTitle = formatItemWithVariantAndAddons(rawName, variantName, addonsList, "compact");
-              const qtyPriceStr = `${it.quantity} x ₹${Number(it.unit_price).toFixed(2)}`;
-              const amtStr = `₹${(it.quantity * it.unit_price).toFixed(0)}`;
+              const qtyPriceStr = `${it.quantity} x ${Number(it.unit_price).toFixed(2)}`;
+              const amtStr = `${(it.quantity * it.unit_price).toFixed(2)}`;
 
               return (
                 <div key={idx} className="flex justify-between items-baseline text-[11px] font-bold text-foreground">
@@ -286,31 +269,31 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
             })}
           </div>
 
-          {/* Financial Totals */}
+          {/* Financial Totals (No currency sign, clean thermal format) */}
           <div className="space-y-1 pt-1 text-[11px] border-b border-dashed border-neutral-400 dark:border-neutral-600 print:border-black pb-2">
             <div className="flex justify-between text-muted-foreground print:text-black">
               <span>Subtotal:</span>
-              <span>₹{receiptData.subtotal}</span>
+              <span>{Number(receiptData.subtotal).toFixed(2)}</span>
             </div>
             {receiptData.packagingChargeTotal > 0 && (
               <div className="flex justify-between text-amber-600 print:text-black">
                 <span>Packaging:</span>
-                <span>+₹{receiptData.packagingChargeTotal}</span>
+                <span>+{Number(receiptData.packagingChargeTotal).toFixed(2)}</span>
               </div>
             )}
             {receiptData.discountAmount > 0 && (
               <div className="flex justify-between text-emerald-600 print:text-black font-bold">
                 <span>Discount:</span>
-                <span>-₹{receiptData.discountAmount}</span>
+                <span>-{Number(receiptData.discountAmount).toFixed(2)}</span>
               </div>
             )}
             <div className="flex justify-between text-muted-foreground print:text-black">
               <span>GST:</span>
-              <span>₹{receiptData.taxAmount}</span>
+              <span>{Number(receiptData.taxAmount).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-xs font-black text-foreground border-t border-neutral-300 dark:border-neutral-700 print:border-black pt-1">
               <span>Grand Total:</span>
-              <span className="text-primary print:text-black font-mono text-sm">₹{receiptData.netAmount}</span>
+              <span className="text-primary print:text-black font-mono text-sm">{Number(receiptData.netAmount).toFixed(2)}</span>
             </div>
             {paymentMethod && (
               <div className="flex justify-between text-[10px] text-muted-foreground print:text-black pt-0.5">

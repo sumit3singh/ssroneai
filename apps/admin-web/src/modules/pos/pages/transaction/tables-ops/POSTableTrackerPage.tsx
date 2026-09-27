@@ -32,6 +32,7 @@ import { POSTableQuickSettleModal } from "./POSTableQuickSettleModal";
 import { CustomerDebtRegisterModal } from "../../../components/CustomerDebtRegisterModal";
 import { POSOrderHoverTooltip } from "../../../components/POSOrderHoverTooltip";
 import { renderSafeString } from "../../../utils/renderSafeString";
+import { getDisplayOrderNumber, syncLocalOrderSequenceWithOrders } from "../../../utils/order-sequence";
 
 interface POSTableTrackerPageProps {
   tables: POSTable[];
@@ -106,6 +107,13 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // Synchronize local daily order sequence whenever table floor orders refresh
+  React.useEffect(() => {
+    if (orders && orders.length > 0) {
+      syncLocalOrderSequenceWithOrders(orders);
+    }
+  }, [orders]);
+
   const handleStartOrderMode = (mode: "takeaway" | "delivery") => {
     try {
       localStorage.setItem("selected_pos_order_mode", mode);
@@ -139,10 +147,12 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
       return;
     }
 
-    // 2. Search in active orders by order number or customer phone/name
+    // 2. Search in active orders by order number, daily order number or customer phone/name
     const matchingOrder = activeOrders.find(
       (o) =>
         (o.order_number || "").toLowerCase().includes(term) ||
+        String(o.daily_order_number || "").includes(term) ||
+        getDisplayOrderNumber(o).toLowerCase().includes(term) ||
         renderSafeString(o.customer_name).toLowerCase().includes(term) ||
         renderSafeString(o.customer_phone).includes(term)
     );
@@ -542,7 +552,11 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
             const activeOrd = getActiveOrderForTable(t);
             return (
               t.table_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              (activeOrd && activeOrd.order_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
+              (activeOrd && (
+                activeOrd.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                String(activeOrd.daily_order_number || "").includes(searchTerm) ||
+                getDisplayOrderNumber(activeOrd).includes(searchTerm)
+              )) ||
               (activeOrd && activeOrd.waiter_name && activeOrd.waiter_name.toLowerCase().includes(searchTerm.toLowerCase()))
             );
           }).length === 0
@@ -580,7 +594,11 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
               const activeOrd = getActiveOrderForTable(t);
               const matchesSearch =
                 t.table_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (activeOrd && activeOrd.order_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                (activeOrd && (
+                  activeOrd.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  String(activeOrd.daily_order_number || "").includes(searchTerm) ||
+                  getDisplayOrderNumber(activeOrd).includes(searchTerm)
+                )) ||
                 (activeOrd && activeOrd.waiter_name && activeOrd.waiter_name.toLowerCase().includes(searchTerm.toLowerCase()));
               return matchesSearch;
             });
@@ -651,7 +669,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                               {tableOrds.map((ord) => (
                                 <POSOrderHoverTooltip key={ord.id} order={ord}>
                                   <div className="bg-background border border-border rounded p-1 text-[10px] font-mono flex items-center justify-between gap-1 overflow-hidden min-w-0 shadow-2xs">
-                                    <span className="truncate min-w-0 font-bold text-foreground">{ord.order_number}</span>
+                                    <span className="truncate min-w-0 font-bold text-foreground">#{getDisplayOrderNumber(ord)}</span>
                                     <div className="flex items-center gap-1 shrink-0">
                                       <button
                                         type="button"
@@ -734,7 +752,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                   <POSOrderHoverTooltip key={ord.id} order={ord}>
                     <div className="bg-background border border-border rounded p-2 text-xs flex flex-col justify-between space-y-1.5">
                       <div className="flex items-center justify-between font-mono">
-                        <span className="font-bold text-primary">{ord.order_number}</span>
+                        <span className="font-bold text-primary">#{getDisplayOrderNumber(ord)}</span>
                         <span className="font-extrabold text-foreground">₹{ord.net_amount || ord.subtotal || 0}</span>
                       </div>
                       <p className="text-[10px] text-muted-foreground truncate">
@@ -792,7 +810,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                   <POSOrderHoverTooltip key={ord.id} order={ord}>
                     <div className="bg-background border border-border rounded p-2 text-xs flex flex-col justify-between space-y-1.5">
                       <div className="flex items-center justify-between font-mono">
-                        <span className="font-bold text-primary">{ord.order_number}</span>
+                        <span className="font-bold text-primary">#{getDisplayOrderNumber(ord)}</span>
                         <span className="font-extrabold text-foreground">₹{ord.net_amount || ord.subtotal || 0}</span>
                       </div>
                       <p className="text-[10px] text-muted-foreground truncate">
@@ -838,7 +856,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
               <div>
                 <span className="text-[9px] font-bold uppercase text-muted-foreground">Order Preview</span>
                 <h3 className="font-sans font-bold text-sm text-foreground flex items-center gap-1.5">
-                  Order {previewOrderModal.order_number}
+                  Order #{getDisplayOrderNumber(previewOrderModal) || previewOrderModal.order_number}
                 </h3>
               </div>
               <button

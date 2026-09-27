@@ -2,12 +2,14 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   BookOpen, X, Search, RefreshCw, User, Phone, ArrowUpRight, CheckCircle2,
   DollarSign, QrCode, CreditCard, Building, AlertCircle, Receipt, ArrowRight,
-  Clock, ShieldAlert, Sparkles, Filter
+  Clock, ShieldAlert, Sparkles, Filter, Printer
 } from "lucide-react";
 import { Button, Input } from "@ssrone/ui";
 import { api } from "@ssrone/api-client";
 import { toast } from "sonner";
 import { renderSafeString } from "../utils/renderSafeString";
+import { CustomerDebtSettlementReceiptModal } from "./CustomerDebtSettlementReceiptModal";
+import { CustomerDebtSettlementReceiptData } from "../utils/printUtils";
 
 interface DebtorSummary {
   customer_id: number;
@@ -101,6 +103,8 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
   const [settleNotes, setSettleNotes] = useState("");
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const [selectedOrderIdsForSettlement, setSelectedOrderIdsForSettlement] = useState<number[]>([]);
+  const [settlementReceiptData, setSettlementReceiptData] = useState<CustomerDebtSettlementReceiptData | null>(null);
+  const [isSettlementReceiptOpen, setIsSettlementReceiptOpen] = useState(false);
 
   const openSettleModal = (order?: any) => {
     if (order) {
@@ -197,6 +201,34 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
       toast.success(
         `⚡ ₹${settleAmount.toLocaleString("en-IN")} received from ${customerLedger.customer.name}! Remaining Debt: ₹${(res.remaining_debt ?? 0).toLocaleString("en-IN")}`
       );
+
+      // Construct comprehensive Debt Settlement Receipt payload
+      const settledOrderDetails = (customerLedger.orders || [])
+        .filter((o) => selectedOrderIdsForSettlement.length === 0 || selectedOrderIdsForSettlement.includes(o.id))
+        .map((o) => ({
+          orderNumber: o.order_number,
+          date: o.created_at || undefined,
+          totalAmount: o.grand_total,
+          amountPaid: o.amount_paid,
+          balanceDue: o.balance_due,
+        }));
+
+      const receiptPayload: CustomerDebtSettlementReceiptData = {
+        receiptNumber: res.receipt_number || `RCPT-${Date.now().toString().slice(-6)}`,
+        customerName: customerLedger.customer.name,
+        customerPhone: customerLedger.customer.phone,
+        timestamp: new Date().toLocaleString(),
+        settledOrders: settledOrderDetails,
+        totalDebtBefore: res.previous_debt ?? (customerLedger.summary?.total_balance_due || 0),
+        amountReceived: Number(settleAmount),
+        remainingDebt: res.remaining_debt ?? 0,
+        paymentMethod: settlePaymentMethod,
+        referenceNumber: settleRefNumber.trim() || undefined,
+        notes: settleNotes.trim() || undefined,
+      };
+
+      setSettlementReceiptData(receiptPayload);
+      setIsSettlementReceiptOpen(true);
 
       // Print debt collection receipt if supported
       if (onPrintReceipt) {
@@ -627,6 +659,7 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                                 <th className="p-2.5 text-right whitespace-nowrap">Amount Received</th>
                                 <th className="p-2.5 whitespace-nowrap">Receipt / Reference</th>
                                 <th className="p-2.5 whitespace-nowrap">Notes</th>
+                                <th className="p-2.5 text-center whitespace-nowrap">Action</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
@@ -651,6 +684,40 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                                   </td>
                                   <td className="p-2.5 text-[11px] text-muted-foreground whitespace-nowrap">
                                     {p.notes || "—"}
+                                  </td>
+                                  <td className="p-2.5 text-center whitespace-nowrap">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const singleOrder = customerLedger.orders.find((o) => o.id === p.order_id || o.order_number === p.order_number);
+                                        setSettlementReceiptData({
+                                          receiptNumber: p.reference_number || `RCPT-${p.id}`,
+                                          customerName: customerLedger.customer.name,
+                                          customerPhone: customerLedger.customer.phone,
+                                          timestamp: p.created_at ? new Date(p.created_at).toLocaleString() : new Date().toLocaleString(),
+                                          settledOrders: singleOrder ? [{
+                                            orderNumber: singleOrder.order_number,
+                                            date: singleOrder.created_at || undefined,
+                                            totalAmount: singleOrder.grand_total,
+                                          }] : [{
+                                            orderNumber: p.order_number,
+                                            totalAmount: p.amount,
+                                          }],
+                                          totalDebtBefore: p.amount,
+                                          amountReceived: p.amount,
+                                          remainingDebt: 0,
+                                          paymentMethod: p.payment_method,
+                                          referenceNumber: p.reference_number || undefined,
+                                          notes: p.notes || undefined,
+                                        });
+                                        setIsSettlementReceiptOpen(true);
+                                      }}
+                                      className="h-6 px-2 text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-md cursor-pointer transition-colors inline-flex items-center gap-1"
+                                      title="Print or share settlement receipt"
+                                    >
+                                      <Printer size={11} />
+                                      <span>Receipt</span>
+                                    </button>
                                   </td>
                                 </tr>
                               ))}
@@ -920,6 +987,12 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
           </div>
         </div>
       )}
+      {/* Customer Debt Settlement Printable Receipt Modal */}
+      <CustomerDebtSettlementReceiptModal
+        isOpen={isSettlementReceiptOpen}
+        onClose={() => setIsSettlementReceiptOpen(false)}
+        data={settlementReceiptData}
+      />
     </div>
   );
 };

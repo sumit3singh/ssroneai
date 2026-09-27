@@ -1,4 +1,5 @@
 import { cleanTableName, formatItemWithVariantAndAddons } from "./posPrintFormatters";
+import { getDisplayOrderNumber } from "./order-sequence";
 
 export const POS_KIOSK_FULLSCREEN_KEY = "pos_kiosk_fullscreen";
 
@@ -233,6 +234,7 @@ export function printCustomerReceiptDirectly(data: CustomerReceiptSlipData): voi
   const venueFssai = data.venueFssai || "";
 
   const orderNumber = data.orderNumber || "";
+  const displayOrderNum = getDisplayOrderNumber({ order_number: orderNumber }) || orderNumber;
   const orderType = (data.orderType || "DINE_IN").toUpperCase();
   const cleanTable = data.tableName ? cleanTableName(data.tableName) : "";
   const waiterName = data.waiterName || "";
@@ -246,14 +248,14 @@ export function printCustomerReceiptDirectly(data: CustomerReceiptSlipData): voi
     const variantName = it.variant_name || "";
     const addonsList = it.addons || it.selected_addons || it.addon_options || [];
     const itemTitle = formatItemWithVariantAndAddons(rawName, variantName, addonsList, "compact");
-    const qtyPriceStr = `${it.quantity} x ₹${Number(it.unit_price).toFixed(2)}`;
-    const amtStr = `₹${(it.quantity * it.unit_price).toFixed(0)}`;
+    const qtyPriceStr = `${it.quantity} x ${Number(it.unit_price).toFixed(2)}`;
+    const amtStr = `${(it.quantity * it.unit_price).toFixed(2)}`;
 
     return `
       <div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; font-weight: bold; margin-bottom: 3px;">
-        <span style="flex: 1; padding-right: 6px; word-break: break-word;">${itemTitle}</span>
-        <span style="text-align: right; padding: 0 6px; white-space: nowrap; color: #222;">${qtyPriceStr}</span>
-        <span style="width: 52px; text-align: right; white-space: nowrap;">${amtStr}</span>
+        <span style="flex: 1; padding-right: 4px; word-break: break-word; overflow-wrap: break-word;">${itemTitle}</span>
+        <span style="text-align: right; padding: 0 4px; white-space: nowrap; font-size: 10px; color: #111;">${qtyPriceStr}</span>
+        <span style="width: 48px; text-align: right; white-space: nowrap; font-weight: 900;">${amtStr}</span>
       </div>
     `;
   }).join("");
@@ -262,7 +264,7 @@ export function printCustomerReceiptDirectly(data: CustomerReceiptSlipData): voi
     ? `
       <div style="display: flex; justify-content: space-between;">
         <span>Packaging:</span>
-        <span>+₹${data.packagingChargeTotal}</span>
+        <span style="font-weight: bold;">+${Number(data.packagingChargeTotal).toFixed(2)}</span>
       </div>
     `
     : "";
@@ -271,7 +273,7 @@ export function printCustomerReceiptDirectly(data: CustomerReceiptSlipData): voi
     ? `
       <div style="display: flex; justify-content: space-between; font-weight: bold;">
         <span>Discount:</span>
-        <span>-₹${data.discountAmount}</span>
+        <span>-${Number(data.discountAmount).toFixed(2)}</span>
       </div>
     `
     : "";
@@ -302,14 +304,14 @@ export function printCustomerReceiptDirectly(data: CustomerReceiptSlipData): voi
     <html>
       <head>
         <meta charset="utf-8">
-        <title>Receipt #${orderNumber}</title>
+        <title>Receipt #${displayOrderNum}</title>
         <style>
           @page {
             size: 80mm auto;
             margin: 0mm;
           }
           * {
-            box-sizing: border-box;
+            box-sizing: border-box !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
@@ -320,16 +322,16 @@ export function printCustomerReceiptDirectly(data: CustomerReceiptSlipData): voi
             max-width: 80mm !important;
             background: #ffffff !important;
             color: #000000 !important;
-            font-family: 'Courier New', Courier, monospace, sans-serif !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
             font-size: 11px !important;
-            line-height: 1.3 !important;
+            line-height: 1.35 !important;
           }
           .thermal-receipt-slip {
             display: block !important;
-            width: 80mm !important;
-            max-width: 80mm !important;
-            margin: 0 !important;
-            padding: 4mm 3mm 8mm 3mm !important;
+            width: 100% !important;
+            max-width: 72mm !important;
+            margin: 0 auto !important;
+            padding: 2mm 1.5mm 6mm 1.5mm !important;
             box-sizing: border-box !important;
           }
         </style>
@@ -337,59 +339,62 @@ export function printCustomerReceiptDirectly(data: CustomerReceiptSlipData): voi
       <body>
         <div class="thermal-receipt-slip">
           <div style="text-align: center; margin-bottom: 6px; border-bottom: 1px dashed #000; padding-bottom: 6px;">
-            <div style="font-size: 14px; font-weight: 900; text-transform: uppercase;">${venueName}</div>
-            ${venueAddress ? `<div style="font-size: 9.5px; margin-top: 1px;">Address: ${venueAddress}</div>` : ""}
-            ${venueGstin ? `<div style="font-size: 9.5px; font-weight: bold; margin-top: 1px;">Gst: ${venueGstin}</div>` : ""}
-            ${venuePhone ? `<div style="font-size: 9.5px; font-weight: bold; margin-top: 1px;">Mobile no. ${venuePhone}</div>` : ""}
+            <div style="font-size: 15px; font-weight: 900; text-transform: uppercase; word-break: break-word;">${venueName}</div>
+            ${venueAddress ? `<div style="font-size: 9.5px; margin-top: 1px; word-break: break-word;">Address: ${venueAddress}</div>` : ""}
+            ${venueGstin ? `<div style="font-size: 9.5px; font-weight: bold; margin-top: 1px;">GST: ${venueGstin}</div>` : ""}
+            ${venuePhone ? `<div style="font-size: 9.5px; font-weight: bold; margin-top: 1px;">Mobile: ${venuePhone}</div>` : ""}
             ${venueFssai ? `<div style="font-size: 9.5px; font-weight: bold; margin-top: 1px;">FSSAI: ${venueFssai}</div>` : ""}
           </div>
 
-          <div style="margin-bottom: 6px; border-bottom: 1px dashed #000; padding-bottom: 6px; font-size: 10.5px;">
-            <div style="font-weight: bold;">Order No: ${orderNumber} ,Mode: ${orderType}</div>
-            <div style="margin-top: 1px;">Date/Time: ${data.timestamp}</div>
-            ${cleanTable ? `<div style="font-weight: bold; margin-top: 1px;">Dining Table: ${cleanTable}</div>` : ""}
-            ${waiterName ? `<div style="font-size: 9.5px; margin-top: 1px;">Server: ${waiterName}</div>` : ""}
+          <div style="margin-bottom: 6px; border-bottom: 1px dashed #000; padding-bottom: 6px; font-size: 11px;">
+            <div style="font-weight: 900; font-size: 13px;">ORDER NO: #${displayOrderNum}</div>
+            <div style="margin-top: 1px; font-weight: bold;">Mode: ${orderType}</div>
+            <div style="margin-top: 1px; font-size: 10px;">Date/Time: ${data.timestamp}</div>
+            ${cleanTable ? `<div style="font-weight: bold; margin-top: 1px;">Table: ${cleanTable}</div>` : ""}
+            ${waiterName ? `<div style="font-size: 10px; margin-top: 1px;">Server: ${waiterName}</div>` : ""}
           </div>
 
-          <div style="margin-bottom: 6px; border-bottom: 1px dashed #000; padding-bottom: 6px; font-size: 10.5px;">
-            <div style="font-weight: 800;">👤Customer Name: ${custName}</div>
-            ${custPhone ? `<div style="font-size: 9.5px; margin-top: 1px;">Mobile Phone: ${custPhone}</div>` : ""}
-            ${custAddress ? `<div style="font-size: 9.5px; margin-top: 1px;">Address: ${custAddress}</div>` : ""}
-          </div>
+          ${(custName && custName !== "Walk-in Guest") || custPhone ? `
+            <div style="margin-bottom: 6px; border-bottom: 1px dashed #000; padding-bottom: 6px; font-size: 10.5px;">
+              <div style="font-weight: 800;">Customer: ${custName}</div>
+              ${custPhone ? `<div style="font-size: 9.5px; margin-top: 1px;">Mobile: ${custPhone}</div>` : ""}
+              ${custAddress ? `<div style="font-size: 9.5px; margin-top: 1px; word-break: break-word;">Address: ${custAddress}</div>` : ""}
+            </div>
+          ` : ""}
 
           <div style="margin-bottom: 6px; border-bottom: 1px dashed #000; padding-bottom: 6px;">
             <div style="display: flex; justify-content: space-between; font-size: 9.5px; font-weight: 900; text-transform: uppercase; border-bottom: 1px solid #000; padding-bottom: 3px; margin-bottom: 4px;">
               <span style="flex: 1;">ITEM & SIZE</span>
-              <span style="text-align: right; padding: 0 6px;">QTY X PRICE</span>
-              <span style="width: 52px; text-align: right;">AMT</span>
+              <span style="text-align: right; padding: 0 4px;">QTY X PRICE</span>
+              <span style="width: 48px; text-align: right;">AMT</span>
             </div>
             ${itemsHtml}
           </div>
 
-          <div style="margin-bottom: 6px; border-bottom: 1px dashed #000; padding-bottom: 6px; font-size: 10.5px; line-height: 1.4;">
+          <div style="margin-bottom: 6px; border-bottom: 1px dashed #000; padding-bottom: 6px; font-size: 11px; line-height: 1.4;">
             <div style="display: flex; justify-content: space-between;">
               <span>Subtotal:</span>
-              <span>₹${data.subtotal}</span>
+              <span style="font-weight: bold;">${Number(data.subtotal).toFixed(2)}</span>
             </div>
             ${packagingRow}
             ${discountRow}
             <div style="display: flex; justify-content: space-between;">
               <span>GST:</span>
-              <span>₹${data.taxAmount}</span>
+              <span>${Number(data.taxAmount).toFixed(2)}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 900; border-top: 1px solid #000; padding-top: 3px; margin-top: 3px;">
+            <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 900; border-top: 1px solid #000; padding-top: 3px; margin-top: 3px;">
               <span>Grand Total:</span>
-              <span>₹${data.netAmount}</span>
+              <span>${Number(data.netAmount).toFixed(2)}</span>
             </div>
             ${paymentMethod ? `
-              <div style="display: flex; justify-content: space-between; font-size: 9.5px; padding-top: 2px;">
+              <div style="display: flex; justify-content: space-between; font-size: 10px; padding-top: 2px;">
                 <span>Paid Via:</span>
-                <span style="font-weight: bold; text-transform: uppercase;">${paymentMethod}</span>
+                <span style="font-weight: 900; text-transform: uppercase;">${paymentMethod}</span>
               </div>
             ` : ""}
           </div>
 
-          <div style="text-align: center; font-size: 9.5px; font-weight: bold; padding-top: 4px;">
+          <div style="text-align: center; font-size: 10px; font-weight: bold; padding-top: 4px;">
             Thank You For Dining With Us! Visit Again
           </div>
         </div>
@@ -409,5 +414,192 @@ export function printCustomerReceiptDirectly(data: CustomerReceiptSlipData): voi
     }
   }, 100);
 }
+
+export interface CustomerDebtSettlementReceiptData {
+  receiptNumber?: string;
+  customerName: string;
+  customerPhone?: string;
+  timestamp: string;
+  settledOrders?: Array<{
+    orderNumber: string;
+    date?: string;
+    totalAmount: number;
+    amountPaid?: number;
+    balanceDue?: number;
+  }>;
+  totalDebtBefore: number;
+  amountReceived: number;
+  remainingDebt: number;
+  paymentMethod: string;
+  referenceNumber?: string;
+  notes?: string;
+  venueName?: string;
+  venueAddress?: string;
+  venueGstin?: string;
+  venuePhone?: string;
+}
+
+/**
+ * Directly prints 80mm Customer Debt Settlement Receipt / Khata Clearance Slip.
+ */
+export function printCustomerDebtSettlementReceiptDirectly(data: CustomerDebtSettlementReceiptData): void {
+  if (typeof document === "undefined") return;
+
+  const venueName = (data.venueName || "BAITHAK CAFE CUH").toUpperCase();
+  const venueAddress = data.venueAddress || "";
+  const venueGstin = data.venueGstin || "";
+  const venuePhone = data.venuePhone || "";
+
+  const receiptNo = data.receiptNumber || `RCPT-${Date.now().toString().slice(-6)}`;
+  const custName = data.customerName || "Customer";
+  const custPhone = data.customerPhone || "";
+  const paymentMethod = (data.paymentMethod || "CASH").toUpperCase();
+
+  const ordersHtml = (data.settledOrders || []).map((o) => `
+    <div style="display: flex; justify-content: space-between; font-size: 10.5px; margin-bottom: 2px;">
+      <span style="font-weight: bold;">#${o.orderNumber}</span>
+      <span style="color: #444;">${o.date ? new Date(o.date).toLocaleDateString() : ""}</span>
+      <span style="font-weight: bold;">${Number(o.totalAmount).toFixed(2)}</span>
+    </div>
+  `).join("");
+
+  let iframe = document.getElementById("thermal-debt-silent-frame") as HTMLIFrameElement;
+  if (!iframe) {
+    iframe = document.createElement("iframe");
+    iframe.id = "thermal-debt-silent-frame";
+    iframe.style.position = "fixed";
+    iframe.style.top = "-9999px";
+    iframe.style.left = "-9999px";
+    iframe.style.width = "80mm";
+    iframe.style.height = "0px";
+    iframe.style.border = "none";
+    iframe.style.visibility = "hidden";
+    document.body.appendChild(iframe);
+  }
+
+  const frameDoc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!frameDoc) {
+    safePrintWithFullscreenRestore();
+    return;
+  }
+
+  frameDoc.open();
+  frameDoc.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Debt Settlement Receipt - ${custName}</title>
+        <style>
+          @page {
+            size: 80mm auto;
+            margin: 0mm;
+          }
+          * {
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 80mm !important;
+            max-width: 80mm !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+            font-size: 11px !important;
+            line-height: 1.35 !important;
+          }
+          .thermal-debt-slip {
+            display: block !important;
+            width: 100% !important;
+            max-width: 72mm !important;
+            margin: 0 auto !important;
+            padding: 2mm 1.5mm 6mm 1.5mm !important;
+            box-sizing: border-box !important;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="thermal-debt-slip">
+          <div style="text-align: center; margin-bottom: 6px; border-bottom: 1px dashed #000; padding-bottom: 6px;">
+            <div style="font-size: 15px; font-weight: 900; text-transform: uppercase;">${venueName}</div>
+            ${venueAddress ? `<div style="font-size: 9.5px; margin-top: 1px;">${venueAddress}</div>` : ""}
+            ${venueGstin ? `<div style="font-size: 9.5px; font-weight: bold;">GST: ${venueGstin}</div>` : ""}
+            ${venuePhone ? `<div style="font-size: 9.5px; font-weight: bold;">Phone: ${venuePhone}</div>` : ""}
+          </div>
+
+          <div style="text-align: center; font-weight: 900; font-size: 12px; margin-bottom: 6px; text-transform: uppercase; background: #eee; padding: 2px 0;">
+            DEBT SETTLEMENT RECEIPT (KHATA)
+          </div>
+
+          <div style="margin-bottom: 6px; border-bottom: 1px dashed #000; padding-bottom: 6px; font-size: 10.5px;">
+            <div style="font-weight: bold;">Receipt No: ${receiptNo}</div>
+            <div>Date/Time: ${data.timestamp}</div>
+            <div style="font-weight: 900; margin-top: 2px;">Customer: ${custName}</div>
+            ${custPhone ? `<div>Mobile: ${custPhone}</div>` : ""}
+          </div>
+
+          ${ordersHtml ? `
+            <div style="margin-bottom: 6px; border-bottom: 1px dashed #000; padding-bottom: 6px;">
+              <div style="font-size: 10px; font-weight: 900; text-transform: uppercase; border-bottom: 1px solid #000; padding-bottom: 2px; margin-bottom: 4px; display: flex; justify-content: space-between;">
+                <span>SETTLED BILLS</span>
+                <span>DATE</span>
+                <span>AMOUNT</span>
+              </div>
+              ${ordersHtml}
+            </div>
+          ` : ""}
+
+          <div style="margin-bottom: 6px; border-bottom: 1px dashed #000; padding-bottom: 6px; font-size: 11px; line-height: 1.5;">
+            <div style="display: flex; justify-content: space-between;">
+              <span>Previous Balance Due:</span>
+              <span style="font-weight: bold;">${Number(data.totalDebtBefore).toFixed(2)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 900; border-top: 1px solid #000; padding-top: 3px; margin-top: 2px;">
+              <span>Amount Received:</span>
+              <span>${Number(data.amountReceived).toFixed(2)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 10px; margin-top: 2px;">
+              <span>Payment Mode:</span>
+              <span style="font-weight: 900; text-transform: uppercase;">${paymentMethod}</span>
+            </div>
+            ${data.referenceNumber ? `
+              <div style="display: flex; justify-content: space-between; font-size: 10px;">
+                <span>Ref Number:</span>
+                <span>${data.referenceNumber}</span>
+              </div>
+            ` : ""}
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 900; border-top: 1px dashed #000; padding-top: 3px; margin-top: 3px;">
+              <span>Remaining Balance:</span>
+              <span style="color: ${data.remainingDebt > 0 ? '#b91c1c' : '#15803d'};">${Number(data.remainingDebt).toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div style="text-align: center; font-size: 10px; font-weight: bold; padding-top: 4px;">
+            ${data.remainingDebt <= 0 ? "✨ ALL OUTSTANDING DEBTS CLEARED! ✨" : "Payment Recorded in Customer Account"}
+          </div>
+          <div style="text-align: center; font-size: 9px; margin-top: 2px; color: #555;">
+            Thank you for your prompt payment!
+          </div>
+        </div>
+      </body>
+    </html>
+  `);
+  frameDoc.close();
+
+  setTimeout(() => {
+    try {
+      registerFullscreenRestoreAfterPrint(iframe.contentWindow);
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    } catch (e) {
+      console.warn("Iframe debt receipt print error, falling back to window.print()", e);
+      safePrintWithFullscreenRestore();
+    }
+  }, 100);
+}
+
 
 

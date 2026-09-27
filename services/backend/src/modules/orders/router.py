@@ -29,17 +29,32 @@ IDEMPOTENCY_CACHE: dict[str, dict] = {}
 
 
 
-async def get_next_daily_order_number(db: AsyncSession, tenant_id: int = 1, branch_id: int = 1) -> str:
-    """Generates the next sequential 6-digit order number: 100001, 100002, 100003...
-    Guarantees atomic serial numbering per branch/tenant starting from 100001.
+
+from datetime import datetime, timezone, timedelta
+
+def get_today_ist_date() -> str:
+    """Returns today's date formatted as YYYY-MM-DD in Asia/Kolkata (IST: UTC+5:30)."""
+    ist = timezone(timedelta(hours=5, minutes=30))
+    return datetime.now(ist).strftime("%Y-%m-%d")
+
+def get_today_yymmdd() -> str:
+    """Returns YYMMDD prefix for collision-proof database order number (e.g. '260927')."""
+    return get_today_ist_date().replace("-", "")[2:]
+
+async def get_next_daily_order_sequence(db: AsyncSession, tenant_id: int = 1, branch_id: int = 1) -> tuple[int, str]:
+    """Generates the next daily sequential order number (1, 2, 3... resets each day),
+    and a collision-proof date-prefixed order number for the database (e.g. '260927-1').
+    Guarantees atomic serial numbering per branch/tenant starting from 1 every day.
     """
+    today_str = get_today_ist_date()
+    today_prefix = get_today_yymmdd()
     try:
         stmt = (
             select(DailyOrderSequence)
             .where(
                 DailyOrderSequence.tenant_id == tenant_id,
                 DailyOrderSequence.branch_id == branch_id,
-                DailyOrderSequence.sequence_date.in_(["SERIAL_6DIGIT", "SERIAL_6"]),
+                DailyOrderSequence.sequence_date == today_str,
             )
             .with_for_update()
         )
@@ -47,95 +62,86 @@ async def get_next_daily_order_number(db: AsyncSession, tenant_id: int = 1, bran
         seq_record = res.scalar_one_or_none()
 
         if seq_record is None:
-            # Query highest existing 6-digit order in DB to avoid collision
+            # Query highest existing daily_order_number for today in DB to avoid collision
             from sqlalchemy import func
-            max_stmt = select(Order.order_number).where(
+            max_stmt = select(func.max(Order.daily_order_number)).where(
                 Order.tenant_id == tenant_id,
                 Order.branch_id == branch_id,
-                func.length(Order.order_number) == 6,
-            ).order_by(Order.order_number.desc()).limit(20)
+                func.to_char(Order.created_at, 'YYYY-MM-DD') == today_str,
+            )
             max_res = await db.execute(max_stmt)
-            existing_orders = max_res.scalars().all()
-
-            max_existing = 100000
-            for ord_str in existing_orders:
-                if ord_str and ord_str.isdigit() and len(ord_str) == 6:
-                    val = int(ord_str)
-                    if val > max_existing:
-                        max_existing = val
+            max_existing = max_res.scalar() or 0
 
             start_seq = max_existing + 1
-
             seq_record = DailyOrderSequence(
                 tenant_id=tenant_id,
                 branch_id=branch_id,
-                sequence_date="SERIAL_6",
+                sequence_date=today_str,
                 last_seq=start_seq,
             )
             db.add(seq_record)
             next_val = start_seq
         else:
-            if seq_record.last_seq < 100001:
-                seq_record.last_seq = 100001
-            else:
-                seq_record.last_seq += 1
+            seq_record.last_seq += 1
             next_val = seq_record.last_seq
 
         await db.flush()
-        return str(next_val)
+        return next_val, f"{today_prefix}-{next_val}"
     except Exception as err:
-        logger.warning("Serial order sequence query failed, fallback check", error=str(err))
+        logger.warning("Daily order sequence query failed, fallback check", error=str(err))
         try:
             from sqlalchemy import func
-            max_stmt = select(Order.order_number).where(
+            max_stmt = select(func.max(Order.daily_order_number)).where(
                 Order.tenant_id == tenant_id,
                 Order.branch_id == branch_id,
-                func.length(Order.order_number) == 6,
-            ).order_by(Order.order_number.desc()).limit(20)
+                func.to_char(Order.created_at, 'YYYY-MM-DD') == today_str,
+            )
             max_res = await db.execute(max_stmt)
-            existing_orders = max_res.scalars().all()
-            max_existing = 100000
-            for ord_str in existing_orders:
-                if ord_str and ord_str.isdigit() and len(ord_str) == 6:
-                    val = int(ord_str)
-                    if val > max_existing:
-                        max_existing = val
-            return str(max_existing + 1)
+            max_val = max_res.scalar() or 0
+            next_val = max_val + 1
+            return next_val, f"{today_prefix}-{next_val}"
         except Exception:
-            return "100001"
+            return 1, f"{today_prefix}-1"
 
-
-async def peek_next_daily_order_number(db: AsyncSession, tenant_id: int = 1, branch_id: int = 1) -> str:
-    """Previews the upcoming 6-digit order number (e.g. 100001) without committing."""
+async def peek_next_daily_order_sequence(db: AsyncSession, tenant_id: int = 1, branch_id: int = 1) -> tuple[int, str]:
+    """Previews upcoming daily order number (e.g. 1, 2...) without incrementing."""
+    today_str = get_today_ist_date()
+    today_prefix = get_today_yymmdd()
     try:
         stmt = select(DailyOrderSequence).where(
             DailyOrderSequence.tenant_id == tenant_id,
             DailyOrderSequence.branch_id == branch_id,
-            DailyOrderSequence.sequence_date.in_(["SERIAL_6DIGIT", "SERIAL_6"]),
+            DailyOrderSequence.sequence_date == today_str,
         )
         res = await db.execute(stmt)
         seq_record = res.scalar_one_or_none()
-        if seq_record and seq_record.last_seq >= 100001:
-            return str(seq_record.last_seq + 1)
+        if seq_record and seq_record.last_seq > 0:
+            next_val = seq_record.last_seq + 1
+            return next_val, f"{today_prefix}-{next_val}"
 
         from sqlalchemy import func
-        max_stmt = select(Order.order_number).where(
+        max_stmt = select(func.max(Order.daily_order_number)).where(
             Order.tenant_id == tenant_id,
             Order.branch_id == branch_id,
-            func.length(Order.order_number) == 6,
-        ).order_by(Order.order_number.desc()).limit(20)
+            func.to_char(Order.created_at, 'YYYY-MM-DD') == today_str,
+        )
         max_res = await db.execute(max_stmt)
-        existing_orders = max_res.scalars().all()
-        max_existing = 100000
-        for ord_str in existing_orders:
-            if ord_str and ord_str.isdigit() and len(ord_str) == 6:
-                val = int(ord_str)
-                if val > max_existing:
-                    max_existing = val
-        return str(max_existing + 1)
-    except Exception as err:
-        logger.warning("Could not peek order sequence", error=str(err))
-        return "100001"
+        max_val = max_res.scalar() or 0
+        next_val = max_val + 1
+        return next_val, f"{today_prefix}-{next_val}"
+    except Exception:
+        return 1, f"{today_prefix}-1"
+
+async def get_next_daily_order_number(db: AsyncSession, tenant_id: int = 1, branch_id: int = 1) -> str:
+    """Backward-compatible wrapper returning string representation."""
+    daily_num, date_ord = await get_next_daily_order_sequence(db, tenant_id=tenant_id, branch_id=branch_id)
+    return date_ord
+
+async def peek_next_daily_order_number(db: AsyncSession, tenant_id: int = 1, branch_id: int = 1) -> str:
+    """Backward-compatible wrapper returning preview string."""
+    daily_num, date_ord = await peek_next_daily_order_sequence(db, tenant_id=tenant_id, branch_id=branch_id)
+    return date_ord
+
 
 
 
@@ -174,6 +180,7 @@ class OrderItemCreateSchema(BaseModel):
 
 class OrderCreateSchema(BaseModel):
     order_number: str | None = None
+    daily_order_number: int | None = None
     is_update: bool = False
     branch_id: Any = 1
     customer_id: Any = None
@@ -242,6 +249,8 @@ class OrderItemResponse(BaseModel):
 class OrderResponse(BaseModel):
     id: int
     order_number: str
+    daily_order_number: int | None = None
+    token_number: str | None = None
     branch_id: int | None = 1
     order_type: str = "dine_in"
     order_mode: str | None = None
@@ -270,6 +279,15 @@ class OrderResponse(BaseModel):
 
     @model_validator(mode="after")
     def populate_display_fields(self):
+        if self.daily_order_number is None:
+            if self.token_number and self.token_number.isdigit():
+                self.daily_order_number = int(self.token_number)
+            elif self.order_number and "-" in self.order_number:
+                parts = self.order_number.split("-")
+                if len(parts) == 2 and parts[1].isdigit():
+                    self.daily_order_number = int(parts[1])
+            elif self.order_number and self.order_number.isdigit() and len(self.order_number) <= 4:
+                self.daily_order_number = int(self.order_number)
         if not self.order_mode:
             self.order_mode = (self.order_type or "dine_in").lower()
         else:
@@ -300,15 +318,20 @@ class OrderListResponse(BaseModel):
 
 
 @router.get("/next-number")
+@router.get("/next-number-preview")
 async def get_next_order_number_preview(
     branch_id: int = Query(default=1),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """Preview the next daily order number in DDMMYY001 format."""
+    """Preview the next daily order number (e.g. 1, 2, 3...) and date-prefixed collision-proof order reference."""
     tenant_id = current_user.tenant_id
-    next_num = await peek_next_daily_order_number(db, tenant_id=tenant_id, branch_id=branch_id)
-    return {"next_order_number": next_num}
+    daily_num, next_num = await peek_next_daily_order_sequence(db, tenant_id=tenant_id, branch_id=branch_id)
+    return {
+        "daily_order_number": daily_num,
+        "next_order_number": next_num,
+        "display_order_number": str(daily_num),
+    }
 
 
 @router.get("/grid-projection")
@@ -444,9 +467,20 @@ async def create_order(
 
     # CHECK FOR EXISTING ORDER (Strict Idempotency & In-Place Update - Avoid Duplicate Order Creation!)
     existing_order = None
-    if body.order_number:
+    today_str = get_today_ist_date()
+    today_prefix = get_today_yymmdd()
+    eff_order_num = body.order_number
+    if eff_order_num and eff_order_num.isdigit() and len(eff_order_num) < 6:
+        eff_order_num = f"{today_prefix}-{eff_order_num}"
+
+    if body.order_number or body.daily_order_number:
+        target_daily = body.daily_order_number or (int(body.order_number) if body.order_number and body.order_number.isdigit() and len(body.order_number) < 6 else None)
         stmt_exist = select(Order).where(
-            Order.order_number == body.order_number,
+            (
+                (Order.order_number == eff_order_num) |
+                (Order.order_number == body.order_number) |
+                ((Order.daily_order_number == target_daily) & (func.to_char(Order.created_at, 'YYYY-MM-DD') == today_str))
+            ),
             Order.tenant_id == tenant_id,
             (Order.is_deleted == False) | (Order.is_deleted.is_(None))
         ).options(selectinload(Order.items))
@@ -627,56 +661,73 @@ async def create_order(
         now_dt = datetime.now(timezone.utc)
     today_prefix = now_dt.strftime("%d%m%y")
 
-    is_client_serial = (
-        bool(body.order_number)
-        and len(body.order_number) == 6
-        and body.order_number.isdigit()
-        and int(body.order_number) >= 100001
-    )
+    today_str = get_today_ist_date()
+    today_prefix = get_today_yymmdd()
+    
+    daily_order_number = body.daily_order_number
+    order_number = None
 
-    if is_client_serial and body.order_number:
-        stmt_taken = select(Order).where(
-            Order.order_number == body.order_number,
-            Order.tenant_id == tenant_id,
-            (Order.is_deleted == False) | (Order.is_deleted.is_(None))
-        ).options(selectinload(Order.items))
-        taken_order = (await db.execute(stmt_taken)).scalar_one_or_none()
-        if not taken_order:
-            order_number = body.order_number
-            try:
-                client_seq_val = int(body.order_number)
-                seq_stmt = (
-                    select(DailyOrderSequence)
-                    .where(
-                        DailyOrderSequence.tenant_id == tenant_id,
-                        DailyOrderSequence.branch_id == parsed_branch_id,
-                        DailyOrderSequence.sequence_date.in_(["SERIAL_6DIGIT", "SERIAL_6"]),
-                    )
-                    .with_for_update()
-                )
-                s_rec = (await db.execute(seq_stmt)).scalar_one_or_none()
-                if s_rec:
-                    if client_seq_val > s_rec.last_seq:
-                        s_rec.last_seq = client_seq_val
-                else:
-                    db.add(DailyOrderSequence(
-                        tenant_id=tenant_id,
-                        branch_id=parsed_branch_id,
-                        sequence_date="SERIAL_6",
-                        last_seq=client_seq_val,
-                    ))
-            except Exception as seq_sync_err:
-                logger.warning("Could not sync DailyOrderSequence with client sequence", error=str(seq_sync_err))
+    if body.order_number:
+        clean_num = str(body.order_number).strip()
+        if clean_num.isdigit() and len(clean_num) < 6:
+            daily_order_number = int(clean_num)
+            order_number = f"{today_prefix}-{daily_order_number}"
+        elif "-" in clean_num:
+            parts = clean_num.split("-")
+            order_number = clean_num
+            if len(parts) == 2 and parts[1].isdigit():
+                daily_order_number = int(parts[1])
         else:
-            # Order already exists! Return existing order idempotently; NEVER generate duplicate order!
-            logger.info("Order number already taken in concurrent transaction, returning existing order", order_number=body.order_number)
-            return OrderResponse.model_validate(taken_order)
-    else:
-        order_number = await get_next_daily_order_number(db, tenant_id=tenant_id, branch_id=parsed_branch_id)
+            order_number = clean_num
+
+    if not order_number or daily_order_number is None:
+        gen_daily, gen_ord = await get_next_daily_order_sequence(db, tenant_id=tenant_id, branch_id=parsed_branch_id)
+        if daily_order_number is None:
+            daily_order_number = gen_daily
+        if not order_number:
+            order_number = gen_ord
+
+    # Double check if this exact order number already exists in DB (avoid duplicate)
+    stmt_taken = select(Order).where(
+        Order.order_number == order_number,
+        Order.tenant_id == tenant_id,
+        (Order.is_deleted == False) | (Order.is_deleted.is_(None))
+    ).options(selectinload(Order.items))
+    taken_order = (await db.execute(stmt_taken)).scalar_one_or_none()
+    if taken_order:
+        logger.info("Order number already taken, returning existing order", order_number=order_number)
+        return OrderResponse.model_validate(taken_order)
+
+    # Sync DailyOrderSequence with latest daily_order_number
+    try:
+        seq_stmt = (
+            select(DailyOrderSequence)
+            .where(
+                DailyOrderSequence.tenant_id == tenant_id,
+                DailyOrderSequence.branch_id == parsed_branch_id,
+                DailyOrderSequence.sequence_date == today_str,
+            )
+            .with_for_update()
+        )
+        s_rec = (await db.execute(seq_stmt)).scalar_one_or_none()
+        if s_rec:
+            if daily_order_number > s_rec.last_seq:
+                s_rec.last_seq = daily_order_number
+        else:
+            db.add(DailyOrderSequence(
+                tenant_id=tenant_id,
+                branch_id=parsed_branch_id,
+                sequence_date=today_str,
+                last_seq=daily_order_number,
+            ))
+    except Exception as seq_sync_err:
+        logger.warning("Could not sync DailyOrderSequence for today", error=str(seq_sync_err))
 
     order = Order(
         tenant_id=tenant_id,
         order_number=order_number,
+        daily_order_number=daily_order_number,
+        token_number=str(daily_order_number) if daily_order_number is not None else None,
         branch_id=parsed_branch_id,
         customer_id=parsed_customer_id,
         table_id=parsed_table_id,
@@ -1077,13 +1128,21 @@ async def update_order_status(
         Order.tenant_id == tenant_id,
         (Order.is_deleted == False) | (Order.is_deleted.is_(None))
     )
-    # Check if matches order_number first (e.g. 100001, 240926059)
+    # Check if matches order_number first (e.g. 100001, 260927-1)
     stmt_num = stmt_base.where(Order.order_number == str(order_id))
     order = (await db.execute(stmt_num)).scalar_one_or_none()
-    # If not found and order_id is numeric, lookup by primary key id
+    # If not found and order_id is numeric, lookup by primary key id, or today's daily_order_number
     if not order and str(order_id).isdigit():
-        stmt_pk = stmt_base.where(Order.id == int(order_id))
+        int_id = int(order_id)
+        stmt_pk = stmt_base.where(Order.id == int_id)
         order = (await db.execute(stmt_pk)).scalar_one_or_none()
+        if not order and int_id < 10000:
+            today_str = get_today_ist_date()
+            stmt_daily = stmt_base.where(
+                Order.daily_order_number == int_id,
+                func.to_char(Order.created_at, 'YYYY-MM-DD') == today_str
+            )
+            order = (await db.execute(stmt_daily)).scalar_one_or_none()
 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")

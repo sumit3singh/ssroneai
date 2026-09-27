@@ -19,6 +19,7 @@ import { api } from "@ssrone/api-client";
 import { POSOrder } from "../../types";
 import { CustomerDebtRegisterModal } from "../../components/CustomerDebtRegisterModal";
 import { renderSafeString } from "../../utils/renderSafeString";
+import { getDisplayOrderNumber } from "../../utils/order-sequence";
 
 interface CustomerDebtReportProps {
   orders: POSOrder[];
@@ -462,7 +463,7 @@ export const CustomerDebtReport: React.FC<CustomerDebtReportProps> = ({
                   return (
                     <tr key={o.id} className="hover:bg-muted/40 transition-colors">
                       <td className="py-2.5 px-3 font-mono font-semibold text-foreground">
-                        #{o.order_number}
+                        #{getDisplayOrderNumber(o)}
                       </td>
                       <td className="py-2.5 px-3 text-muted-foreground font-mono">
                         {new Date(o.created_at || Date.now()).toLocaleTimeString([], {

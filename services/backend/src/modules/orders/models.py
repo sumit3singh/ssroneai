@@ -87,6 +87,7 @@ class Order(TenantBaseModel):
     __tablename__ = "orders"
 
     order_number: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    daily_order_number: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     token_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
     branch_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("branches.id"), nullable=False, index=True)
     customer_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("customers.id", ondelete="SET NULL"), nullable=True, index=True)

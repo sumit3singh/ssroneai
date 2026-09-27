@@ -3,6 +3,7 @@ import ReactDOM from "react-dom";
 import { renderSafeString } from "../utils/renderSafeString";
 import { cleanTableName, formatItemWithVariantAndAddons } from "../utils/posPrintFormatters";
 import { registerFullscreenRestoreAfterPrint } from "../utils/printUtils";
+import { getDisplayOrderNumber } from "../utils/order-sequence";
 
 export interface StationKOTItem {
   cart_id?: string;
@@ -63,13 +64,13 @@ export const ThermalKOTPrintableArea: React.FC<ThermalKOTPrintableAreaProps> = (
           #thermal-kot-printable-container {
             display: block !important;
             position: static !important;
-            width: 80mm !important;
-            max-width: 80mm !important;
-            margin: 0 !important;
-            padding: 4mm 3mm !important;
+            width: 100% !important;
+            max-width: 72mm !important;
+            margin: 0 auto !important;
+            padding: 2mm 1.5mm 6mm 1.5mm !important;
             background: #ffffff !important;
             color: #000000 !important;
-            font-family: 'Courier New', Courier, monospace, sans-serif !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
             font-size: 12px !important;
             line-height: 1.35 !important;
             box-sizing: border-box !important;
@@ -77,6 +78,8 @@ export const ThermalKOTPrintableArea: React.FC<ThermalKOTPrintableAreaProps> = (
           .kot-station-slip {
             display: block !important;
             width: 100% !important;
+            max-width: 72mm !important;
+            margin: 0 auto !important;
             padding-bottom: 6mm !important;
             page-break-after: always !important;
             break-after: page !important;
@@ -93,6 +96,7 @@ export const ThermalKOTPrintableArea: React.FC<ThermalKOTPrintableAreaProps> = (
       {slips.map((slip, idx) => {
         const rawTable = cleanTableName(slip.tableName);
         const displayTable = rawTable || (slip.orderType || "N/A");
+        const displayOrderNum = getDisplayOrderNumber({ order_number: slip.orderNumber }) || slip.orderNumber;
         const totalQty = slip.items.reduce((sum, it) => sum + (it.quantity || 1), 0);
 
         return (
@@ -105,6 +109,7 @@ export const ThermalKOTPrintableArea: React.FC<ThermalKOTPrintableAreaProps> = (
                 fontWeight: "900",
                 textTransform: "uppercase",
                 marginBottom: "4px",
+                wordBreak: "break-word",
               }}
             >
               {slip.stationName}
@@ -115,17 +120,17 @@ export const ThermalKOTPrintableArea: React.FC<ThermalKOTPrintableAreaProps> = (
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                fontSize: "12px",
-                fontWeight: "bold",
+                fontSize: "12.5px",
+                fontWeight: "900",
                 marginBottom: "2px",
               }}
             >
               <span>TABLE: {displayTable}</span>
-              <span>ORDER NO: {slip.orderNumber}</span>
+              <span>ORDER NO: #{displayOrderNum}</span>
             </div>
 
             {/* 3. Time */}
-            <div style={{ fontSize: "11px", marginBottom: "4px" }}>
+            <div style={{ fontSize: "10.5px", marginBottom: "4px" }}>
               TIME: {slip.timestamp}
             </div>
 
@@ -200,6 +205,7 @@ export async function printKOTSlipsDirectly(slips: StationKOTSlip[]) {
   const slipsHtml = slips.map((slip) => {
     const rawTable = cleanTableName(slip.tableName);
     const displayTable = rawTable || (slip.orderType || "N/A");
+    const displayOrderNum = getDisplayOrderNumber({ order_number: slip.orderNumber }) || slip.orderNumber;
     const totalQty = slip.items.reduce((sum, it) => sum + (it.quantity || 1), 0);
 
     const itemsHtml = slip.items.map((it) => {
@@ -212,9 +218,9 @@ export async function printKOTSlipsDirectly(slips: StationKOTSlip[]) {
 
       return `
         <div style="margin-bottom: 5px;">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; font-weight: 900; font-size: 12.5px;">
-            <span style="flex: 1; padding-right: 8px;">${itemTitle}</span>
-            <span style="white-space: nowrap;">QTY: ${it.quantity}</span>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; font-weight: 900; font-size: 13px;">
+            <span style="flex: 1; padding-right: 6px; word-break: break-word; overflow-wrap: break-word;">${itemTitle}</span>
+            <span style="white-space: nowrap; font-weight: 900;">QTY: ${it.quantity}</span>
           </div>
           ${it.notes && it.notes.trim() ? `<div style="font-size: 10.5px; font-weight: 700; margin-top: 1px; color: #111;">Remark: ${it.notes.trim()}</div>` : ""}
         </div>
@@ -223,18 +229,18 @@ export async function printKOTSlipsDirectly(slips: StationKOTSlip[]) {
 
     return `
       <div class="kot-station-slip">
-        <div style="text-align: center; font-size: 16px; font-weight: 900; text-transform: uppercase; margin-bottom: 4px;">
+        <div style="text-align: center; font-size: 16px; font-weight: 900; text-transform: uppercase; margin-bottom: 4px; word-break: break-word;">
           ${slip.stationName}
         </div>
-        <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 2px;">
+        <div style="display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 900; marginBottom: 2px;">
           <span>TABLE: ${displayTable}</span>
-          <span>ORDER NO: ${slip.orderNumber}</span>
+          <span>ORDER NO: #${displayOrderNum}</span>
         </div>
-        <div style="font-size: 11px; margin-bottom: 4px;">
+        <div style="font-size: 10.5px; margin-bottom: 4px;">
           TIME: ${slip.timestamp}
         </div>
         <div style="border-bottom: 1px dashed #000000; margin-bottom: 6px;"></div>
-        <div style="font-size: 12px; line-height: 1.3;">
+        <div style="font-size: 12px; line-height: 1.35;">
           ${itemsHtml}
         </div>
         <div style="border-bottom: 1px dashed #000000; margin-top: 4px; margin-bottom: 6px;"></div>
@@ -275,7 +281,7 @@ export async function printKOTSlipsDirectly(slips: StationKOTSlip[]) {
             margin: 0mm;
           }
           * {
-            box-sizing: border-box;
+            box-sizing: border-box !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
@@ -286,16 +292,16 @@ export async function printKOTSlipsDirectly(slips: StationKOTSlip[]) {
             max-width: 80mm !important;
             background: #ffffff !important;
             color: #000000 !important;
-            font-family: 'Courier New', Courier, monospace, sans-serif !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
             font-size: 12px !important;
             line-height: 1.35 !important;
           }
           .kot-station-slip {
             display: block !important;
-            width: 80mm !important;
-            max-width: 80mm !important;
-            margin: 0 !important;
-            padding: 4mm 3mm 8mm 3mm !important;
+            width: 100% !important;
+            max-width: 72mm !important;
+            margin: 0 auto !important;
+            padding: 2mm 1.5mm 6mm 1.5mm !important;
             page-break-after: always !important;
             break-after: page !important;
             box-sizing: border-box !important;
@@ -303,6 +309,7 @@ export async function printKOTSlipsDirectly(slips: StationKOTSlip[]) {
           .kot-station-slip:last-child {
             page-break-after: auto !important;
             break-after: auto !important;
+            padding-bottom: 0 !important;
           }
         </style>
       </head>
