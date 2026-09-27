@@ -202,7 +202,7 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
           if (names.length > 0) setKitchenStations(names);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const availableStations = useMemo(() => {
@@ -295,159 +295,153 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
         }
       />
 
-        {/* Top Summary KPI Cards Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          <div
-            onClick={() => setFilterMode("all")}
-            className={`p-3 rounded-md border transition-colors cursor-pointer ${
-              filterMode === "all"
-                ? "bg-primary/10 border-primary/30 text-primary"
-                : "bg-card border-border hover:bg-muted/40 text-foreground"
+      {/* Top Summary KPI Cards Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div
+          onClick={() => setFilterMode("all")}
+          className={`p-3 rounded-md border transition-colors cursor-pointer ${filterMode === "all"
+              ? "bg-primary/10 border-primary/30 text-primary"
+              : "bg-card border-border hover:bg-muted/40 text-foreground"
             }`}
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Dishes</div>
-            <div className="text-lg font-bold font-mono mt-0.5">{totalCount}</div>
-          </div>
+        >
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Dishes</div>
+          <div className="text-lg font-bold font-mono mt-0.5">{totalCount}</div>
+        </div>
 
-          <div
-            onClick={() => setFilterMode("in_stock")}
-            className={`p-3 rounded-md border transition-colors cursor-pointer ${
-              filterMode === "in_stock"
-                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-                : "bg-card border-border hover:bg-muted/40 text-foreground"
+        <div
+          onClick={() => setFilterMode("in_stock")}
+          className={`p-3 rounded-md border transition-colors cursor-pointer ${filterMode === "in_stock"
+              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+              : "bg-card border-border hover:bg-muted/40 text-foreground"
             }`}
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <CheckCircle2 size={12} /> In Stock
-            </div>
-            <div className="text-lg font-bold font-mono mt-0.5">{inStockCount}</div>
+        >
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <CheckCircle2 size={12} /> In Stock
           </div>
+          <div className="text-lg font-bold font-mono mt-0.5">{inStockCount}</div>
+        </div>
 
-          <div
-            onClick={() => setFilterMode("out_of_stock")}
-            className={`p-3 rounded-md border transition-colors cursor-pointer ${
-              filterMode === "out_of_stock"
-                ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
-                : "bg-card border-border hover:bg-muted/40 text-foreground"
+        <div
+          onClick={() => setFilterMode("out_of_stock")}
+          className={`p-3 rounded-md border transition-colors cursor-pointer ${filterMode === "out_of_stock"
+              ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
+              : "bg-card border-border hover:bg-muted/40 text-foreground"
             }`}
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <AlertCircle size={12} /> Out of Stock
-            </div>
-            <div className="text-lg font-bold font-mono mt-0.5">{outOfStockCount}</div>
+        >
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <AlertCircle size={12} /> Out of Stock
           </div>
+          <div className="text-lg font-bold font-mono mt-0.5">{outOfStockCount}</div>
+        </div>
 
-          <div
-            onClick={() => setFilterMode("veg")}
-            className={`p-3 rounded-md border transition-colors cursor-pointer ${
-              filterMode === "veg"
-                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-                : "bg-card border-border hover:bg-muted/40 text-foreground"
+        <div
+          onClick={() => setFilterMode("veg")}
+          className={`p-3 rounded-md border transition-colors cursor-pointer ${filterMode === "veg"
+              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+              : "bg-card border-border hover:bg-muted/40 text-foreground"
             }`}
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Diet Type</div>
-            <div className="text-xs font-semibold mt-1 flex items-center gap-1.5 font-mono">
-              <span className="text-emerald-600 dark:text-emerald-400">Veg: {vegCount}</span>
-              <span className="text-muted-foreground">|</span>
-              <span className="text-rose-600 dark:text-rose-400">Non-Veg: {nonVegCount}</span>
-            </div>
-          </div>
-
-          <div
-            onClick={() => setFilterMode("variants")}
-            className={`p-3 rounded-md border transition-colors cursor-pointer ${
-              filterMode === "variants"
-                ? "bg-primary/10 border-primary/30 text-primary"
-                : "bg-card border-border hover:bg-muted/40 text-foreground"
-            }`}
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <Layers size={12} /> Variants
-            </div>
-            <div className="text-lg font-bold font-mono mt-0.5">{variantCount}</div>
+        >
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Diet Type</div>
+          <div className="text-xs font-semibold mt-1 flex items-center gap-1.5 font-mono">
+            <span className="text-emerald-600 dark:text-emerald-400">Veg: {vegCount}</span>
+            <span className="text-muted-foreground">|</span>
+            <span className="text-rose-600 dark:text-rose-400">Non-Veg: {nonVegCount}</span>
           </div>
         </div>
 
-        {/* Filter Toolbar */}
-        <div className="flex flex-col sm:flex-row items-center gap-2.5">
-          <div className="relative flex-1 w-full">
-            <Input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search dish by name or description..."
-              icon={<Search size={14} />}
-              className="h-9 text-xs"
-            />
+        <div
+          onClick={() => setFilterMode("variants")}
+          className={`p-3 rounded-md border transition-colors cursor-pointer ${filterMode === "variants"
+              ? "bg-primary/10 border-primary/30 text-primary"
+              : "bg-card border-border hover:bg-muted/40 text-foreground"
+            }`}
+        >
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Layers size={12} /> Variants
           </div>
+          <div className="text-lg font-bold font-mono mt-0.5">{variantCount}</div>
+        </div>
+      </div>
 
-          <select
-            value={selectedCatId || ""}
-            onChange={(e) => setSelectedCatId(e.target.value ? Number(e.target.value) : null)}
-            className="h-9 px-2.5 rounded border border-border bg-background text-xs text-foreground cursor-pointer shrink-0 focus:outline-none"
-          >
-            <option value="">All Categories ({categories.length})</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.icon || "🍛"} {c.name}
-              </option>
-            ))}
-          </select>
-
-          {hasActiveFilters && (
-            <Button
-              onClick={clearFilters}
-              variant="ghost"
-              size="sm"
-              className="text-xs text-muted-foreground hover:text-foreground h-9 px-2.5 shrink-0 gap-1"
-            >
-              <X size={13} /> Reset
-            </Button>
-          )}
+      {/* Filter Toolbar */}
+      <div className="flex flex-col sm:flex-row items-center gap-2.5">
+        <div className="relative flex-1 w-full">
+          <Input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search dish by name or description..."
+            icon={<Search size={14} />}
+            className="h-9 text-xs"
+          />
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-          <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider shrink-0 mr-1">Filter View:</span>
-          {[
-            { id: "all", label: "All Items" },
-            { id: "veg", label: "Veg Only" },
-            { id: "non_veg", label: "Non-Veg Only" },
-            { id: "in_stock", label: "In Stock" },
-            { id: "out_of_stock", label: "Out of Stock" },
-            { id: "variants", label: "Has Size Variants" },
-          ].map((pill) => (
-            <button
-              key={pill.id}
-              onClick={() => setFilterMode(pill.id as any)}
-              className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors cursor-pointer shrink-0 ${
-                filterMode === pill.id
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              {pill.label}
-            </button>
+        <select
+          value={selectedCatId || ""}
+          onChange={(e) => setSelectedCatId(e.target.value ? Number(e.target.value) : null)}
+          className="h-9 px-2.5 rounded border border-border bg-background text-xs text-foreground cursor-pointer shrink-0 focus:outline-none"
+        >
+          <option value="">All Categories ({categories.length})</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name || "🍛"} {c.name}
+            </option>
           ))}
-        </div>
+        </select>
 
-        {/* Main Dishes Table Container */}
-        <div className="bg-card border border-border rounded-md overflow-hidden shadow-2xs">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-muted/40 border-b border-border text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  <th className="p-2.5 w-8"></th>
-                  <th className="p-2.5">Item Code</th>
-                  <th className="p-2.5">Dish Name</th>
-                  <th className="p-2.5">Category</th>
-                  <th className="p-2.5">Diet Type</th>
-                  <th className="p-2.5">KDS Station</th>
-                  <th className="p-2.5 text-center">Packaging Fee</th>
-                  <th className="p-2.5 text-right">Selling Price</th>
-                  <th className="p-2.5 text-center">Stock Availability</th>
-                  <th className="p-2.5 text-center">Actions</th>
-                </tr>
-              </thead>
+        {hasActiveFilters && (
+          <Button
+            onClick={clearFilters}
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground hover:text-foreground h-9 px-2.5 shrink-0 gap-1"
+          >
+            <X size={13} /> Reset
+          </Button>
+        )}
+      </div>
+
+      {/* Filter Pills */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+        <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider shrink-0 mr-1">Filter View:</span>
+        {[
+          { id: "all", label: "All Items" },
+          { id: "veg", label: "Veg Only" },
+          { id: "non_veg", label: "Non-Veg Only" },
+          { id: "in_stock", label: "In Stock" },
+          { id: "out_of_stock", label: "Out of Stock" },
+          { id: "variants", label: "Has Size Variants" },
+        ].map((pill) => (
+          <button
+            key={pill.id}
+            onClick={() => setFilterMode(pill.id as any)}
+            className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors cursor-pointer shrink-0 ${filterMode === pill.id
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+              }`}
+          >
+            {pill.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Main Dishes Table Container */}
+      <div className="bg-card border border-border rounded-md overflow-hidden shadow-2xs">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-muted/40 border-b border-border text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <th className="p-2.5 w-8"></th>
+                <th className="p-2.5">Item Code</th>
+                <th className="p-2.5">Dish Name</th>
+                <th className="p-2.5">Category</th>
+                <th className="p-2.5">Diet Type</th>
+                <th className="p-2.5">KDS Station</th>
+                <th className="p-2.5 text-center">Packaging Fee</th>
+                <th className="p-2.5 text-right">Selling Price</th>
+                <th className="p-2.5 text-center">Stock Availability</th>
+                <th className="p-2.5 text-center">Actions</th>
+              </tr>
+            </thead>
             <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800/60 font-semibold text-slate-700 dark:text-slate-300">
               {isLoading ? (
                 [1, 2, 3, 4, 5].map((i) => (
@@ -493,9 +487,8 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                   return (
                     <React.Fragment key={item.id}>
                       <tr
-                        className={`hover:bg-muted/40 transition-colors cursor-pointer ${
-                          isExpanded ? "bg-muted/50" : ""
-                        }`}
+                        className={`hover:bg-muted/40 transition-colors cursor-pointer ${isExpanded ? "bg-muted/50" : ""
+                          }`}
                       >
                         <td className="p-2.5 text-center text-muted-foreground" onClick={() => toggleExpandRow(item.id)}>
                           {(hasVariants || hasAddons || item.description) && (
@@ -527,9 +520,8 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                               />
                             ) : (
                               <span
-                                className={`h-3.5 w-3.5 border rounded flex items-center justify-center p-0.5 shrink-0 ${
-                                  item.is_veg ? "border-emerald-600 bg-emerald-500/10" : "border-rose-600 bg-rose-500/10"
-                                }`}
+                                className={`h-3.5 w-3.5 border rounded flex items-center justify-center p-0.5 shrink-0 ${item.is_veg ? "border-emerald-600 bg-emerald-500/10" : "border-rose-600 bg-rose-500/10"
+                                  }`}
                               >
                                 <span className={`h-1.5 w-1.5 rounded-full ${item.is_veg ? "bg-emerald-600" : "bg-rose-600"}`} />
                               </span>
@@ -618,11 +610,10 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                               e.stopPropagation();
                               onToggleAvailability(item);
                             }}
-                            className={`px-2 py-0.5 text-[11px] font-medium rounded border cursor-pointer transition-colors ${
-                              item.is_available
+                            className={`px-2 py-0.5 text-[11px] font-medium rounded border cursor-pointer transition-colors ${item.is_available
                                 ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
                                 : "text-muted-foreground bg-muted border-border"
-                            }`}
+                              }`}
                           >
                             {item.is_available ? "In Stock" : "Out of Stock"}
                           </button>
