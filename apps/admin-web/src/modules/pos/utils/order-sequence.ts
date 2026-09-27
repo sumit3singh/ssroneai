@@ -109,13 +109,15 @@ export function peekNextLocalOrderNumber(): string {
 export function syncLocalOrderSequenceWithOrders(orders: Array<{ order_number?: string; daily_order_number?: number | null; created_at?: string }>): void {
   try {
     const today = getTodayDateStr();
+    const todayPrefix = getTodayPrefix();
     let maxSeq = 0;
 
     for (const ord of orders) {
-      if (ord.created_at) {
-        const ordDate = ord.created_at.slice(0, 10);
-        if (ordDate !== today) continue;
-      }
+      const isTodayOrder =
+        (ord.order_number && ord.order_number.startsWith(`${todayPrefix}-`)) ||
+        (ord.created_at && (ord.created_at.slice(0, 10) === today || new Date(ord.created_at).toLocaleDateString("en-CA") === today));
+
+      if (ord.order_number && !isTodayOrder && ord.created_at) continue;
 
       if (ord.daily_order_number && typeof ord.daily_order_number === "number" && ord.daily_order_number > maxSeq) {
         maxSeq = ord.daily_order_number;

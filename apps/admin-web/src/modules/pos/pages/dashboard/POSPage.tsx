@@ -149,7 +149,7 @@ export const POSPage: React.FC = () => {
         for (const o of oList) {
           if (o && o.order_number) {
             const numStr = String(o.order_number);
-            const lockData = settledOrdersLockRef.current.get(numStr);
+            const lockData = settledOrdersLockRef.current.get(numStr) || (o.id ? settledOrdersLockRef.current.get(String(o.id)) : undefined);
             if (lockData && lockNow - lockData.timestamp <= 60_000) {
               // Retain completed/paid status during lock window so premature background fetches cannot revert the table
               orderMap.set(numStr, { ...o, status: "completed", payment_status: "paid" });

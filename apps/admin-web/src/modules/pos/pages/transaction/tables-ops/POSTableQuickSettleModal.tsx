@@ -225,6 +225,9 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
     // Close modal instantly for 0ms cashier interaction
     setIsSubmitting(false);
     onClose();
+    if (onOptimisticOrderSettle && order?.order_number) {
+      onOptimisticOrderSettle(order.order_number, order.table_id);
+    }
     onSuccess(completedOrder);
 
     // 3. Fire-and-forget background synchronization to PostgreSQL
