@@ -159,7 +159,21 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
 
   // Base filtered orders before applying status tab filter (ensures status tab counts re-calculate dynamically!)
   const baseFilteredOrders = React.useMemo(() => {
-    return orders.filter((ord) => {
+    // Deduplicate orders by display order number / order number, preferring real server orders
+    const dedupedMap = new Map<string, POSOrder>();
+    for (const ord of orders) {
+      if (!ord || !ord.order_number) continue;
+      const key = getDisplayOrderNumber(ord) || String(ord.order_number);
+      const existing = dedupedMap.get(key);
+      if (!existing) {
+        dedupedMap.set(key, ord);
+      } else if (String(existing.id).startsWith("local-") && !String(ord.id).startsWith("local-")) {
+        dedupedMap.set(key, ord);
+      }
+    }
+    const dedupedOrders = Array.from(dedupedMap.values());
+
+    return dedupedOrders.filter((ord) => {
       const matchesSearch =
         !search ||
         ord.order_number?.toLowerCase().includes(search.toLowerCase()) ||

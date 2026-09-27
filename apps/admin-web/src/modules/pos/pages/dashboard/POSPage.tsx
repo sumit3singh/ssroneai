@@ -9,7 +9,7 @@ import { POSMasterSection } from "../master/POSMasterSection";
 import { POSTransactionSection } from "../transaction/POSTransactionSection";
 import { POSReportsPage } from "../report/POSReportsPage";
 import { POSSettingsPage } from "../settings/POSSettingsPage";
-import { syncLocalOrderSequenceWithOrders } from "../../utils/order-sequence";
+import { syncLocalOrderSequenceWithOrders, getDisplayOrderNumber } from "../../utils/order-sequence";
 
 export const POSPage: React.FC = () => {
   const routerState = useRouterState();
@@ -111,6 +111,10 @@ export const POSPage: React.FC = () => {
       // Reconcile Orders: Merge server orders with local pending optimistic orders (id: "local-...")
       setOrders((prev) => {
         const serverOrderNumbers = new Set(oList.map((o: any) => String(o.order_number || "")));
+        const serverDailyNumbers = new Set(oList.map((o: any) => o.daily_order_number ? String(o.daily_order_number) : ""));
+        serverDailyNumbers.delete("");
+        const serverDisplayNumbers = new Set(oList.map((o: any) => getDisplayOrderNumber(o)));
+        serverDisplayNumbers.delete("");
         const serverOrderIds = new Set(oList.map((o: any) => String(o.id)));
 
         // Keep any active optimistic orders that have not yet appeared in server oList
@@ -118,7 +122,16 @@ export const POSPage: React.FC = () => {
         const pendingOptimistic = prev.filter((p) => {
           if (!String(p.id).startsWith("local-")) return false;
           const numStr = String(p.order_number || "");
-          if (serverOrderNumbers.has(numStr) || serverOrderIds.has(String(p.id))) {
+          const dailyStr = p.daily_order_number ? String(p.daily_order_number) : "";
+          const dispStr = getDisplayOrderNumber(p);
+
+          // If the server order list already contains this order (by order_number, daily_order_number, display number, or ID), DROP IT!
+          if (
+            serverOrderNumbers.has(numStr) ||
+            serverOrderIds.has(String(p.id)) ||
+            (dailyStr !== "" && serverDailyNumbers.has(dailyStr)) ||
+            (dispStr !== "" && serverDisplayNumbers.has(dispStr))
+          ) {
             return false;
           }
           const st = (p.status || "").toLowerCase();
@@ -127,8 +140,8 @@ export const POSPage: React.FC = () => {
           }
           const parts = String(p.id).split("-");
           const ts = parts.length > 1 ? Number(parts[1]) : 0;
-          if (ts > 0 && now - ts > 120_000) {
-            return false; // Auto-purge stale local order after 2 minutes
+          if (ts > 0 && now - ts > 60_000) {
+            return false; // Auto-purge stale local order after 60s
           }
           return true;
         });
@@ -147,7 +160,7 @@ export const POSPage: React.FC = () => {
         for (const o of oList) {
           if (o && o.order_number) {
             const numStr = String(o.order_number);
-            const lockData = settledOrdersLockRef.current.get(numStr);
+            const lockData = settledOrdersLockRef.current.get(numStr) || (o.daily_order_number ? settledOrdersLockRef.current.get(String(o.daily_order_number)) : undefined);
             if (lockData && lockNow - lockData.timestamp <= 60_000) {
               // Retain completed/paid status during lock window so premature background fetches cannot revert the table
               orderMap.set(numStr, { ...o, status: "completed", payment_status: "paid" });
@@ -157,8 +170,21 @@ export const POSPage: React.FC = () => {
           }
         }
         for (const p of pendingOptimistic) {
-          if (p && p.order_number && !orderMap.has(String(p.order_number))) {
-            orderMap.set(String(p.order_number), p);
+          if (!p || !p.order_number) continue;
+          const pNum = String(p.order_number);
+          const pDisp = getDisplayOrderNumber(p);
+          const pDaily = p.daily_order_number ? String(p.daily_order_number) : "";
+
+          const alreadyExists = Array.from(orderMap.values()).some((existing) => {
+            return (
+              String(existing.order_number) === pNum ||
+              (pDisp !== "" && getDisplayOrderNumber(existing) === pDisp) ||
+              (pDaily !== "" && String(existing.daily_order_number) === pDaily)
+            );
+          });
+
+          if (!alreadyExists) {
+            orderMap.set(pNum, p);
           }
         }
 
@@ -490,13 +516,19 @@ export const POSPage: React.FC = () => {
     tableUpdate?: { tableId: number | string; status: POSTable["status"] }
   ) => {
     setOrders((prev) => {
+      const optNum = String(optimisticOrder.order_number);
+      const optDisp = getDisplayOrderNumber(optimisticOrder);
+      const optDaily = optimisticOrder.daily_order_number ? String(optimisticOrder.daily_order_number) : "";
+
       const next = [
         optimisticOrder,
-        ...prev.filter(
-          (o) =>
-            String(o.order_number) !== String(optimisticOrder.order_number) &&
-            String(o.id) !== String(optimisticOrder.id)
-        ),
+        ...prev.filter((o) => {
+          if (String(o.id) === String(optimisticOrder.id)) return false;
+          if (String(o.order_number) === optNum) return false;
+          if (optDisp !== "" && getDisplayOrderNumber(o) === optDisp) return false;
+          if (optDaily !== "" && String(o.daily_order_number) === optDaily) return false;
+          return true;
+        }),
       ];
       try {
         sessionStorage.setItem("pos_cache_orders", JSON.stringify(next));
@@ -519,18 +551,27 @@ export const POSPage: React.FC = () => {
     const targetTableId = tableId !== undefined && tableId !== null ? String(tableId) : "";
     let updatedOrdersList: POSOrder[] = [];
 
-    // Register active settlement lock for this order and table
+    // Register active settlement lock for this order and table (both full string and short sequence)
     settledOrdersLockRef.current.set(String(orderNumber), {
       timestamp: Date.now(),
       tableId: tableId !== undefined && tableId !== null ? tableId : undefined,
     });
+    if (orderNumber.includes("-")) {
+      const seq = orderNumber.split("-")[1];
+      if (seq) {
+        settledOrdersLockRef.current.set(seq, {
+          timestamp: Date.now(),
+          tableId: tableId !== undefined && tableId !== null ? tableId : undefined,
+        });
+      }
+    }
 
     setOrders((prev) => {
-      updatedOrdersList = prev.map((o) =>
-        String(o.order_number) === String(orderNumber)
-          ? { ...o, status: "completed", payment_status: "paid" }
-          : o
-      );
+      const cleanNum = String(orderNumber).replace(/^#/, "").trim();
+      updatedOrdersList = prev.map((o) => {
+        const matchesNum = String(o.order_number) === cleanNum || getDisplayOrderNumber(o) === cleanNum;
+        return matchesNum ? { ...o, status: "completed", payment_status: "paid" } : o;
+      });
       try {
         sessionStorage.setItem("pos_cache_orders", JSON.stringify(updatedOrdersList));
       } catch {}
@@ -608,14 +649,27 @@ export const POSPage: React.FC = () => {
           onOptimisticOrderSettle={handleOptimisticOrderSettle}
           onRefresh={(serverOrder) => {
             if (serverOrder && serverOrder.order_number) {
-              setOrders((prev) => [
-                serverOrder,
-                ...prev.filter(
-                  (o) =>
-                    o.order_number !== serverOrder.order_number &&
-                    String(o.id) !== String(serverOrder.id)
-                ),
-              ]);
+              setOrders((prev) => {
+                const sNum = String(serverOrder.order_number);
+                const sId = String(serverOrder.id);
+                const sDisp = getDisplayOrderNumber(serverOrder);
+                const sDaily = serverOrder.daily_order_number ? String(serverOrder.daily_order_number) : "";
+
+                const filtered = prev.filter((o) => {
+                  if (String(o.id) === sId) return false;
+                  if (String(o.order_number) === sNum) return false;
+                  if (String(o.id).startsWith("local-")) {
+                    if (sDisp !== "" && getDisplayOrderNumber(o) === sDisp) return false;
+                    if (sDaily !== "" && String(o.daily_order_number) === sDaily) return false;
+                  }
+                  return true;
+                });
+                const nextList = [serverOrder, ...filtered];
+                try {
+                  sessionStorage.setItem("pos_cache_orders", JSON.stringify(nextList));
+                } catch {}
+                return nextList;
+              });
             }
             fetchPOSDomainData(true);
           }}

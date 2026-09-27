@@ -140,8 +140,10 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
   const allOrdersMap = new Map<string, POSOrder>();
   [...fetchedOrders, ...propOrders].forEach((o) => {
     if (o && (o.id || o.order_number)) {
-      const key = String(o.order_number || o.id);
+      const key = getDisplayOrderNumber(o) || String(o.order_number || o.id);
       if (!allOrdersMap.has(key)) {
+        allOrdersMap.set(key, o);
+      } else if (String(allOrdersMap.get(key)!.id).startsWith("local-") && !String(o.id).startsWith("local-")) {
         allOrdersMap.set(key, o);
       }
     }

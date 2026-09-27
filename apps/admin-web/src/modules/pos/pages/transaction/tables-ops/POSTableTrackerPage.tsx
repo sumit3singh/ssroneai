@@ -172,7 +172,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
   };
 
   // Filter active orders (status not completed/paid/cancelled)
-  // Deduplicate by order_number: if an order is marked completed/paid anywhere, exclude it completely!
+  // Deduplicate by display order number / daily sequence so an order can never appear twice!
   const activeOrders = React.useMemo(() => {
     // 1. Build set of settled/completed order numbers
     const settledOrderNumbers = new Set<string>();
@@ -182,23 +182,30 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
       const p = (o.payment_status || "").toLowerCase();
       if (s === "completed" || s === "paid" || s === "cancelled" || p === "paid") {
         settledOrderNumbers.add(String(o.order_number));
+        if (o.daily_order_number) settledOrderNumbers.add(String(o.daily_order_number));
+        settledOrderNumbers.add(getDisplayOrderNumber(o));
       }
     }
 
-    // 2. Filter active orders: must not be in settledOrderNumbers, deduplicate by order_number
+    // 2. Filter active orders: must not be in settledOrderNumbers, deduplicate by display order number
     const activeMap = new Map<string, POSOrder>();
     for (const o of orders) {
       if (!o || !o.order_number) continue;
       const numStr = String(o.order_number);
-      if (settledOrderNumbers.has(numStr)) continue;
+      const dispNum = getDisplayOrderNumber(o) || numStr;
+      if (settledOrderNumbers.has(numStr) || (dispNum !== "" && settledOrderNumbers.has(dispNum))) continue;
 
       const s = (o.status || "").toLowerCase();
       const p = (o.payment_status || "").toLowerCase();
       if (["completed", "paid", "cancelled"].includes(s) || p === "paid") continue;
 
-      // Prefer non-local ID over local- temporary ID
-      if (!activeMap.has(numStr) || String(activeMap.get(numStr)!.id).startsWith("local-")) {
-        activeMap.set(numStr, o);
+      // Key by display number (e.g. "6") or order_number so Order 6 CAN ONLY EVER HAVE ONE ENTRY!
+      const existing = activeMap.get(dispNum);
+      if (!existing) {
+        activeMap.set(dispNum, o);
+      } else if (String(existing.id).startsWith("local-") && !String(o.id).startsWith("local-")) {
+        // Overwrite local optimistic order with real server order
+        activeMap.set(dispNum, o);
       }
     }
     return Array.from(activeMap.values());

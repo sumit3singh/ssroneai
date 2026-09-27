@@ -1609,7 +1609,16 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
 
     // 3. Construct optimistic POSOrder for local memory (< 0.1ms)
     const existingOrd = recalledOrderNumber ? orders.find((o) => o.order_number === recalledOrderNumber) : null;
-    const optimisticDailyOrderNumber = existingOrd?.daily_order_number || (/^\d+$/.test(assignedNum) ? parseInt(assignedNum, 10) : undefined);
+    const parseDailySeq = (val: string): number | undefined => {
+      const clean = String(val || "").replace(/^#/, "").trim();
+      if (/^\d+$/.test(clean)) return parseInt(clean, 10);
+      if (clean.includes("-")) {
+        const parts = clean.split("-");
+        if (parts.length === 2 && /^\d+$/.test(parts[1])) return parseInt(parts[1], 10);
+      }
+      return undefined;
+    };
+    const optimisticDailyOrderNumber = existingOrd?.daily_order_number || parseDailySeq(assignedNum);
     const optimisticOrder: POSOrder = {
       id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       order_number: assignedNum,
@@ -1717,11 +1726,21 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     const selectedCust = customers.find((c) => String(c.id) === String(selectedCustomerId));
 
     const existingOrd = recalledOrderNumber ? orders.find((o) => o.order_number === recalledOrderNumber) : null;
+    const parseDailySeq = (val: string): number | undefined => {
+      const clean = String(val || "").replace(/^#/, "").trim();
+      if (/^\d+$/.test(clean)) return parseInt(clean, 10);
+      if (clean.includes("-")) {
+        const parts = clean.split("-");
+        if (parts.length === 2 && /^\d+$/.test(parts[1])) return parseInt(parts[1], 10);
+      }
+      return undefined;
+    };
+    const settleDailyOrderNumber = existingOrd?.daily_order_number || parseDailySeq(assignedNum);
 
     const settleOrder: POSOrder = {
       id: existingOrd?.id || `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       order_number: assignedNum,
-      daily_order_number: existingOrd?.daily_order_number || (/^\d+$/.test(assignedNum) ? parseInt(assignedNum, 10) : undefined),
+      daily_order_number: settleDailyOrderNumber,
       order_type: orderMode.toUpperCase() as OrderType,
       order_mode: orderMode,
       customer_id: selectedCustomerId ? (Number(selectedCustomerId) || selectedCustomerId) : undefined,

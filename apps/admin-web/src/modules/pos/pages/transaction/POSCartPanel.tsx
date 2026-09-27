@@ -190,10 +190,22 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
     const map: Record<string, any[]> = {};
     if (!orders || orders.length === 0) return map;
 
+    // Deduplicate active orders first by display number / order_number
+    const dedupedMap = new Map<string, any>();
     orders.forEach((o: any) => {
+      if (!o || !o.order_number) return;
       const s = (o.status || "").toLowerCase();
       if (["completed", "paid", "cancelled", "settled"].includes(s)) return;
+      const dispNum = getDisplayOrderNumber(o) || String(o.order_number);
+      const existing = dedupedMap.get(dispNum);
+      if (!existing) {
+        dedupedMap.set(dispNum, o);
+      } else if (String(existing.id).startsWith("local-") && !String(o.id).startsWith("local-")) {
+        dedupedMap.set(dispNum, o);
+      }
+    });
 
+    dedupedMap.forEach((o) => {
       if (o.table_id) {
         const key = String(o.table_id);
         if (!map[key]) map[key] = [];
@@ -459,12 +471,19 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
 
           {/* Inline Active Takeaway Orders Banner */}
           {orderMode === "takeaway" && !isDismissedActiveOrders && (() => {
-            const activeTakeaways = (orders || []).filter((o: any) => {
+            const takeawayMap = new Map<string, any>();
+            (orders || []).forEach((o: any) => {
+              if (!o || !o.order_number) return;
               const s = (o.status || "").toLowerCase();
-              if (["completed", "paid", "cancelled", "settled"].includes(s)) return false;
+              if (["completed", "paid", "cancelled", "settled"].includes(s)) return;
               const m = (o.order_mode || o.order_type || "").toLowerCase();
-              return m.includes("take") || m.includes("pickup");
+              if (!m.includes("take") && !m.includes("pickup")) return;
+              const disp = getDisplayOrderNumber(o) || String(o.order_number);
+              const ex = takeawayMap.get(disp);
+              if (!ex) takeawayMap.set(disp, o);
+              else if (String(ex.id).startsWith("local-") && !String(o.id).startsWith("local-")) takeawayMap.set(disp, o);
             });
+            const activeTakeaways = Array.from(takeawayMap.values());
             if (activeTakeaways.length === 0) return null;
 
             return (
@@ -499,12 +518,19 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
 
           {/* Inline Active Delivery Orders Banner */}
           {orderMode === "delivery" && !isDismissedActiveOrders && (() => {
-            const activeDeliveries = (orders || []).filter((o: any) => {
+            const deliveryMap = new Map<string, any>();
+            (orders || []).forEach((o: any) => {
+              if (!o || !o.order_number) return;
               const s = (o.status || "").toLowerCase();
-              if (["completed", "paid", "cancelled", "settled"].includes(s)) return false;
+              if (["completed", "paid", "cancelled", "settled"].includes(s)) return;
               const m = (o.order_mode || o.order_type || "").toLowerCase();
-              return m.includes("deliv");
+              if (!m.includes("deliv")) return;
+              const disp = getDisplayOrderNumber(o) || String(o.order_number);
+              const ex = deliveryMap.get(disp);
+              if (!ex) deliveryMap.set(disp, o);
+              else if (String(ex.id).startsWith("local-") && !String(o.id).startsWith("local-")) deliveryMap.set(disp, o);
             });
+            const activeDeliveries = Array.from(deliveryMap.values());
             if (activeDeliveries.length === 0) return null;
 
             return (

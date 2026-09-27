@@ -28,24 +28,24 @@ export function getTodayPrefix(): string {
   const yy = String(d.getFullYear()).slice(-2);
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
-  return `${yy}${mm}${dd}`;
+  return `${dd}${mm}${yy}`;
 }
 
 /**
  * Returns helper for displaying order number on UI and receipts:
  * If order has daily_order_number (e.g. 1, 2, 3), returns String(daily_order_number)
- * If order_number is "260927-1", extracts "1"
+ * If order_number is "270926-1" or "260927-1", extracts "1"
  * If order_number is "100060", returns "100060"
  */
 export function getDisplayOrderNumber(order?: { order_number?: string; daily_order_number?: number | string | null; token_number?: string | null } | null): string {
   if (!order) return "";
   let res = "";
-  if (order.daily_order_number !== undefined && order.daily_order_number !== null) {
+  if (order.daily_order_number !== undefined && order.daily_order_number !== null && String(order.daily_order_number).trim() !== "") {
     res = String(order.daily_order_number);
   } else if (order.token_number && /^\d+$/.test(String(order.token_number).replace(/^#/, ""))) {
     res = String(order.token_number).replace(/^#/, "");
   } else {
-    const ordStr = String(order.order_number || "").replace(/^#/, "");
+    const ordStr = String(order.order_number || "").replace(/^#/, "").trim();
     if (ordStr.includes("-")) {
       const parts = ordStr.split("-");
       if (parts.length === 2 && /^\d+$/.test(parts[1])) {
@@ -78,9 +78,10 @@ export function generateLocalOrderNumber(
     }
 
     localStorage.setItem("pos_daily_order_seq", nextSeq.toString());
-    return nextSeq.toString();
+    const prefix = getTodayPrefix();
+    return `${prefix}-${nextSeq}`;
   } catch {
-    return "1";
+    return `${getTodayPrefix()}-1`;
   }
 }
 
