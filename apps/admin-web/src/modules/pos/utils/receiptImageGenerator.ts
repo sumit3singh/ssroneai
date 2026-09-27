@@ -29,6 +29,7 @@ export async function generateReceiptImageBlob(data: CustomerReceiptSlipData): P
   const custName = data.customerName || "Walk-in Guest";
   const custPhone = data.customerPhone || "";
   const paymentMethod = (data.paymentMethod || "CASH").toUpperCase();
+  const waiterName = data.waiterName || "";
 
   const items = data.items || [];
   // Estimate height: header (~180) + meta (~120) + table header (~40) + items (~45 per item) + totals (~160) + footer (~80)
@@ -96,22 +97,29 @@ export async function generateReceiptImageBlob(data: CustomerReceiptSlipData): P
   ctx.fillText(`ORDER NO: ${displayOrderNum}`, padding, y);
 
   ctx.textAlign = "right";
-  ctx.font = "bold 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-  ctx.fillText(`MODE: ${orderType}`, width - padding, y);
+  ctx.font = "bold 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  ctx.fillStyle = "#111827";
+  ctx.fillText(`Date-${data.timestamp}`, width - padding, y);
   y += 20;
 
+  const displayTable = cleanTable || (orderType === "TAKEAWAY" ? "Takeaway" : orderType === "DELIVERY" ? "Delivery" : "-");
   ctx.textAlign = "left";
-  ctx.font = "13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-  ctx.fillStyle = "#4b5563";
-  ctx.fillText(`Date: ${data.timestamp}`, padding, y);
+  ctx.font = "bold 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  ctx.fillStyle = "#111827";
+  ctx.fillText(`Table: ${displayTable}`, padding, y);
 
-  if (cleanTable) {
-    ctx.textAlign = "right";
-    ctx.fillStyle = "#111827";
-    ctx.font = "bold 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-    ctx.fillText(`Table: ${cleanTable}`, width - padding, y);
-  }
+  ctx.textAlign = "right";
+  ctx.font = "bold 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  ctx.fillText(`Mode: ${orderType}`, width - padding, y);
   y += 20;
+
+  if (waiterName) {
+    ctx.textAlign = "left";
+    ctx.font = "12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    ctx.fillStyle = "#4b5563";
+    ctx.fillText(`Server: ${waiterName}`, padding, y);
+    y += 18;
+  }
 
   if (custName && custName !== "Walk-in Guest") {
     ctx.textAlign = "left";
@@ -332,10 +340,9 @@ export async function shareReceiptPhotoToWhatsApp(
       `🍽️ *${(data.venueName || "BAITHAK CAFE CUH").toUpperCase()}*`,
       data.venueAddress ? `📍 ${data.venueAddress}` : null,
       data.venuePhone ? `📞 Mobile: ${data.venuePhone}` : null,
-      `🧾 *Order No:* ${displayNum} | *Mode:* ${data.orderType || "DINE_IN"}`,
-      data.tableName ? `🪑 *Table:* ${cleanTableName(data.tableName)}` : null,
+      `🧾 *ORDER NO:* ${displayNum}   *Date-* ${data.timestamp}`,
+      `🪑 *Table:* ${data.tableName ? cleanTableName(data.tableName) : (data.orderType === "TAKEAWAY" ? "Takeaway" : data.orderType === "DELIVERY" ? "Delivery" : "-")}   *Mode:* ${data.orderType || "DINE_IN"}`,
       data.customerName && data.customerName !== "Walk-in Guest" ? `👤 *Customer:* ${data.customerName}` : null,
-      `📅 *Date:* ${data.timestamp}`,
       `------------------------------------`,
       itemLines || null,
       `------------------------------------`,

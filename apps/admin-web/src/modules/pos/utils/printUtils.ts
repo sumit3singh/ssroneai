@@ -347,11 +347,15 @@ export function printCustomerReceiptDirectly(data: CustomerReceiptSlipData): voi
           </div>
 
           <div style="margin-bottom: 6px; border-bottom: 1px dashed #000; padding-bottom: 6px; font-size: 11px;">
-            <div style="font-weight: 900; font-size: 13px;">ORDER NO: ${displayOrderNum}</div>
-            <div style="margin-top: 1px; font-weight: bold;">Mode: ${orderType}</div>
-            <div style="margin-top: 1px; font-size: 10px;">Date/Time: ${data.timestamp}</div>
-            ${cleanTable ? `<div style="font-weight: bold; margin-top: 1px;">Table: ${cleanTable}</div>` : ""}
-            ${waiterName ? `<div style="font-size: 10px; margin-top: 1px;">Server: ${waiterName}</div>` : ""}
+            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+              <span style="font-weight: 900; font-size: 13px;">ORDER NO: ${displayOrderNum}</span>
+              <span style="font-size: 10px; font-weight: bold;">Date-${data.timestamp}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
+              <span style="font-weight: bold;">Table: ${cleanTable || (orderType === "TAKEAWAY" ? "Takeaway" : orderType === "DELIVERY" ? "Delivery" : "-")}</span>
+              <span style="font-weight: bold; text-transform: uppercase;">Mode: ${orderType}</span>
+            </div>
+            ${waiterName ? `<div style="font-size: 10px; margin-top: 2px;">Server: ${waiterName}</div>` : ""}
           </div>
 
           ${(custName && custName !== "Walk-in Guest") || custPhone ? `

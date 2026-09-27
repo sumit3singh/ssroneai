@@ -9,6 +9,7 @@ import {
   formatBranchAddress,
   formatItemWithVariantAndAddons,
 } from "../utils/posPrintFormatters";
+import { getDisplayOrderNumber } from "../utils/order-sequence";
 
 export interface StationKOTItem {
   cart_id?: string;
@@ -463,15 +464,15 @@ export const POSPrintPortal: React.FC<POSPrintPortalProps> = ({
               marginBottom: "5px",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span><strong>BILL #:</strong> {receiptData.orderNumber}</span>
-              <span><strong>MODE:</strong> {receiptData.orderType}</span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ fontWeight: "900", fontSize: "12px" }}>
+                ORDER NO: {getDisplayOrderNumber({ order_number: receiptData.orderNumber }) || receiptData.orderNumber}
+              </span>
+              <span style={{ fontSize: "9.5px", fontWeight: "bold" }}>Date-{receiptData.timestamp}</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1px" }}>
-              <span><strong>DATE:</strong> {receiptData.timestamp}</span>
-              {settings.customerShowTableWaiter && receiptData.tableName && (
-                <span><strong>TABLE:</strong> {cleanTableName(receiptData.tableName)}</span>
-              )}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "2px" }}>
+              <span><strong>Table:</strong> {cleanTableName(receiptData.tableName) || (receiptData.orderType === "TAKEAWAY" ? "Takeaway" : receiptData.orderType === "DELIVERY" ? "Delivery" : "-")}</span>
+              <span style={{ textTransform: "uppercase" }}><strong>Mode:</strong> {receiptData.orderType}</span>
             </div>
             {settings.customerShowTableWaiter && receiptData.waiterName && (
               <div style={{ marginTop: "1px" }}>

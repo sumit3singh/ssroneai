@@ -207,18 +207,17 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
           </div>
 
           {/* Order Details Header */}
-          <div className="space-y-0.5 text-[11px] border-b border-dashed border-neutral-400 dark:border-neutral-600 print:border-black pb-2">
-            <div className="font-bold text-foreground">
-              Order No: {displayOrderNum} ,Mode: {orderType}
+          <div className="space-y-1 text-[11px] border-b border-dashed border-neutral-400 dark:border-neutral-600 print:border-black pb-2">
+            <div className="flex items-center justify-between font-bold text-foreground">
+              <span className="font-black text-xs">ORDER NO: {displayOrderNum}</span>
+              <span className="text-[10px] font-semibold text-muted-foreground print:text-black">
+                Date-{receiptData.timestamp}
+              </span>
             </div>
-            <div className="text-muted-foreground print:text-black">
-              Date/Time: {receiptData.timestamp}
+            <div className="flex items-center justify-between font-bold text-foreground">
+              <span>Table: {cleanTable || (orderType === "TAKEAWAY" ? "Takeaway" : orderType === "DELIVERY" ? "Delivery" : "-")}</span>
+              <span className="uppercase">Mode: {orderType}</span>
             </div>
-            {cleanTable && (
-              <div className="font-bold text-foreground">
-                Dining Table: {cleanTable}
-              </div>
-            )}
             {waiterName && (
               <div className="text-muted-foreground print:text-black text-[10px]">
                 Server: {waiterName}
