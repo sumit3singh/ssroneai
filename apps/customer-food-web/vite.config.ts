@@ -4,7 +4,7 @@ import path from "path";
 
 export default defineConfig(({ mode }) => ({
   server: {
-    host: "::",
+    host: true,
     port: 3000,
     allowedHosts: true,
     hmr: {
@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => ({
     },
   },
   preview: {
-    host: "::",
+    host: true,
     port: process.env.PORT ? parseInt(process.env.PORT) : 3000,
     allowedHosts: true,
   },
