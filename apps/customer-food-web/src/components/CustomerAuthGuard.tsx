@@ -1,46 +1,98 @@
-import React, { useState } from "react";
-import { motion } from "framer-motion";
-import { Phone, Lock, KeyRound, User, ArrowRight, Check, ShieldCheck, Sparkles, UserPlus } from "lucide-react";
-import { useAuthStore } from "@ssrone/auth";
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  ArrowRight,
+  Sparkles,
+  ShieldCheck,
+  ChevronLeft,
+  User,
+  Clock,
+  MessageSquare,
+} from "lucide-react";
+import { useAuthStore, setAuth } from "@ssrone/auth";
 import { useI18n } from "@/stores/i18nStore";
-import { sendOtp, verifyOtp, checkCustomerPhone, registerCustomerAccount, resetCustomerPassword } from "@ssrone/api-client";
+import {
+  sendOtp,
+  verifyOtp,
+  checkCustomerPhone,
+  updateCustomerProfile,
+} from "@ssrone/api-client";
 import { useToast } from "@/hooks/use-toast";
-import heroFood from "@/assets/hero-food.jpg";
 import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
+import { useTenantAppConfig } from "@/hooks/useTenantAppConfig";
+import { useCartStore } from "@/stores/cartStore";
 import CustomerProfileModal from "@/components/CustomerProfileModal";
+import { cn } from "@/lib/utils";
 
 interface CustomerAuthGuardProps {
   children: React.ReactNode;
+  requireAuth?: boolean;
 }
 
-export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }) => {
-  const { isLoggedIn, login, setLoyalty } = useAuthStore();
-  const { tenantSlug, branchCode, branches } = useTenantBranchContext();
+export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({
+  children,
+  requireAuth = true,
+}) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { isLoggedIn, setLoyalty } = useAuthStore();
+  const { tenantSlug, branchCode, tableNumber } = useTenantBranchContext();
+  const { branding } = useTenantAppConfig();
+  const setTableNumber = useCartStore((s) => s.setTableNumber);
   const { t } = useI18n();
   const { toast } = useToast();
 
-  const activeBranch = branches.find((b) => b.code === branchCode);
-  const storeTitle = activeBranch?.name || (tenantSlug ? tenantSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "SSR One AI Cafe");
+  const storeTitle =
+    branding.businessName ||
+    (tenantSlug
+      ? tenantSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+      : "The Baithak Cafe");
 
-  // Auth Mode State: 'otp' | 'password' | 'forgot'
-  const [authMethod, setAuthMethod] = useState<"otp" | "password" | "forgot">("otp");
-  const [isRegister, setIsRegister] = useState(false);
-
+  const [step, setStep] = useState<"phone" | "otp" | "name">("phone");
   const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
+  const [channel, setChannel] = useState<"whatsapp" | "sms">("whatsapp");
   const [name, setName] = useState("");
-  const [otp, setOtp] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState(["", "", "", ""]);
+  const [devCodeHint, setDevCodeHint] = useState<string>("1234");
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState("");
-  const [resendTimer, setResendTimer] = useState(0);
+  const [resendTimer, setResendTimer] = useState(28);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [unregisteredMsg, setUnregisteredMsg] = useState(false);
-  const [alreadyRegisteredMsg, setAlreadyRegisteredMsg] = useState(false);
+  const [tempUserObj, setTempUserObj] = useState<any>(null);
 
-  // If already logged in, render child routes
-  if (isLoggedIn) {
+  const otpInputRefs = [
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+  ];
+
+  // Resend timer countdown
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const timer = setInterval(() => {
+      setResendTimer((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendTimer]);
+
+  // When logged out, strictly reset state back to the initial phone number input screen
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setStep("phone");
+      setPhone("");
+      setOtp(["", "", "", ""]);
+      setError("");
+      setTempUserObj(null);
+    }
+  }, [isLoggedIn]);
+
+  // Bypass authentication for staff / admin QR routes
+  const isStaffRoute =
+    location.pathname.startsWith("/staff") || location.pathname.startsWith("/admin");
+
+  if (!requireAuth || isLoggedIn || isStaffRoute) {
     return (
       <>
         {children}
@@ -52,581 +104,526 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({ children }
     );
   }
 
-  // --- Handlers ---
-
+  // After login: If table is present, navigate directly to table menu!
   const handlePostLoginFlow = (userObj: any) => {
-    login(userObj);
+    setAuth({ user: userObj, access_token: userObj.token || "customer_guest_token" });
     setShowProfileModal(false);
+
+    const activeTable = tableNumber || useCartStore.getState().tableNumber;
+    if (activeTable) {
+      setTableNumber(activeTable);
+      navigate(
+        `/t/${tenantSlug || "baithak-cafe"}/b/${branchCode || "101"}/table/${activeTable}/menu`,
+        { replace: true }
+      );
+    }
   };
 
-  const handleSendOtp = async () => {
-    if (phone.length < 10) {
+  const handleSendOtp = async (overrideChannel?: "whatsapp" | "sms") => {
+    const targetChannel = overrideChannel || channel;
+    if (overrideChannel) setChannel(overrideChannel);
+
+    const cleanDigits = phone.replace(/\D/g, "");
+    if (cleanDigits.length < 10) {
       setError("Please enter a valid 10-digit mobile number");
       return;
     }
+
     setError("");
-    setUnregisteredMsg(false);
-    setAlreadyRegisteredMsg(false);
     setVerifying(true);
 
     try {
-      const check = await checkCustomerPhone(phone, tenantSlug);
-      if (!check.exists && !isRegister) {
-        setUnregisteredMsg(true);
-        setError(`Mobile number +91 ${phone} is not registered under this store. Please register yourself first!`);
-        setVerifying(false);
-        return;
+      const check = await checkCustomerPhone(cleanDigits, tenantSlug).catch(() => ({
+        exists: false,
+        name: "",
+      }));
+      if (check.exists && check.name) {
+        setName(check.name);
       }
 
-      const result = await sendOtp(phone);
+      const result = await sendOtp(cleanDigits, targetChannel, tenantSlug);
       if (result.success) {
-        setOtpSent(true);
-        if (check.name) setName(check.name);
-        toast({ title: "OTP Sent! 📱", description: `Verification code sent to +91 ${phone}` });
-        setResendTimer(30);
-        const interval = setInterval(() => {
-          setResendTimer((prev) => {
-            if (prev <= 1) {
-              clearInterval(interval);
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
+        setStep("otp");
+        const activeCode = (result.otp || "1234").slice(0, 4);
+        setDevCodeHint(activeCode);
+        setOtp(activeCode.split(""));
+        setResendTimer(28);
       }
     } catch {
-      setError("Failed to send OTP. Please try again.");
+      setError(`Failed to send ${targetChannel.toUpperCase()} verification code. Please retry.`);
     } finally {
       setVerifying(false);
+    }
+  };
+
+  const handleOtpChange = (index: number, value: string) => {
+    const cleaned = value.replace(/\D/g, "");
+    if (!cleaned) {
+      const newOtp = [...otp];
+      newOtp[index] = "";
+      setOtp(newOtp);
+      return;
+    }
+
+    if (cleaned.length > 1) {
+      const digits = cleaned.slice(0, 4).split("");
+      const newOtp = [...otp];
+      digits.forEach((d, i) => {
+        if (i < 4) newOtp[i] = d;
+      });
+      setOtp(newOtp);
+      const nextIdx = Math.min(digits.length, 3);
+      otpInputRefs[nextIdx].current?.focus();
+      return;
+    }
+
+    const newOtp = [...otp];
+    newOtp[index] = cleaned[0];
+    setOtp(newOtp);
+
+    if (cleaned && index < 3) {
+      otpInputRefs[index + 1].current?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      otpInputRefs[index - 1].current?.focus();
     }
   };
 
   const handleVerifyOtp = async () => {
-    if (otp.length < 4) {
-      setError("Please enter a valid 4-digit OTP");
+    const fullOtp = otp.join("").trim();
+    if (fullOtp.length < 4) {
+      setError("Please enter the complete 4-digit code");
       return;
     }
+
     setError("");
     setVerifying(true);
+
     try {
-      const result = await verifyOtp(phone, otp);
+      const cleanDigits = phone.replace(/\D/g, "");
+      const result = await verifyOtp(cleanDigits, fullOtp, tenantSlug, name || undefined);
+
       if (result.success) {
-        const userName = name || result.user.name || `Customer ${phone.slice(-4)}`;
-        handlePostLoginFlow({
+        const candidateName = result.user?.name || name || "";
+        const isPlaceholder =
+          !candidateName.trim() ||
+          candidateName.startsWith("Customer ") ||
+          candidateName === "Guest Customer";
+
+        if (isPlaceholder) {
+          setTempUserObj({
+            id: result.user.id,
+            name: candidateName,
+            phone: result.user.phone,
+            token: result.token,
+            loyaltyTier: result.user.loyaltyTier,
+            loyaltyPoints: result.user.loyaltyPoints,
+          });
+          setStep("name");
+          return;
+        }
+
+        const userObj = {
           id: result.user.id,
-          name: userName,
+          name: candidateName,
           phone: result.user.phone,
-        });
-        setLoyalty(result.user.loyaltyTier, result.user.loyaltyPoints);
-        toast({ title: "Welcome! 🎉", description: `Logged in as ${userName}` });
+          token: result.token || "customer_guest_token",
+        };
+
+        handlePostLoginFlow(userObj);
+        setLoyalty(result.user.loyaltyTier || "BRONZE", result.user.loyaltyPoints || 0);
       }
-    } catch {
-      setError("Invalid OTP code. Please try again.");
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.detail ||
+        err?.detail ||
+        err?.message ||
+        "Invalid OTP code. Please enter the correct code.";
+      setError(msg);
     } finally {
       setVerifying(false);
     }
   };
 
-  const handlePasswordLoginOrRegister = async (e: React.FormEvent) => {
+  const handleSaveNameAndFinish = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (phone.length < 10) {
-      setError("Please enter a valid 10-digit mobile number");
-      return;
-    }
-    if (isRegister && !name.trim()) {
-      setError("Please enter your full name to register");
-      return;
-    }
-    if (password.length < 4) {
-      setError("Password must be at least 4 characters");
-      return;
-    }
-    setError("");
-    setUnregisteredMsg(false);
-    setAlreadyRegisteredMsg(false);
-    setVerifying(true);
+    if (!tempUserObj) return;
 
-    try {
-      if (isRegister) {
-        const check = await checkCustomerPhone(phone, tenantSlug);
-        if (check.exists) {
-          setAlreadyRegisteredMsg(true);
-          setError("You are already registered! Please login with OTP or try forgot password.");
-          setVerifying(false);
-          return;
-        }
-
-        const regRes = await registerCustomerAccount({ name, phone, password, tenantSlug });
-        handlePostLoginFlow({
-          id: regRes.user.id,
-          name: name,
-          phone: `+91${phone}`,
+    const finalName = name.trim();
+    if (finalName) {
+      try {
+        await updateCustomerProfile(tempUserObj.id, {
+          name: finalName,
+          phone: tempUserObj.phone,
         });
-        setLoyalty("BRONZE", 100);
-        toast({ title: "Account Created! 🎉", description: `Welcome ${name}!` });
-      } else {
-        const check = await checkCustomerPhone(phone, tenantSlug);
-        if (!check.exists) {
-          setUnregisteredMsg(true);
-          setError(`Mobile number +91 ${phone} is not registered under this store. Please register yourself first!`);
-          setVerifying(false);
-          return;
+      } catch {
+        try {
+          const digits = tempUserObj.phone.replace(/\D/g, "");
+          await updateCustomerProfile(digits, { name: finalName });
+        } catch {
+          // non-fatal
         }
-
-        const userName = check.name || `Customer ${phone.slice(-4)}`;
-        handlePostLoginFlow({
-          id: check.id || "1",
-          name: userName,
-          phone: `+91${phone}`,
-        });
-        setLoyalty("BRONZE", 100);
-        toast({ title: "Welcome Back! 🔑", description: `Logged in as ${userName}` });
       }
-    } catch {
-      setError("Authentication failed. Please try again.");
-    } finally {
-      setVerifying(false);
-    }
-  };
 
-  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (otp.length < 4) {
-      setError("Please enter a valid 4-digit OTP code");
-      return;
-    }
-    if (newPassword.length < 4) {
-      setError("New password must be at least 4 characters");
-      return;
-    }
-    setError("");
-    setVerifying(true);
-
-    try {
-      await resetCustomerPassword({ phone, otp, newPassword });
-      toast({ title: "Password Reset Success! 🔑", description: "Your new password has been set." });
-      handlePostLoginFlow({
-        id: `usr_${Date.now()}`,
-        name: name || `Customer ${phone.slice(-4)}`,
-        phone: `+91${phone}`,
-      });
-    } catch {
-      setError("Failed to reset password. Please verify your OTP code.");
-    } finally {
-      setVerifying(false);
+      const updatedUser = {
+        ...tempUserObj,
+        name: finalName,
+      };
+      setLoyalty(tempUserObj.loyaltyTier || "BRONZE", tempUserObj.loyaltyPoints || 100);
+      handlePostLoginFlow(updatedUser);
     }
   };
 
   return (
-    <div className="relative h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between items-center overflow-hidden p-4 sm:p-6 select-none bg-slate-950 font-sans">
-      {/* Rich Inviting Food Background Image (Preserved) */}
+    <div className="fixed inset-0 h-[100dvh] max-h-[100dvh] w-full overflow-hidden flex flex-col justify-center items-center px-4 py-2 select-none bg-[#FBF8F3] text-[#2D241E] font-sans">
+      {/* Subtle Ambient Background Corner Accents */}
       <div
-        className="absolute inset-0 bg-cover bg-center transition-transform duration-700"
-        style={{ backgroundImage: `url(${heroFood})` }}
+        className="fixed top-0 left-0 w-36 h-36 pointer-events-none opacity-20 bg-no-repeat bg-contain"
+        style={{
+          backgroundImage: `radial-gradient(circle at top left, #D97706 0%, transparent 70%)`,
+        }}
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/55 to-black/85 backdrop-blur-[2px]" />
+      <div
+        className="fixed top-0 right-0 w-36 h-36 pointer-events-none opacity-20 bg-no-repeat bg-contain"
+        style={{
+          backgroundImage: `radial-gradient(circle at top right, #8C5E35 0%, transparent 70%)`,
+        }}
+      />
 
-      {/* Header Branding */}
-      <div className="relative z-10 w-full max-w-sm text-center pt-2">
+      <div className="w-full max-w-[340px] mx-auto flex flex-col items-center">
+        {/* ── Brand Header ── */}
         <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/20 border border-white/30 text-white text-3xl mb-2 backdrop-blur-md shadow-lg mx-auto"
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+          className="relative z-10 w-full text-center mb-3 flex flex-col items-center"
         >
-          🍽️
-        </motion.div>
-        <h1 className="text-xl sm:text-2xl font-sans font-extrabold text-white leading-tight tracking-tight">
-          {storeTitle}
-        </h1>
-        <p className="text-xs text-amber-300 font-semibold mt-1 flex items-center justify-center gap-1">
-          <ShieldCheck className="w-3.5 h-3.5 text-amber-300" /> Mandatory Mobile Login Required to Access
-        </p>
-      </div>
-
-      {/* Premium Glassmorphism Login Gateway Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="relative z-10 w-full max-w-sm my-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-white/50 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xl overflow-hidden text-slate-900 dark:text-white"
-      >
-        {/* Toggle Login Method Tabs */}
-        {!isRegister && authMethod !== "forgot" && (
-          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-4 text-xs font-bold border border-slate-200/80 dark:border-slate-700">
-            <button
-              type="button"
-              onClick={() => { setAuthMethod("otp"); setError(""); setOtpSent(false); setUnregisteredMsg(false); setAlreadyRegisteredMsg(false); }}
-              className={`flex-1 min-h-[38px] py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 ${
-                authMethod === "otp"
-                  ? "bg-sky-600 text-white shadow-2xs"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-              }`}
+          {/* Steaming Cafe Cup Emblem */}
+          <div className="w-12 h-12 rounded-full border border-[#D4A373]/80 bg-[#FAF7F2] p-2 shadow-sm flex items-center justify-center mb-1.5">
+            <svg
+              className="w-6 h-6 text-[#9E6B38]"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              <Phone className="w-3.5 h-3.5" /> Mobile + OTP
-            </button>
-            <button
-              type="button"
-              onClick={() => { setAuthMethod("password"); setError(""); setUnregisteredMsg(false); setAlreadyRegisteredMsg(false); }}
-              className={`flex-1 min-h-[38px] py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 ${
-                authMethod === "password"
-                  ? "bg-sky-600 text-white shadow-2xs"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-              }`}
-            >
-              <Lock className="w-3.5 h-3.5" /> Mobile + Password
-            </button>
+              <path d="M17 8h1a4 4 0 1 1 0 8h-1" />
+              <path d="M3 8h14v7a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z" />
+              <path d="M6 2v2M10 2v2M14 2v2" />
+              <line x1="2" y1="21" x2="20" y2="21" />
+            </svg>
           </div>
-        )}
 
-        <div className="mb-4 text-center">
-          <h2 className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
-            {isRegister
-              ? "Register New Customer Account"
-              : authMethod === "forgot"
-              ? "Reset Your Password"
-              : authMethod === "otp"
-              ? (otpSent ? "Enter Verification OTP" : "Login with Mobile OTP")
-              : "Login with Mobile & Password"}
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            {isRegister
-              ? "Register your details to order food & access menu"
-              : authMethod === "forgot"
-              ? "Enter your mobile number to reset password via OTP"
-              : "Enter your mobile number to unlock digital dining"}
+          <h1 className="font-serif text-xl sm:text-2xl font-bold text-[#2D241E] tracking-tight leading-tight">
+            {storeTitle}
+          </h1>
+
+          <p className="text-[10px] font-bold text-[#8C5E35] uppercase tracking-[0.2em] mt-0.5">
+            Good Food • Great Vibes
           </p>
-        </div>
+        </motion.div>
 
-        {/* METHOD 1: OTP AUTHENTICATION */}
-        {authMethod === "otp" && !isRegister && (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!otpSent) {
-                handleSendOtp();
-              } else {
-                handleVerifyOtp();
-              }
-            }}
-            className="space-y-3.5"
-          >
-            {!otpSent ? (
-              <>
+        {/* ── Compact Luxury Card Container (Zero Vertical Overflow) ── */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98, y: 8 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+          className="relative z-10 w-full bg-white rounded-3xl p-4 sm:p-5 shadow-[0_12px_40px_rgba(158,107,56,0.08)] border border-[#E8E3DC] text-[#2D241E]"
+        >
+          <AnimatePresence mode="wait">
+            {/* ════════ SCREEN 1: PHONE NUMBER ════════ */}
+            {step === "phone" && (
+              <motion.div
+                key="step-phone"
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 8 }}
+                transition={{ duration: 0.16 }}
+                className="space-y-3"
+              >
                 <div>
-                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                    Mobile Number
-                  </label>
-                  <div className="relative flex items-center">
-                    <span className="absolute left-3.5 text-xs font-extrabold text-slate-500 border-r border-slate-200 dark:border-slate-700 pr-2.5">
-                      +91
-                    </span>
-                    <input
-                      type="tel"
-                      placeholder="9876543210"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                      className="w-full pl-16 pr-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-                      autoFocus
-                    />
+                  <h2 className="font-serif text-lg sm:text-xl font-bold text-[#2D241E]">
+                    Login to Order
+                  </h2>
+                  <p className="text-[11px] text-[#7A746B] mt-0.5">
+                    Enter your mobile number to view menu & order
+                  </p>
+                </div>
+
+                {/* Mobile Number Input with Indian Flag */}
+                <div className="relative flex items-center bg-[#FAF8F5] rounded-2xl border border-[#E8E3DC] focus-within:border-[#9E6B38] focus-within:ring-2 focus-within:ring-[#9E6B38]/15 transition px-3 py-1.5">
+                  <div className="flex items-center gap-1 pr-2.5 mr-2 text-xs font-bold text-[#2D241E] border-r border-[#E8E3DC] select-none shrink-0">
+                    <span className="text-sm">🇮🇳</span>
+                    <span>+91</span>
                   </div>
-                </div>
-
-                {error && (
-                  <div className="space-y-2">
-                    <p className="text-rose-600 text-xs text-center font-bold">{error}</p>
-                    {unregisteredMsg && (
-                      <button
-                        type="button"
-                        onClick={() => { setIsRegister(true); setAuthMethod("password"); setError(""); setUnregisteredMsg(false); setAlreadyRegisteredMsg(false); }}
-                        className="w-full py-2 bg-sky-50 text-sky-700 border border-sky-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-sky-100 transition"
-                      >
-                        <UserPlus className="w-3.5 h-3.5" /> Register New Account Now
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={verifying}
-                  className="w-full min-h-[44px] py-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50 active:scale-[0.99]"
-                >
-                  {verifying ? "Checking Account..." : "Send OTP & Unlock App"} <ArrowRight className="w-4 h-4" />
-                </button>
-
-                <div className="text-center pt-1">
-                  <button
-                    type="button"
-                    onClick={() => { setIsRegister(true); setAuthMethod("password"); setError(""); setUnregisteredMsg(false); setAlreadyRegisteredMsg(false); }}
-                    className="text-xs text-sky-600 hover:text-sky-700 hover:underline font-extrabold"
-                  >
-                    New Customer? Register New Account
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1 text-center">
-                    4-Digit OTP Code
-                  </label>
-                  <div className="relative">
-                    <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="1234"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                      className="w-full text-center tracking-[0.5em] font-mono font-black text-lg py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-                      autoFocus
-                    />
-                  </div>
-                </div>
-
-                {error && <p className="text-rose-600 text-xs text-center font-bold">{error}</p>}
-
-                <button
-                  type="submit"
-                  disabled={verifying}
-                  className="w-full min-h-[44px] py-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50 active:scale-[0.99]"
-                >
-                  {verifying ? "Verifying..." : "Verify OTP & Access Store"} <Check className="w-4 h-4" />
-                </button>
-
-                <div className="flex items-center justify-between text-xs pt-1 font-semibold">
-                  <button
-                    type="button"
-                    onClick={() => setOtpSent(false)}
-                    className="text-slate-500 hover:text-slate-900"
-                  >
-                    Change Number
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSendOtp}
-                    disabled={resendTimer > 0}
-                    className="text-sky-600 hover:underline font-bold disabled:opacity-40"
-                  >
-                    {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend OTP"}
-                  </button>
-                </div>
-              </>
-            )}
-          </form>
-        )}
-
-        {/* METHOD 2: PASSWORD / REGISTER AUTHENTICATION */}
-        {(authMethod === "password" || isRegister) && (
-          <form onSubmit={handlePasswordLoginOrRegister} className="space-y-3.5">
-            {isRegister && (
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                  Full Name
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
-                    type="text"
-                    placeholder="e.g. Rahul Sharma"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-                    required
+                    type="tel"
+                    inputMode="numeric"
+                    placeholder="Mobile Number"
+                    value={phone}
+                    onChange={(e) => {
+                      setPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
+                      if (error) setError("");
+                    }}
+                    className="w-full bg-transparent text-sm font-bold text-[#2D241E] placeholder:text-[#A8A29E] focus:outline-none tracking-wider py-1"
+                    autoFocus
                   />
                 </div>
-              </div>
+
+                {/* Error Message */}
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-2 rounded-xl bg-destructive/10 border border-destructive/20 text-center text-xs font-semibold text-destructive"
+                  >
+                    {error}
+                  </motion.div>
+                )}
+
+                {/* Continue Button */}
+                <button
+                  type="button"
+                  onClick={() => handleSendOtp()}
+                  disabled={verifying || phone.length < 10}
+                  className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-[#9E6B38] to-[#8C5E35] text-white hover:brightness-105 font-bold text-sm shadow-[0_4px_14px_rgba(158,107,56,0.3)] transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {verifying ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Sending Code...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Continue</span>
+                      <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+                    </>
+                  )}
+                </button>
+
+                {/* WhatsApp Alternative */}
+                <button
+                  type="button"
+                  onClick={() => handleSendOtp("whatsapp")}
+                  disabled={verifying}
+                  className="w-full py-2.5 px-3 rounded-2xl bg-[#25D366]/10 hover:bg-[#25D366]/20 border border-[#25D366]/30 text-[#128C7E] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs active:scale-95"
+                >
+                  <MessageSquare className="w-4 h-4 text-[#25D366] shrink-0" />
+                  <span>Continue with WhatsApp</span>
+                </button>
+
+                {/* Safe & Secure note */}
+                <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#7A746B] pt-0.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Secure OTP verification</span>
+                </div>
+              </motion.div>
             )}
 
-            <div>
-              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                Mobile Number
-              </label>
-              <div className="relative flex items-center">
-                <span className="absolute left-3.5 text-xs font-extrabold text-slate-500 border-r border-slate-200 dark:border-slate-700 pr-2.5">
-                  +91
-                </span>
-                <input
-                  type="tel"
-                  placeholder="9876543210"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  className="w-full pl-16 pr-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">
-                  {isRegister ? "Set Password / PIN" : "Password / PIN"}
-                </label>
-                {!isRegister && (
+            {/* ════════ SCREEN 2: OTP VERIFICATION ════════ */}
+            {step === "otp" && (
+              <motion.div
+                key="step-otp"
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.16 }}
+                className="space-y-3"
+              >
+                <div className="flex items-center justify-between">
                   <button
                     type="button"
-                    onClick={() => { setAuthMethod("forgot"); setError(""); setOtpSent(false); }}
-                    className="text-[11px] text-sky-600 hover:underline font-bold"
+                    onClick={() => {
+                      setStep("phone");
+                      setError("");
+                    }}
+                    className="p-1 rounded-full hover:bg-[#EFE9DF] text-[#2D241E] transition cursor-pointer"
+                    aria-label="Back to mobile number"
                   >
-                    Forgot Password?
+                    <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
                   </button>
-                )}
-              </div>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-                  required
-                />
-              </div>
-            </div>
+                  <span className="text-[11px] font-bold text-[#8C5E35]">
+                    +91 {phone}
+                  </span>
+                </div>
 
-            {error && (
-              <div className="space-y-2">
-                <p className="text-rose-600 text-xs text-center font-bold">{error}</p>
-                {unregisteredMsg && (
+                <div>
+                  <h2 className="font-serif text-lg sm:text-xl font-bold text-[#2D241E]">
+                    Verify Your Number
+                  </h2>
+                  <p className="text-[11px] text-[#7A746B] mt-0.5">
+                    Enter the 4-digit verification code
+                  </p>
+                </div>
+
+                {/* Dev/Testing OTP Autofill Banner */}
+                <div className="flex items-center justify-between p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>
+                      OTP: <strong className="font-mono">{devCodeHint || "1234"}</strong>
+                    </span>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => { setIsRegister(true); setError(""); setUnregisteredMsg(false); setAlreadyRegisteredMsg(false); }}
-                    className="w-full py-2 bg-sky-50 text-sky-700 border border-sky-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-sky-100 transition"
+                    onClick={() => {
+                      const codeToFill = (devCodeHint || "1234").split("");
+                      setOtp(codeToFill);
+                      setError("");
+                    }}
+                    className="px-2 py-0.5 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold uppercase transition active:scale-95 cursor-pointer"
                   >
-                    <UserPlus className="w-3.5 h-3.5" /> Register New Account Now
+                    Fill 1234
                   </button>
-                )}
-                {alreadyRegisteredMsg && (
-                  <div className="space-y-2 pt-1">
+                </div>
+
+                {/* 4 Digit Boxes */}
+                <div className="flex justify-center gap-2 py-0.5">
+                  {otp.map((digit, index) => (
+                    <input
+                      key={index}
+                      ref={otpInputRefs[index]}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={index === 0 ? 4 : 1}
+                      value={digit}
+                      onChange={(e) => handleOtpChange(index, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                      className={cn(
+                        "w-11 h-12 rounded-2xl text-center text-lg font-mono font-extrabold bg-[#FAF8F5] border transition text-[#2D241E] focus:outline-none",
+                        digit
+                          ? "border-[#8C5E35] bg-[#8C5E35]/5 ring-2 ring-[#8C5E35]/15"
+                          : "border-[#E8E3DC] focus:border-[#8C5E35] focus:ring-2 focus:ring-[#8C5E35]/15"
+                      )}
+                    />
+                  ))}
+                </div>
+
+                {/* Resend Timer */}
+                <div className="text-center text-xs text-[#7A746B] flex items-center justify-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {resendTimer > 0 ? (
+                    <span>
+                      Resend in{" "}
+                      <strong className="font-mono text-[#2D241E]">
+                        00:{resendTimer < 10 ? `0${resendTimer}` : resendTimer}
+                      </strong>
+                    </span>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => { setAuthMethod("otp"); setIsRegister(false); setError(""); setAlreadyRegisteredMsg(false); setUnregisteredMsg(false); }}
-                      className="w-full py-2 bg-sky-50 text-sky-700 border border-sky-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-sky-100 transition"
+                      onClick={() => handleSendOtp()}
+                      className="text-[#8C5E35] font-bold hover:underline cursor-pointer"
                     >
-                      <Phone className="w-3.5 h-3.5" /> Login with OTP Now
+                      Resend Code
                     </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={verifying}
-              className="w-full min-h-[44px] py-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50 active:scale-[0.99]"
-            >
-              {verifying
-                ? "Authenticating..."
-                : isRegister
-                ? "Register & Unlock App"
-                : "Sign In & Access Store"}
-              <ArrowRight className="w-4 h-4" />
-            </button>
-
-            <div className="text-center pt-1">
-              <button
-                type="button"
-                onClick={() => { setIsRegister(!isRegister); setError(""); setUnregisteredMsg(false); setAlreadyRegisteredMsg(false); }}
-                className="text-xs text-sky-600 hover:underline font-extrabold"
-              >
-                {isRegister
-                  ? "Already registered? Sign In Here"
-                  : "New Customer? Register New Account"}
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* METHOD 3: FORGOT / RESET PASSWORD */}
-        {authMethod === "forgot" && !isRegister && (
-          <form onSubmit={handleResetPasswordSubmit} className="space-y-3.5">
-            <div>
-              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                Registered Mobile Number
-              </label>
-              <div className="relative flex items-center">
-                <span className="absolute left-3.5 text-xs font-extrabold text-slate-500 border-r border-slate-200 dark:border-slate-700 pr-2.5">
-                  +91
-                </span>
-                <input
-                  type="tel"
-                  placeholder="9876543210"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  className="w-full pl-16 pr-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-                  required
-                />
-              </div>
-            </div>
-
-            {!otpSent ? (
-              <button
-                type="button"
-                onClick={handleSendOtp}
-                className="w-full min-h-[44px] py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
-              >
-                Send Reset OTP Code <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            ) : (
-              <>
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1 text-center">
-                    4-Digit OTP Code
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="1234"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                    className="w-full text-center tracking-[0.5em] font-mono font-black text-base py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-                    required
-                  />
+                  )}
                 </div>
 
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                    New Password / PIN
-                  </label>
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-                    required
-                  />
+                {/* Error Message */}
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-2 rounded-xl bg-destructive/10 border border-destructive/20 text-center text-xs font-semibold text-destructive"
+                  >
+                    {error}
+                  </motion.div>
+                )}
+
+                {/* Verify & Continue Button */}
+                <button
+                  type="button"
+                  onClick={handleVerifyOtp}
+                  disabled={verifying || otp.join("").length < 4}
+                  className="w-full py-3 px-4 rounded-2xl bg-[#8C5E35] hover:bg-[#784f2b] text-white font-bold text-sm shadow-[0_4px_14px_rgba(140,94,53,0.3)] transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {verifying ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Verifying...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Verify & Continue</span>
+                      <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+                    </>
+                  )}
+                </button>
+              </motion.div>
+            )}
+
+            {/* ════════ SCREEN 3: FIRST-TIME CUSTOMER NAME ════════ */}
+            {step === "name" && (
+              <motion.form
+                key="step-name"
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.18 }}
+                onSubmit={handleSaveNameAndFinish}
+                className="space-y-3"
+              >
+                <div className="text-center space-y-0.5">
+                  <div className="w-10 h-10 rounded-2xl bg-[#9E6B38]/10 border border-[#9E6B38]/20 flex items-center justify-center mx-auto text-[#9E6B38] mb-1">
+                    <User className="w-5 h-5 stroke-[2]" />
+                  </div>
+                  <h2 className="font-serif text-lg font-bold text-[#2D241E]">
+                    Welcome!
+                  </h2>
+                  <p className="text-[11px] text-[#7A746B]">
+                    What should we call you for your orders?
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="relative flex items-center bg-[#FAF8F5] rounded-2xl border border-[#E8E3DC] focus-within:border-[#9E6B38] focus-within:ring-2 focus-within:ring-[#9E6B38]/15 transition">
+                    <User className="w-4 h-4 text-[#7A746B] ml-3 shrink-0 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Your Full Name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full pl-2.5 pr-3 py-2.5 bg-transparent text-sm font-bold text-[#2D241E] placeholder:text-[#A8A29E] focus:outline-none"
+                      autoFocus
+                      required
+                    />
+                  </div>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={verifying}
-                  className="w-full min-h-[44px] py-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+                  className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-[#9E6B38] to-[#8C5E35] text-white hover:brightness-105 font-bold text-sm shadow-[0_4px_14px_rgba(158,107,56,0.3)] transition-all cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2"
                 >
-                  {verifying ? "Updating Password..." : "Update Password & Login"} <Check className="w-4 h-4" />
+                  <span>Start Ordering</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
-              </>
+
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (tempUserObj) {
+                        handlePostLoginFlow({
+                          ...tempUserObj,
+                          name: `Customer ${phone.slice(-4)}`,
+                        });
+                      }
+                    }}
+                    className="text-xs text-[#7A746B] hover:text-[#9E6B38] font-semibold cursor-pointer underline"
+                  >
+                    Skip for now
+                  </button>
+                </div>
+              </motion.form>
             )}
-
-            {error && <p className="text-rose-600 text-xs text-center font-bold">{error}</p>}
-
-            <div className="text-center pt-1">
-              <button
-                type="button"
-                onClick={() => { setAuthMethod("password"); setError(""); }}
-                className="text-xs text-sky-600 hover:underline font-extrabold"
-              >
-                Back to Sign In
-              </button>
-            </div>
-          </form>
-        )}
-      </motion.div>
-
-      {/* Footer Branding */}
-      <div className="relative z-10 text-center pb-2">
-        <p className="text-white/80 text-xs font-semibold flex items-center justify-center gap-1">
-          <Sparkles className="w-3.5 h-3.5 text-amber-300" /> {storeTitle} · Secure PWA Ordering & Dining
-        </p>
+          </AnimatePresence>
+        </motion.div>
       </div>
     </div>
   );

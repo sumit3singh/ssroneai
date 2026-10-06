@@ -41,7 +41,7 @@ DEFAULT_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "customer-food-web": {
         "banner": {
-            "imageUrl": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=1200&q=80",
+            "imageUrl": "",
             "headline": "Welcome to Our Kitchen",
             "subtext": "Freshly crafted delicious meals prepared with love and care.",
         },

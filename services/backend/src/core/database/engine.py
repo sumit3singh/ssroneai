@@ -48,7 +48,8 @@ def create_engine(*, url: str | None = None, testing: bool = False) -> AsyncEngi
                 "pool_size": settings.db.pool_size,
                 "max_overflow": settings.db.max_overflow,
                 "pool_pre_ping": True,
-                "pool_recycle": 3600,
+                "pool_recycle": 300,
+                "pool_timeout": 20,
             }
         )
 

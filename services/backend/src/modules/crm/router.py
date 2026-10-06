@@ -5,7 +5,7 @@ Customer management and loyalty endpoints.
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database.engine import get_db_session
@@ -259,6 +259,7 @@ async def register_customer(
 class CustomerUpdateSchema(BaseModel):
     name: str | None = None
     email: str | None = None
+    phone: str | None = None
     address: dict | str | None = None
     city: str | None = None
     pincode: str | None = None
@@ -268,26 +269,56 @@ class CustomerUpdateSchema(BaseModel):
 async def update_customer_profile(
     customer_id: str,
     body: CustomerUpdateSchema,
+    phone: str | None = None,
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
+    target_phone = body.phone or phone
+    clean_target_phone = "".join(filter(str.isdigit, target_phone)) if target_phone else ""
+    if clean_target_phone.startswith("91") and len(clean_target_phone) == 12:
+        clean_target_phone = clean_target_phone[2:]
+
+    found = None
+    # 1. Try resolving by numeric customer ID
     try:
         cid = int(customer_id)
         q = select(Customer).where(Customer.id == cid, Customer.is_deleted == False)
-    except ValueError:
-        q = select(Customer).where(Customer.is_deleted == False).order_by(Customer.id.asc()).limit(1)
+        found = (await db.execute(q)).scalars().first()
+    except (ValueError, TypeError):
+        pass
 
-    found = (await db.execute(q)).scalars().first()
+    # 2. Try resolving by phone number if ID lookup failed
+    if not found and clean_target_phone:
+        q_phone = select(Customer).where(
+            (Customer.phone == clean_target_phone) |
+            (Customer.phone == f"+91{clean_target_phone}") |
+            (Customer.phone == target_phone),
+            Customer.is_deleted == False
+        )
+        found = (await db.execute(q_phone)).scalars().first()
+
+    # 3. If customer_id itself contains 10-digit phone digits
     if not found:
-        raise HTTPException(status_code=404, detail="Customer not found")
+        digits_in_id = "".join(filter(str.isdigit, customer_id))
+        if len(digits_in_id) >= 10:
+            clean_id_phone = digits_in_id[-10:]
+            q_digits = select(Customer).where(
+                (Customer.phone == clean_id_phone) |
+                (Customer.phone == f"+91{clean_id_phone}"),
+                Customer.is_deleted == False
+            )
+            found = (await db.execute(q_digits)).scalars().first()
 
-    if body.name:
-        found.name = body.name
+    if not found:
+        raise HTTPException(status_code=404, detail="Customer not found in database")
+
+    if body.name and body.name.strip():
+        found.name = body.name.strip()
     if body.email:
-        found.email = body.email
+        found.email = body.email.strip()
     if body.city:
-        found.city = body.city
+        found.city = body.city.strip()
     if body.pincode:
-        found.pincode = body.pincode
+        found.pincode = body.pincode.strip()
     if body.address:
         found.address = {"fullAddress": body.address} if isinstance(body.address, str) else body.address
 
@@ -298,59 +329,193 @@ async def update_customer_profile(
 
 class AddressCreateSchema(BaseModel):
     label: str = "Home"
-    fullAddress: str
+    flat_no: str | None = None
+    area_street: str | None = None
+    fullAddress: str | None = None
+    landmark: str | None = None
     city: str | None = "Mahendragarh"
+    state: str | None = "Haryana"
     pincode: str | None = None
+    is_default: bool = False
+    alternate_phone: str | None = None
 
 
 @router.get("/addresses")
 async def list_customer_addresses(
     customer_id: int | None = None,
+    phone: str | None = None,
     db: AsyncSession = Depends(get_db_session)
 ):
-    query = select(CustomerAddress).where(CustomerAddress.is_deleted == False)
+    query = select(CustomerAddress).where(
+        (CustomerAddress.is_deleted == False) | (CustomerAddress.is_deleted.is_(None))
+    )
     if customer_id:
         query = query.where(CustomerAddress.customer_id == customer_id)
-    result = await db.execute(query)
+    elif phone:
+        clean_phone = "".join(filter(str.isdigit, phone))
+        if clean_phone.startswith("91") and len(clean_phone) == 12:
+            clean_phone = clean_phone[2:]
+        cust_res = await db.execute(
+            select(Customer.id).where(
+                (Customer.phone == clean_phone) | (Customer.phone == f"+91{clean_phone}") | (Customer.phone == phone),
+                Customer.is_deleted == False
+            )
+        )
+        found_cust_id = cust_res.scalar_one_or_none()
+        if found_cust_id:
+            query = query.where(CustomerAddress.customer_id == found_cust_id)
+        else:
+            return []
+
+    result = await db.execute(query.order_by(CustomerAddress.is_default.desc(), CustomerAddress.id.desc()))
     addrs = result.scalars().all()
-    return [
-        {
+    
+    formatted = []
+    for a in addrs:
+        parts = []
+        if a.flat_no:
+            parts.append(a.flat_no)
+        if a.area_street:
+            parts.append(a.area_street)
+        if a.landmark:
+            parts.append(f"Near {a.landmark}")
+        if a.city:
+            parts.append(a.city)
+        if a.pincode:
+            parts.append(a.pincode)
+            
+        full_addr = ", ".join(parts) if parts else (a.area_street or "Address")
+        
+        formatted.append({
             "id": str(a.id),
-            "label": a.label,
-            "address": a.area_street,
-            "fullAddress": f"{a.area_street}, {a.city} - {a.pincode or ''}",
-            "city": a.city,
-            "pincode": a.pincode,
-        }
-        for a in addrs
-    ]
+            "customer_id": a.customer_id,
+            "label": a.label or "Home",
+            "flat_no": a.flat_no or "",
+            "area_street": a.area_street or "",
+            "landmark": a.landmark or "",
+            "city": a.city or "Mahendragarh",
+            "state": a.state or "Haryana",
+            "pincode": a.pincode or "",
+            "is_default": bool(a.is_default),
+            "address": a.area_street or full_addr,
+            "fullAddress": full_addr,
+        })
+    return formatted
 
 
 @router.post("/addresses")
 async def create_customer_address(
     body: AddressCreateSchema,
-    customer_id: int | None = 1,
+    customer_id: int | None = None,
+    phone: str | None = None,
     db: AsyncSession = Depends(get_db_session)
 ):
+    eff_customer_id = customer_id
+    if not eff_customer_id and phone:
+        clean_phone = "".join(filter(str.isdigit, phone))
+        if clean_phone.startswith("91") and len(clean_phone) == 12:
+            clean_phone = clean_phone[2:]
+        cust_res = await db.execute(
+            select(Customer).where(
+                (Customer.phone == clean_phone) | (Customer.phone == f"+91{clean_phone}") | (Customer.phone == phone),
+                Customer.is_deleted == False
+            )
+        )
+        found_cust = cust_res.scalar_one_or_none()
+        if found_cust:
+            eff_customer_id = found_cust.id
+
+    if not eff_customer_id:
+        eff_customer_id = 1
+
+    cust_res = await db.execute(select(Customer).where(Customer.id == eff_customer_id))
+    cust = cust_res.scalar_one_or_none()
+    tenant_id = cust.tenant_id if cust and cust.tenant_id else 1
+
+    # If is_default, unset other defaults for this customer
+    if body.is_default:
+        await db.execute(
+            update(CustomerAddress)
+            .where(CustomerAddress.customer_id == eff_customer_id)
+            .values(is_default=False)
+        )
+
+    resolved_street = (body.area_street or body.fullAddress or "").strip()
+    if not resolved_street:
+        resolved_street = "Main Street"
+
     addr = CustomerAddress(
-        tenant_id=2,
-        customer_id=customer_id or 1,
-        label=body.label,
-        area_street=body.fullAddress,
+        tenant_id=tenant_id,
+        customer_id=eff_customer_id,
+        label=body.label or "Home",
+        flat_no=body.flat_no,
+        area_street=resolved_street,
+        landmark=body.landmark,
         city=body.city or "Mahendragarh",
-        pincode=body.pincode
+        state=body.state or "Haryana",
+        pincode=body.pincode,
+        is_default=body.is_default
     )
     db.add(addr)
+
+    parts = []
+    if body.flat_no:
+        parts.append(body.flat_no)
+    parts.append(resolved_street)
+    if body.landmark:
+        parts.append(f"Near {body.landmark}")
+    if body.city:
+        parts.append(body.city)
+    if body.pincode:
+        parts.append(body.pincode)
+    full_addr = ", ".join(parts)
+
+    if cust:
+        cust.address = {
+            "fullAddress": full_addr,
+            "flat_no": body.flat_no,
+            "area_street": resolved_street,
+            "landmark": body.landmark,
+            "city": body.city or "Mahendragarh",
+            "pincode": body.pincode,
+            "alternate_phone": body.alternate_phone
+        }
+        if body.city:
+            cust.city = body.city
+        if body.pincode:
+            cust.pincode = body.pincode
+
     await db.commit()
     await db.refresh(addr)
     return {
         "id": str(addr.id),
+        "customer_id": addr.customer_id,
         "label": addr.label,
-        "address": addr.area_street,
-        "fullAddress": body.fullAddress,
+        "flat_no": addr.flat_no or "",
+        "area_street": addr.area_street,
+        "landmark": addr.landmark or "",
         "city": addr.city,
-        "pincode": addr.pincode
+        "state": addr.state,
+        "pincode": addr.pincode,
+        "is_default": addr.is_default,
+        "address": addr.area_street,
+        "fullAddress": full_addr,
+        "alternate_phone": body.alternate_phone
     }
+
+
+@router.delete("/addresses/{address_id}")
+async def delete_customer_address(
+    address_id: int,
+    db: AsyncSession = Depends(get_db_session)
+):
+    addr_res = await db.execute(select(CustomerAddress).where(CustomerAddress.id == address_id))
+    addr = addr_res.scalar_one_or_none()
+    if addr:
+        addr.is_deleted = True
+        await db.commit()
+        return {"status": "success", "message": f"Address {address_id} deleted"}
+    return {"status": "not_found", "message": "Address not found"}
 
 
 # Direct /customers alias router for Customer Food Web & POS Counter compatibility
@@ -363,11 +528,13 @@ customers_alias_router.add_api_route("/register", register_customer, methods=["P
 customers_alias_router.add_api_route("/{customer_id}", update_customer_profile, methods=["PUT"])
 customers_alias_router.add_api_route("/addresses", list_customer_addresses, methods=["GET"])
 customers_alias_router.add_api_route("/addresses", create_customer_address, methods=["POST"])
+customers_alias_router.add_api_route("/addresses/{address_id}", delete_customer_address, methods=["DELETE"])
 
 # Direct /customer singular alias router for /customer/addresses
 customer_singular_alias_router = APIRouter(prefix="/customer", tags=["Customer Addresses"])
 customer_singular_alias_router.add_api_route("/addresses", list_customer_addresses, methods=["GET"])
 customer_singular_alias_router.add_api_route("/addresses", create_customer_address, methods=["POST"])
+customer_singular_alias_router.add_api_route("/addresses/{address_id}", delete_customer_address, methods=["DELETE"])
 
 
 

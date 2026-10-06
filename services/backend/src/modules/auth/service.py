@@ -160,7 +160,8 @@ class AuthService:
             ),
         )
         db.add(session)
-        await db.flush()
+        await db.commit()
+        await db.refresh(session)
 
         access_token = self.create_access_token({
             "sub": str(user.id),
@@ -185,7 +186,7 @@ class AuthService:
         session = result.scalar_one_or_none()
         if session:
             session.is_active = False
-            await db.flush()
+            await db.commit()
             # Also invalidate any cached permission data
             await cache.delete(f"perms:{session.user_id}")
             return True
@@ -209,6 +210,7 @@ class AuthService:
         for session in sessions:
             session.is_active = False
             count += 1
+        await db.commit()
         await cache.delete(f"perms:{user_id}")
         return count
 

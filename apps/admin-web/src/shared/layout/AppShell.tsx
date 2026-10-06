@@ -21,6 +21,39 @@ import { toast } from "sonner";
 import { cn } from "@/shared/utils/cn";
 import { IndianLiveClock } from "@/modules/pos/components/IndianLiveClock";
 
+const playOrderChime = () => {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    // Pleasant two-tone chime (F5 -> A5)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = "sine";
+    osc1.frequency.setValueAtTime(698.46, now);
+    gain1.gain.setValueAtTime(0.25, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.35);
+
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = "sine";
+    osc2.frequency.setValueAtTime(880, now + 0.18);
+    gain2.gain.setValueAtTime(0.3, now + 0.18);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.18);
+    osc2.stop(now + 0.6);
+  } catch (err) {
+    console.debug("Audio chime suppressed:", err);
+  }
+};
+
 interface AppShellProps {
   children: ReactNode;
 }
@@ -33,7 +66,6 @@ export function AppShell({ children }: AppShellProps) {
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("light");
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
-
 
   const { user, selected_branch, branches, setSelectedBranch, setBranches, logout } = useAuthStore();
   const routerState = useRouterState();
@@ -48,6 +80,67 @@ export function AppShell({ children }: AppShellProps) {
   const notifRef = useRef<HTMLDivElement>(null);
 
   const [activeCompany, setActiveCompany] = useState<any | null>(null);
+
+  // Online Food App Order Notifications & Real-Time Alert Engine
+  const [onlineOrders, setOnlineOrders] = useState<any[]>([]);
+  const [unreadOnlineCount, setUnreadOnlineCount] = useState(0);
+  const knownOrderIdsRef = useRef<Set<string>>(new Set());
+  const initialFetchDoneRef = useRef(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const branchId = selected_branch?.id || 1;
+
+    const fetchOrdersForNotification = async () => {
+      try {
+        const res = await api.get<any>(`/orders/active-orders?branch_id=${branchId}`).catch(() => null);
+        const activeList = Array.isArray(res?.active_orders) ? res.active_orders : (Array.isArray(res) ? res : []);
+
+        const onlineList = activeList.filter((o: any) => {
+          const s = String(o.source_channel || o.order_source || "").toLowerCase();
+          return s.includes("customer") || s.includes("web") || s.includes("food_app") || s.includes("online");
+        });
+
+        if (!isMounted) return;
+        setOnlineOrders(onlineList);
+
+        if (!initialFetchDoneRef.current) {
+          onlineList.forEach((o: any) => knownOrderIdsRef.current.add(String(o.order_number || o.id)));
+          initialFetchDoneRef.current = true;
+          return;
+        }
+
+        const newOrders = onlineList.filter((o: any) => !knownOrderIdsRef.current.has(String(o.order_number || o.id)));
+        if (newOrders.length > 0) {
+          newOrders.forEach((o: any) => knownOrderIdsRef.current.add(String(o.order_number || o.id)));
+          setUnreadOnlineCount((prev) => prev + newOrders.length);
+          playOrderChime();
+          const topOrd = newOrders[0];
+          const modeLabel = (topOrd.order_mode || topOrd.order_type || "Order").toUpperCase();
+          const tableInfo = topOrd.table_name ? ` (Table ${topOrd.table_name})` : (topOrd.table_id ? ` (Table ${topOrd.table_id})` : "");
+          toast.success(
+            `🔔 New Food App Order #${topOrd.daily_order_number || topOrd.order_number}! Mode: ${modeLabel}${tableInfo} - ₹${topOrd.net_amount || topOrd.grand_total}`,
+            {
+              duration: 8000,
+              action: {
+                label: "View in POS",
+                onClick: () => navigate({ to: "/pos/transaction/orders" }),
+              },
+            }
+          );
+        }
+      } catch (err) {
+        console.debug("Notification order check silent error", err);
+      }
+    };
+
+    fetchOrdersForNotification();
+    const interval = setInterval(fetchOrdersForNotification, 6000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [selected_branch?.id, navigate]);
 
   const getUserDisplayName = (u: any) => {
     if (!u) return "User";
@@ -404,28 +497,86 @@ export function AppShell({ children }: AppShellProps) {
           {/* Notifications Bell */}
           <div className="relative" ref={notifRef}>
             <button
-              onClick={() => setNotificationsOpen(!notificationsOpen)}
+              onClick={() => {
+                setNotificationsOpen(!notificationsOpen);
+                if (!notificationsOpen) setUnreadOnlineCount(0);
+              }}
               className="p-1.5 rounded border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground transition-colors relative cursor-pointer"
+              title="Online Orders & Notifications"
             >
-              <Bell size={14} />
-              <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-primary" />
+              <Bell size={14} className={unreadOnlineCount > 0 ? "text-amber-500 animate-bounce" : ""} />
+              {unreadOnlineCount > 0 ? (
+                <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 rounded-full bg-rose-500 text-white font-mono font-black text-[9px] flex items-center justify-center shadow-xs animate-pulse">
+                  {unreadOnlineCount}
+                </span>
+              ) : onlineOrders.length > 0 ? (
+                <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-amber-500" />
+              ) : (
+                <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-primary" />
+              )}
             </button>
 
             {notificationsOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-64 bg-card text-foreground border border-border rounded-md p-2 shadow-md z-50 space-y-1">
+              <div className="absolute right-0 top-full mt-1.5 w-80 bg-card text-foreground border border-border rounded-xl p-3 shadow-xl z-50 space-y-2.5">
                 <div className="flex items-center justify-between border-b border-border pb-2">
-                  <span className="font-bold text-xs text-foreground uppercase tracking-wider">
-                    System Notifications
+                  <span className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="text-amber-500">⭐</span> Food App Orders
                   </span>
-                  <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded-sm font-mono">
-                    PostgreSQL Active
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-mono">
+                    {onlineOrders.length} Active
                   </span>
                 </div>
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  <div className="p-2 rounded-md bg-muted/50 border border-border">
-                    <p className="font-semibold text-foreground text-xs">PostgreSQL Row-Level Security</p>
-                    <p className="text-[10px]">All multi-tenant business schemas synced cleanly.</p>
+
+                {onlineOrders.length === 0 ? (
+                  <div className="py-4 text-center text-xs text-muted-foreground">
+                    <p className="text-2xl mb-1">📱</p>
+                    <p className="font-semibold text-foreground">No active food app orders</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Orders placed via QR code or mobile web will chime here instantly!</p>
                   </div>
+                ) : (
+                  <div className="max-h-64 overflow-y-auto space-y-1.5 pr-0.5 scrollbar-thin">
+                    {onlineOrders.map((ord: any) => (
+                      <div
+                        key={ord.id || ord.order_number}
+                        onClick={() => {
+                          setNotificationsOpen(false);
+                          navigate({ to: "/pos/transaction/orders" });
+                        }}
+                        className="p-2.5 rounded-lg bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/20 cursor-pointer transition flex items-center justify-between gap-2 shadow-2xs"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-bold text-xs text-foreground">
+                              #{ord.daily_order_number || ord.order_number}
+                            </span>
+                            <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-800 dark:text-amber-300">
+                              {ord.order_mode?.toUpperCase() || ord.order_type?.toUpperCase() || "ONLINE"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                            {ord.table_name ? `Table ${ord.table_name}` : (ord.table_id ? `Table ${ord.table_id}` : "Takeaway / Counter Pickup")}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-mono font-bold text-xs text-primary">₹{ord.net_amount || ord.grand_total || 0}</span>
+                          <span className="block text-[9px] text-emerald-600 font-semibold">{ord.status?.toUpperCase() || "KOT SENT"}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="pt-2 border-t border-border flex items-center justify-between text-[11px]">
+                  <span className="text-muted-foreground font-mono">PostgreSQL RLS Active</span>
+                  <button
+                    onClick={() => {
+                      setNotificationsOpen(false);
+                      navigate({ to: "/pos/transaction/orders" });
+                    }}
+                    className="font-bold text-primary hover:underline cursor-pointer"
+                  >
+                    View All Orders →
+                  </button>
                 </div>
               </div>
             )}

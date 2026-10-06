@@ -1,285 +1,524 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion";
-import { Menu as MenuIcon, ShoppingBag, Home, Store, ChevronDown, MapPin } from "lucide-react";
-import { fetchMenuItems, type BranchInfo } from "@ssrone/api-client";
-import { menuItems as defaultMockItems } from "@/data/mockMenu";
+import {
+  Search,
+  X,
+  ChevronDown,
+  ShoppingBag,
+  QrCode,
+  MapPin,
+  Store,
+  ArrowRight,
+} from "lucide-react";
+import {
+  fetchMenuItems,
+  fetchCategories,
+  getCachedMenuItems,
+  getCachedCategories,
+  type BranchInfo,
+} from "@ssrone/api-client";
 import { useCartStore } from "@/stores/cartStore";
 import { useI18n } from "@/stores/i18nStore";
-import CategorySidebar from "@/components/CategorySidebar";
 import MenuItemCard from "@/components/MenuItemCard";
 import ItemDetailModal from "@/components/ItemDetailModal";
 import CartSheet from "@/components/CartSheet";
-import LanguageToggle from "@/components/LanguageToggle";
-import { FoodParticleLayer, useFoodParticles } from "@/components/FoodParticles";
+import BottomNav from "@/components/BottomNav";
+import { MenuGridSkeleton } from "@/components/LoadingSkeleton";
+import { getCategoryPhoto } from "@/lib/foodImageHelper";
+import { cn } from "@/lib/utils";
 import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
 import { useTenantAppConfig } from "@/hooks/useTenantAppConfig";
 import type { MenuItem } from "@/data/mockMenu";
 import type { CartItemVariant, CartItemAddon } from "@/stores/cartStore";
 import BranchSwitchDialog from "@/components/BranchSwitchDialog";
+import AddressSelectDialog from "@/components/AddressSelectDialog";
+import ChangeOrderModeDialog from "@/components/ChangeOrderModeDialog";
+import TableCameraScannerModal from "@/components/TableCameraScannerModal";
+import { useAuthStore } from "@ssrone/auth";
 
-const MenuPage = () => {
+export const MenuPage = () => {
   const navigate = useNavigate();
-  const { tenantSlug, branchCode, tableNumber, isTableMode, branches, switchBranch } = useTenantBranchContext();
-  const { branding, banner, features, hiddenCategories, hiddenItems, featuredItems } = useTenantAppConfig();
+  const { tenantSlug, branchCode, tableNumber, branches, switchBranch } = useTenantBranchContext();
+  const { orderMode } = useAuthStore();
+  const { branding, hiddenItems } = useTenantAppConfig();
   const { t } = useI18n();
-  const [selectedCategory, setSelectedCategory] = useState("all");
+
+  const [activeCategory, setActiveCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [vegOnly, setVegOnly] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   const [cartOpen, setCartOpen] = useState(false);
-  const [menuItemsList, setMenuItemsList] = useState<MenuItem[]>([]);
+  // Zero-Wait 0ms Instant Initial Render from cache (in-memory & sessionStorage)
+  const [menuItemsList, setMenuItemsList] = useState<MenuItem[]>(
+    () => (getCachedMenuItems(branchCode) as MenuItem[]) || []
+  );
+  const [categoriesList, setCategoriesList] = useState<any[]>(
+    () => getCachedCategories(branchCode) || []
+  );
+  const [loadingInitial, setLoadingInitial] = useState(
+    () => !getCachedMenuItems(branchCode)?.length
+  );
+
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [pendingBranch, setPendingBranch] = useState<BranchInfo | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [isModeDialogOpen, setIsModeDialogOpen] = useState(false);
+  const [isTableScanOpen, setIsTableScanOpen] = useState(false);
+
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  const categoryCarouselRef = useRef<HTMLDivElement | null>(null);
+  const isUserClickingCategory = useRef(false);
 
   const activeBranch = (branches || []).find((b) => b?.code === branchCode);
-
-  const handleBranchSelectAttempt = (newCode: string) => {
-    if (newCode === branchCode) return;
-    const target = (branches || []).find((b) => b?.code === newCode);
-    if (target) {
-      setPendingBranch(target);
-      setIsConfirmOpen(true);
-    }
-  };
-
-  const handleConfirmBranchSwitch = () => {
-    if (pendingBranch) {
-      switchBranch(pendingBranch.code);
-    }
-    setIsConfirmOpen(false);
-    setPendingBranch(null);
-  };
+  const outletName = branding.businessName || activeBranch?.name || "The Baithak Cafe";
 
   const addItem = useCartStore((s) => s.addItem);
   const items = useCartStore((s) => s.items || []);
   const itemCount = (items || []).reduce((acc, item) => acc + (item?.quantity || 0), 0);
-  const { particles, burst } = useFoodParticles();
+  const cartTotal = useCartStore((s) => s.getTotal());
 
+  // Load menu items & categories in background (SWR pattern: instant paint + silent refresh)
   useEffect(() => {
-    fetchMenuItems(branchCode).then((data) => {
-      setMenuItemsList(Array.isArray(data) ? data : []);
-    }).catch(() => {
-      setMenuItemsList([]);
+    Promise.all([
+      fetchMenuItems(branchCode)
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setMenuItemsList(data);
+          }
+        })
+        .catch(() => {}),
+      fetchCategories(branchCode)
+        .then((cats) => {
+          if (Array.isArray(cats) && cats.length > 0) {
+            setCategoriesList(cats);
+          }
+        })
+        .catch(() => {}),
+    ]).finally(() => {
+      setLoadingInitial(false);
     });
   }, [branchCode]);
 
+  useEffect(() => {
+    const handleOpenCart = () => setCartOpen(true);
+    window.addEventListener("open-cart-sheet", handleOpenCart);
+    return () => window.removeEventListener("open-cart-sheet", handleOpenCart);
+  }, []);
+
+  // Filtered menu items
   const filteredItems = useMemo(() => {
-    let items = (menuItemsList || []).filter(Boolean);
+    let list = (menuItemsList || []).filter(Boolean);
 
-    // Filter out items hidden by tenant configuration
     if (hiddenItems && hiddenItems.length > 0) {
-      items = items.filter((i) => !hiddenItems.includes(String(i.id)));
-    }
-
-    // Filter out categories hidden by tenant configuration
-    if (hiddenCategories && hiddenCategories.length > 0) {
-      items = items.filter((i) => {
-        const catId = String(i.categoryId ?? (i as any).category_id);
-        return !hiddenCategories.includes(catId);
-      });
-    }
-
-    if (selectedCategory !== "all") {
-      items = items.filter((i) => {
-        const catId = i.categoryId ?? (i as any).category_id;
-        return String(catId) === String(selectedCategory);
-      });
-    }
-    if (vegOnly) {
-      items = items.filter((i) => Boolean(i.isVeg || (i as any).is_veg));
+      list = list.filter((i) => !hiddenItems.includes(String(i.id)));
     }
 
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      items = items.filter(
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(
         (i) =>
-          (i.name || "").toLowerCase().includes(q) ||
-          (i.description || "").toLowerCase().includes(q)
+          i.name?.toLowerCase().includes(q) ||
+          i.description?.toLowerCase().includes(q) ||
+          i.tags?.some((t) => t.name?.toLowerCase().includes(q))
       );
     }
 
-    // Elevate featured items to top
-    if (featuredItems && featuredItems.length > 0) {
-      items = [...items].sort((a, b) => {
-        const aFeat = featuredItems.includes(String(a.id)) ? -1 : 1;
-        const bFeat = featuredItems.includes(String(b.id)) ? -1 : 1;
-        return aFeat - bFeat;
+    return list;
+  }, [menuItemsList, hiddenItems, searchQuery]);
+
+  // Group items by category
+  const categoryGroups = useMemo(() => {
+    const map = new Map<string, { category: any; items: MenuItem[] }>();
+
+    (categoriesList || []).forEach((cat) => {
+      map.set(String(cat.id), { category: cat, items: [] });
+    });
+
+    (filteredItems || []).forEach((item) => {
+      const catId = String(item.categoryId ?? item.category_id ?? "all");
+      if (!map.has(catId)) {
+        map.set(catId, {
+          category: { id: catId, name: catId === "all" ? "All Specialties" : catId },
+          items: [],
+        });
+      }
+      map.get(catId)!.items.push(item);
+    });
+
+    return Array.from(map.values()).filter((group) => group.items.length > 0);
+  }, [categoriesList, filteredItems]);
+
+  // Scroll spy with requestAnimationFrame to prevent scroll jank
+  useEffect(() => {
+    let ticking = false;
+    const handleScroll = () => {
+      if (isUserClickingCategory.current) return;
+      if (searchQuery.trim()) return;
+
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const scrollPos = window.scrollY + 180;
+          let currentCat = "all";
+
+          for (const group of categoryGroups) {
+            const catId = String(group.category.id);
+            const el = sectionRefs.current[catId];
+            if (el) {
+              const top = el.offsetTop;
+              const height = el.offsetHeight;
+              if (scrollPos >= top && scrollPos < top + height) {
+                currentCat = catId;
+                break;
+              }
+            }
+          }
+
+          setActiveCategory((prev) => (prev !== currentCat ? currentCat : prev));
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [categoryGroups, searchQuery]);
+
+  // Center active category thumbnail in carousel
+  useEffect(() => {
+    if (!categoryCarouselRef.current) return;
+    const activeEl = document.getElementById(`cat-thumb-${activeCategory}`);
+    if (activeEl) {
+      activeEl.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
       });
     }
+  }, [activeCategory]);
 
-    return items;
-  }, [menuItemsList, selectedCategory, vegOnly, searchQuery, hiddenCategories, hiddenItems, featuredItems]);
+  const handleSelectCategory = (catId: string) => {
+    isUserClickingCategory.current = true;
+    setActiveCategory(catId);
 
+    if (catId === "all") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      const targetEl = sectionRefs.current[catId];
+      if (targetEl) {
+        const topOffset = 150; // height of fixed top bar + sticky search & categories
+        const elementPosition = targetEl.getBoundingClientRect().top;
+        const offsetPosition = elementPosition + window.pageYOffset - topOffset;
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: "smooth",
+        });
+      }
+    }
 
-  const handleAddItem = (item: MenuItem, e?: React.MouseEvent) => {
+    setTimeout(() => {
+      isUserClickingCategory.current = false;
+    }, 600);
+  };
+
+  const handleAddItem = useCallback((item: MenuItem, e?: React.MouseEvent) => {
     if (item.variantGroups?.length || item.addonGroups?.length) {
       setSelectedItem(item);
     } else {
       addItem(item);
-      if (e) burst(e.clientX, e.clientY);
     }
-  };
+  }, [addItem]);
 
-  const handleAddToCart = (item: MenuItem, variants?: CartItemVariant[], addons?: CartItemAddon[]) => {
+  const handleAddToCart = useCallback((item: MenuItem, variants?: CartItemVariant[], addons?: CartItemAddon[]) => {
     addItem(item, variants, addons);
-    burst();
-  };
+  }, [addItem]);
+
+  const homePath = `/t/${tenantSlug}/b/${branchCode}${tableNumber ? `/table/${tableNumber}` : ""}`;
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
-      <FoodParticleLayer particles={particles} />
-
-      {/* Top Bar */}
-      <header className="sticky top-0 z-30 bg-popover/95 backdrop-blur border-b border-border px-2 sm:px-4 py-2 sm:py-3">
-        <div className="flex items-center justify-between max-w-7xl mx-auto gap-1.5">
-          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 overflow-hidden">
-            <button onClick={() => setSidebarOpen(true)} className="md:hidden p-1 flex-shrink-0" aria-label="Open menu">
-              <MenuIcon className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button>
+    <div className="min-h-screen bg-[#FBF8F3] text-[#2D241E] pb-16 select-none font-sans">
+      {/* ── Top Header (Brand + Dining Mode Pill) ── */}
+      <header className="relative bg-white border-b border-[#E8E3DC] shadow-2xs">
+        <div className="px-4 sm:px-6 py-2.5 max-w-3xl mx-auto flex items-center justify-between gap-3">
+          {/* Left: Brand Emblem + Name & Location */}
+          <div className="flex items-center gap-2.5 min-w-0">
             <button
-              onClick={() => navigate(`/t/${tenantSlug}/b/${branchCode}${tableNumber ? `/table/${tableNumber}` : ''}`)}
-              className="p-1 sm:p-1.5 rounded-full hover:bg-muted transition flex-shrink-0"
-              aria-label="Home"
+              onClick={() => navigate(homePath)}
+              className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#9E6B38] to-[#784F2B] text-white flex items-center justify-center p-2 shrink-0 shadow-xs cursor-pointer hover:opacity-90 transition active:scale-95"
+              title="Home"
             >
-              <Home className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
+              {branding.logoUrl ? (
+                <img src={branding.logoUrl} alt={outletName} className="w-full h-full object-contain rounded-lg" />
+              ) : (
+                <svg
+                  className="w-4 h-4 text-amber-200"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M17 8h1a4 4 0 1 1 0 8h-1" />
+                  <path d="M3 8h14v7a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z" />
+                  <path d="M6 2v2M10 2v2M14 2v2" />
+                  <line x1="2" y1="21" x2="20" y2="21" />
+                </svg>
+              )}
             </button>
-            <div className="min-w-0 flex-1">
-              <h1 className="font-display text-xs sm:text-lg font-bold leading-tight truncate">{branding.businessName || activeBranch?.name || t("app.name")}</h1>
-              <div className="flex items-center gap-1 text-[9px] sm:text-xs text-muted-foreground truncate">
-                <span>{isTableMode ? `Table ${tableNumber}` : t("misc.dineIn")}</span>
-                <span>·</span>
-                <div className="relative inline-flex items-center bg-muted/60 hover:bg-muted px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-semibold cursor-pointer">
-                  <MapPin className="w-3 h-3 text-primary mr-1 flex-shrink-0" />
-                  <select
-                    value={branchCode}
-                    onChange={(e) => handleBranchSelectAttempt(e.target.value)}
-                    className="bg-transparent text-foreground focus:outline-none cursor-pointer appearance-none pr-3"
-                  >
-                    {(branches || []).map((b) => (
-                      <option key={b.code} value={b.code} className="bg-popover text-popover-foreground">
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-3 h-3 text-muted-foreground absolute right-0.5 pointer-events-none" />
-                </div>
+
+            <div className="min-w-0">
+              <h1 className="font-serif text-base sm:text-lg font-bold text-[#2D241E] tracking-tight leading-tight break-words">
+                {outletName}
+              </h1>
+              <div className="flex items-center gap-1 text-[11px] text-[#7A746B]">
+                <MapPin className="w-3 h-3 shrink-0 text-[#9E6B38]" />
+                <span className="font-medium break-words">
+                  {activeBranch?.name || outletName}
+                </span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <LanguageToggle />
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => setCartOpen(true)}
-              className="relative p-1.5 sm:p-2.5 rounded-full bg-primary text-primary-foreground shadow-md flex-shrink-0"
-              aria-label={`Cart with ${itemCount} items`}
+
+          {/* Right: Mode Switcher Pill */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsModeDialogOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-[#FAF8F5] hover:bg-[#F2EFE9] text-[#2D241E] border border-[#E8E3DC] transition cursor-pointer active:scale-95 shadow-2xs"
+              title="Click to switch Dining Mode"
             >
-              <ShoppingBag className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
-              {itemCount > 0 && (
-                <motion.span
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-accent text-accent-foreground text-[9px] sm:text-xs font-bold flex items-center justify-center"
-                >
-                  {itemCount}
-                </motion.span>
+              {orderMode === "dine-in" ? (
+                <>
+                  <QrCode className="w-3.5 h-3.5 text-[#9E6B38]" />
+                  <span>{tableNumber ? `Table ${tableNumber}` : "Table"}</span>
+                </>
+              ) : orderMode === "delivery" ? (
+                <>
+                  <MapPin className="w-3.5 h-3.5 text-[#9E6B38]" />
+                  <span>Delivery</span>
+                </>
+              ) : (
+                <>
+                  <Store className="w-3.5 h-3.5 text-[#9E6B38]" />
+                  <span>Takeaway</span>
+                </>
               )}
-            </motion.button>
+              <ChevronDown className="w-3.5 h-3.5 opacity-70 ml-0.5" />
+            </button>
           </div>
         </div>
       </header>
 
-      <div className="flex max-w-7xl mx-auto">
-        {/* Sidebar */}
-        <CategorySidebar
-          selectedCategory={selectedCategory}
-          onSelectCategory={setSelectedCategory}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          vegOnly={vegOnly}
-          onVegToggle={setVegOnly}
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          branchCode={branchCode}
-        />
+      {/* ── STICKY TOP CONTAINER: Search Bar + Cart Pop-up Icon + Category Carousel ── */}
+      <div className="sticky top-0 z-30 bg-[#FBF8F3]/95 backdrop-blur-md border-b border-[#E8E3DC] shadow-xs">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-2 pb-2 space-y-2">
+          {/* Row 1: Search Pill + Right-side Impressive Cart Button */}
+          <div className="flex items-center gap-2.5">
+            <div className="relative flex-1 flex items-center bg-white rounded-2xl border border-[#E8E3DC] shadow-2xs px-3.5 py-1.5 focus-within:border-[#9E6B38] focus-within:ring-2 focus-within:ring-[#9E6B38]/15 transition">
+              <Search className="w-4 h-4 text-[#7A746B] mr-2 shrink-0 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search dishes or drinks..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-transparent text-xs sm:text-sm font-semibold text-[#2D241E] placeholder:text-[#A8A29E] focus:outline-none"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="p-1 rounded-full text-[#7A746B] hover:text-[#9E6B38] cursor-pointer ml-1"
+                  aria-label="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
 
-        {/* Menu Grid */}
-        <main className="flex-1 p-2 sm:p-4">
-          {/* Mobile search */}
-          <div className="md:hidden mb-2">
-            <input
-              type="text"
-              placeholder={`🔍 ${t("menu.search")}`}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-card border border-border text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-              aria-label="Search dishes"
-            />
+            {/* The One and Only Impressive Top Cart Button */}
+            <button
+              type="button"
+              onClick={() => setCartOpen(true)}
+              className={cn(
+                "relative h-10 px-3.5 rounded-2xl flex items-center gap-2 transition-all cursor-pointer shrink-0 active:scale-95 select-none",
+                itemCount > 0
+                  ? "bg-gradient-to-r from-[#9E6B38] via-[#B45309] to-[#8C5E35] text-white shadow-md shadow-amber-900/20 ring-1 ring-amber-700/30 hover:brightness-105"
+                  : "bg-white text-[#8C5E35] border border-[#E8E3DC] hover:border-[#9E6B38] hover:bg-[#FDFBF7] shadow-2xs"
+              )}
+              title="View Cart"
+              aria-label={`Shopping cart, ${itemCount} items, total ₹${cartTotal}`}
+            >
+              <div className="relative">
+                <ShoppingBag className="w-4 h-4 stroke-[2.5]" />
+                {itemCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2 min-w-[17px] h-[17px] px-1 rounded-full bg-white text-[#B45309] text-[10px] font-black flex items-center justify-center shadow-xs">
+                    {itemCount}
+                  </span>
+                )}
+              </div>
+              {itemCount > 0 ? (
+                <div className="flex flex-col items-start leading-none pr-0.5">
+                  <span className="text-[9px] uppercase tracking-wider text-amber-200/90 font-bold">Cart</span>
+                  <span className="text-xs font-black text-white">₹{cartTotal}</span>
+                </div>
+              ) : (
+                <span className="text-xs font-bold text-[#8C5E35]">Cart</span>
+              )}
+            </button>
           </div>
 
-          {/* Category pills on mobile */}
-          <div className="md:hidden flex flex-wrap gap-1.5 mb-2">
+          {/* Row 2: Category Carousel (Round Photo on Top + Name Underneath) */}
+          <div
+            ref={categoryCarouselRef}
+            className="flex items-start gap-3.5 overflow-x-auto no-scrollbar scroll-smooth pt-1 pb-1 px-1"
+          >
+            {/* "All" Category Item */}
             <button
-              onClick={() => setSelectedCategory("all")}
-              className={`px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-medium transition ${
-                selectedCategory === "all" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-              }`}
+              type="button"
+              onClick={() => handleSelectCategory("all")}
+              className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group select-none"
             >
-              🍽️ {t("menu.all")}
+              <div
+                className={cn(
+                  "w-12 h-12 rounded-full flex items-center justify-center transition-all p-0.5",
+                  activeCategory === "all"
+                    ? "ring-2 ring-[#9E6B38] shadow-xs scale-105"
+                    : "opacity-85 group-hover:opacity-100"
+                )}
+              >
+                <div
+                  className={cn(
+                    "w-full h-full rounded-full flex items-center justify-center font-bold text-xs shadow-2xs transition-colors",
+                    activeCategory === "all"
+                      ? "bg-gradient-to-br from-[#9E6B38] to-[#8C5E35] text-white"
+                      : "bg-[#F3EFEA] text-[#7A746B] group-hover:bg-[#EAE4DC]"
+                  )}
+                >
+                  All
+                </div>
+              </div>
+              <span
+                className={cn(
+                  "text-[10px] sm:text-[11px] font-bold text-center leading-tight max-w-[70px]",
+                  activeCategory === "all" ? "text-[#9E6B38]" : "text-[#7A746B]"
+                )}
+              >
+                All
+              </span>
             </button>
-            {["chinese", "pizza", "indian", "breads", "starters", "beverages", "desserts"].map((cat) => {
-              const icons: Record<string, string> = { chinese: "🥡", pizza: "🍕", indian: "🍛", breads: "🫓", starters: "🍢", beverages: "🥤", desserts: "🍰" };
+
+            {/* Dynamic Category Items */}
+            {categoryGroups.map((group) => {
+              const cat = group.category;
+              const catIdStr = String(cat.id);
+              const isActive = activeCategory === catIdStr;
+              const catPhoto = getCategoryPhoto(cat.name, cat.imageUrl);
+
               return (
                 <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-medium transition capitalize ${
-                    selectedCategory === cat ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                  }`}
+                  key={cat.id}
+                  id={`cat-thumb-${catIdStr}`}
+                  type="button"
+                  onClick={() => handleSelectCategory(catIdStr)}
+                  className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group select-none"
                 >
-                  {icons[cat]} {cat}
+                  <div
+                    className={cn(
+                      "w-12 h-12 rounded-full overflow-hidden transition-all p-0.5 relative",
+                      isActive
+                        ? "ring-2 ring-[#8C5E35] shadow-xs scale-105"
+                        : "opacity-85 group-hover:opacity-100"
+                    )}
+                  >
+                    <img
+                      src={catPhoto}
+                      alt={cat.name}
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  </div>
+                  <span
+                    className={cn(
+                      "text-[10px] sm:text-[11px] font-bold text-center leading-tight max-w-[76px] break-words",
+                      isActive ? "text-[#8C5E35]" : "text-[#7A746B]"
+                    )}
+                  >
+                    {cat.name}
+                  </span>
                 </button>
               );
             })}
           </div>
-
-          {filteredItems.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-4xl mb-2">😅</p>
-              <p className="text-muted-foreground">{t("menu.noItems")}</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1.5 sm:gap-3 md:gap-4">
-              <AnimatePresence mode="popLayout">
-                {filteredItems.map((item) => (
-                  <MenuItemCard key={item.id} item={item} onAdd={handleAddItem} />
-                ))}
-              </AnimatePresence>
-            </div>
-          )}
-        </main>
+        </div>
       </div>
 
-      {/* Floating cart bar on mobile */}
-      {itemCount > 0 && !cartOpen && (
-        <motion.div
-          initial={{ y: 100 }}
-          animate={{ y: 0 }}
-          className="fixed bottom-0 left-0 right-0 md:hidden z-30 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-        >
-          <button
-            onClick={() => setCartOpen(true)}
-            className="w-full food-gradient text-primary-foreground rounded-2xl px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between font-bold shadow-lg text-sm sm:text-base"
-          >
-            <span>{t("menu.itemsInCart", { count: itemCount })}</span>
-            <span>{t("menu.viewCart")}</span>
-          </button>
-        </motion.div>
-      )}
+      {/* ── Menu Items List (Compact, 5-6 Items Visible per Screen) ── */}
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 pt-3 space-y-4">
+        {loadingInitial && categoryGroups.length === 0 ? (
+          <MenuGridSkeleton count={6} />
+        ) : categoryGroups.length === 0 ? (
+          <div className="text-center py-16 px-4 space-y-3">
+            <div className="w-14 h-14 rounded-full bg-white border border-[#E8E3DC] flex items-center justify-center mx-auto text-[#7A746B] shadow-2xs">
+              <Search className="w-6 h-6 stroke-[1.8]" />
+            </div>
+            <h3 className="font-serif text-lg font-bold text-[#2D241E]">
+              No dishes found
+            </h3>
+            <p className="text-xs text-[#7A746B] max-w-xs mx-auto">
+              {searchQuery ? `No matching items for "${searchQuery}"` : "Menu items are being prepared."}
+            </p>
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="px-4 py-2 rounded-full bg-[#9E6B38] text-white text-xs font-bold shadow-xs hover:bg-[#8C5E35] transition cursor-pointer"
+              >
+                Clear Search
+              </button>
+            )}
+          </div>
+        ) : (
+          categoryGroups.map((group) => {
+            const catId = String(group.category.id);
+            return (
+              <section
+                key={catId}
+                ref={(el) => {
+                  sectionRefs.current[catId] = el;
+                }}
+                className="space-y-1.5 scroll-mt-36"
+              >
+                {/* Category Section Header */}
+                <div className="flex items-center justify-between pt-1 pb-0.5">
+                  <h2 className="font-serif text-sm sm:text-base font-bold text-[#2D241E] tracking-tight flex items-center gap-1.5">
+                    <span>{group.category.name}</span>
+                    <span className="text-[11px] font-semibold text-[#7A746B]">
+                      ({group.items.length})
+                    </span>
+                  </h2>
+                </div>
 
-      {/* Item Detail Modal */}
+                {/* Compact Item Cards Container */}
+                <div className="space-y-1.5">
+                  {group.items.map((item) => (
+                    <MenuItemCard
+                      key={item.id}
+                      item={item}
+                      categoryName={group.category.name}
+                      onAdd={handleAddItem}
+                    />
+                  ))}
+                </div>
+              </section>
+            );
+          })
+        )}
+      </main>
+
+      {/* ── Unified Bottom Navigation Bar (Home, Menu, Orders) ── */}
+      <BottomNav />
+
+      {/* ── Modals & Sheets ── */}
       {selectedItem && (
         <ItemDetailModal
           item={selectedItem}
@@ -288,18 +527,40 @@ const MenuPage = () => {
         />
       )}
 
-      {/* Cart Sheet */}
       <CartSheet isOpen={cartOpen} onClose={() => setCartOpen(false)} />
 
-      {/* Confirmation Dialog on Branch Change */}
       <BranchSwitchDialog
         isOpen={isConfirmOpen}
         targetBranch={pendingBranch}
         currentBranchName={activeBranch?.name || branchCode}
-        onConfirm={handleConfirmBranchSwitch}
+        onConfirm={() => {
+          if (pendingBranch) switchBranch(pendingBranch.code);
+          setIsConfirmOpen(false);
+          setPendingBranch(null);
+        }}
         onCancel={() => {
           setIsConfirmOpen(false);
           setPendingBranch(null);
+        }}
+      />
+
+      <AddressSelectDialog
+        isOpen={isAddressModalOpen}
+        onClose={() => setIsAddressModalOpen(false)}
+      />
+
+      <ChangeOrderModeDialog
+        isOpen={isModeDialogOpen}
+        onClose={() => setIsModeDialogOpen(false)}
+        onOpenAddressSelect={() => setIsAddressModalOpen(true)}
+        onOpenTableScan={() => setIsTableScanOpen(true)}
+      />
+
+      <TableCameraScannerModal
+        isOpen={isTableScanOpen}
+        onClose={() => setIsTableScanOpen(false)}
+        onTableScanned={(scannedTbl) => {
+          navigate(`/t/${tenantSlug}/b/${branchCode}/table/${scannedTbl}/menu`);
         }}
       />
     </div>

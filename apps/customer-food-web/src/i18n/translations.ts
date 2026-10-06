@@ -5,7 +5,7 @@ export const translations: Record<Language, Record<string, string>> = {
     // General
     "app.name": "{name}",
     "app.tagline": "Live Digital Ordering & Dining ✨",
-    "app.loading": "Loading...",
+    "app.loading": "Loading",
 
     // Welcome
     "welcome.back": "Welcome back, {name}! 😍",
@@ -23,7 +23,7 @@ export const translations: Record<Language, Record<string, string>> = {
 
     // Menu
     "menu.title": "Menu",
-    "menu.search": "Search dishes...",
+    "menu.search": "Search dishes",
     "menu.all": "All",
     "menu.vegOnly": "Veg Only",
     "menu.noItems": "No items found. Try a different search!",
@@ -56,7 +56,7 @@ export const translations: Record<Language, Record<string, string>> = {
     "checkout.estimatedDelivery": "Estimated delivery: 30-45 mins 🛵",
     "checkout.paymentMethod": "Payment Method",
     "checkout.placeOrder": "Place Order",
-    "checkout.placing": "Placing Order... 🍳",
+    "checkout.placing": "Placing Order 🍳",
     "checkout.promoCode": "Promo Code",
     "checkout.applyPromo": "Apply",
     "checkout.loyaltyPoints": "Loyalty Points",
@@ -102,7 +102,7 @@ export const translations: Record<Language, Record<string, string>> = {
     "login.enterPhone": "Enter your phone number to continue",
     "login.demoOtp": "Demo: enter any 4 digits to verify ✨",
     "login.verify": "Verify & Continue ✅",
-    "login.verifying": "Verifying... 🔐",
+    "login.verifying": "Verifying 🔐",
     "login.changePhone": "← Change phone number",
     "login.resendOtp": "Resend OTP",
 
@@ -134,7 +134,7 @@ export const translations: Record<Language, Record<string, string>> = {
   hi: {
     "app.name": "द बैठक कैफे",
     "app.tagline": "द बैठक कैफे द्वारा संचालित ✨",
-    "app.loading": "लोड हो रहा है...",
+    "app.loading": "लोड हो रहा है",
 
     "welcome.back": "वापसी पर स्वागत है, {name}! 😍",
     "welcome.table": "टेबल {table} पर स्वागत है!",
@@ -150,7 +150,7 @@ export const translations: Record<Language, Record<string, string>> = {
     "welcome.myOrders": "मेरे ऑर्डर",
 
     "menu.title": "मेनू",
-    "menu.search": "डिश खोजें...",
+    "menu.search": "डिश खोजें",
     "menu.all": "सभी",
     "menu.vegOnly": "केवल शाकाहारी",
     "menu.noItems": "कोई आइटम नहीं मिला। कुछ और खोजें!",
@@ -181,7 +181,7 @@ export const translations: Record<Language, Record<string, string>> = {
     "checkout.estimatedDelivery": "अनुमानित डिलीवरी: 30-45 मिनट 🛵",
     "checkout.paymentMethod": "भुगतान का तरीका",
     "checkout.placeOrder": "ऑर्डर करें",
-    "checkout.placing": "ऑर्डर हो रहा है... 🍳",
+    "checkout.placing": "ऑर्डर हो रहा है 🍳",
     "checkout.promoCode": "प्रोमो कोड",
     "checkout.applyPromo": "लागू करें",
     "checkout.loyaltyPoints": "लॉयल्टी पॉइंट्स",
@@ -224,7 +224,7 @@ export const translations: Record<Language, Record<string, string>> = {
     "login.enterPhone": "जारी रखने के लिए अपना फ़ोन नंबर दर्ज करें",
     "login.demoOtp": "डेमो: सत्यापन के लिए कोई भी 4 अंक दर्ज करें ✨",
     "login.verify": "सत्यापित करें और जारी रखें ✅",
-    "login.verifying": "सत्यापित हो रहा है... 🔐",
+    "login.verifying": "सत्यापित हो रहा है 🔐",
     "login.changePhone": "← फ़ोन नंबर बदलें",
     "login.resendOtp": "OTP दोबारा भेजें",
 

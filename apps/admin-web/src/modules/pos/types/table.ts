@@ -10,6 +10,8 @@ export interface POSTable {
   waiter?: string;
   branch_id?: number | string;
   is_active?: boolean;
+  qr_code_url?: string;
+  attributes?: Record<string, any>;
 }
 
 export interface POSWaiter {

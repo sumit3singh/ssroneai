@@ -14,6 +14,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { Button, PageHeader, PageContainer } from "@ssrone/ui";
+import { api } from "@ssrone/api-client";
 import { DailySalesReport } from "./DailySalesReport";
 import { ItemSalesReport } from "./ItemSalesReport";
 import { CashierSettlementReport } from "./CashierSettlementReport";
@@ -49,6 +50,33 @@ export const POSReportsPage: React.FC<POSReportsPageProps> = ({
   const routerState = useRouterState();
   const navigate = useNavigate();
   const currentPath = routerState?.location?.pathname || "/pos/reports/daily-sales";
+
+  // Dedicated all-time reports dataset (bypasses 100-record operational dashboard pagination cap)
+  const [allTimeOrders, setAllTimeOrders] = useState<POSOrder[] | null>(null);
+  const [isFetchingAllTime, setIsFetchingAllTime] = useState(false);
+
+  const fetchAllTimeOrders = async () => {
+    setIsFetchingAllTime(true);
+    try {
+      const bId = selectedBranch?.id ? Number(selectedBranch.id) : null;
+      const bParam = bId ? `?branch_id=${bId}&unlimited=true` : "?unlimited=true";
+      const res = await api.get<any>(`/orders${bParam}`);
+      const list = Array.isArray(res) ? res : (res?.items || res?.data || []);
+      if (list && list.length > 0) {
+        setAllTimeOrders(list);
+      }
+    } catch (err) {
+      console.warn("Could not fetch full all-time orders for reports:", err);
+    } finally {
+      setIsFetchingAllTime(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllTimeOrders();
+  }, [selectedBranch?.id]);
+
+  const effectiveOrders = (allTimeOrders && allTimeOrders.length >= orders.length) ? allTimeOrders : orders;
 
   // Determine initial tab from route URL
   const determineTabFromPath = (path: string): ReportTabKey => {
@@ -101,13 +129,13 @@ export const POSReportsPage: React.FC<POSReportsPageProps> = ({
 
   // Filter orders according to active date range
   const filteredOrders = useMemo(() => {
-    if (dateRangePreset === "all") return orders;
+    if (dateRangePreset === "all") return effectiveOrders;
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const todayEnd = todayStart + 24 * 60 * 60 * 1000 - 1;
 
-    return orders.filter((o) => {
+    return effectiveOrders.filter((o) => {
       const orderDate = new Date(o.created_at || Date.now()).getTime();
 
       if (dateRangePreset === "today") {
@@ -136,7 +164,7 @@ export const POSReportsPage: React.FC<POSReportsPageProps> = ({
       }
       return true;
     });
-  }, [orders, dateRangePreset, customStartDate, customEndDate]);
+  }, [effectiveOrders, dateRangePreset, customStartDate, customEndDate]);
 
   // Label for active date range
   const dateLabel = useMemo(() => {
@@ -169,18 +197,19 @@ export const POSReportsPage: React.FC<POSReportsPageProps> = ({
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {/* Sync live database button */}
-            {onRefresh && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-xs font-semibold gap-1.5 cursor-pointer h-7"
-                onClick={onRefresh}
-                disabled={isLoading}
-              >
-                <RefreshCw size={13} className={isLoading ? "animate-spin" : ""} />
-                Sync
-              </Button>
-            )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs font-semibold gap-1.5 cursor-pointer h-7"
+              onClick={() => {
+                onRefresh?.();
+                fetchAllTimeOrders();
+              }}
+              disabled={isLoading || isFetchingAllTime}
+            >
+              <RefreshCw size={13} className={isLoading || isFetchingAllTime ? "animate-spin" : ""} />
+              Sync
+            </Button>
 
             {/* Sub-module Tab Navigation */}
             <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5 text-xs overflow-x-auto">
@@ -281,7 +310,7 @@ export const POSReportsPage: React.FC<POSReportsPageProps> = ({
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              All Available ({orders.length})
+              All Available ({effectiveOrders.length})
             </button>
             <button
               onClick={() => setDateRangePreset("today")}

@@ -224,7 +224,6 @@ export function LoginPage() {
       const finYearObj = finYears.find((fy) => fy.code === selectedFinYear) || { code: selectedFinYear, name: selectedFinYear };
       auth.setSelectedFinYear(finYearObj as any);
 
-      toast.success("ERP workspace initialized successfully!");
       void navigate({ to: "/" });
     } catch (err: any) {
       console.error("Login error:", err);

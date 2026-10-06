@@ -102,9 +102,11 @@ export interface AuthStore extends AuthState {
   setOtpSent?: (sent: boolean) => void;
   setLoyalty?: (tier: string, points: number) => void;
   rateOrder?: (orderId: string, rating: number) => void;
+  addPastOrder?: (order: any) => void;
   updateName?: (name: string) => void;
+  loginCustomer?: (customer: any) => void;
   login: (credentials: any) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (redirectUri?: string | null) => Promise<void>;
   setUser: (user: UserProfile) => void;
   refreshUser: () => Promise<void>;
 }
@@ -148,12 +150,46 @@ export const useAuthStore = create<AuthStore>()(
         const current = get().pastOrders || [];
         set({ pastOrders: current.map((o) => (o.id === orderId ? { ...o, rating } : o)) });
       },
+      addPastOrder: (order: any) => {
+        const current = get().pastOrders || [];
+        set({ pastOrders: [order, ...current].slice(0, 50) });
+      },
       updateName: (name) => {
         const currentUser = get().user || {};
         set({ user: { ...currentUser, name, first_name: name } });
       },
 
+      loginCustomer: (customerUser: any) => {
+        const token = customerUser?.token || customerUser?.access_token || "customer_guest_token";
+        setAccessToken(token);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ssrone_last_activity", String(Date.now()));
+        }
+        set({
+          user: customerUser,
+          access_token: token,
+          is_authenticated: true,
+          isLoggedIn: true,
+        });
+      },
+
       login: async (credentials: any) => {
+        // Customer OTP / Guest login: If credentials contain user data without email/password
+        if (credentials && (credentials.phone || credentials.id) && !credentials.password) {
+          const token = credentials.token || credentials.access_token || "customer_guest_token";
+          setAccessToken(token);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("ssrone_last_activity", String(Date.now()));
+          }
+          set({
+            user: credentials,
+            access_token: token,
+            is_authenticated: true,
+            isLoggedIn: true,
+          });
+          return;
+        }
+
         if (!credentials || !credentials.tenant_slug || !credentials.email || !credentials.password) {
           throw new Error("Tenant slug, email, and password are required.");
         }
@@ -185,41 +221,45 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
 
-      logout: async () => {
+      logout: async (redirectUri?: string | null) => {
+        // 1. Instant (0ms) synchronous local storage & state purge
+        const rt = getRefreshToken();
+        clearAuthData();
         try {
-          const rt = getRefreshToken();
-          await api.post("/auth/logout", { refresh_token: rt }).catch(() => {});
-        } catch {
-          // Ignore network errors on logout
-        } finally {
-          clearAuthData();
-          try {
-            sessionStorage.removeItem("pos_cache_categories");
-            sessionStorage.removeItem("pos_cache_menu_items");
-            sessionStorage.removeItem("pos_cache_tables");
-            sessionStorage.removeItem("pos_cache_waiters");
-            sessionStorage.removeItem("pos_cache_orders");
-            localStorage.removeItem("ssrone_last_activity");
-          } catch {}
+          sessionStorage.removeItem("pos_cache_categories");
+          sessionStorage.removeItem("pos_cache_menu_items");
+          sessionStorage.removeItem("pos_cache_tables");
+          sessionStorage.removeItem("pos_cache_waiters");
+          sessionStorage.removeItem("pos_cache_orders");
+          localStorage.removeItem("ssrone_last_activity");
+          localStorage.removeItem("ssrone-auth-storage");
+        } catch {}
 
-          set({
-            user: null,
-            access_token: null,
-            refresh_token: null,
-            tenant_slug: null,
-            is_authenticated: false,
-            isLoggedIn: false,
-            selected_company: null,
-            selected_branch: null,
-            selected_role: null,
-            selected_fin_year: null,
-            companies: [],
-            branches: [],
-            roles: [],
-          });
-          if (typeof window !== "undefined") {
-            window.location.href = "/";
-          }
+        set({
+          user: null,
+          access_token: null,
+          refresh_token: null,
+          tenant_slug: null,
+          is_authenticated: false,
+          isLoggedIn: false,
+          selected_company: null,
+          selected_branch: null,
+          selected_role: null,
+          selected_fin_year: null,
+          companies: [],
+          branches: [],
+          roles: [],
+          deliveryAddress: null,
+        });
+
+        // 2. Non-blocking background session revocation on server
+        if (rt) {
+          api.post("/auth/logout", { refresh_token: rt }).catch(() => {});
+        }
+
+        // 3. Optional redirect only if explicitly requested
+        if (redirectUri && typeof window !== "undefined") {
+          window.location.href = redirectUri;
         }
       },
 
@@ -264,12 +304,19 @@ export const getAuth = () => {
 export const setAuth = (authData: any) => {
   if (typeof window === "undefined") return;
   const user = authData?.user || authData;
+  const token = authData?.token || authData?.access_token || "customer_guest_token";
+  setAccessToken(token);
   useAuthStore.setState({
     user: user,
     is_authenticated: !!user,
     isLoggedIn: !!user,
-    access_token: authData?.token || authData?.access_token || null,
+    access_token: token,
   });
+  localStorage.setItem("ssrone_last_activity", String(Date.now()));
+};
+
+export const loginCustomer = (customer: any) => {
+  setAuth({ user: customer });
 };
 
 export const loginEmployee = (empId: string) => {
@@ -281,14 +328,14 @@ export const loginUser = (user: any) => {
   setAuth({ user });
 };
 
-export const logout = async () => {
-  return useAuthStore.getState().logout();
+export const logout = async (redirectUri?: string | null) => {
+  return useAuthStore.getState().logout(redirectUri);
 };
 
 // ═════════════════════════════════════════════════════════════
-// 1-HOUR INACTIVITY AUTO-LOGOUT PROTOCOL (ENTERPRISE GRADE)
+// 12-HOUR OPERATIONAL SHIFT SESSION PROTOCOL (ENTERPRISE GRADE)
 // ═════════════════════════════════════════════════════════════
-export const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // Exactly 1 hour (3,600,000 ms)
+export const INACTIVITY_TIMEOUT_MS = 12 * 60 * 60 * 1000; // 12 hours (43,200,000 ms)
 export const LAST_ACTIVITY_KEY = "ssrone_last_activity";
 
 export interface InactivityTrackerOptions {
@@ -313,8 +360,9 @@ export const initInactivityTracker = (options: InactivityTrackerOptions = {}): (
     }
   };
 
-  // If no timestamp exists, initialize it
-  if (!localStorage.getItem(LAST_ACTIVITY_KEY)) {
+  // If no valid timestamp exists, initialize it immediately
+  const storedInitial = localStorage.getItem(LAST_ACTIVITY_KEY);
+  if (!storedInitial || isNaN(Number(storedInitial)) || Number(storedInitial) <= 0) {
     recordActivity();
   }
 
@@ -358,8 +406,10 @@ export const initInactivityTracker = (options: InactivityTrackerOptions = {}): (
       return; // Idle checks only apply to logged-in sessions
     }
 
-    const lastActivity = Number(localStorage.getItem(LAST_ACTIVITY_KEY) || Date.now());
-    const elapsed = Date.now() - lastActivity;
+    const stored = localStorage.getItem(LAST_ACTIVITY_KEY);
+    const parsed = stored ? Number(stored) : NaN;
+    const lastActivity = !isNaN(parsed) && parsed > 0 ? parsed : Date.now();
+    const elapsed = Math.max(0, Date.now() - lastActivity);
 
     if (elapsed >= timeoutMs) {
       console.warn(`[SSR One AI] User inactive for ${Math.round(elapsed / 60000)} minutes. Executing automatic logout.`);

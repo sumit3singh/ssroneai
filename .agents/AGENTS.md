@@ -111,6 +111,7 @@
 - **[08-ai-rules/AI_DEVELOPMENT_RULES.md](file:///e:/2026/ssr_one_ai/.agents/08-ai-rules/AI_DEVELOPMENT_RULES.md)**: Operating rules and anti-patterns for AI assistants.
 - **[08-ai-rules/ENTERPRISE_ARCHITECT_AI_CONSTITUTION.json](file:///e:/2026/ssr_one_ai/.agents/08-ai-rules/ENTERPRISE_ARCHITECT_AI_CONSTITUTION.json)**: Machine-readable AI persona constitution.
 - **[09-tasks/PENDING_WORK_ROADMAP.md](file:///e:/2026/ssr_one_ai/.agents/09-tasks/PENDING_WORK_ROADMAP.md)**: Living roadmap phases and active milestone tasks.
+- **[09-tasks/CUSTOMER_FOOD_WEB_PRODUCTION_PLAN.md](file:///e:/2026/ssr_one_ai/.agents/09-tasks/CUSTOMER_FOOD_WEB_PRODUCTION_PLAN.md)**: Production release plan and milestone verification for @ssrone/customer-food-web.
 - **[09-tasks/ROUTING_TODO.md](file:///e:/2026/ssr_one_ai/.agents/09-tasks/ROUTING_TODO.md)**: Client-side SPA navigation completion matrix.
 - **[09-tasks/FEATURE_LICENSING_TASKS.md](file:///e:/2026/ssr_one_ai/.agents/09-tasks/FEATURE_LICENSING_TASKS.md)**: Living task tracker for feature licensing and tier entitlement checks.
 - **[archive/](file:///e:/2026/ssr_one_ai/.agents/archive/)**: Historical prompts and archived one-off specifications.

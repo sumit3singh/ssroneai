@@ -601,6 +601,17 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
                             <span className="text-primary hover:underline cursor-pointer font-bold">
                               {getDisplayOrderNumber(ord)}
                             </span>
+                            {(() => {
+                              const s = ((ord.source_channel || (ord as any).order_source || "") + "").toLowerCase();
+                              if (s.includes("customer") || s.includes("web") || s.includes("qr") || s.includes("food_app") || s.includes("app")) {
+                                return (
+                                  <span className="text-amber-500 font-extrabold text-xs" title="Placed from Customer Food App">
+                                    ⭐
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
                             {ord.order_number && ord.order_number !== getDisplayOrderNumber(ord) && (
                               <span className="text-[10px] text-muted-foreground font-normal">({ord.order_number})</span>
                             )}
@@ -713,15 +724,19 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
                       </td>
                       <td className="py-2.5 px-3 text-center">
                         <div className="flex items-center justify-center gap-1.5">
-                          {/* Settle Bill Button (Primary control for unpaid orders) */}
+                          {/* Settle Bill / Delivered Button */}
                           {!isSettled && !isCancelled ? (
                             <Button
                               onClick={() => handleOpenSettleModal(ord)}
                               size="sm"
-                              className="h-7 px-2.5 text-[11px] font-bold gap-1 cursor-pointer shadow-2xs"
+                              className={`h-7 px-2.5 text-[11px] font-bold gap-1 cursor-pointer shadow-2xs ${
+                                (ord.payment_status || "").toLowerCase() === "paid"
+                                  ? "bg-emerald-700 hover:bg-emerald-600 text-white"
+                                  : ""
+                              }`}
                             >
                               <CheckCircle2 size={12} />
-                              <span>Settle Bill</span>
+                              <span>{(ord.payment_status || "").toLowerCase() === "paid" ? "Mark Delivered" : "Settle Bill"}</span>
                             </Button>
                           ) : (
                             <span className="text-[10px] font-mono px-2 py-0.5 rounded border bg-muted text-muted-foreground border-border font-semibold">

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import TopNavbar from "./components/TopNavbar";
 import CustomerAuthGuard from "./components/CustomerAuthGuard";
+import PWAInstallBanner from "./components/PWAInstallBanner";
 
 // Eager-load critical routes
 import Welcome from "./pages/Welcome";
@@ -19,6 +20,7 @@ const AdminQR = lazy(() => import("./pages/AdminQR"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 import React from "react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: any }> {
   constructor(props: { children: React.ReactNode }) {
@@ -37,19 +39,22 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   render() {
     if (this.state.hasError) {
       return (
-        <div className="p-8 max-w-2xl mx-auto my-12 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-3xl text-red-900 dark:text-red-200 shadow-xl">
-          <h2 className="text-xl font-bold mb-2 flex items-center gap-2">⚠️ Application Render Error</h2>
-          <p className="text-base font-bold text-red-600 dark:text-red-400 mb-2">
+        <div className="p-6 sm:p-8 max-w-xl mx-auto my-12 bg-card border border-destructive/30 rounded-3xl text-card-foreground shadow-2xl font-sans">
+          <div className="w-12 h-12 rounded-2xl bg-destructive/10 text-destructive flex items-center justify-center mb-3 border border-destructive/20 shadow-sm">
+            <AlertTriangle className="w-6 h-6 stroke-[2]" />
+          </div>
+          <h2 className="text-lg font-black mb-1 text-foreground">Application Render Error</h2>
+          <p className="text-xs font-semibold text-destructive mb-3">
             {this.state.error?.message || String(this.state.error)}
           </p>
-          <p className="text-xs font-mono bg-red-100 dark:bg-red-900/60 p-4 rounded-xl border border-red-300 dark:border-red-700 whitespace-pre-wrap break-all mb-4 max-h-60 overflow-y-auto">
+          <pre className="text-[11px] font-mono bg-muted/60 text-muted-foreground p-3.5 rounded-2xl border border-border whitespace-pre-wrap break-all mb-4 max-h-48 overflow-y-auto">
             {String(this.state.error?.stack || this.state.error)}
-          </p>
+          </pre>
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl shadow"
+            className="min-h-[44px] px-6 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-full shadow-md flex items-center gap-2 cursor-pointer transition active:scale-95"
           >
-            Reload Page
+            <RefreshCw className="w-4 h-4" /> Reload Page
           </button>
         </div>
       );
@@ -70,12 +75,12 @@ const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Sonner />
+        <Sonner position="top-center" richColors closeButton />
         <BrowserRouter>
-          <CustomerAuthGuard>
+          <CustomerAuthGuard requireAuth={true}>
             <div>
               <TopNavbar />
+              <PWAInstallBanner />
               <Suspense fallback={<LazyFallback />}>
               <Routes>
                 {/* General access (home) */}
@@ -83,6 +88,7 @@ const App = () => (
                 <Route path="/menu" element={<MenuPage />} />
                 <Route path="/checkout" element={<Checkout />} />
                 <Route path="/order-status" element={<OrderStatus />} />
+                <Route path="/order-status/:orderId" element={<OrderStatus />} />
 
                 {/* Tenant & Branch scoped routes */}
                 <Route path="/t/:tenantSlug" element={<Welcome />} />
@@ -91,33 +97,38 @@ const App = () => (
                 <Route path="/t/:tenantSlug/b/:branchCode/menu" element={<MenuPage />} />
                 <Route path="/t/:tenantSlug/b/:branchCode/checkout" element={<Checkout />} />
                 <Route path="/t/:tenantSlug/b/:branchCode/status" element={<OrderStatus />} />
+                <Route path="/t/:tenantSlug/b/:branchCode/status/:orderId" element={<OrderStatus />} />
+                <Route path="/t/:tenantSlug/b/:branchCode/order-status/:orderId" element={<OrderStatus />} />
 
                 {/* QR table ordering with Tenant & Branch */}
                 <Route path="/t/:tenantSlug/b/:branchCode/table/:tableNumber" element={<Welcome />} />
                 <Route path="/t/:tenantSlug/b/:branchCode/table/:tableNumber/menu" element={<MenuPage />} />
                 <Route path="/t/:tenantSlug/b/:branchCode/table/:tableNumber/checkout" element={<Checkout />} />
                 <Route path="/t/:tenantSlug/b/:branchCode/table/:tableNumber/status" element={<OrderStatus />} />
+                <Route path="/t/:tenantSlug/b/:branchCode/table/:tableNumber/status/:orderId" element={<OrderStatus />} />
 
                 {/* QR table ordering legacy fallback */}
                 <Route path="/order/table/:tableNumber" element={<Welcome />} />
                 <Route path="/order/table/:tableNumber/menu" element={<MenuPage />} />
                 <Route path="/order/table/:tableNumber/checkout" element={<Checkout />} />
                 <Route path="/order/table/:tableNumber/status" element={<OrderStatus />} />
+                <Route path="/order/table/:tableNumber/status/:orderId" element={<OrderStatus />} />
 
-                {/* Account scoped */}
-                <Route path="/t/:tenantSlug/b/:branchCode/my-orders" element={<MyOrders />} />
-                <Route path="/t/:tenantSlug/b/:branchCode/profile" element={<Profile />} />
+                {/* Account scoped (Authentication strictly required) */}
+                <Route path="/t/:tenantSlug/b/:branchCode/my-orders" element={<CustomerAuthGuard requireAuth><MyOrders /></CustomerAuthGuard>} />
+                <Route path="/t/:tenantSlug/b/:branchCode/profile" element={<CustomerAuthGuard requireAuth><Profile /></CustomerAuthGuard>} />
 
-                {/* Account */}
-                <Route path="/my-orders" element={<MyOrders />} />
-                <Route path="/profile" element={<Profile />} />
+                {/* Account (Authentication strictly required) */}
+                <Route path="/my-orders" element={<CustomerAuthGuard requireAuth><MyOrders /></CustomerAuthGuard>} />
+                <Route path="/profile" element={<CustomerAuthGuard requireAuth><Profile /></CustomerAuthGuard>} />
 
-                {/* Redirect old login paths to root CustomerAuthGuard */}
+                {/* Redirect old login paths to root */}
                 <Route path="/login" element={<Navigate to="/" replace />} />
                 <Route path="/t/:tenantSlug/b/:branchCode/login" element={<Navigate to="/" replace />} />
 
-                {/* Admin */}
-                <Route path="/admin/qr" element={<AdminQR />} />
+                {/* Staff / Admin QR */}
+                <Route path="/staff/admin-qr" element={<AdminQR />} />
+                <Route path="/admin/qr" element={<Navigate to="/staff/admin-qr" replace />} />
 
                 <Route path="*" element={<NotFound />} />
               </Routes>

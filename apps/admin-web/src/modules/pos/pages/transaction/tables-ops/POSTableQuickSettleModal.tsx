@@ -71,20 +71,21 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
   const [isCreatingCust, setIsCreatingCust] = useState(false);
 
   // Robust Mathematical Resolution for all settlement scenarios
-  const isCreditAccountMode = paymentMethod === "CREDIT_ACCOUNT";
-  const validTendered = Math.max(0, Number(tenderedAmount || 0));
-  const unpaidDifference = Math.max(0, originalNet - validTendered);
+  const isAlreadyPaid = (order?.payment_status || "").toLowerCase() === "paid";
+  const isCreditAccountMode = !isAlreadyPaid && paymentMethod === "CREDIT_ACCOUNT";
+  const validTendered = isAlreadyPaid ? originalNet : Math.max(0, Number(tenderedAmount || 0));
+  const unpaidDifference = isAlreadyPaid ? 0 : Math.max(0, originalNet - validTendered);
 
-  const isDiscount = !isCreditAccountMode && unpaidDifference > 0 && underpaymentResolution === "DISCOUNT";
-  const isDebt = isCreditAccountMode || (unpaidDifference > 0 && underpaymentResolution === "DEBT");
+  const isDiscount = !isAlreadyPaid && !isCreditAccountMode && unpaidDifference > 0 && underpaymentResolution === "DISCOUNT";
+  const isDebt = !isAlreadyPaid && (isCreditAccountMode || (unpaidDifference > 0 && underpaymentResolution === "DEBT"));
 
   const finalDiscount = isDiscount ? unpaidDifference : Number(order.discount_amount || 0);
   const finalNetAmount = isDiscount ? Math.max(0, originalNet - unpaidDifference) : originalNet;
 
-  const amountPaid = isCreditAccountMode ? Math.min(originalNet, validTendered) : (isDiscount ? validTendered : Math.min(originalNet, validTendered));
-  const balanceDue = isDebt ? Math.max(0, originalNet - amountPaid) : 0;
-  const targetPaymentStatus = balanceDue === 0 ? "paid" : (amountPaid > 0 ? "partial" : "unpaid");
-  const targetPaymentMethod = isCreditAccountMode ? (amountPaid > 0 ? immediatePaymentMethod : "CREDIT_ACCOUNT") : paymentMethod;
+  const amountPaid = isAlreadyPaid ? originalNet : (isCreditAccountMode ? Math.min(originalNet, validTendered) : (isDiscount ? validTendered : Math.min(originalNet, validTendered)));
+  const balanceDue = isAlreadyPaid ? 0 : (isDebt ? Math.max(0, originalNet - amountPaid) : 0);
+  const targetPaymentStatus = isAlreadyPaid ? "paid" : (balanceDue === 0 ? "paid" : (amountPaid > 0 ? "partial" : "unpaid"));
+  const targetPaymentMethod = isAlreadyPaid ? (order.payment_method || "ONLINE") : (isCreditAccountMode ? (amountPaid > 0 ? immediatePaymentMethod : "CREDIT_ACCOUNT") : paymentMethod);
 
   const handleRegisterCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,11 +148,13 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
     const orderType = renderSafeString(order.order_mode || order.order_type || "DINE_IN").toUpperCase();
     const cleanTable = order.table_name ? cleanTableName(order.table_name) : "";
     const waiterName = renderSafeString(order.waiter_name);
-    const effectivePaymentMethod = balanceDue > 0 && amountPaid > 0
-      ? `${targetPaymentMethod} (₹${amountPaid}) + UDHAR (₹${balanceDue})`
-      : balanceDue > 0
-      ? "CREDIT / DEBT ACCOUNT"
-      : targetPaymentMethod;
+    const effectivePaymentMethod = isAlreadyPaid
+      ? (order.payment_method || "ONLINE")
+      : (balanceDue > 0 && amountPaid > 0
+        ? `${targetPaymentMethod} (₹${amountPaid}) + UDHAR (₹${balanceDue})`
+        : balanceDue > 0
+        ? "CREDIT / DEBT ACCOUNT"
+        : targetPaymentMethod);
     const currentTimestamp = new Date().toLocaleString();
 
     const receiptPayload = {
@@ -182,7 +185,7 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
     // 3. Dispatch Selected Action directly (No secondary preview screen)
     if (action === "print") {
       printCustomerReceiptDirectly(receiptPayload);
-      toast.success(`⚡ Bill #${displayOrderNum} settled & printed directly!`);
+      toast.success(isAlreadyPaid ? `⚡ Order #${displayOrderNum} delivered & receipt printed!` : `⚡ Bill #${displayOrderNum} settled & printed directly!`);
     } else if (action === "whatsapp") {
       let phoneToSend = rawCustPhone.replace(/\D/g, "");
       if (!phoneToSend || phoneToSend.length < 10) {
@@ -195,13 +198,15 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
 
       const photoRes = await shareReceiptPhotoToWhatsApp(receiptPayload, cleanPhone);
       if (photoRes.copiedToClipboard) {
-        toast.success(`⚡ Bill #${displayOrderNum} settled! Receipt photo copied to clipboard (Press Ctrl+V in WhatsApp)!`);
+        toast.success(isAlreadyPaid ? `⚡ Order #${displayOrderNum} delivered! Receipt photo copied to clipboard!` : `⚡ Bill #${displayOrderNum} settled! Receipt photo copied to clipboard (Press Ctrl+V in WhatsApp)!`);
       } else {
-        toast.success(`⚡ Bill #${displayOrderNum} settled & receipt photo downloaded!`);
+        toast.success(isAlreadyPaid ? `⚡ Order #${displayOrderNum} delivered & receipt photo downloaded!` : `⚡ Bill #${displayOrderNum} settled & receipt photo downloaded!`);
       }
     } else {
       // action === "close"
-      if (balanceDue > 0 && amountPaid > 0) {
+      if (isAlreadyPaid) {
+        toast.success(`⚡ Order #${displayOrderNum} marked Delivered successfully! Table is now free.`);
+      } else if (balanceDue > 0 && amountPaid > 0) {
         toast.success(`⚡ Bill #${displayOrderNum} settled: ₹${amountPaid} paid via ${targetPaymentMethod}, ₹${balanceDue} saved to Udhar Khata (${rawCustName || "Customer"})!`);
       } else if (balanceDue > 0) {
         toast.success(`⚡ Bill #${displayOrderNum} transferred to Customer Debt Account (${rawCustName || "Customer"})!`);
@@ -309,16 +314,23 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold text-sm text-foreground leading-none">
-                  Settle Bill {getDisplayOrderNumber(order) || order.order_number}
+                  {isAlreadyPaid ? "Mark Delivered - Order" : "Settle Bill"} {getDisplayOrderNumber(order) || order.order_number}
                 </h3>
                 {order.table_name && (
                   <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
                     Table {order.table_name}
                   </span>
                 )}
+                {isAlreadyPaid && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white uppercase tracking-wider">
+                    PAID ONLINE
+                  </span>
+                )}
               </div>
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                Quick table settlement, auto-discount for underpayments & customer debt account.
+                {isAlreadyPaid
+                  ? "Order is pre-paid online. Deliver items to guest and free table."
+                  : "Quick table settlement, auto-discount for underpayments & customer debt account."}
               </p>
             </div>
           </div>
@@ -356,11 +368,26 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
             )}
           </div>
 
-          {/* Payment Method Selector Pills */}
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-              Select Payment Method
-            </label>
+          {/* Pre-Paid Online Banner OR Payment Method Selector */}
+          {isAlreadyPaid ? (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-300">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={18} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <div>
+                  <span className="font-bold block">Pre-Paid Online Order ({(order.payment_method || "Razorpay / Online").toUpperCase()})</span>
+                  <span className="text-[11px] text-muted-foreground">Payment of ₹{originalNet.toLocaleString("en-IN")} was received online. Ready to deliver to customer!</span>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-md text-[11px] font-extrabold bg-emerald-600 text-white uppercase tracking-wider shrink-0 shadow-xs">
+                ✅ PAID
+              </span>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                  Select Payment Method
+                </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               <button
                 type="button"
@@ -584,6 +611,8 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
               )}
             </div>
           )}
+        </>
+      )}
 
           {/* Customer Selection & Debt Ledger Assignment */}
           <div className="space-y-1.5 bg-card border border-border rounded-lg p-2.5">
@@ -695,10 +724,10 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
                   ? "bg-muted text-muted-foreground opacity-50 cursor-not-allowed border border-border"
                   : "bg-green-600 hover:bg-green-700 active:bg-green-800"
               }`}
-              title="Complete settlement & send receipt directly to WhatsApp"
+              title={isAlreadyPaid ? "Mark delivered & send receipt directly to WhatsApp" : "Complete settlement & send receipt directly to WhatsApp"}
             >
               <MessageSquare size={14} className="shrink-0" />
-              <span>Complete & WhatsApp</span>
+              <span>{isAlreadyPaid ? "Delivered & WhatsApp" : "Complete & WhatsApp"}</span>
             </button>
 
             {/* 2. Complete & Print */}
@@ -711,10 +740,10 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
                   ? "bg-muted text-muted-foreground opacity-50 cursor-not-allowed border border-border"
                   : "bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900"
               }`}
-              title="Complete settlement & print 80mm thermal receipt directly"
+              title={isAlreadyPaid ? "Mark delivered & print customer receipt" : "Complete settlement & print 80mm thermal receipt directly"}
             >
               <Printer size={14} className="shrink-0" />
-              <span>Complete & Print</span>
+              <span>{isAlreadyPaid ? "Mark Delivered & Print" : "Complete & Print"}</span>
             </button>
 
             {/* 3. Complete & Close */}
@@ -727,10 +756,10 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
                   ? "bg-muted text-muted-foreground opacity-50 cursor-not-allowed border border-border"
                   : "bg-slate-700 hover:bg-slate-800 active:bg-slate-900 dark:bg-slate-600 dark:hover:bg-slate-500"
               }`}
-              title="Complete settlement & close screen immediately (no print, no WhatsApp)"
+              title={isAlreadyPaid ? "Mark delivered & close screen immediately" : "Complete settlement & close screen immediately (no print, no WhatsApp)"}
             >
               <CheckCircle2 size={14} className="shrink-0" />
-              <span>Complete & Close</span>
+              <span>{isAlreadyPaid ? "Mark Delivered & Close" : "Complete & Close"}</span>
             </button>
           </div>
         </div>

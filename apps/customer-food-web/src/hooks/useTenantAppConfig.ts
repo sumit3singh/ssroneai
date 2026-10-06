@@ -8,13 +8,12 @@ import {
 } from "@ssrone/api-client";
 import { useTenantBranchContext } from "./useTenantBranchContext";
 
-// Fallback hardcoded defaults guaranteeing Zero-Ruination Protocol
 const DEFAULT_BRANDING: GlobalBrandingConfig = {
   businessName: "Baithak Cafe",
   tagline: "Traditional Flavour, Modern Experience",
   logoUrl: "",
-  primaryColor: "#E11D48",
-  accentColor: "#F59E0B",
+  primaryColor: "#ea580c",
+  accentColor: "#f97316",
   phone: "+91 98765 43210",
   address: "Main Campus, Central University of Haryana, Mahendragarh",
   businessHours: "09:00 AM - 10:00 PM",

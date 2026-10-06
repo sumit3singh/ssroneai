@@ -17,7 +17,7 @@ from sqlalchemy.orm import Mapped, mapped_column, selectinload
 from src.core.database.engine import get_db_session, engine
 from src.core.database.models import TenantBaseModel
 from src.core.event_bus.bus import event_bus
-from src.modules.auth.dependencies import get_current_user
+from src.modules.auth.dependencies import get_current_user, get_optional_user
 from src.modules.auth.models import User, Tenant
 from src.shared.logger import get_logger
 
@@ -25,11 +25,11 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/restaurant", tags=["Restaurant"])
 
 
-async def _get_active_tenant_id(current_user: User, db: AsyncSession) -> int:
-    """Dynamically resolve active tenant ID from authenticated user context."""
+async def _get_active_tenant_id(current_user: User | None, db: AsyncSession) -> int:
+    """Dynamically resolve active tenant ID from authenticated user context or default to 1."""
     if current_user and getattr(current_user, "tenant_id", None):
         return current_user.tenant_id
-    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+    return 1
 
 
 
@@ -107,11 +107,11 @@ def _parse_int_id(val: Any) -> int | None:
         return None
 
 
-async def _get_active_tenant_id(current_user: User, db: AsyncSession) -> int:
-    """Dynamically resolve active tenant ID from authenticated user context."""
+async def _get_active_tenant_id(current_user: User | None, db: AsyncSession) -> int:
+    """Dynamically resolve active tenant ID from authenticated user context or default to 1."""
     if current_user and getattr(current_user, "tenant_id", None):
         return current_user.tenant_id
-    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+    return 1
 
 
 _BRANCH_CACHE: dict[str, tuple[int, float]] = {}
@@ -134,44 +134,45 @@ async def _resolve_branch_id(branch_id: int | str | None, current_user: User | N
     if branch_id is not None and str(branch_id).strip() not in ("", "undefined", "null", "none", "0"):
         try:
             bid = int(branch_id)
-            res = await db.execute(select(Branch.id).where(Branch.id == bid, (Branch.is_deleted == False) | (Branch.is_deleted.is_(None))))
-            found_bid = res.scalar_one_or_none()
+            res = await db.execute(select(Branch.id).where(Branch.id == bid, (Branch.tenant_id == tenant_id) | (Branch.tenant_id.is_(None)), (Branch.is_deleted == False) | (Branch.is_deleted.is_(None))))
+            found_bid = res.scalars().first()
             if found_bid is not None:
                 found_resolved_id = found_bid
         except (ValueError, TypeError):
             pass
 
-        # 2. Check string branch code/name (e.g. 'CUH', 'BAITHAK-CUH', 'GGN01')
+        # 2. Check string branch code/name (e.g. 'CUH', 'BAITHAK-CUH', 'GGN01', '101')
         if found_resolved_id is None and isinstance(branch_id, str):
             code_str = branch_id.strip()
             res = await db.execute(
                 select(Branch.id).where(
+                    (Branch.tenant_id == tenant_id) | (Branch.tenant_id.is_(None)),
                     (Branch.code == code_str) | (Branch.code.ilike(code_str)) | (Branch.name.ilike(code_str)),
                     (Branch.is_deleted == False) | (Branch.is_deleted.is_(None))
-                )
+                ).order_by(Branch.id.asc())
             )
-            found_id = res.scalar_one_or_none()
+            found_id = res.scalars().first()
             if found_id is not None:
                 found_resolved_id = found_id
 
     # 3. Check current user's branch_id
     if found_resolved_id is None and current_user and getattr(current_user, "branch_id", None):
         res = await db.execute(select(Branch.id).where(Branch.id == current_user.branch_id, (Branch.is_deleted == False) | (Branch.is_deleted.is_(None))))
-        user_bid = res.scalar_one_or_none()
+        user_bid = res.scalars().first()
         if user_bid is not None:
             found_resolved_id = user_bid
 
     # 4. Fallback: Query first valid active branch for tenant
     if found_resolved_id is None:
         res = await db.execute(select(Branch.id).where(Branch.tenant_id == tenant_id, (Branch.is_deleted == False) | (Branch.is_deleted.is_(None))).order_by(Branch.id.asc()))
-        first_id = res.scalar_one_or_none()
+        first_id = res.scalars().first()
         if first_id is not None:
             found_resolved_id = first_id
 
     # 5. Fallback: Query any branch in table
     if found_resolved_id is None:
         res = await db.execute(select(Branch.id).where((Branch.is_deleted == False) | (Branch.is_deleted.is_(None))).order_by(Branch.id.asc()))
-        any_id = res.scalar_one_or_none()
+        any_id = res.scalars().first()
         if any_id is not None:
             found_resolved_id = any_id
 
@@ -220,7 +221,7 @@ from src.modules.orders.models import DiningTable
 @router.get("/tables", response_model=list[TableResponseSchema])
 async def list_tables(
     branch_id: int | str | None = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[TableResponseSchema]:
     tenant_id = await _get_active_tenant_id(current_user, db)
@@ -371,6 +372,10 @@ async def create_table(
                 detail=f"Table '{body.table_number}' already exists in this branch. Please choose a different table number."
             )
 
+        curr_attrs = dict(body.attributes or {})
+        if body.qr_code_url:
+            curr_attrs["qr_code_url"] = body.qr_code_url
+
         table = RestaurantTable(
             tenant_id=tenant_id,
             branch_id=target_branch_id,
@@ -380,6 +385,7 @@ async def create_table(
             floor=body.floor,
             sort_order=body.sort_order or 0,
             status="free",
+            attributes=curr_attrs,
             created_by=user_id,
             updated_by=user_id,
         )
@@ -422,6 +428,17 @@ async def update_table(
             table.floor = body.floor
         if body.branch_id is not None:
             table.branch_id = body.branch_id
+
+        if body.qr_code_url is not None or body.attributes is not None:
+            from sqlalchemy.orm.attributes import flag_modified
+            updated_attrs = dict(table.attributes or {})
+            if body.attributes:
+                updated_attrs.update(body.attributes)
+            if body.qr_code_url is not None:
+                updated_attrs["qr_code_url"] = body.qr_code_url
+            table.attributes = updated_attrs
+            flag_modified(table, "attributes")
+
         table.updated_by = user_id
         await db.commit()
         await db.refresh(table)
@@ -431,6 +448,50 @@ async def update_table(
     except Exception as exc:
         logger.error("Failed to update dining table", error=str(exc))
         raise HTTPException(status_code=500, detail=f"Failed to update dining table: {str(exc)}")
+
+
+class BatchTableQRItem(BaseModel):
+    table_id: int
+    qr_code_url: str
+
+
+class BatchTableQRRequest(BaseModel):
+    tables: list[BatchTableQRItem]
+
+
+@router.post("/tables/batch-qr-codes")
+async def batch_update_table_qr_codes(
+    body: BatchTableQRRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Save generated QR code URLs for multiple dining tables atomically in PostgreSQL."""
+    try:
+        tenant_id = current_user.tenant_id
+        from sqlalchemy.orm.attributes import flag_modified
+        table_ids = [t.table_id for t in body.tables]
+        stmt = select(RestaurantTable).where(
+            RestaurantTable.id.in_(table_ids),
+            RestaurantTable.tenant_id == tenant_id,
+        )
+        result = await db.execute(stmt)
+        records = {t.id: t for t in result.scalars().all()}
+
+        updated_count = 0
+        for item in body.tables:
+            t = records.get(item.table_id)
+            if t:
+                attrs = dict(t.attributes or {})
+                attrs["qr_code_url"] = item.qr_code_url
+                t.attributes = attrs
+                flag_modified(t, "attributes")
+                updated_count += 1
+
+        await db.commit()
+        return {"success": True, "updated_count": updated_count}
+    except Exception as exc:
+        logger.error("Failed to batch update table QR codes", error=str(exc))
+        raise HTTPException(status_code=500, detail=f"Failed to batch update table QR codes: {str(exc)}")
 
 
 @router.delete("/tables/{table_id}", status_code=200)
@@ -943,7 +1004,7 @@ async def list_categories(
     branch_id: int | str | None = None,
     company_id: int | str | None = None,
     x_branch_id: str | None = Header(None, alias="x-branch-id"),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[CategoryResponseSchema]:
     try:
@@ -955,7 +1016,7 @@ async def list_categories(
         target_branch = branch_id or x_branch_id
         parsed_branch_id = await _resolve_branch_id(target_branch, current_user, db)
         if parsed_branch_id is not None:
-            query = query.where(MenuCategory.branch_id == parsed_branch_id)
+            query = query.where((MenuCategory.branch_id == parsed_branch_id) | (MenuCategory.branch_id.is_(None)))
 
         parsed_company_id = _parse_int_id(company_id)
         if parsed_company_id is not None:
@@ -1144,7 +1205,7 @@ async def list_menu_items(
     branch_id: int | str | None = None,
     is_veg: bool | None = None,
     is_available: bool | None = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[MenuItemResponseSchema]:
     try:
@@ -1811,13 +1872,13 @@ async def delete_tag(
 @router.get("/menu-items/{item_id}/variants", response_model=list[MenuVariantGroupResponse])
 async def get_item_variants(
     item_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[MenuVariantGroupResponse]:
-    tenant_id = current_user.tenant_id
+    tenant_id = current_user.tenant_id if current_user else 1
     res = await db.execute(
         select(MenuVariantGroup)
-        .where(MenuVariantGroup.item_id == item_id, MenuVariantGroup.tenant_id == tenant_id, MenuVariantGroup.is_deleted == False)
+        .where(MenuVariantGroup.item_id == item_id, (MenuVariantGroup.tenant_id == tenant_id) | (MenuVariantGroup.tenant_id.is_(None)), MenuVariantGroup.is_deleted == False)
         .options(selectinload(MenuVariantGroup.options))
         .order_by(MenuVariantGroup.sort_order.asc())
     )
@@ -1882,13 +1943,13 @@ async def delete_variant_group(
 @router.get("/menu-items/{item_id}/addons", response_model=list[MenuAddonGroupResponse])
 async def get_item_addons(
     item_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[MenuAddonGroupResponse]:
-    tenant_id = current_user.tenant_id
+    tenant_id = current_user.tenant_id if current_user else 1
     res = await db.execute(
         select(MenuAddonGroup)
-        .where(MenuAddonGroup.item_id == item_id, MenuAddonGroup.tenant_id == tenant_id, MenuAddonGroup.is_deleted == False)
+        .where(MenuAddonGroup.item_id == item_id, (MenuAddonGroup.tenant_id == tenant_id) | (MenuAddonGroup.tenant_id.is_(None)), MenuAddonGroup.is_deleted == False)
         .options(selectinload(MenuAddonGroup.options))
         .order_by(MenuAddonGroup.sort_order.asc())
     )

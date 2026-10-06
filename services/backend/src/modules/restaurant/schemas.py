@@ -311,6 +311,8 @@ class TableCreateSchema(BaseModel):
     floor: str | None = None
     branch_id: int | None = 1
     sort_order: int = 0
+    qr_code_url: str | None = None
+    attributes: dict[str, Any] | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -322,6 +324,8 @@ class TableCreateSchema(BaseModel):
                 data["branch_id"] = data["branchId"]
             if "sortOrder" in data and "sort_order" not in data:
                 data["sort_order"] = data["sortOrder"]
+            if "qrCodeUrl" in data and "qr_code_url" not in data:
+                data["qr_code_url"] = data["qrCodeUrl"]
         return data
 
 
@@ -335,7 +339,25 @@ class TableResponseSchema(BaseModel):
     is_active: bool = True
     branch_id: int | None = 1
     tenant_id: int = 1
+    qr_code_url: str | None = None
+    attributes: dict[str, Any] | None = None
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_qr(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            attrs = data.get("attributes") or {}
+            if "qr_code_url" not in data and isinstance(attrs, dict):
+                data["qr_code_url"] = attrs.get("qr_code_url")
+        elif hasattr(data, "attributes"):
+            attrs = getattr(data, "attributes", None) or {}
+            if not getattr(data, "qr_code_url", None) and isinstance(attrs, dict):
+                try:
+                    setattr(data, "qr_code_url", attrs.get("qr_code_url"))
+                except Exception:
+                    pass
+        return data
 
 
 # ─── Kitchen Station Schemas ──────────────────────────────────

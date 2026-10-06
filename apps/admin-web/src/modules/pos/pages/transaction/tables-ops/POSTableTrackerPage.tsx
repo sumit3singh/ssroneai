@@ -331,7 +331,6 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
         }
         localStorage.setItem("selected_pos_order_mode", "dine_in");
         localStorage.removeItem("edit_pos_order");
-        toast.info(`Selected Table ${table.table_number}. Starting new order...`);
         if (onSelectTableForNewOrder && rawTableId) {
           onSelectTableForNewOrder(rawTableId);
         } else {
@@ -661,9 +660,22 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                       >
                         {/* Tile Header: Table Name & Capacity */}
                         <div className="flex items-center justify-between gap-1 border-b border-border/50 pb-1.5 min-w-0">
-                          <span className="font-sans font-extrabold text-sm text-foreground truncate min-w-0">
-                            {table.table_number}
-                          </span>
+                          <div className="flex items-center gap-1.5 min-w-0 truncate">
+                            <span className="font-sans font-extrabold text-sm text-foreground truncate min-w-0">
+                              {table.table_number}
+                            </span>
+                            {tableOrds.some((o) => {
+                              const s = ((o.source_channel || (o as any).order_source || "") + "").toLowerCase();
+                              return s.includes("customer") || s.includes("web") || s.includes("qr") || s.includes("food_app") || s.includes("app");
+                            }) && (
+                              <span
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-black bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-black shadow-xs animate-pulse shrink-0 border border-amber-500/40"
+                                title="Active Online Food App Order (Dine-in Customer Web)"
+                              >
+                                ⭐ Food App
+                              </span>
+                            )}
+                          </div>
                           <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded border shrink-0 ${
                             isOccupied
                               ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20"
@@ -682,39 +694,58 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                                 ({tableOrds.length} ord)
                               </span>
                             </div>
-                            <div className="space-y-1 overflow-hidden scrollbar-none min-w-0">
-                              {tableOrds.map((ord) => (
-                                <POSOrderHoverTooltip key={ord.id} order={ord}>
-                                  <div className="bg-background border border-border rounded p-1 text-[10px] font-mono flex items-center justify-between gap-1 overflow-hidden min-w-0 shadow-2xs">
-                                    <span className="truncate min-w-0 font-bold text-foreground">{getDisplayOrderNumber(ord)}</span>
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleTableClick(table, ord);
-                                        }}
-                                        className="px-1.5 py-0.5 rounded bg-muted hover:bg-primary hover:text-primary-foreground text-foreground border border-border cursor-pointer text-[9px] font-sans font-bold transition-all shrink-0"
-                                        title="Edit Cart"
-                                      >
-                                        Edit
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setSelectedSettleOrder(ord);
-                                          setIsSettleModalOpen(true);
-                                        }}
-                                        className="px-1.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer text-[9px] font-sans font-bold shadow-2xs transition-all shrink-0"
-                                        title="Settle Bill"
-                                      >
-                                        Settle
-                                      </button>
+                            <div className="space-y-1 overflow-hidden scrollbar-none w-full min-w-0">
+                              {tableOrds.map((ord) => {
+                                const isFoodAppOrd = (() => {
+                                  const s = ((ord.source_channel || (ord as any).order_source || "") + "").toLowerCase();
+                                  return s.includes("customer") || s.includes("web") || s.includes("qr") || s.includes("food_app") || s.includes("app");
+                                })();
+                                const isPaid = (ord.payment_status || "").toLowerCase() === "paid";
+
+                                return (
+                                  <POSOrderHoverTooltip key={ord.id} order={ord} className="w-full block relative">
+                                    <div className="w-full bg-background border border-border/80 hover:border-primary/40 rounded px-1.5 py-1 text-[10px] font-mono flex items-center justify-between gap-1 shadow-2xs transition-colors">
+                                      <div className="flex items-center gap-1 font-bold text-foreground truncate min-w-0">
+                                        <span className="truncate">{getDisplayOrderNumber(ord)}</span>
+                                        {isFoodAppOrd && (
+                                          <span className="text-amber-500 font-extrabold text-[11px] shrink-0" title="Placed from Customer Food App">
+                                            ⭐
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleTableClick(table, ord);
+                                          }}
+                                          className="px-2 py-0.5 rounded bg-muted hover:bg-primary hover:text-primary-foreground text-foreground border border-border cursor-pointer text-[9px] font-sans font-bold transition-all shrink-0"
+                                          title="Edit Cart"
+                                        >
+                                          Edit
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedSettleOrder(ord);
+                                            setIsSettleModalOpen(true);
+                                          }}
+                                          className={`px-2 py-0.5 rounded ${
+                                            isPaid
+                                              ? "bg-emerald-700 hover:bg-emerald-600 border border-emerald-500/40"
+                                              : "bg-emerald-600 hover:bg-emerald-500"
+                                          } text-white cursor-pointer text-[9px] font-sans font-bold shadow-2xs transition-all shrink-0`}
+                                          title={isPaid ? "Mark Delivered (Pre-paid)" : "Settle Bill"}
+                                        >
+                                          {isPaid ? "Delivered" : "Settle"}
+                                        </button>
+                                      </div>
                                     </div>
-                                  </div>
-                                </POSOrderHoverTooltip>
-                              ))}
+                                  </POSOrderHoverTooltip>
+                                );
+                              })}
                             </div>
                           </div>
                         ) : isReserved ? (
@@ -765,42 +796,62 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
               <p className="text-2xs text-muted-foreground italic py-1">No active takeaway orders running.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto scrollbar-none">
-                {activeTakeawayOrders.map((ord) => (
-                  <POSOrderHoverTooltip key={ord.id} order={ord}>
-                    <div className="bg-background border border-border rounded p-2 text-xs flex flex-col justify-between space-y-1.5">
-                      <div className="flex items-center justify-between font-mono">
-                        <span className="font-bold text-primary">{getDisplayOrderNumber(ord)}</span>
-                        <span className="font-extrabold text-foreground">₹{ord.net_amount || ord.subtotal || 0}</span>
+                {activeTakeawayOrders.map((ord) => {
+                  const isFoodAppOrd = (() => {
+                    const s = ((ord.source_channel || (ord as any).order_source || "") + "").toLowerCase();
+                    return s.includes("customer") || s.includes("web") || s.includes("qr") || s.includes("food_app") || s.includes("app");
+                  })();
+                  const isPaid = (ord.payment_status || "").toLowerCase() === "paid";
+
+                  return (
+                    <POSOrderHoverTooltip key={ord.id} order={ord} className="w-full block relative">
+                      <div className="bg-background border border-border rounded p-2 text-xs flex flex-col justify-between space-y-1.5 shadow-2xs">
+                        <div className="flex items-center justify-between font-mono">
+                          <span className="font-bold text-primary flex items-center gap-1">
+                            {getDisplayOrderNumber(ord)}
+                            {isFoodAppOrd && (
+                              <span className="text-amber-500 font-extrabold text-xs" title="Placed from Customer Food App">
+                                ⭐
+                              </span>
+                            )}
+                          </span>
+                          <span className="font-extrabold text-foreground">₹{ord.net_amount || ord.subtotal || 0}</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          👤 {renderSafeString(ord.customer_name, "Walk-in Guest")}
+                        </p>
+                        <div className="flex items-center gap-1 pt-1">
+                          <button
+                            onClick={() => {
+                              localStorage.setItem("edit_pos_order", JSON.stringify(ord));
+                              if (onRecallOrderToCart) {
+                                onRecallOrderToCart(ord);
+                              }
+                              goToView("billing");
+                            }}
+                            className="flex-1 py-1 rounded bg-muted hover:bg-accent hover:text-accent-foreground text-foreground border border-border text-[10px] font-bold cursor-pointer"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedSettleOrder(ord);
+                              setIsSettleModalOpen(true);
+                            }}
+                            className={`flex-1 py-1 rounded ${
+                              isPaid
+                                ? "bg-emerald-700 hover:bg-emerald-600 border border-emerald-500/40"
+                                : "bg-emerald-600 hover:bg-emerald-500"
+                            } text-white text-[10px] font-bold cursor-pointer shadow-2xs`}
+                            title={isPaid ? "Mark Delivered (Pre-paid)" : "Settle Bill"}
+                          >
+                            {isPaid ? "Delivered" : "Settle"}
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-[10px] text-muted-foreground truncate">
-                        👤 {renderSafeString(ord.customer_name, "Walk-in Guest")}
-                      </p>
-                      <div className="flex items-center gap-1 pt-1">
-                        <button
-                          onClick={() => {
-                            localStorage.setItem("edit_pos_order", JSON.stringify(ord));
-                            if (onRecallOrderToCart) {
-                              onRecallOrderToCart(ord);
-                            }
-                            goToView("billing");
-                          }}
-                          className="flex-1 py-0.5 rounded bg-muted hover:bg-accent hover:text-accent-foreground text-foreground border border-border text-[10px] font-bold"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedSettleOrder(ord);
-                            setIsSettleModalOpen(true);
-                          }}
-                          className="flex-1 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold"
-                        >
-                          Settle
-                        </button>
-                      </div>
-                    </div>
-                  </POSOrderHoverTooltip>
-                ))}
+                    </POSOrderHoverTooltip>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -823,42 +874,62 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
               <p className="text-2xs text-muted-foreground italic py-1">No active delivery orders running.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto scrollbar-none">
-                {activeDeliveryOrders.map((ord) => (
-                  <POSOrderHoverTooltip key={ord.id} order={ord}>
-                    <div className="bg-background border border-border rounded p-2 text-xs flex flex-col justify-between space-y-1.5">
-                      <div className="flex items-center justify-between font-mono">
-                        <span className="font-bold text-primary">{getDisplayOrderNumber(ord)}</span>
-                        <span className="font-extrabold text-foreground">₹{ord.net_amount || ord.subtotal || 0}</span>
+                {activeDeliveryOrders.map((ord) => {
+                  const isFoodAppOrd = (() => {
+                    const s = ((ord.source_channel || (ord as any).order_source || "") + "").toLowerCase();
+                    return s.includes("customer") || s.includes("web") || s.includes("qr") || s.includes("food_app") || s.includes("app");
+                  })();
+                  const isPaid = (ord.payment_status || "").toLowerCase() === "paid";
+
+                  return (
+                    <POSOrderHoverTooltip key={ord.id} order={ord} className="w-full block relative">
+                      <div className="bg-background border border-border rounded p-2 text-xs flex flex-col justify-between space-y-1.5 shadow-2xs">
+                        <div className="flex items-center justify-between font-mono">
+                          <span className="font-bold text-primary flex items-center gap-1">
+                            {getDisplayOrderNumber(ord)}
+                            {isFoodAppOrd && (
+                              <span className="text-amber-500 font-extrabold text-xs" title="Placed from Customer Food App">
+                                ⭐
+                              </span>
+                            )}
+                          </span>
+                          <span className="font-extrabold text-foreground">₹{ord.net_amount || ord.subtotal || 0}</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          👤 {renderSafeString(ord.customer_name, "Delivery Guest")}
+                        </p>
+                        <div className="flex items-center gap-1 pt-1">
+                          <button
+                            onClick={() => {
+                              localStorage.setItem("edit_pos_order", JSON.stringify(ord));
+                              if (onRecallOrderToCart) {
+                                onRecallOrderToCart(ord);
+                              }
+                              goToView("billing");
+                            }}
+                            className="flex-1 py-1 rounded bg-muted hover:bg-accent hover:text-accent-foreground text-foreground border border-border text-[10px] font-bold cursor-pointer"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedSettleOrder(ord);
+                              setIsSettleModalOpen(true);
+                            }}
+                            className={`flex-1 py-1 rounded ${
+                              isPaid
+                                ? "bg-emerald-700 hover:bg-emerald-600 border border-emerald-500/40"
+                                : "bg-emerald-600 hover:bg-emerald-500"
+                            } text-white text-[10px] font-bold cursor-pointer shadow-2xs`}
+                            title={isPaid ? "Mark Delivered (Pre-paid)" : "Settle Bill"}
+                          >
+                            {isPaid ? "Delivered" : "Settle"}
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-[10px] text-muted-foreground truncate">
-                        👤 {renderSafeString(ord.customer_name, "Delivery Guest")}
-                      </p>
-                      <div className="flex items-center gap-1 pt-1">
-                        <button
-                          onClick={() => {
-                            localStorage.setItem("edit_pos_order", JSON.stringify(ord));
-                            if (onRecallOrderToCart) {
-                              onRecallOrderToCart(ord);
-                            }
-                            goToView("billing");
-                          }}
-                          className="flex-1 py-0.5 rounded bg-muted hover:bg-accent hover:text-accent-foreground text-foreground border border-border text-[10px] font-bold"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedSettleOrder(ord);
-                            setIsSettleModalOpen(true);
-                          }}
-                          className="flex-1 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold"
-                        >
-                          Settle
-                        </button>
-                      </div>
-                    </div>
-                  </POSOrderHoverTooltip>
-                ))}
+                    </POSOrderHoverTooltip>
+                  );
+                })}
               </div>
             )}
           </div>

@@ -79,8 +79,7 @@ async def test_admin_config_draft_publish_and_reset_lifecycle():
             "branch_id": 1,
             "draft_config": {
                 "banner": {
-                    "headline": f"Special Monsoon Treats {rand_tag}",
-                    "subtext": "Sip hot chai and enjoy piping hot pakodas.",
+                    "headline": f"Welcome {rand_tag}",
                 },
                 "orderConfirmationMessage": order_msg,
             }
@@ -115,6 +114,14 @@ async def test_admin_config_draft_publish_and_reset_lifecycle():
         reset_data = reset_res.json()
         assert reset_data["is_draft_modified"] is False
         assert reset_data["draft_config"]["orderConfirmationMessage"] == order_msg
+
+        # 6. Restore original configuration so test runs never dirty database
+        if initial_data.get("published_config"):
+            await ac.put(f"/api/v1/tenant-config/admin/{app_name}/draft", json={
+                "branch_id": 1,
+                "draft_config": initial_data["published_config"]
+            })
+            await ac.post(f"/api/v1/tenant-config/admin/{app_name}/publish", json={"branch_id": 1})
 
 
 @pytest.mark.asyncio

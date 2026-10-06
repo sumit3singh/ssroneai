@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, Store, ChevronRight, X } from "lucide-react";
+import { MapPin, Store, ChevronRight, X, Check } from "lucide-react";
 import type { BranchInfo } from "@ssrone/api-client";
+import { cn } from "@/lib/utils";
 
 interface SelectLocationModalProps {
   isOpen: boolean;
@@ -28,7 +29,7 @@ export const SelectLocationModal = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="absolute inset-0 bg-background/80 backdrop-blur-md"
+          className="absolute inset-0 bg-black/60 backdrop-blur-xs"
         />
 
         {/* Modal Content */}
@@ -37,34 +38,34 @@ export const SelectLocationModal = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.2, ease: "easeOut" }}
-          className="relative w-full max-w-md bg-popover border border-border rounded-2xl p-6 shadow-2xl z-10 overflow-hidden text-popover-foreground max-h-[85vh] flex flex-col"
+          className="relative w-full max-w-sm bg-white border border-[#E8E3DC] rounded-3xl p-6 shadow-2xl z-10 overflow-hidden text-[#2D241E] max-h-[85vh] flex flex-col font-sans"
         >
           {onClose && (
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-muted text-muted-foreground transition"
+              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-[#F8F6F2] hover:bg-[#E8E3DC] text-[#7A746B] hover:text-[#2D241E] flex items-center justify-center transition cursor-pointer"
               aria-label="Close"
             >
               <X className="w-4 h-4" />
             </button>
           )}
 
-          <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 text-primary mb-3 mx-auto flex-shrink-0">
-            <MapPin className="w-6 h-6" />
+          <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-[#9E6B38]/10 text-[#9E6B38] mb-3 mx-auto shrink-0 border border-[#9E6B38]/20 shadow-xs">
+            <MapPin className="w-6 h-6 stroke-[2]" />
           </div>
 
-          <h3 className="text-xl font-display font-bold text-center mb-1">
+          <h3 className="font-serif text-lg font-bold text-center mb-1 text-[#2D241E]">
             Select Restaurant Location
           </h3>
-          <p className="text-xs text-muted-foreground text-center mb-5">
-            Please choose a store location or outlet to view available menu items and order.
+          <p className="text-xs text-[#7A746B] text-center mb-4 leading-relaxed">
+            Choose your dining outlet to view menu items and order.
           </p>
 
           {/* List of Outlets */}
-          <div className="overflow-y-auto space-y-2.5 pr-1 mb-2 flex-1">
+          <div className="overflow-y-auto space-y-2.5 pr-0.5 mb-2 flex-1">
             {branches.length === 0 ? (
-              <div className="text-center py-6 text-sm text-muted-foreground">
-                Loading available store locations...
+              <div className="text-center py-6 text-xs text-[#7A746B]">
+                Loading available locations
               </div>
             ) : (
               branches.map((b) => {
@@ -73,45 +74,42 @@ export const SelectLocationModal = ({
                   <button
                     key={b.code}
                     onClick={() => onSelectBranch(b.code)}
-                    className={`w-full p-3.5 rounded-xl border text-left transition flex items-center justify-between group ${
+                    className={cn(
+                      "w-full p-3.5 rounded-2xl border text-left transition flex items-center justify-between group cursor-pointer",
                       isSelected
-                        ? "border-primary bg-primary/10 shadow-sm"
-                        : "border-border hover:border-primary/50 hover:bg-muted/50"
-                    }`}
+                        ? "border-[#9E6B38] bg-[#9E6B38]/5 shadow-xs"
+                        : "border-[#E8E3DC] hover:border-[#9E6B38]/40 hover:bg-[#F8F6F2]"
+                    )}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0 pr-2">
                       <div
-                        className={`p-2 rounded-lg ${
+                        className={cn(
+                          "p-2.5 rounded-xl shrink-0 transition-colors",
                           isSelected
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground group-hover:text-primary group-hover:bg-primary/10"
-                        }`}
+                            ? "bg-gradient-to-r from-[#9E6B38] to-[#8C5E35] text-white"
+                            : "bg-[#F8F6F2] text-[#7A746B] group-hover:text-[#9E6B38]"
+                        )}
                       >
                         <Store className="w-4 h-4" />
                       </div>
-                      <div>
-                        <h4 className="font-semibold text-sm text-foreground leading-tight">
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-xs sm:text-sm text-[#2D241E] leading-snug break-words">
                           {b.name}
                         </h4>
-                        <span className="text-[11px] text-muted-foreground">
-                          {b.address || `Code: ${b.code}`}
+                        <span className="text-[11px] text-[#7A746B] break-words block mt-0.5">
+                          {b.address || `Branch: ${b.code}`}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1">
-                      {isSelected && (
-                        <span className="text-[10px] bg-primary text-primary-foreground font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                          Active
+                    <div className="shrink-0 flex items-center gap-1.5">
+                      {isSelected ? (
+                        <span className="text-[11px] bg-gradient-to-r from-[#9E6B38] to-[#8C5E35] text-white font-bold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-xs">
+                          <Check className="w-3 h-3 stroke-[3]" /> Active
                         </span>
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-[#7A746B] group-hover:text-[#9E6B38] group-hover:translate-x-0.5 transition-all" />
                       )}
-                      <ChevronRight
-                        className={`w-4 h-4 transition-transform ${
-                          isSelected
-                            ? "text-primary"
-                            : "text-muted-foreground group-hover:translate-x-0.5"
-                        }`}
-                      />
                     </div>
                   </button>
                 );

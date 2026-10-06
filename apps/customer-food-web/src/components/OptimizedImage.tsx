@@ -28,10 +28,10 @@ const OptimizedImage = ({
   }, [src]);
 
   return (
-    <div className={cn("relative overflow-hidden", wrapperClassName)}>
+    <div className={cn("relative overflow-hidden w-full h-full max-w-full max-h-full", wrapperClassName)}>
       {/* Shimmer placeholder */}
       {!loaded && (
-        <div className="absolute inset-0 animate-pulse bg-muted" />
+        <div className="absolute inset-0 animate-pulse bg-[#E8E3DC]/40" />
       )}
       <img
         ref={imgRef}
@@ -45,7 +45,7 @@ const OptimizedImage = ({
           setLoaded(true);
         }}
         className={cn(
-          "transition-opacity duration-300",
+          "w-full h-full max-w-full max-h-full object-cover block transition-opacity duration-300",
           loaded ? "opacity-100" : "opacity-0",
           className
         )}

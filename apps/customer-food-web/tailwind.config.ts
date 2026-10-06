@@ -14,9 +14,25 @@ export default {
       },
     },
     extend: {
+      borderRadius: {
+        input: "12px",
+        card: "16px",
+        sheet: "28px",
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+      boxShadow: {
+        "2xs": "0 1px 2px 0 rgb(0 0 0 / 0.03)",
+        xs: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+        card: "0 2px 8px -2px rgba(0, 0, 0, 0.05), 0 8px 24px -4px rgba(0, 0, 0, 0.08)",
+        floating: "0 12px 32px -4px rgba(0, 0, 0, 0.12), 0 4px 12px -2px rgba(0, 0, 0, 0.06)",
+        sheet: "0 -8px 32px -4px rgba(0, 0, 0, 0.12)",
+      },
       fontFamily: {
-        sans: ["DM Sans", "sans-serif"],
-        display: ["Playfair Display", "serif"],
+        sans: ["Inter", "Plus Jakarta Sans", "system-ui", "sans-serif"],
+        display: ["Inter", "Plus Jakarta Sans", "system-ui", "sans-serif"],
+        serif: ["'Playfair Display'", "Georgia", "serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -67,13 +83,6 @@ export default {
           red: "hsl(var(--food-red))",
           amber: "hsl(var(--food-amber))",
         },
-      },
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
-        "2xl": "1.25rem",
-        "3xl": "1.5rem",
       },
       keyframes: {
         "accordion-down": {

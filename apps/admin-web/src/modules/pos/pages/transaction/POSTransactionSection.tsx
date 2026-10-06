@@ -395,6 +395,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
   const [isQueueTokenModalOpen, setIsQueueTokenModalOpen] = useState(false);
   const [recalledOrderNumber, setRecalledOrderNumber] = useState<string | null>(null);
+  const [recalledOrderId, setRecalledOrderId] = useState<number | string | null>(null);
   const [receiptData, setReceiptData] = useState<any | null>(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [isUPIModalOpen, setIsUPIModalOpen] = useState(false);
@@ -1280,7 +1281,6 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     if (bill.discountValue !== undefined) setDiscountValue(bill.discountValue);
     if (bill.applyGst !== undefined) setApplyGst(bill.applyGst);
     setHeldBills((prev) => prev.filter((h) => h.id !== bill.id));
-    toast.success("Held bill loaded into cart!");
   };
 
   const handleRecallOrderToCart = async (order: POSOrder) => {
@@ -1373,6 +1373,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       });
 
       setCartItems(formattedCart);
+      setRecalledOrderId(targetOrder.id || null);
       if (targetOrder.order_number) {
         setRecalledOrderNumber(targetOrder.order_number);
       }
@@ -1452,6 +1453,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
 
   const handleClearCart = () => {
     setCartItems([]);
+    setRecalledOrderId(null);
     setRecalledOrderNumber(null);
     setDiscountAmount(0);
     setSelectedCustomerId("");
@@ -1467,7 +1469,6 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
         channel.close();
       }
     } catch {}
-    toast.info("Cart cleared. Switched to New Order mode.");
   };
 
   const handleDeleteHeldBill = (id: string) => {
@@ -1608,7 +1609,9 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     baselineOrderItemsRef.current = newBaseline;
 
     // 3. Construct optimistic POSOrder for local memory (< 0.1ms)
-    const existingOrd = recalledOrderNumber ? orders.find((o) => o.order_number === recalledOrderNumber) : null;
+    const existingOrd = recalledOrderNumber
+      ? orders.find((o) => (recalledOrderId && String(o.id) === String(recalledOrderId)) || o.order_number === recalledOrderNumber)
+      : null;
     const parseDailySeq = (val: string): number | undefined => {
       const clean = String(val || "").replace(/^#/, "").trim();
       if (/^\d+$/.test(clean)) return parseInt(clean, 10);
@@ -1620,7 +1623,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     };
     const optimisticDailyOrderNumber = existingOrd?.daily_order_number || parseDailySeq(assignedNum);
     const optimisticOrder: POSOrder = {
-      id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: recalledOrderId || existingOrd?.id || `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       order_number: assignedNum,
       daily_order_number: optimisticDailyOrderNumber,
       order_type: orderMode.toUpperCase() as OrderType,
@@ -1651,6 +1654,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
 
     // 5. Clear cart & inputs immediately (< 0.1ms)
     setCartItems([]);
+    setRecalledOrderId(null);
     setRecalledOrderNumber(null);
     setDiscountAmount(0);
     setOrderNotes("");
@@ -1669,6 +1673,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
 
     // 8. Fire-and-forget background synchronization to IndexedDB & PostgreSQL
     const orderPayload = {
+      order_id: recalledOrderId || existingOrd?.id || undefined,
       order_number: assignedNum,
       daily_order_number: optimisticDailyOrderNumber || null,
       is_update: isUpdate,
@@ -1725,7 +1730,9 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       : null;
     const selectedCust = customers.find((c) => String(c.id) === String(selectedCustomerId));
 
-    const existingOrd = recalledOrderNumber ? orders.find((o) => o.order_number === recalledOrderNumber) : null;
+    const existingOrd = recalledOrderNumber
+      ? orders.find((o) => (recalledOrderId && String(o.id) === String(recalledOrderId)) || o.order_number === recalledOrderNumber)
+      : null;
     const parseDailySeq = (val: string): number | undefined => {
       const clean = String(val || "").replace(/^#/, "").trim();
       if (/^\d+$/.test(clean)) return parseInt(clean, 10);
@@ -1738,11 +1745,12 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     const settleDailyOrderNumber = existingOrd?.daily_order_number || parseDailySeq(assignedNum);
 
     const settleOrder: POSOrder = {
-      id: existingOrd?.id || `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: recalledOrderId || existingOrd?.id || `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       order_number: assignedNum,
       daily_order_number: settleDailyOrderNumber,
       order_type: orderMode.toUpperCase() as OrderType,
       order_mode: orderMode,
+      payment_status: existingOrd?.payment_status || undefined,
       customer_id: selectedCustomerId ? (Number(selectedCustomerId) || selectedCustomerId) : undefined,
       customer_name: selectedCust ? selectedCust.name : existingOrd?.customer_name,
       customer_phone: selectedCust ? selectedCust.phone : existingOrd?.customer_phone,

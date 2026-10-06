@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { LayoutGrid, Plus, Users, Edit2, Trash2 } from "lucide-react";
+import { LayoutGrid, Plus, Users, Edit2, Trash2, QrCode } from "lucide-react";
 import { Button, PageHeader, PageContainer } from "@ssrone/ui";
 import { POSTable } from "../../../types";
+import { TableQRGeneratorModal } from "./TableQRGeneratorModal";
 
 interface TableListPageProps {
   tables: POSTable[];
@@ -19,6 +20,8 @@ export const TableListPage: React.FC<TableListPageProps> = ({
   isLoading = false
 }) => {
   const [selectedSection, setSelectedSection] = useState<string>("ALL");
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [selectedQrTable, setSelectedQrTable] = useState<POSTable | null>(null);
 
   const totalCapacity = tables.reduce((acc, t) => acc + (t.capacity || 0), 0);
   const freeTables = tables.filter((t) => t.status === "free" || !t.status).length;
@@ -39,13 +42,26 @@ export const TableListPage: React.FC<TableListPageProps> = ({
         icon={<LayoutGrid size={18} />}
         badge={`${tables.length} Tables`}
         actions={
-          <Button
-            onClick={onOpenCreate}
-            size="sm"
-            className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
-          >
-            <Plus size={14} /> Add Table
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectedQrTable(null);
+                setIsQrModalOpen(true);
+              }}
+              className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs border-primary/30 hover:bg-primary/5 text-primary"
+            >
+              <QrCode size={14} /> Table QRs & Standees
+            </Button>
+            <Button
+              onClick={onOpenCreate}
+              size="sm"
+              className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Plus size={14} /> Add Table
+            </Button>
+          </div>
         }
       />
 
@@ -160,6 +176,16 @@ export const TableListPage: React.FC<TableListPageProps> = ({
 
                 <div className="flex items-center gap-1">
                   <button
+                    onClick={() => {
+                      setSelectedQrTable(table);
+                      setIsQrModalOpen(true);
+                    }}
+                    className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-muted transition-colors cursor-pointer border-none bg-transparent"
+                    title="View & Print Table QR Code"
+                  >
+                    <QrCode size={13} />
+                  </button>
+                  <button
                     onClick={() => onOpenEdit(table)}
                     className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer border-none bg-transparent"
                     title="Edit Table"
@@ -181,6 +207,14 @@ export const TableListPage: React.FC<TableListPageProps> = ({
           );
         })}
       </div>
+
+      {/* Table QR Codes & Printable Standees Modal */}
+      <TableQRGeneratorModal
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+        tables={tables}
+        initialSelectedTable={selectedQrTable}
+      />
     </PageContainer>
   );
 };

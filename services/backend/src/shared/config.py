@@ -24,13 +24,13 @@ class DatabaseSettings(BaseSettings):
         alias="DATABASE_URL"
     )
     provider: str = Field(default="postgresql", alias="DB_PROVIDER")
-    host: str = Field(default="127.0.0.1", alias="DB_HOST")
+    host: str = Field(default="ep-solitary-snow-b55t825b-pooler.c-7.us-east-2.aws.neon.tech", alias="DB_HOST")
     port: int = Field(default=5432, alias="DB_PORT")
-    name: str = Field(default="cafedb", alias="DB_NAME")
-    user: str = Field(default="postgres", alias="DB_USER")
-    password: str = Field(default="asd123", alias="DB_PASSWORD")
-    pool_size: int = Field(default=20, alias="DB_POOL_SIZE")
-    max_overflow: int = Field(default=40, alias="DB_MAX_OVERFLOW")
+    name: str = Field(default="neondb", alias="DB_NAME")
+    user: str = Field(default="neondb_owner", alias="DB_USER")
+    password: str = Field(default="npg_Nx0sXMZqRF6c", alias="DB_PASSWORD")
+    pool_size: int = Field(default=15, alias="DB_POOL_SIZE")
+    max_overflow: int = Field(default=25, alias="DB_MAX_OVERFLOW")
     echo: bool = Field(default=False, alias="DB_ECHO")
 
     @computed_field  # type: ignore[misc]
@@ -92,7 +92,7 @@ class RedisSettings(BaseSettings):
 class JWTSettings(BaseSettings):
     secret_key: str = Field(default="ssrone-jwt-secret-key-2026", alias="JWT_SECRET_KEY")
     algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
-    access_token_expire_minutes: int = Field(default=120, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
+    access_token_expire_minutes: int = Field(default=720, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
     refresh_token_expire_days: int = Field(default=30, alias="JWT_REFRESH_TOKEN_EXPIRE_DAYS")
 
     model_config = SettingsConfigDict(env_file=_ENV_FILES, extra="ignore")

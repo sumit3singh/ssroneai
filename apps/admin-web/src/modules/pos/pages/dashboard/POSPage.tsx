@@ -52,26 +52,31 @@ export const POSPage: React.FC = () => {
 
   // Settlement State Lock: Locks settled orders and their tables for 60s to prevent premature background server polls from reverting tables to occupied
   const settledOrdersLockRef = useRef<Map<string, { timestamp: number; tableId?: string | number }>>(new Map());
+  // Concurrency Lock: Prevents overlapping background polling requests from hammering the database
+  const isFetchingRef = useRef(false);
 
   const fetchPOSDomainData = async (isSilent = false, fullCatalog = false) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     if (!isSilent && menuItems.length === 0) setIsLoading(true);
     try {
       const bId = selectedBranch?.id ? Number(selectedBranch.id) : null;
       const bParam = bId ? `?branch_id=${bId}` : "";
 
-      // Ultra-Fast Zero-Wait Polling: Always poll live tables & orders
+      // Ultra-Fast Zero-Wait Polling: Query active floor tables and orders (status=floor limits to active + today's orders)
+      const orderParam = bParam ? `${bParam}&status=floor&page_size=200` : "?status=floor&page_size=200";
       const fetchPromises: Promise<any>[] = [
-        api.get<any>(`/restaurant/tables${bParam}`).catch(() => []),
-        api.get<any>(`/orders${bParam}`).catch(() => [])
+        api.get<any>(`/restaurant/tables${bParam}`).catch(() => null),
+        api.get<any>(`/orders${orderParam}`).catch(() => null)
       ];
 
       // Only fetch catalog (categories, menu items, waiters) on initial load, window focus, or explicit full refresh
       const shouldFetchCatalog = fullCatalog || categories.length === 0 || menuItems.length === 0;
       if (shouldFetchCatalog) {
         fetchPromises.push(
-          api.get<any>(`/restaurant/categories${bParam}`).catch(() => []),
-          api.get<any>(`/restaurant/menu-items${bParam}`).catch(() => []),
-          api.get<any>(`/restaurant/waiters${bParam}`).catch(() => [])
+          api.get<any>(`/restaurant/categories${bParam}`).catch(() => null),
+          api.get<any>(`/restaurant/menu-items${bParam}`).catch(() => null),
+          api.get<any>(`/restaurant/waiters${bParam}`).catch(() => null)
         );
       }
 
@@ -83,9 +88,9 @@ export const POSPage: React.FC = () => {
       const waitersRes = shouldFetchCatalog ? results[4] : null;
 
       if (shouldFetchCatalog) {
-        const loadedCats = Array.isArray(catsRes) ? catsRes : (catsRes?.data || catsRes?.categories || []);
-        const loadedItems = Array.isArray(itemsRes) ? itemsRes : (itemsRes?.data || itemsRes?.items || []);
-        const wList = Array.isArray(waitersRes) ? waitersRes : (waitersRes?.data || []);
+        const loadedCats = Array.isArray(catsRes) ? catsRes : (catsRes?.data || catsRes?.categories || null);
+        const loadedItems = Array.isArray(itemsRes) ? itemsRes : (itemsRes?.data || itemsRes?.items || null);
+        const wList = Array.isArray(waitersRes) ? waitersRes : (waitersRes?.data || null);
 
         if (loadedCats && loadedCats.length > 0) {
           setCategories(loadedCats);
@@ -101,106 +106,119 @@ export const POSPage: React.FC = () => {
         }
       }
 
-      const tList = Array.isArray(tablesRes) ? tablesRes : (tablesRes?.data || []);
-      const oList = Array.isArray(ordersRes) ? ordersRes : (ordersRes?.items || ordersRes?.data || []);
+      // Zero-Loss Reconcile for Orders (DB is SSOT, but never wipe if server call failed or returned empty during silent poll)
+      if (ordersRes !== null) {
+        const oList = Array.isArray(ordersRes) ? ordersRes : (ordersRes?.items || ordersRes?.data || []);
 
-      if (oList && oList.length > 0) {
-        syncLocalOrderSequenceWithOrders(oList);
-      }
-
-      // Reconcile Orders: Merge server orders with local pending optimistic orders (id: "local-...")
-      setOrders((prev) => {
-        const serverOrderNumbers = new Set(oList.map((o: any) => String(o.order_number || "")));
-        const serverOrderIds = new Set(oList.map((o: any) => String(o.id)));
-
-        // Keep any active optimistic orders that have not yet appeared in server oList
-        const now = Date.now();
-        const pendingOptimistic = prev.filter((p) => {
-          if (!String(p.id).startsWith("local-")) return false;
-          const numStr = String(p.order_number || "");
-
-          // If the server order list already contains this order (by exact order_number or ID), DROP IT!
-          if (serverOrderNumbers.has(numStr) || serverOrderIds.has(String(p.id))) {
-            return false;
+        setOrders((prev) => {
+          if (isSilent && oList.length === 0 && prev.length > 0) {
+            return prev; // Preserve live orders
           }
-          const st = (p.status || "").toLowerCase();
-          if (["completed", "paid", "cancelled"].includes(st)) {
-            return false;
-          }
-          const parts = String(p.id).split("-");
-          const ts = parts.length > 1 ? Number(parts[1]) : 0;
-          if (ts > 0 && now - ts > 60_000) {
-            return false; // Auto-purge stale local order after 60s
-          }
-          return true;
-        });
 
-        // Deduplicate merged orders by order_number (prefer server orders as SSOT, respecting active settlement locks)
-        const orderMap = new Map<string, POSOrder>();
-        const lockNow = Date.now();
-
-        // Prune stale settlement locks older than 60s
-        for (const [lockNum, lockData] of settledOrdersLockRef.current.entries()) {
-          if (lockNow - lockData.timestamp > 60_000) {
-            settledOrdersLockRef.current.delete(lockNum);
+          if (oList && oList.length > 0) {
+            syncLocalOrderSequenceWithOrders(oList);
           }
-        }
 
-        for (const o of oList) {
-          if (o && o.order_number) {
-            const numStr = String(o.order_number);
-            const lockData = settledOrdersLockRef.current.get(numStr) || (o.id ? settledOrdersLockRef.current.get(String(o.id)) : undefined);
-            if (lockData && lockNow - lockData.timestamp <= 60_000) {
-              // Retain completed/paid status during lock window so premature background fetches cannot revert the table
-              orderMap.set(numStr, { ...o, status: "completed", payment_status: "paid" });
-            } else {
-              orderMap.set(numStr, o);
+          const serverOrderNumbers = new Set(oList.map((o: any) => String(o.order_number || "")));
+          const serverOrderIds = new Set(oList.map((o: any) => String(o.id)));
+
+          // Keep any active optimistic orders that have not yet appeared in server oList
+          const now = Date.now();
+          const pendingOptimistic = prev.filter((p) => {
+            if (!String(p.id).startsWith("local-")) return false;
+            const numStr = String(p.order_number || "");
+
+            if (serverOrderNumbers.has(numStr) || serverOrderIds.has(String(p.id))) {
+              return false;
+            }
+            const st = (p.status || "").toLowerCase();
+            if (["completed", "paid", "cancelled"].includes(st)) {
+              return false;
+            }
+            const parts = String(p.id).split("-");
+            const ts = parts.length > 1 ? Number(parts[1]) : 0;
+            if (ts > 0 && now - ts > 60_000) {
+              return false; // Auto-purge stale local order after 60s
+            }
+            return true;
+          });
+
+          // Deduplicate merged orders by order_number (prefer server orders as SSOT, respecting active settlement locks)
+          const orderMap = new Map<string, POSOrder>();
+          const lockNow = Date.now();
+
+          // Prune stale settlement locks older than 60s
+          for (const [lockNum, lockData] of settledOrdersLockRef.current.entries()) {
+            if (lockNow - lockData.timestamp > 60_000) {
+              settledOrdersLockRef.current.delete(lockNum);
             }
           }
-        }
-        for (const p of pendingOptimistic) {
-          if (!p || !p.order_number) continue;
-          const pNum = String(p.order_number);
-          if (!orderMap.has(pNum)) {
-            orderMap.set(pNum, p);
-          }
-        }
 
-        const mergedOrders = Array.from(orderMap.values());
-        try {
-          sessionStorage.setItem("pos_cache_orders", JSON.stringify(mergedOrders));
-        } catch (e) {}
-        return mergedOrders;
-      });
-
-      // Reconcile Tables: PostgreSQL DB is Single Source of Truth, respecting active settlement locks
-      setTables(() => {
-        const lockNow = Date.now();
-        const lockedTableIds = new Set<string>();
-        for (const lockData of settledOrdersLockRef.current.values()) {
-          if (lockData.tableId !== undefined && lockData.tableId !== null && lockNow - lockData.timestamp <= 60_000) {
-            lockedTableIds.add(String(lockData.tableId).toLowerCase());
+          for (const o of oList) {
+            if (o && o.order_number) {
+              const numStr = String(o.order_number);
+              const lockData = settledOrdersLockRef.current.get(numStr) || (o.id ? settledOrdersLockRef.current.get(String(o.id)) : undefined);
+              if (lockData && lockNow - lockData.timestamp <= 60_000) {
+                // Retain completed/paid status during lock window so premature background fetches cannot revert the table
+                orderMap.set(numStr, { ...o, status: "completed", payment_status: "paid" });
+              } else {
+                orderMap.set(numStr, o);
+              }
+            }
           }
-        }
-
-        const reconciledTables = tList.map((t: any) => {
-          const tId = String(t.id).toLowerCase();
-          const tNum = String(t.table_number || "").toLowerCase();
-          if (lockedTableIds.has(tId) || lockedTableIds.has(tNum)) {
-            return { ...t, status: "free" as const, current_order_id: null };
+          for (const p of pendingOptimistic) {
+            if (!p || !p.order_number) continue;
+            const pNum = String(p.order_number);
+            if (!orderMap.has(pNum)) {
+              orderMap.set(pNum, p);
+            }
           }
-          return t;
+
+          const mergedOrders = Array.from(orderMap.values());
+          try {
+            sessionStorage.setItem("pos_cache_orders", JSON.stringify(mergedOrders));
+          } catch (e) {}
+          return mergedOrders;
         });
+      }
 
-        try {
-          sessionStorage.setItem("pos_cache_tables", JSON.stringify(reconciledTables));
-        } catch (e) {}
-        return reconciledTables;
-      });
+      // Zero-Loss Reconcile for Tables (DB is SSOT, but never wipe if server call failed or returned empty during silent poll)
+      if (tablesRes !== null) {
+        const tList = Array.isArray(tablesRes) ? tablesRes : (tablesRes?.data || []);
+
+        setTables((prev) => {
+          if (isSilent && tList.length === 0 && prev.length > 0) {
+            return prev; // Preserve live tables safely
+          }
+
+          const lockNow = Date.now();
+          const lockedTableIds = new Set<string>();
+          for (const lockData of settledOrdersLockRef.current.values()) {
+            if (lockData.tableId !== undefined && lockData.tableId !== null && lockNow - lockData.timestamp <= 60_000) {
+              lockedTableIds.add(String(lockData.tableId).toLowerCase());
+            }
+          }
+
+          const reconciledTables = tList.map((t: any) => {
+            const tId = String(t.id).toLowerCase();
+            const tNum = String(t.table_number || "").toLowerCase();
+            if (lockedTableIds.has(tId) || lockedTableIds.has(tNum)) {
+              return { ...t, status: "free" as const, current_order_id: null };
+            }
+            return t;
+          });
+
+          try {
+            sessionStorage.setItem("pos_cache_tables", JSON.stringify(reconciledTables));
+          } catch (e) {}
+          return reconciledTables;
+        });
+      }
     } catch (err: any) {
       console.error("Failed to load PostgreSQL POS data", err);
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
@@ -208,20 +226,28 @@ export const POSPage: React.FC = () => {
     // Initial fetch with full catalog on mount or branch change
     fetchPOSDomainData(false, true);
 
-    // Superfast 3-Second Real-Time Auto-Polling (Tables & Orders only: 60% less network overhead)
+    // Optimized 5-Second Real-Time Auto-Polling (Tables & Orders only)
     const interval = setInterval(() => {
+      // Pause polling if browser tab is in background to save bandwidth and connection pool
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
       fetchPOSDomainData(true, false);
-    }, 3000);
+    }, 5000);
 
-    // Instant Sync with full catalog on Window/Tab Focus
-    const handleFocus = () => {
-      fetchPOSDomainData(true, true);
+    // Instant Sync with full catalog on Window/Tab Focus or Tab Visibility
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        fetchPOSDomainData(true, true);
+      }
     };
-    window.addEventListener("focus", handleFocus);
+    window.addEventListener("focus", handleVisibilityOrFocus);
+    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("focus", handleVisibilityOrFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
     };
   }, [selectedBranch?.id]);
 

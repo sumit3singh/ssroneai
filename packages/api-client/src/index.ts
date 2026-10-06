@@ -336,24 +336,99 @@ export const fetchPublicBranches = async (tenantSlug?: string): Promise<BranchIn
   ];
 };
 
+// In-memory instant cache for 0ms menu rendering
+let cachedMenuItems: { key: string; data: any[]; timestamp: number } | null = null;
+let cachedCategories: { key: string; data: any[]; timestamp: number } | null = null;
+
+export const getCachedMenuItems = (branchId?: number | string): any[] | null => {
+  const key = String(branchId || "default");
+  if (cachedMenuItems && cachedMenuItems.key === key && cachedMenuItems.data.length > 0) {
+    return cachedMenuItems.data;
+  }
+  if (typeof window !== "undefined") {
+    try {
+      const stored = sessionStorage.getItem(`ssrone_menu_items_${key}`) || localStorage.getItem(`ssrone_menu_items_${key}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          cachedMenuItems = { key, data: parsed, timestamp: Date.now() };
+          return parsed;
+        }
+      }
+    } catch {}
+  }
+  return null;
+};
+
+export const getCachedCategories = (branchId?: number | string): any[] | null => {
+  const key = String(branchId || "default");
+  if (cachedCategories && cachedCategories.key === key && cachedCategories.data.length > 0) {
+    return cachedCategories.data;
+  }
+  if (typeof window !== "undefined") {
+    try {
+      const stored = sessionStorage.getItem(`ssrone_categories_${key}`) || localStorage.getItem(`ssrone_categories_${key}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          cachedCategories = { key, data: parsed, timestamp: Date.now() };
+          return parsed;
+        }
+      }
+    } catch {}
+  }
+  return null;
+};
+
 export const fetchCategories = async (branchId?: number | string): Promise<any[]> => {
+  const key = String(branchId || "default");
   try {
     const param = branchId ? `?branch_id=${branchId}` : "";
-    const res = await api.get<any>(`/restaurant/categories${param}`).catch(() => api.get<any>(`/pos/categories${param}`));
-    return Array.isArray(res) ? res : res?.categories || res?.data || [];
+    const res = await api.get<any>(`/restaurant/categories${param}`);
+    const list = Array.isArray(res) ? res : res?.categories || res?.data || [];
+    if (list.length > 0) {
+      cachedCategories = { key, data: list, timestamp: Date.now() };
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem(`ssrone_categories_${key}`, JSON.stringify(list));
+        } catch {}
+      }
+    }
+    return list;
   } catch {
-    return [];
+    return getCachedCategories(branchId) || [];
   }
 };
 
+const resolveDishImage = (name: string, catId: string | number, existingUrl?: string): string => {
+  if (existingUrl && !existingUrl.includes("1546069901-ba9599a7e63c")) {
+    return existingUrl;
+  }
+  const n = (name || "").toLowerCase();
+  const c = String(catId);
+  if (n.includes("pizza") || c === "7") return "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=200&q=75";
+  if (n.includes("momo") || c === "1") return "https://images.unsplash.com/photo-1625246333195-78d9c38ad449?auto=format&fit=crop&w=200&q=75";
+  if (n.includes("roll") || c === "2") return "https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?auto=format&fit=crop&w=200&q=75";
+  if (n.includes("noodle") || n.includes("rice") || c === "3") return "https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=200&q=75";
+  if (n.includes("fry") || n.includes("fries") || n.includes("pasta") || c === "5" || c === "6") return "https://images.unsplash.com/photo-1576107232684-1279f3908594?auto=format&fit=crop&w=200&q=75";
+  if (n.includes("drink") || n.includes("chai") || n.includes("coffee") || c === "8") return "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=200&q=75";
+  if (n.includes("tandoor") || c === "9") return "https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=200&q=75";
+  if (n.includes("paneer") || n.includes("sabji") || c === "10" || c === "11") return "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=200&q=75";
+  if (n.includes("naan") || n.includes("roti") || n.includes("bread") || c === "12" || c === "13") return "https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=200&q=75";
+  if (n.includes("thali") || n.includes("combo") || c === "14" || c === "15") return "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=200&q=75";
+  return "https://images.unsplash.com/photo-1546069901-d8a436573c7f?auto=format&fit=crop&w=200&q=75";
+};
+
 export const fetchMenuItems = async (branchId?: number | string): Promise<any[]> => {
+  const key = String(branchId || "default");
   try {
     const param = branchId ? `?branch_id=${branchId}` : "";
-    const res = await api.get<any>(`/restaurant/menu-items${param}`).catch(() => api.get<any>(`/pos/items${param}`));
+    const res = await api.get<any>(`/restaurant/menu-items${param}`);
     const list = Array.isArray(res) ? res : res?.items || res?.data || [];
-    return list.map((item: any) => {
+    const formatted = list.map((item: any) => {
       const priceVal = typeof item.price === "number" ? item.price : parseFloat(String(item.price || item.base_price || 0)) || 100;
-      const imgUrl = item.imageUrl || item.image_url || item.image || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80";
+      const catId = item.categoryId ?? item.category_id ?? "all";
+      const imgUrl = resolveDishImage(item.name, catId, item.imageUrl || item.image_url || item.image);
       return {
         id: String(item.id || `item_${Math.random()}`),
         name: item.name || "Delicious Item",
@@ -361,8 +436,8 @@ export const fetchMenuItems = async (branchId?: number | string): Promise<any[]>
         price: priceVal,
         basePrice: priceVal,
         base_price: priceVal,
-        categoryId: item.categoryId ?? item.category_id ?? "all",
-        category_id: item.category_id ?? item.categoryId ?? "all",
+        categoryId: String(catId),
+        category_id: String(catId),
         isVeg: item.isVeg !== undefined ? item.isVeg : (item.is_veg !== false),
         isAvailable: item.isAvailable !== undefined ? item.isAvailable : (item.is_available !== false),
         isPopular: item.isPopular || item.is_popular || false,
@@ -405,8 +480,18 @@ export const fetchMenuItems = async (branchId?: number | string): Promise<any[]>
         }))
       };
     });
+
+    if (formatted.length > 0) {
+      cachedMenuItems = { key, data: formatted, timestamp: Date.now() };
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem(`ssrone_menu_items_${key}`, JSON.stringify(formatted));
+        } catch {}
+      }
+    }
+    return formatted;
   } catch {
-    return [];
+    return getCachedMenuItems(branchId) || [];
   }
 };
 
@@ -418,41 +503,142 @@ export const validatePromoCode = async (code: string, total: number): Promise<{ 
   }
 };
 
-export const placeOrder = async (orderData: unknown): Promise<{ orderId: string; status: string; estimatedTime?: number; loyaltyPointsEarned?: number }> => {
+export const placeOrder = async (orderData: any): Promise<{ orderId: string; orderNumber?: string; status: string; estimatedTime?: number; loyaltyPointsEarned?: number; raw?: any }> => {
+  // Normalize items for backend schema
+  const rawItems = Array.isArray(orderData?.items) ? orderData.items : [];
+  const normalizedItems = rawItems.map((it: any) => ({
+    product_id: it.product_id || it.productId || it.menuItemId || it.id || 1,
+    item_id: it.product_id || it.productId || it.menuItemId || it.id || 1,
+    product_name: it.product_name || it.productName || it.name || "Dish Item",
+    name: it.product_name || it.productName || it.name || "Dish Item",
+    quantity: it.quantity || 1,
+    unit_price: it.unit_price ?? it.unitPrice ?? it.price ?? 0,
+    variant_name: it.variant_name || it.variantName || (Array.isArray(it.selectedVariants) ? it.selectedVariants.map((v: any) => v.option?.name).join(", ") : undefined),
+    addons: it.addons || it.selectedAddons || [],
+    preparation_notes: it.preparation_notes || it.notes,
+    notes: it.notes || it.preparation_notes,
+    discount_amount: it.discount_amount || 0,
+  }));
+
+  const rawMode = String(orderData?.order_mode || orderData?.orderType || orderData?.order_type || "dine_in").toLowerCase();
+  const effMode = rawMode.includes("deliv") ? "delivery" : (rawMode.includes("take") || rawMode.includes("pickup")) ? "takeaway" : "dine_in";
+
+  const payload = {
+    ...orderData,
+    customer_id: orderData?.customer_id || orderData?.customerId,
+    customerId: orderData?.customer_id || orderData?.customerId,
+    customer_name: orderData?.customer_name || orderData?.customerName || orderData?.name,
+    customer_phone: orderData?.customer_phone || orderData?.customerPhone || orderData?.phone,
+    tenant_slug: orderData?.tenant_slug || orderData?.tenantSlug,
+    branch_id: orderData?.branch_id || orderData?.branchId || 1,
+    source_channel: orderData?.source_channel || "customer_web",
+    order_source: orderData?.order_source || "customer_web",
+    order_type: effMode,
+    order_mode: effMode,
+    table_name: orderData?.table_name || orderData?.tableNumber || orderData?.table_number,
+    subtotal: orderData?.subtotal || orderData?.total || 0,
+    net_amount: orderData?.net_amount || orderData?.total || orderData?.grandTotal || 0,
+    tax_amount: orderData?.tax_amount || orderData?.taxAmount || 0,
+    discount_amount: orderData?.discount_amount || orderData?.discountAmount || 0,
+    payment_method: String(orderData?.payment_method || orderData?.paymentMethod || "CASH").toUpperCase(),
+    status: orderData?.payment_status === "paid" ? "COMPLETED" : "PENDING",
+    payment_status: orderData?.payment_status || orderData?.paymentStatus || "unpaid",
+    special_instructions: orderData?.special_instructions || orderData?.specialInstructions,
+    items: normalizedItems,
+  };
+
   try {
-    const res = await api.post<any>("/pos/orders", orderData);
+    const res = await api.post<any>("/orders", payload);
     return {
       orderId: String(res?.id || res?.order_number || res?.order_id),
+      orderNumber: String(res?.order_number || res?.id || ""),
       status: res?.status || "KOT_SENT",
       estimatedTime: res?.estimated_time || 15,
-      loyaltyPointsEarned: res?.loyalty_points_earned || 10
+      loyaltyPointsEarned: res?.loyalty_points_earned || 10,
+      raw: res,
     };
   } catch (err) {
-    const res = await api.post<any>("/orders", orderData);
+    const res = await api.post<any>("/pos/orders", payload);
     return {
       orderId: String(res?.id || res?.order_number || res?.order_id),
+      orderNumber: String(res?.order_number || res?.id || ""),
       status: res?.status || "KOT_SENT",
       estimatedTime: res?.estimated_time || 15,
-      loyaltyPointsEarned: res?.loyalty_points_earned || 10
+      loyaltyPointsEarned: res?.loyalty_points_earned || 10,
+      raw: res,
     };
   }
 };
 
+export const createRazorpayOrder = async (data: {
+  amount: number;
+  currency?: string;
+  tenant_slug?: string;
+  branch_code?: string;
+  receipt?: string;
+}): Promise<{ success: boolean; order_id: string; amount: number; currency: string; key_id: string }> => {
+  return await api.post("/orders/razorpay/create-order", data);
+};
+
+export const verifyRazorpayPayment = async (data: {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}): Promise<{ success: boolean; verified: boolean; message: string }> => {
+  return await api.post("/orders/razorpay/verify-payment", data);
+};
+
 export interface SavedAddress {
   id?: string | number;
+  customer_id?: number;
   label: string;
+  flat_no?: string;
+  area_street?: string;
+  landmark?: string;
   fullAddress: string;
   city?: string;
+  state?: string;
   pincode?: string;
   is_default?: boolean;
+  alternate_phone?: string;
 }
 
-export const fetchSavedAddresses = async (): Promise<SavedAddress[]> => {
+export interface TableInfo {
+  id: number;
+  table_number: string;
+  name?: string;
+  capacity?: number;
+  section?: string;
+  floor?: string;
+  status?: string;
+  is_active?: boolean;
+  qr_code_url?: string;
+}
+
+export const fetchTables = async (branchId?: number | string): Promise<TableInfo[]> => {
   try {
-    return await api.get("/customer/addresses");
+    const param = branchId ? `?branch_id=${branchId}` : "";
+    const res = await api.get<any>(`/restaurant/tables${param}`).catch(() => api.get<any>(`/pos/tables${param}`));
+    return Array.isArray(res) ? res : res?.tables || res?.data || [];
+  } catch {
+    return [];
+  }
+};
+
+export const fetchSavedAddresses = async (userId?: string, phone?: string): Promise<SavedAddress[]> => {
+  try {
+    const params = new URLSearchParams();
+    if (userId && !isNaN(Number(userId))) params.append("customer_id", String(userId));
+    if (phone) params.append("phone", phone);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    return await api.get(`/customer/addresses${qs}`);
   } catch {
     try {
-      return await api.get("/customers/addresses");
+      const params = new URLSearchParams();
+      if (userId && !isNaN(Number(userId))) params.append("customer_id", String(userId));
+      if (phone) params.append("phone", phone);
+      const qs = params.toString() ? `?${params.toString()}` : "";
+      return await api.get(`/customers/addresses${qs}`);
     } catch {
       return [];
     }
@@ -473,31 +659,93 @@ export const resetCustomerPassword = async (data: { phone: string; otp: string; 
   return await api.post("/auth/reset-password", data);
 };
 
-export const sendOtp = async (phone: string): Promise<{ success: boolean; message?: string }> => {
-  return await api.post("/auth/send-otp", { phone });
+export interface SendOtpResponse {
+  success: boolean;
+  message?: string;
+  channel?: "whatsapp" | "sms" | string;
+  otp?: string;
+  whatsapp_url?: string;
+  customer_exists?: boolean;
+  customer_name?: string;
+}
+
+export const sendOtp = async (
+  phone: string,
+  channel: "whatsapp" | "sms" = "whatsapp",
+  tenantSlug?: string
+): Promise<SendOtpResponse> => {
+  const slug = tenantSlug || getTenantSlug() || "baithak-cafe";
+  return await api.post<SendOtpResponse>("/auth/send-otp", { phone, channel, tenant_slug: slug });
 };
 
-export const verifyOtp = async (phone: string, otp: string): Promise<{ success: boolean; user: { id: string; name: string; phone: string; loyaltyTier: string; loyaltyPoints: number } }> => {
-  return await api.post("/auth/verify-otp", { phone, otp });
+export const verifyOtp = async (
+  phone: string,
+  otp: string,
+  tenantSlug?: string,
+  name?: string
+): Promise<{ success: boolean; token?: string; access_token?: string; user: { id: string; name: string; phone: string; loyaltyTier: string; loyaltyPoints: number } }> => {
+  const slug = tenantSlug || getTenantSlug() || "baithak-cafe";
+  return await api.post("/auth/verify-otp", { phone, otp, tenant_slug: slug, name });
 };
 
-export const saveAddress = async (userId: string, address: { label: string; fullAddress: string; city?: string; pincode?: string }): Promise<SavedAddress> => {
+export const saveAddress = async (
+  userId: string,
+  address: {
+    label: string;
+    fullAddress?: string;
+    flat_no?: string;
+    area_street?: string;
+    landmark?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+    is_default?: boolean;
+    alternate_phone?: string;
+    phone?: string;
+  }
+): Promise<SavedAddress> => {
+  const custId = userId && !isNaN(Number(userId)) ? Number(userId) : undefined;
+  const params = new URLSearchParams();
+  if (custId) params.append("customer_id", String(custId));
+  if (address.phone) params.append("phone", address.phone);
+  const paramStr = params.toString() ? `?${params.toString()}` : "";
   try {
-    return await api.post<SavedAddress>("/customer/addresses", address);
+    return await api.post<SavedAddress>(`/customer/addresses${paramStr}`, address);
   } catch {
-    return await api.post<SavedAddress>("/customers/addresses", address);
+    return await api.post<SavedAddress>(`/customers/addresses${paramStr}`, address);
   }
 };
 
 export const saveCustomerAddress = saveAddress;
 
-export const updateCustomerProfile = async (userId: string, profileData: { name?: string; email?: string; address?: string; city?: string; pincode?: string }): Promise<any> => {
-  return await api.put(`/crm/customers/${userId}`, profileData);
+export const updateCustomerProfile = async (
+  userIdOrPhone: string,
+  profileData: { name?: string; email?: string; address?: string; city?: string; pincode?: string; phone?: string }
+): Promise<any> => {
+  try {
+    return await api.put(`/crm/customers/${encodeURIComponent(userIdOrPhone)}`, profileData);
+  } catch {
+    return await api.put(`/customers/${encodeURIComponent(userIdOrPhone)}`, profileData);
+  }
 };
 
 export const deleteAddress = async (userId: string, addressId: string): Promise<void> => {
-  await api.delete(`/customer/addresses/${addressId}`);
+  try {
+    await api.delete(`/customer/addresses/${addressId}`);
+  } catch {
+    await api.delete(`/customers/addresses/${addressId}`);
+  }
 };
+
+export const fetchCustomerOrders = async (customerIdOrPhone: string | number): Promise<any[]> => {
+  try {
+    const res = await api.get<any[]>(`/orders/by-customer/${encodeURIComponent(String(customerIdOrPhone))}`);
+    return Array.isArray(res) ? res : [];
+  } catch {
+    return [];
+  }
+};
+
 
 // ═══════════════════════════════════════════
 // TENANT APP CONFIG & CUSTOMIZATION STUDIO

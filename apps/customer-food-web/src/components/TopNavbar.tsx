@@ -1,45 +1,53 @@
-import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { Home, UtensilsCrossed, ClipboardList, UserCircle, Menu, X, MapPin, ChevronDown, Store } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Home, UtensilsCrossed, ClipboardList, UserCircle, Menu, X, MapPin, ChevronDown, QrCode } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/stores/i18nStore";
 import { useCartStore } from "@/stores/cartStore";
 import { useAuthStore } from "@ssrone/auth";
-import LanguageToggle from "@/components/LanguageToggle";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
+import { useTenantAppConfig } from "@/hooks/useTenantAppConfig";
 import BranchSwitchDialog from "@/components/BranchSwitchDialog";
 import SelectLocationModal from "@/components/SelectLocationModal";
+import AddressSelectDialog from "@/components/AddressSelectDialog";
+import TableCameraScannerModal from "@/components/TableCameraScannerModal";
 import type { BranchInfo } from "@ssrone/api-client";
 
 const TopNavbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { tenantSlug, branchCode, tableNumber, branches, switchBranch } = useTenantBranchContext();
+  const { branding } = useTenantAppConfig();
   const { t } = useI18n();
   const itemCount = useCartStore((s) => s.getItemCount());
-  const { isLoggedIn } = useAuthStore();
+  const { isLoggedIn, orderMode, setOrderMode, deliveryAddress } = useAuthStore();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [pendingBranch, setPendingBranch] = useState<BranchInfo | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [isTableScanOpen, setIsTableScanOpen] = useState(false);
 
   const activeBranch = branches.find((b) => b.code === branchCode);
   const activeBranchName = activeBranch?.name || branchCode || "Select Location";
-  const brandTitle = activeBranch?.name
-    ? activeBranch.name
-    : tenantSlug
-    ? `${tenantSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}`
-    : t("app.name");
+  const brandTitle = branding?.businessName || activeBranch?.name || (tenantSlug ? tenantSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "Baithak Cafe");
 
-  const homePath = `/t/${tenantSlug}/b/${branchCode}${tableNumber ? `/table/${tableNumber}` : ''}`;
-  const menuPath = `/t/${tenantSlug}/b/${branchCode}${tableNumber ? `/table/${tableNumber}` : ''}/menu`;
+  const homePath = `/t/${tenantSlug}/b/${branchCode}${tableNumber ? `/table/${tableNumber}` : ""}`;
+  const menuPath = `/t/${tenantSlug}/b/${branchCode}${tableNumber ? `/table/${tableNumber}` : ""}/menu`;
   const ordersPath = `/t/${tenantSlug}/b/${branchCode}/my-orders`;
   const loginPath = isLoggedIn ? `/t/${tenantSlug}/b/${branchCode}/profile` : homePath;
 
-  const hiddenPaths = ["/checkout", "/order-status", "/admin", "/menu"];
-  if (hiddenPaths.some((p) => location.pathname.includes(p))) return null;
+  const isHomePage =
+    location.pathname === "/" ||
+    location.pathname === `/t/${tenantSlug}` ||
+    location.pathname === `/t/${tenantSlug}/b/${branchCode}` ||
+    (Boolean(tableNumber) && location.pathname === `/t/${tenantSlug}/b/${branchCode}/table/${tableNumber}`) ||
+    Boolean(location.pathname.match(/^\/order\/table\/[^/]+$/));
+
+  const hiddenPaths = ["/checkout", "/order-status", "/admin", "/menu", "/profile", "/my-orders"];
+  if (isHomePage || hiddenPaths.some((p) => location.pathname.includes(p))) return null;
 
   const isActive = (path: string) => {
     if (path === homePath) return location.pathname === path;
@@ -77,126 +85,169 @@ const TopNavbar = () => {
 
   return (
     <nav
-      className="sticky top-0 z-50 border-b border-border/50"
+      className="sticky top-0 z-50 bg-card/90 backdrop-blur-md border-b border-border shadow-xs font-sans"
       role="navigation"
       aria-label="Main navigation"
     >
-      {/* Glassmorphism background */}
-      <div className="absolute inset-0 bg-popover/80 backdrop-blur-xl" />
-      
-      <div className="relative flex items-center justify-between max-w-7xl mx-auto px-4 h-16">
-        {/* Logo / Brand + Outlet Selector */}
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between max-w-6xl mx-auto px-3 sm:px-6 h-14">
+        {/* Left: Brand Logo & Title */}
+        <div className="flex items-center gap-2.5 min-w-0">
           <button
             onClick={() => navigate(homePath)}
-            className="flex items-center gap-2.5 hover:opacity-80 transition group"
+            className="flex items-center gap-2.5 hover:opacity-90 transition group text-left cursor-pointer"
           >
-            <motion.span 
-              className="text-2xl"
-              whileHover={{ rotate: [0, -10, 10, 0] }}
-              transition={{ duration: 0.5 }}
-            >
-              🍽️
-            </motion.span>
-            <div className="flex flex-col items-start text-left">
-              <span className="font-display text-sm sm:text-base font-bold text-foreground leading-tight">
+            <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs">
+              {branding?.logoUrl ? (
+                <img src={branding.logoUrl} alt={brandTitle} className="w-full h-full object-contain" />
+              ) : (
+                <span className="font-extrabold text-xs text-primary font-serif">
+                  {brandTitle.slice(0, 2).toUpperCase()}
+                </span>
+              )}
+            </div>
+            <div className="min-w-0">
+              <span className="font-bold text-sm sm:text-base text-foreground font-serif leading-tight block tracking-tight">
                 {brandTitle}
               </span>
-              <span className="text-[9px] text-muted-foreground font-medium tracking-wider uppercase hidden sm:block">
-                {tableNumber ? `Table: ${tableNumber}` : "Café & Restaurant"}
-              </span>
+              {activeBranchName && (
+                <span className="text-[11px] text-muted-foreground font-medium hidden sm:block">
+                  {activeBranchName}
+                </span>
+              )}
             </div>
           </button>
+        </div>
 
-          {/* Location Selector Pill in Navbar */}
+        {/* Center: Branch & Mode Selectors (Visible on Tablet/Laptop/Desktop) */}
+        <div className="hidden md:flex items-center gap-2">
           {branches.length > 0 && (
-            <div className="relative inline-flex items-center bg-primary/10 hover:bg-primary/15 border border-primary/20 rounded-full px-2.5 py-1 transition text-foreground group">
-              <MapPin className="w-3.5 h-3.5 text-primary mr-1 flex-shrink-0" />
+            <div className="relative inline-flex items-center bg-muted border border-border rounded-full px-3 py-1.5 text-xs font-medium">
+              <MapPin className="w-3.5 h-3.5 text-primary mr-1.5 shrink-0" />
               <select
                 value={branchCode}
                 onChange={(e) => handleBranchSelectAttempt(e.target.value)}
-                className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer appearance-none pr-4 max-w-[130px] sm:max-w-[190px] truncate"
+                className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer pr-3"
               >
                 {branches.map((b) => (
-                  <option key={b.code} value={b.code} className="bg-popover text-popover-foreground font-normal">
+                  <option key={b.code} value={b.code} className="bg-card text-foreground">
                     {b.name}
                   </option>
                 ))}
               </select>
-              <ChevronDown className="w-3 h-3 text-muted-foreground absolute right-1.5 pointer-events-none group-hover:text-foreground transition" />
             </div>
           )}
+
+          {/* Mode Selector */}
+          <div className="inline-flex items-center bg-muted border border-border rounded-full px-3 py-1.5 text-xs font-medium">
+            <select
+              value={orderMode || "dine-in"}
+              onChange={(e) => {
+                const newMode = e.target.value as any;
+                setOrderMode(newMode);
+                if (newMode === "dine-in" && !tableNumber) setIsTableScanOpen(true);
+                if (newMode === "delivery" && !deliveryAddress) setIsAddressModalOpen(true);
+              }}
+              className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
+            >
+              <option value="dine-in" className="bg-card text-foreground">Dine-In</option>
+              <option value="takeaway" className="bg-card text-foreground">Takeaway</option>
+              <option value="delivery" className="bg-card text-foreground">Delivery</option>
+            </select>
+          </div>
         </div>
 
-        {/* Desktop Nav Links */}
-        <div className="hidden md:flex items-center gap-1">
-          {navItems.map((item) => (
-            <NavBtn
-              key={item.path}
-              icon={item.icon}
-              label={item.label}
-              active={isActive(item.path)}
-              onClick={() => handleNav(item.path)}
-              badge={item.badge}
-            />
-          ))}
-          <div className="w-px h-6 bg-border mx-2" />
-          <LanguageToggle />
-        </div>
+        {/* Right: Table pill / Branch Pill on mobile + Navigation */}
+        <div className="flex items-center gap-2 shrink-0">
+          {tableNumber && (
+            <button
+              onClick={() => setIsTableScanOpen(true)}
+              className="flex items-center gap-1.5 bg-primary/10 border border-primary/20 text-primary rounded-full px-2.5 py-1 text-xs font-bold cursor-pointer active:scale-95 transition-all"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              <span>Table {tableNumber}</span>
+            </button>
+          )}
 
-        {/* Mobile: Language + Hamburger */}
-        <div className="flex md:hidden items-center gap-2">
-          <LanguageToggle />
+          {/* Location button on mobile */}
+          <button
+            onClick={() => setIsLocationModalOpen(true)}
+            className="md:hidden flex items-center gap-1.5 bg-muted border border-border text-foreground rounded-full px-3 py-1 text-xs font-medium cursor-pointer active:scale-95 transition-all"
+          >
+            <MapPin className="w-3.5 h-3.5 text-primary" />
+            <span className="break-words font-medium">{activeBranchName.replace("Baithak Cafe - ", "")}</span>
+          </button>
+
+          {/* Desktop Nav Links */}
+          <div className="hidden md:flex items-center gap-1.5 ml-2">
+            {navItems.map((item) => (
+              <button
+                key={item.path}
+                onClick={() => handleNav(item.path)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer",
+                  isActive(item.path)
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                )}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+                {item.badge !== undefined && item.badge > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[10px] font-black flex items-center justify-center">
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Mobile Hamburger Button */}
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="p-2 rounded-xl bg-muted/60 text-foreground hover:bg-muted transition"
-            aria-label="Toggle menu"
+            className="md:hidden p-2 rounded-xl bg-muted text-foreground hover:bg-border transition cursor-pointer active:scale-95"
+            aria-label="Toggle navigation"
           >
-            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {mobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Dropdown */}
+      {/* Mobile Drawer */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.25, ease: "easeInOut" }}
-            className="relative md:hidden overflow-hidden border-t border-border/50"
+            className="md:hidden overflow-hidden border-t border-border bg-card px-4 py-3 space-y-1.5 shadow-lg"
           >
-            <div className="absolute inset-0 bg-popover/95 backdrop-blur-xl" />
-            <div className="relative px-4 py-3 flex flex-col gap-1">
-              {navItems.map((item) => (
-                <button
-                  key={item.path}
-                  onClick={() => handleNav(item.path)}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all",
-                    isActive(item.path)
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-                  )}
-                >
-                  <div className="relative">
-                    {item.icon}
-                    {item.badge !== undefined && item.badge > 0 && (
-                      <span className="absolute -top-1.5 -right-2 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">
-                        {item.badge > 9 ? "9+" : item.badge}
-                      </span>
-                    )}
-                  </div>
-                  {item.label}
-                </button>
-              ))}
-            </div>
+            {navItems.map((item) => (
+              <button
+                key={item.path}
+                onClick={() => handleNav(item.path)}
+                className={cn(
+                  "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer",
+                  isActive(item.path)
+                    ? "bg-primary/10 text-primary font-bold"
+                    : "text-foreground hover:bg-muted"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  {item.icon}
+                  <span>{item.label}</span>
+                </div>
+                {item.badge !== undefined && item.badge > 0 && (
+                  <span className="w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            ))}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Confirmation Dialog on Branch Change */}
+      {/* Modals */}
       <BranchSwitchDialog
         isOpen={isConfirmOpen}
         targetBranch={pendingBranch}
@@ -208,7 +259,6 @@ const TopNavbar = () => {
         }}
       />
 
-      {/* Location Selector Modal */}
       <SelectLocationModal
         isOpen={isLocationModalOpen}
         branches={branches}
@@ -219,46 +269,21 @@ const TopNavbar = () => {
         }}
         onClose={() => setIsLocationModalOpen(false)}
       />
+
+      <AddressSelectDialog
+        isOpen={isAddressModalOpen}
+        onClose={() => setIsAddressModalOpen(false)}
+      />
+
+      <TableCameraScannerModal
+        isOpen={isTableScanOpen}
+        onClose={() => setIsTableScanOpen(false)}
+        onTableScanned={(tbl) => {
+          navigate(`/t/${tenantSlug}/b/${branchCode}/table/${tbl}/menu`);
+        }}
+      />
     </nav>
   );
 };
-
-interface NavBtnProps {
-  icon: React.ReactNode;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  badge?: number;
-  className?: string;
-}
-
-const NavBtn = ({ icon, label, active, onClick, badge, className }: NavBtnProps) => (
-  <button
-    onClick={onClick}
-    className={cn(
-      "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all relative",
-      active 
-        ? "bg-primary/10 text-primary shadow-sm" 
-        : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
-      className
-    )}
-    aria-label={label}
-    aria-current={active ? "page" : undefined}
-  >
-    <div className="relative">
-      {icon}
-      {badge !== undefined && badge > 0 && (
-        <motion.span 
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className="absolute -top-1.5 -right-2.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center shadow-sm"
-        >
-          {badge > 9 ? "9+" : badge}
-        </motion.span>
-      )}
-    </div>
-    <span>{label}</span>
-  </button>
-);
 
 export default TopNavbar;

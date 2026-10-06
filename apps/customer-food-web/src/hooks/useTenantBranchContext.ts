@@ -6,6 +6,8 @@ import { useCartStore } from "@/stores/cartStore";
 export interface TenantBranchContext {
   tenantSlug: string;
   branchCode: string;
+  branchName: string;
+  activeBranch?: BranchInfo;
   tableNumber: string | null;
   isTableMode: boolean;
   branches: BranchInfo[];
@@ -19,15 +21,20 @@ export const useTenantBranchContext = (): TenantBranchContext => {
   const setTableNumber = useCartStore((s) => s.setTableNumber);
   const [branches, setBranches] = useState<BranchInfo[]>([]);
 
-  // 1. Resolve strictly from URL path parameters, search query parameters, or stored session context
+  // 1. Resolve strictly from URL path parameters, pathname regex, search query parameters, or stored session context
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+  const pathTenant = pathname.match(/\/t\/([^/]+)/)?.[1];
+  const pathBranch = pathname.match(/\/b\/([^/]+)/)?.[1];
+  const pathTable = pathname.match(/\/table\/([^/]+)/)?.[1];
+
   const resolvedTenantSlug =
-    params.tenantSlug || searchParams.get("tenant") || getTenantSlug() || "baithak-cafe";
+    params.tenantSlug || pathTenant || searchParams.get("tenant") || getTenantSlug() || "baithak-cafe";
 
   const resolvedBranchCode =
-    params.branchCode || searchParams.get("branch") || getBranchCode() || "BAITHAK-CUH";
+    params.branchCode || pathBranch || searchParams.get("branch") || getBranchCode() || "101";
 
   const resolvedTableNumber =
-    params.tableNumber || searchParams.get("table") || null;
+    params.tableNumber || pathTable || searchParams.get("table") || null;
 
   // Fetch branches for the resolved tenant and sync active branch code
   useEffect(() => {
@@ -35,14 +42,14 @@ export const useTenantBranchContext = (): TenantBranchContext => {
       if (list && list.length > 0) {
         setBranches(list);
         const validCodes = list.map((b) => b.code);
-        const currentCode = params.branchCode || searchParams.get("branch") || getBranchCode();
+        const currentCode = params.branchCode || pathBranch || searchParams.get("branch") || getBranchCode();
         if (!currentCode || !validCodes.includes(currentCode)) {
           const defaultCode = list[0].code;
           setBranchCode(defaultCode);
         }
       }
     });
-  }, [resolvedTenantSlug, params.branchCode, searchParams]);
+  }, [resolvedTenantSlug, params.branchCode, pathBranch, searchParams]);
 
   const switchBranch = useCallback((newBranchCode: string) => {
     setBranchCode(newBranchCode);
@@ -54,6 +61,8 @@ export const useTenantBranchContext = (): TenantBranchContext => {
     }
   }, [resolvedTenantSlug, resolvedTableNumber, navigate]);
 
+  const setCartContext = useCartStore((s) => s.setContext);
+
   useEffect(() => {
     if (resolvedTenantSlug) {
       setTenantSlug(resolvedTenantSlug);
@@ -61,14 +70,24 @@ export const useTenantBranchContext = (): TenantBranchContext => {
     if (resolvedBranchCode) {
       setBranchCode(resolvedBranchCode);
     }
+    if (resolvedTenantSlug && resolvedBranchCode) {
+      setCartContext(resolvedTenantSlug, resolvedBranchCode);
+    }
     if (resolvedTableNumber) {
       setTableNumber(resolvedTableNumber);
     }
-  }, [resolvedTenantSlug, resolvedBranchCode, resolvedTableNumber, setTableNumber]);
+  }, [resolvedTenantSlug, resolvedBranchCode, resolvedTableNumber, setTableNumber, setCartContext]);
+
+  const activeBranch = branches.find(
+    (b) => b.code === resolvedBranchCode || b.id === resolvedBranchCode
+  );
+  const branchName = activeBranch?.name?.trim() || "The Baithak Cafe";
 
   return {
     tenantSlug: resolvedTenantSlug,
     branchCode: resolvedBranchCode,
+    branchName,
+    activeBranch,
     tableNumber: resolvedTableNumber,
     isTableMode: !!resolvedTableNumber,
     branches,

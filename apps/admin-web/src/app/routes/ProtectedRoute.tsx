@@ -19,11 +19,11 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
       return;
     }
 
-    // 1-Hour Inactivity Auto-Logout Protocol
+    // 12-Hour Operational Shift Inactivity Protocol
     const cleanupTracker = initInactivityTracker({
-      timeoutMs: 60 * 60 * 1000, // Exactly 1 hour of inactivity
+      timeoutMs: 12 * 60 * 60 * 1000, // 12-hour shift session
       onTimeout: () => {
-        toast.warning("You have been logged out due to 1 hour of inactivity.", {
+        toast.warning("You have been logged out due to 12 hours of inactivity.", {
           duration: 8000,
         });
         void logout();

@@ -1,186 +1,67 @@
 import * as React from "react";
-
+import { toast as sonnerToast } from "sonner";
 import type { ToastActionElement, ToastProps } from "@ssrone/ui/customer";
 
-const TOAST_LIMIT = 1;
-const TOAST_REMOVE_DELAY = 1000000;
-
-type ToasterToast = ToastProps & {
-  id: string;
+interface ToastOptions extends Omit<ToastProps, "id"> {
   title?: React.ReactNode;
   description?: React.ReactNode;
   action?: ToastActionElement;
-};
-
-const actionTypes = {
-  ADD_TOAST: "ADD_TOAST",
-  UPDATE_TOAST: "UPDATE_TOAST",
-  DISMISS_TOAST: "DISMISS_TOAST",
-  REMOVE_TOAST: "REMOVE_TOAST",
-} as const;
-
-let count = 0;
-
-function genId() {
-  count = (count + 1) % Number.MAX_SAFE_INTEGER;
-  return count.toString();
 }
 
-type ActionType = typeof actionTypes;
-
-type Action =
-  | {
-      type: ActionType["ADD_TOAST"];
-      toast: ToasterToast;
-    }
-  | {
-      type: ActionType["UPDATE_TOAST"];
-      toast: Partial<ToasterToast>;
-    }
-  | {
-      type: ActionType["DISMISS_TOAST"];
-      toastId?: ToasterToast["id"];
-    }
-  | {
-      type: ActionType["REMOVE_TOAST"];
-      toastId?: ToasterToast["id"];
-    };
-
-interface State {
-  toasts: ToasterToast[];
-}
-
-const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
-
-const addToRemoveQueue = (toastId: string) => {
-  if (toastTimeouts.has(toastId)) {
-    return;
+/**
+ * Clean, non-intrusive toast dispatcher:
+ * Suppresses routine informational floating banners to prevent user irritation,
+ * while ensuring genuine errors (payment failure, network error) are clearly communicated.
+ */
+export const toast = (props: ToastOptions) => {
+  const isDestructive = props.variant === "destructive";
+  if (!isDestructive) {
+    // Suppress routine floating banners on login/logout/navigation
+    return null;
   }
 
-  const timeout = setTimeout(() => {
-    toastTimeouts.delete(toastId);
-    dispatch({
-      type: "REMOVE_TOAST",
-      toastId: toastId,
-    });
-  }, TOAST_REMOVE_DELAY);
+  const titleStr = typeof props.title === "string" ? props.title : props.title ? String(props.title) : "Error";
+  const descStr = typeof props.description === "string" ? props.description : props.description ? String(props.description) : undefined;
 
-  toastTimeouts.set(toastId, timeout);
-};
-
-export const reducer = (state: State, action: Action): State => {
-  switch (action.type) {
-    case "ADD_TOAST":
-      return {
-        ...state,
-        toasts: [action.toast, ...state.toasts].slice(0, TOAST_LIMIT),
-      };
-
-    case "UPDATE_TOAST":
-      return {
-        ...state,
-        toasts: state.toasts.map((t) => (t.id === action.toast.id ? { ...t, ...action.toast } : t)),
-      };
-
-    case "DISMISS_TOAST": {
-      const { toastId } = action;
-
-      // ! Side effects ! - This could be extracted into a dismissToast() action,
-      // but I'll keep it here for simplicity
-      if (toastId) {
-        addToRemoveQueue(toastId);
-      } else {
-        state.toasts.forEach((toast) => {
-          addToRemoveQueue(toast.id);
-        });
-      }
-
-      return {
-        ...state,
-        toasts: state.toasts.map((t) =>
-          t.id === toastId || toastId === undefined
-            ? {
-                ...t,
-                open: false,
-              }
-            : t,
-        ),
-      };
-    }
-    case "REMOVE_TOAST":
-      if (action.toastId === undefined) {
-        return {
-          ...state,
-          toasts: [],
-        };
-      }
-      return {
-        ...state,
-        toasts: state.toasts.filter((t) => t.id !== action.toastId),
-      };
+  try {
+    return sonnerToast.error(titleStr, { description: descStr });
+  } catch {
+    return null;
   }
 };
 
-const listeners: Array<(state: State) => void> = [];
+// Convenience methods
+toast.success = (_title: string, _options?: { description?: string; duration?: number }) => {
+  // Silent success to avoid annoying floating messages
+  return null;
+};
 
-let memoryState: State = { toasts: [] };
+toast.error = (title: string, options?: { description?: string; duration?: number }) => {
+  try {
+    return sonnerToast.error(title, options);
+  } catch {
+    return null;
+  }
+};
 
-function dispatch(action: Action) {
-  memoryState = reducer(memoryState, action);
-  listeners.forEach((listener) => {
-    listener(memoryState);
-  });
-}
+toast.info = (_title: string, _options?: { description?: string; duration?: number }) => {
+  return null;
+};
 
-type Toast = Omit<ToasterToast, "id">;
+toast.warning = (title: string, options?: { description?: string; duration?: number }) => {
+  try {
+    return sonnerToast.warning(title, options);
+  } catch {
+    return null;
+  }
+};
 
-function toast({ ...props }: Toast) {
-  const id = genId();
-
-  const update = (props: ToasterToast) =>
-    dispatch({
-      type: "UPDATE_TOAST",
-      toast: { ...props, id },
-    });
-  const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id });
-
-  dispatch({
-    type: "ADD_TOAST",
-    toast: {
-      ...props,
-      id,
-      open: true,
-      onOpenChange: (open) => {
-        if (!open) dismiss();
-      },
-    },
-  });
-
+export const useToast = () => {
   return {
-    id: id,
-    dismiss,
-    update,
-  };
-}
-
-function useToast() {
-  const [state, setState] = React.useState<State>(memoryState);
-
-  React.useEffect(() => {
-    listeners.push(setState);
-    return () => {
-      const index = listeners.indexOf(setState);
-      if (index > -1) {
-        listeners.splice(index, 1);
-      }
-    };
-  }, [state]);
-
-  return {
-    ...state,
     toast,
-    dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
+    dismiss: () => sonnerToast.dismiss(),
+    toasts: [],
   };
-}
+};
 
-export { useToast, toast };
+export type { ToastActionElement, ToastProps };

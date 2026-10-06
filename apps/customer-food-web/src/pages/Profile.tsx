@@ -2,75 +2,93 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, LogOut, MapPin, Plus, Trash2, Award, ShoppingBag,
-  Phone, User, Edit2, Check, X, ClipboardList, Mail
+  ArrowLeft, LogOut, MapPin, Plus, Trash2,
+  Phone, User, Edit2, Check, X, ClipboardList, Mail, ChevronRight, UserCircle
 } from "lucide-react";
 import { useAuthStore } from "@ssrone/auth";
 import { useI18n } from "@/stores/i18nStore";
 import LanguageToggle from "@/components/LanguageToggle";
 import { ProfileSkeleton } from "@/components/LoadingSkeleton";
-import { fetchSavedAddresses, saveAddress, deleteAddress, type SavedAddress } from "@ssrone/api-client";
+import { fetchSavedAddresses, saveAddress, deleteAddress, updateCustomerProfile, type SavedAddress } from "@ssrone/api-client";
 import { cn } from "@/lib/utils";
 import CustomerProfileModal from "@/components/CustomerProfileModal";
-
-const tierColors: Record<string, string> = {
-  bronze: "from-amber-700 to-amber-500",
-  silver: "from-gray-400 to-gray-300",
-  gold: "from-yellow-500 to-amber-300",
-  platinum: "from-violet-600 to-indigo-400",
-};
+import BottomNav from "@/components/BottomNav";
+import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
+import { useToast } from "@/hooks/use-toast";
+import { useCartStore } from "@/stores/cartStore";
 
 const Profile = () => {
   const navigate = useNavigate();
   const { t } = useI18n();
-  const { isLoggedIn, user, logout, deliveryAddress, loyaltyTier, loyaltyPoints, totalOrders } = useAuthStore();
+  const { isLoggedIn, user, logout, deliveryAddress, totalOrders } = useAuthStore();
+  const { tenantSlug, branchCode, tableNumber } = useTenantBranchContext();
+
+  const homePath = tenantSlug && branchCode
+    ? tableNumber
+      ? `/t/${tenantSlug}/b/${branchCode}/table/${tableNumber}`
+      : `/t/${tenantSlug}/b/${branchCode}`
+    : "/";
+
+  const ordersPath = tenantSlug && branchCode
+    ? `/t/${tenantSlug}/b/${branchCode}/my-orders`
+    : "/my-orders";
+
+  const { toast } = useToast();
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [loading, setLoading] = useState(true);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(user?.name || "");
 
+  useEffect(() => {
+    if (user?.name) {
+      setNameInput(user.name);
+    }
+  }, [user?.name]);
+
+  const handleLogout = () => {
+    logout();
+    navigate(homePath, { replace: true });
+  };
+
   const formatPhoneNumber = (ph?: string) => {
-    if (!ph) return "+91 8059075260";
-    const raw = ph.replace(/\D/g, "");
+    const rawTarget = ph || user?.phone;
+    if (!rawTarget) return "";
+    const raw = rawTarget.replace(/\D/g, "");
     const cleanNumber = raw.length > 10 ? raw.slice(-10) : raw;
     return `+91 ${cleanNumber}`;
   };
 
   const loadAddresses = () => {
     if (!isLoggedIn) return;
-    fetchSavedAddresses(user?.id || "").then((addrs) => {
-      if (deliveryAddress && !addrs.some((a) => a.address === deliveryAddress)) {
-        setAddresses([
-          { id: "primary-addr", label: "Primary Address", address: deliveryAddress, fullAddress: deliveryAddress },
-          ...addrs,
-        ]);
-      } else if (addrs.length > 0) {
-        setAddresses(addrs);
-      } else if (deliveryAddress) {
-        setAddresses([{ id: "primary-addr", label: "Primary Address", address: deliveryAddress, fullAddress: deliveryAddress }]);
-      } else {
+    fetchSavedAddresses(user?.id || "", user?.phone || "")
+      .then((addrs) => {
+        setAddresses(Array.isArray(addrs) ? addrs : []);
+        setLoading(false);
+      })
+      .catch(() => {
         setAddresses([]);
-      }
-      setLoading(false);
-    });
+        setLoading(false);
+      });
   };
 
   useEffect(() => {
     loadAddresses();
-  }, [isLoggedIn, user?.id, deliveryAddress]);
+  }, [isLoggedIn, user?.id, user?.phone]);
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center pb-20">
-        <p className="text-5xl mb-4">👤</p>
-        <h2 className="font-display text-xl font-bold mb-2">{t("myOrders.loginRequired")}</h2>
-        <p className="text-muted-foreground text-sm mb-6">Sign in to access your profile</p>
+      <div className="min-h-screen bg-[#F8F6F2] flex flex-col items-center justify-center p-6 text-center pb-20 font-sans">
+        <div className="w-16 h-16 rounded-full bg-[#E8E3DC]/60 flex items-center justify-center mb-4 text-[#7A746B]">
+          <UserCircle className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-extrabold text-[#2D241E] mb-1 font-serif">{t("myOrders.loginRequired")}</h2>
+        <p className="text-[#7A746B] text-xs sm:text-sm mb-6 max-w-xs">Sign in to access your profile</p>
         <button
-          onClick={() => navigate("/")}
-          className="btn-order px-6 py-3"
+          onClick={() => navigate(homePath)}
+          className="px-6 py-3 rounded-full bg-[#9E6B38] hover:bg-[#86592d] text-white font-extrabold text-sm shadow-md transition-all active:scale-95 cursor-pointer"
         >
-          {t("welcome.login")} 📱
+          {t("welcome.login")}
         </button>
       </div>
     );
@@ -79,39 +97,59 @@ const Profile = () => {
   if (loading) return <div className="pb-20"><ProfileSkeleton /></div>;
 
   const handleDeleteAddress = async (id: string) => {
-    if (id !== "primary-addr") {
+    try {
       await deleteAddress(user?.id || "", id);
+    } catch {
+      // ignore
     }
     setAddresses((prev) => prev.filter((a) => a.id !== id));
   };
 
-  const handleSaveName = () => {
-    if (nameInput.trim()) {
-      useAuthStore.getState().updateName(nameInput.trim());
+  const handleSaveName = async () => {
+    const trimmed = nameInput.trim();
+    if (trimmed && user?.id) {
+      useAuthStore.getState().updateName(trimmed);
+      useCartStore.getState().setCustomerName(trimmed);
+      try {
+        await updateCustomerProfile(user.id, { name: trimmed, phone: user.phone });
+        toast({ title: "Name Updated", description: "Successfully saved to database." });
+      } catch (err) {
+        try {
+          const digits = (user.phone || "").replace(/\D/g, "");
+          if (digits) await updateCustomerProfile(digits, { name: trimmed });
+          toast({ title: "Name Updated", description: "Successfully saved to database." });
+        } catch {
+          toast({ title: "Local Update Saved", description: "Name updated in current session." });
+        }
+      }
     }
     setEditingName(false);
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <header className="sticky top-0 z-30 bg-popover/95 backdrop-blur border-b border-border px-4 py-3">
+    <div className="min-h-screen bg-[#F8F6F2] pb-28 font-sans">
+      {/* Header */}
+      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-[#E8E3DC] px-4 py-3.5">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate(-1)} className="p-1" aria-label="Go back">
-              <ArrowLeft className="w-5 h-5" />
+            <button
+              onClick={() => navigate(-1)}
+              className="w-8 h-8 rounded-full bg-[#F8F6F2] hover:bg-[#E8E3DC] text-[#2D241E] flex items-center justify-center transition cursor-pointer active:scale-95"
+              aria-label="Go back"
+            >
+              <ArrowLeft className="w-4 h-4" />
             </button>
-            <h1 className="font-display text-lg font-bold">{t("profile.title")}</h1>
+            <h1 className="text-base font-extrabold text-[#2D241E] font-serif tracking-tight">{t("profile.title")}</h1>
           </div>
-          <LanguageToggle />
         </div>
       </header>
 
       <div className="max-w-lg mx-auto p-4 space-y-4">
-        {/* User info Card */}
-        <div className="bg-card border border-border/60 rounded-2xl p-4 shadow-sm">
+        {/* User Info Card */}
+        <div className="bg-white border border-[#E8E3DC] rounded-2xl p-4 sm:p-5 shadow-xs">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center text-2xl border border-primary/20">
-              👤
+            <div className="w-14 h-14 rounded-full bg-[#9E6B38]/10 border border-[#9E6B38]/20 text-[#9E6B38] flex items-center justify-center text-xl font-black shrink-0 font-serif">
+              {user?.name ? user.name.slice(0, 1).toUpperCase() : <User className="w-6 h-6" />}
             </div>
             <div className="flex-1 min-w-0">
               {editingName ? (
@@ -120,90 +158,73 @@ const Profile = () => {
                     type="text"
                     value={nameInput}
                     onChange={(e) => setNameInput(e.target.value)}
-                    className="px-2.5 py-1 rounded-lg bg-background border border-border text-sm flex-1 font-semibold"
+                    className="px-3 py-1.5 rounded-xl bg-[#F8F6F2] border border-[#E8E3DC] text-sm text-[#2D241E] flex-1 font-bold focus:outline-none focus:border-[#9E6B38]"
                     autoFocus
                   />
-                  <button onClick={handleSaveName} className="p-1 text-primary" aria-label="Save"><Check className="w-4 h-4" /></button>
-                  <button onClick={() => setEditingName(false)} className="p-1 text-muted-foreground" aria-label="Cancel"><X className="w-4 h-4" /></button>
+                  <button onClick={handleSaveName} className="p-1.5 rounded-full bg-[#9E6B38] text-white cursor-pointer hover:bg-[#86592d] transition" aria-label="Save">
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => setEditingName(false)} className="p-1.5 rounded-full bg-[#F8F6F2] text-[#7A746B] border border-[#E8E3DC] cursor-pointer" aria-label="Cancel">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <h2 className="font-display text-lg font-bold truncate">{user?.name || "Customer"}</h2>
-                  <button onClick={() => { setNameInput(user?.name || ""); setEditingName(true); }} className="p-1 text-muted-foreground hover:text-foreground" aria-label="Edit name">
+                  <h2 className="text-base sm:text-lg font-black text-[#2D241E] font-serif">{user?.name || "Customer"}</h2>
+                  <button onClick={() => { setNameInput(user?.name || ""); setEditingName(true); }} className="p-1 text-[#7A746B] hover:text-[#9E6B38] cursor-pointer" aria-label="Edit name">
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}
-              <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mt-0.5">
-                <Phone className="w-3 h-3 text-primary" /> {formatPhoneNumber(user?.phone)}
+              <p className="text-xs font-semibold text-[#7A746B] flex items-center gap-1.5 mt-1">
+                <Phone className="w-3 h-3 text-[#9E6B38]" /> {formatPhoneNumber(user?.phone)}
               </p>
               {user?.email && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
-                  <Mail className="w-3 h-3 text-primary" /> {user.email}
+                <p className="text-xs text-[#7A746B] flex items-center gap-1.5 mt-0.5">
+                  <Mail className="w-3 h-3 text-[#9E6B38]" /> {user.email}
                 </p>
               )}
             </div>
           </div>
         </div>
 
-        {/* Loyalty Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={cn("rounded-2xl p-4 text-primary-foreground bg-gradient-to-br shadow-md", tierColors[loyaltyTier.toLowerCase()] || tierColors.bronze)}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Award className="w-5 h-5" />
-              <span className="font-display font-bold text-sm capitalize">{loyaltyTier} Member</span>
-            </div>
-            <span className="text-xs bg-primary-foreground/20 px-2.5 py-0.5 rounded-full font-semibold">{loyaltyPoints} Points</span>
-          </div>
-          <div className="flex justify-between text-xs font-medium">
-            <span className="flex items-center gap-1"><ShoppingBag className="w-3 h-3" /> {totalOrders} orders</span>
-            <span>1 point = ₹1 off</span>
-          </div>
-          <div className="mt-3 bg-primary-foreground/20 rounded-full h-2 overflow-hidden">
-            <div
-              className="h-full bg-primary-foreground/60 rounded-full transition-all"
-              style={{ width: `${Math.min(100, (loyaltyPoints / 500) * 100)}%` }}
-            />
-          </div>
-          <p className="text-[10px] mt-1 opacity-85 font-medium">
-            {500 - loyaltyPoints > 0 ? `${500 - loyaltyPoints} points to Gold` : "You're Gold! 🏆"}
-          </p>
-        </motion.div>
-
         {/* Saved Addresses */}
-        <div className="bg-card border border-border/60 rounded-2xl p-4 space-y-3 shadow-sm">
+        <div className="bg-white border border-[#E8E3DC] rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-xs">
           <div className="flex items-center justify-between">
-            <h3 className="font-display font-semibold text-sm flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-primary" /> {t("profile.savedAddresses")}
+            <h3 className="font-extrabold text-sm sm:text-base flex items-center gap-2 text-[#2D241E] font-serif">
+              <MapPin className="w-4 h-4 text-[#9E6B38]" /> {t("profile.savedAddresses")}
             </h3>
-            <button onClick={() => setShowProfileModal(true)} className="text-xs text-primary font-bold flex items-center gap-1 hover:underline">
-              <Plus className="w-3.5 h-3.5" /> + Add / Edit Address
+            <button
+              onClick={() => setShowProfileModal(true)}
+              className="text-xs text-[#9E6B38] font-bold flex items-center gap-1 hover:underline cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add / Edit Address
             </button>
           </div>
 
           {addresses.length === 0 ? (
-            <div className="text-center py-3">
-              <p className="text-xs text-muted-foreground mb-2">No saved delivery address yet</p>
+            <div className="text-center py-4 bg-[#F8F6F2] border border-dashed border-[#E8E3DC] rounded-xl p-4">
+              <p className="text-xs text-[#7A746B] mb-3">No saved delivery address yet</p>
               <button
                 onClick={() => setShowProfileModal(true)}
-                className="text-xs bg-primary/10 text-primary font-bold px-3 py-1.5 rounded-xl border border-primary/20 hover:bg-primary/20 transition"
+                className="text-xs bg-[#9E6B38]/10 text-[#9E6B38] font-bold px-4 py-2 rounded-full border border-[#9E6B38]/20 hover:bg-[#9E6B38]/20 transition cursor-pointer active:scale-95"
               >
                 + Add Address Details
               </button>
             </div>
           ) : (
             addresses.map((addr) => (
-              <div key={addr.id} className="flex items-start gap-3 px-3.5 py-2.5 rounded-xl bg-background border border-border/50">
-                <MapPin className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+              <div key={addr.id} className="flex items-start gap-3 p-3 rounded-xl bg-[#F8F6F2] border border-[#E8E3DC]">
+                <MapPin className="w-4 h-4 text-[#9E6B38] mt-0.5 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-foreground">{addr.label || "Delivery Address"}</p>
-                  <p className="text-xs text-muted-foreground leading-snug">{addr.fullAddress || addr.address}</p>
+                  <p className="text-xs font-bold text-[#2D241E]">{addr.label || "Delivery Address"}</p>
+                  <p className="text-xs text-[#7A746B] leading-snug mt-0.5">{addr.fullAddress || addr.address}</p>
                 </div>
-                <button onClick={() => handleDeleteAddress(addr.id)} className="p-1 text-muted-foreground hover:text-destructive transition" aria-label="Delete address">
+                <button
+                  onClick={() => handleDeleteAddress(addr.id)}
+                  className="p-1 text-[#7A746B] hover:text-[#E53935] transition cursor-pointer"
+                  aria-label="Delete address"
+                >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -211,22 +232,63 @@ const Profile = () => {
           )}
         </div>
 
-        {/* Quick Links */}
-        <div className="space-y-2">
-          <button
-            onClick={() => navigate("/my-orders")}
-            className="w-full bg-card border border-border/60 rounded-2xl p-4 flex items-center gap-3 hover:bg-muted/50 transition text-left shadow-sm"
+        {/* ── Premium Action Buttons ── */}
+        <div className="space-y-3 pt-1">
+          {/* 1. Premium Order History Button */}
+          <motion.button
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate(ordersPath)}
+            className="w-full relative overflow-hidden rounded-2xl p-4 bg-gradient-to-r from-amber-50/80 via-white to-amber-50/40 border border-amber-300/70 shadow-[0_4px_20px_rgba(158,107,56,0.08)] hover:shadow-[0_6px_24px_rgba(158,107,56,0.15)] hover:border-amber-400 transition-all text-left flex items-center justify-between cursor-pointer group"
           >
-            <ClipboardList className="w-5 h-5 text-primary" />
-            <span className="text-sm font-medium">{t("profile.orderHistory")}</span>
-          </button>
-          <button
-            onClick={() => { logout(); navigate("/"); }}
-            className="w-full bg-card border border-border/60 rounded-2xl p-4 flex items-center gap-3 hover:bg-destructive/5 transition text-left shadow-sm"
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#9E6B38] to-[#784f2b] text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform shrink-0">
+                <ClipboardList className="w-6 h-6 stroke-[2.2]" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-serif font-bold text-base text-[#2D241E] tracking-tight">
+                    Order History
+                  </span>
+                  <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
+                    Last 7 Days
+                  </span>
+                </div>
+                <p className="text-xs text-[#7A746B] mt-0.5 truncate">
+                  View past orders, receipts & quick re-order
+                </p>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-white border border-amber-200 text-[#9E6B38] flex items-center justify-center shadow-xs group-hover:translate-x-1 group-hover:bg-[#9E6B38] group-hover:text-white transition-all shrink-0 ml-2">
+              <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+            </div>
+          </motion.button>
+
+          {/* 2. Premium Logout Button */}
+          <motion.button
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
+            type="button"
+            onClick={handleLogout}
+            className="w-full relative overflow-hidden rounded-2xl p-4 bg-gradient-to-r from-rose-50/70 via-white to-rose-50/40 border border-rose-200 hover:border-rose-400 hover:bg-rose-50/80 shadow-[0_4px_16px_rgba(229,57,53,0.06)] hover:shadow-[0_6px_20px_rgba(229,57,53,0.12)] transition-all text-left flex items-center justify-between cursor-pointer group"
           >
-            <LogOut className="w-5 h-5 text-destructive" />
-            <span className="text-sm font-medium text-destructive">{t("profile.logout")}</span>
-          </button>
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-600 to-rose-700 text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform shrink-0">
+                <LogOut className="w-5 h-5 stroke-[2.2]" />
+              </div>
+              <div className="min-w-0">
+                <span className="font-serif font-bold text-base text-rose-700 tracking-tight block">
+                  Log Out
+                </span>
+                <p className="text-xs text-[#7A746B] mt-0.5 truncate">
+                  Sign out safely from this device
+                </p>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-white border border-rose-200 text-rose-600 flex items-center justify-center shadow-xs group-hover:translate-x-1 group-hover:bg-rose-600 group-hover:text-white transition-all shrink-0 ml-2">
+              <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+            </div>
+          </motion.button>
         </div>
       </div>
 
@@ -236,6 +298,9 @@ const Profile = () => {
         onClose={() => setShowProfileModal(false)}
         onSaved={loadAddresses}
       />
+
+      {/* Global Mobile Bottom Navigation Bar */}
+      <BottomNav />
     </div>
   );
 };

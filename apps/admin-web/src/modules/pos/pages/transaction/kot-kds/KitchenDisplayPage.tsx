@@ -487,8 +487,12 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
               ? order.order_type.replace("_", " ").toUpperCase()
               : (order.table_name || order.table_number ? "Dine In" : "Takeaway");
 
-            const channelLabel = order.source_channel === "customer_web"
-              ? "QR Code"
+            const isOnlineFoodApp = (order.source_channel || "").toLowerCase().includes("customer") ||
+              (order.source_channel || "").toLowerCase().includes("food_app") ||
+              (order.source_channel || "").toLowerCase().includes("web");
+
+            const channelLabel = isOnlineFoodApp
+              ? "📱 Online Food App"
               : order.source_channel === "staff_portal"
               ? "Waiter Pad"
               : "POS Counter";
@@ -508,6 +512,14 @@ export const KitchenDisplayPage: React.FC<KitchenDisplayPageProps> = ({
                       <span className="font-semibold truncate text-foreground">
                         {order.table_name ? `Table ${order.table_name}` : (order.table_number ? `Table ${order.table_number}` : orderTypeLabel)}
                       </span>
+                      {isOnlineFoodApp && (
+                        <span
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-black bg-gradient-to-r from-amber-400 to-yellow-400 text-black shadow-2xs shrink-0"
+                          title="Online Food App Order"
+                        >
+                          ⭐ Online
+                        </span>
+                      )}
                     </div>
 
                     <span className={`text-[10px] font-mono font-medium px-1.5 py-0.2 rounded border ${statusBadge}`}>
