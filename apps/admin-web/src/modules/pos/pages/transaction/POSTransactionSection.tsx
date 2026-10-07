@@ -38,6 +38,25 @@ const getInitialVirtualTab = (path: string): POSVirtualTab => {
   return "billing";
 };
 
+function playOrderNotificationChime() {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.3);
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.35);
+  } catch {}
+}
+
 interface POSTransactionSectionProps {
   categories: POSCategory[];
   menuItems: POSMenuItem[];
@@ -662,6 +681,142 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     },
   });
 
+  // Online / Food App Auto-Print KOT Engine: automatically triggers physical thermal print on POS when food app order arrives
+  const printedOnlineOrdersRef = useRef<Set<string>>(
+    (() => {
+      try {
+        const saved = sessionStorage.getItem("pos_printed_online_orders");
+        return saved ? new Set<string>(JSON.parse(saved)) : new Set<string>();
+      } catch {
+        return new Set<string>();
+      }
+    })()
+  );
+  const hasInitializedOnlineOrdersRef = useRef(false);
+
+  useEffect(() => {
+    if (!orders || orders.length === 0) return;
+
+    // 1. Initial page mount: record all existing orders so historical orders don't reprint on reload
+    if (!hasInitializedOnlineOrdersRef.current) {
+      orders.forEach((o) => {
+        if (o.id) printedOnlineOrdersRef.current.add(String(o.id));
+        if (o.order_number) printedOnlineOrdersRef.current.add(String(o.order_number));
+      });
+      hasInitializedOnlineOrdersRef.current = true;
+      try {
+        sessionStorage.setItem(
+          "pos_printed_online_orders",
+          JSON.stringify(Array.from(printedOnlineOrdersRef.current))
+        );
+      } catch {}
+      return;
+    }
+
+    // 2. Detect incoming active online customer web / food app orders not yet printed
+    const newlyArrivedOrders = orders.filter((o) => {
+      if (!o || !o.items || o.items.length === 0) return false;
+      const idStr = String(o.id || "");
+      const numStr = String(o.order_number || "");
+      if (printedOnlineOrdersRef.current.has(idStr) || (numStr && printedOnlineOrdersRef.current.has(numStr))) {
+        return false;
+      }
+      const s = ((o.source_channel || (o as any).order_source || "") + "").toLowerCase();
+      const isOnline = s.includes("customer") || s.includes("web") || s.includes("qr") || s.includes("food_app") || s.includes("app");
+      const st = ((o.status || "") + "").toLowerCase();
+      const isActive = !["completed", "paid", "cancelled"].includes(st);
+      return isOnline && isActive;
+    });
+
+    if (newlyArrivedOrders.length === 0) return;
+
+    newlyArrivedOrders.forEach((newOrder) => {
+      const idStr = String(newOrder.id || "");
+      const numStr = String(newOrder.order_number || idStr);
+      printedOnlineOrdersRef.current.add(idStr);
+      printedOnlineOrdersRef.current.add(numStr);
+
+      const assignedNum = numStr;
+      const orderType = (newOrder.order_type || newOrder.order_mode || "DINE_IN").toUpperCase();
+      const tableName = newOrder.table_number || newOrder.table_name || "Food App";
+
+      // Partition items by mapped kitchen station
+      const stationSlipsMap: Record<string, StationKOTSlip> = {};
+      newOrder.items.forEach((it: any) => {
+        const normItem: POSCartItem = {
+          cart_id: String(it.id || it.item_id || Math.random()),
+          item_id: Number(it.item_id || it.id || 0),
+          name: it.product_name || it.item_name || it.name || "Dish Item",
+          variant_name: it.variant_name || it.variant,
+          addons: it.addons || it.selected_addons || [],
+          unit_price: Number(it.unit_price || it.price || 0),
+          quantity: Number(it.quantity || 1),
+          notes: it.notes || it.preparation_notes || it.special_instructions,
+          is_veg: it.is_veg ?? true,
+          kds_station: it.kds_station,
+        };
+        const st = resolveItemKitchenStation(normItem);
+        if (!stationSlipsMap[st.name]) {
+          stationSlipsMap[st.name] = {
+            stationName: st.name,
+            stationCode: st.code,
+            printerName: st.printer,
+            orderNumber: assignedNum,
+            orderType: orderType,
+            tableName: tableName,
+            waiterName: newOrder.waiter_name || "⭐ Online Food App",
+            kotType: "NEW",
+            timestamp: new Date().toLocaleString(),
+            items: [],
+          };
+        }
+        stationSlipsMap[st.name].items.push({
+          cart_id: normItem.cart_id,
+          item_id: normItem.item_id,
+          name: normItem.name,
+          quantity: normItem.quantity,
+          variant_name: normItem.variant_name,
+          addons: normItem.addons,
+          notes: normItem.notes,
+          is_veg: normItem.is_veg,
+        });
+      });
+
+      const generatedSlips = Object.values(stationSlipsMap);
+      if (generatedSlips.length > 0) {
+        setActiveKOTSlips(generatedSlips);
+        printKOTSlipsDirectly(generatedSlips);
+
+        generatedSlips.forEach((slip) => {
+          enqueuePrintJob(assignedNum, "KOT", {
+            station: slip.stationName,
+            printerName: slip.printerName,
+            orderNumber: assignedNum,
+            orderType: slip.orderType,
+            tableName: slip.tableName,
+            waiterName: slip.waiterName,
+            kotType: slip.kotType,
+            items: slip.items,
+            timestamp: slip.timestamp,
+          });
+        });
+
+        playOrderNotificationChime();
+        toast.success(`⭐ Online Food App Order #${assignedNum} - Auto Hard Printed!`, {
+          description: `Table: ${tableName} (${orderType}) KOT slip sent to printer.`,
+          duration: 7000,
+        });
+      }
+    });
+
+    try {
+      sessionStorage.setItem(
+        "pos_printed_online_orders",
+        JSON.stringify(Array.from(printedOnlineOrdersRef.current))
+      );
+    } catch {}
+  }, [orders, resolveItemKitchenStation, enqueuePrintJob]);
+
   // Variant & Addons selector modal state (Cart-Anchored)
   const [selectedItemForVariant, setSelectedItemForVariant] = useState<POSMenuItem | null>(null);
   const [selectedVariantOption, setSelectedVariantOption] = useState<any>(null);
@@ -735,7 +890,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
           addons: [],
           selected_addons: [],
           unit_price: varPrice,
-          packaging_charge: normalizedItem.packaging_charge || 10,
+          packaging_charge: Number(normalizedItem.packaging_charge || 0),
           quantity: 1,
           selected_variant: targetVariant,
           is_veg: normalizedItem.is_veg,
@@ -888,7 +1043,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
           addons: selectedAddonOptions,
           selected_addons: selectedAddonOptions,
           unit_price: totalPrice,
-          packaging_charge: selectedItemForVariant.packaging_charge || 10,
+          packaging_charge: Number(selectedItemForVariant.packaging_charge || 0),
           quantity: 1,
           selected_variant: selectedVariantOption,
           is_veg: selectedItemForVariant.is_veg,
@@ -1174,11 +1329,11 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     : Math.min(subtotal, Math.max(0, discountValue || 0));
 
   // Packaging Charge Calculation (Optionable & Changeable in Cart)
-  const rawPackagingCharge = cartItems.reduce((sum, c) => sum + (c.packaging_charge || 10) * c.quantity, 0);
+  const rawPackagingCharge = cartItems.reduce((sum, c) => sum + (Number(c.packaging_charge) || 0) * c.quantity, 0);
   const autoPackagingCharge = Math.min(rawPackagingCharge, 40);
   const effectivePackagingAmount = customPackagingCharge !== null
     ? customPackagingCharge
-    : (autoPackagingCharge > 0 ? autoPackagingCharge : 10);
+    : autoPackagingCharge;
   const packagingChargeTotal = isPackagingEnabled ? Math.max(0, effectivePackagingAmount) : 0;
   const taxableAmount = subtotal + packagingChargeTotal - discountAmount;
   
@@ -1217,7 +1372,8 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     if (mode !== "dine_in") {
       setSelectedTableId("");
       setSelectedWaiterId("");
-      setIsPackagingEnabled(true);
+      // Only auto-enable if there is a positive packaging charge
+      setIsPackagingEnabled(autoPackagingCharge > 0);
       setCustomPackagingCharge(null);
     } else {
       setIsPackagingEnabled(false);

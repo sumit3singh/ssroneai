@@ -944,9 +944,6 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
                 onChange={(e) => {
                   const checked = e.target.checked;
                   setIsPackagingEnabled?.(checked);
-                  if (checked && packagingChargeAmount === 0 && setPackagingChargeAmount) {
-                    setPackagingChargeAmount(10);
-                  }
                 }}
                 className="w-3.5 h-3.5 rounded border-border text-amber-600 focus:ring-amber-500 accent-amber-600 cursor-pointer"
               />

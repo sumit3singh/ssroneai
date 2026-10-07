@@ -27,39 +27,54 @@ interface TableCameraScannerModalProps {
  */
 export function parseTableNumberFromQR(rawText: string): string | null {
   if (!rawText) return null;
-  const trimmed = rawText.trim();
+  let trimmed = rawText.trim();
+
+  // Try decoding URI-encoded strings (e.g. Table%20C-1 -> Table C-1)
+  try {
+    trimmed = decodeURIComponent(trimmed);
+  } catch {
+    // keep as is
+  }
 
   // 1. JSON payload
   if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
     try {
       const parsed = JSON.parse(trimmed);
-      const val = parsed.table || parsed.tableNumber || parsed.table_number || parsed.id;
+      const val = parsed.table || parsed.tableNumber || parsed.table_number || parsed.table_id || parsed.id;
       if (val !== undefined && val !== null) return String(val).trim();
     } catch {
       // not valid json, proceed to regex
     }
   }
 
-  // 2. URL or path containing /table/:number
-  const urlMatch = trimmed.match(/\/table\/([0-9a-zA-Z_-]+)/i);
+  // 2. URL or path containing /table/:number (extract up to next slash, query '?' or hash '#')
+  const urlMatch = trimmed.match(/\/table\/([^/?#]+)/i);
   if (urlMatch && urlMatch[1]) {
-    return urlMatch[1];
+    let clean = urlMatch[1].trim();
+    try {
+      clean = decodeURIComponent(clean);
+    } catch {}
+    if (clean) return clean;
   }
 
-  // 3. Query param ?table=5
-  const queryMatch = trimmed.match(/[?&]table(?:_number)?=([0-9a-zA-Z_-]+)/i);
+  // 3. Query param ?table=C-1 or ?table_number=C-1 or ?table_id=5
+  const queryMatch = trimmed.match(/[?&](?:table|table_number|table_id)=([^&?#]+)/i);
   if (queryMatch && queryMatch[1]) {
-    return queryMatch[1];
+    let clean = queryMatch[1].trim();
+    try {
+      clean = decodeURIComponent(clean);
+    } catch {}
+    if (clean) return clean;
   }
 
-  // 4. Prefix like "TABLE: 4", "Table-5", "T-6", "TBL 2"
-  const prefixMatch = trimmed.match(/^(?:table|tbl|t)[\s:_#-]*([0-9a-zA-Z_-]+)$/i);
+  // 4. Prefix like "TABLE: 4", "Table-5", "Table C-1", "T-6", "TBL 2"
+  const prefixMatch = trimmed.match(/^(?:table|tbl|t)[\s:_#-]*([^\r\n]+)$/i);
   if (prefixMatch && prefixMatch[1]) {
-    return prefixMatch[1];
+    return prefixMatch[1].trim();
   }
 
-  // 5. Raw number or short identifier (e.g. "1", "12", "A4")
-  if (/^[0-9a-zA-Z_-]{1,10}$/.test(trimmed)) {
+  // 5. Raw number or short identifier (e.g. "1", "12", "C-1", "Table C-1")
+  if (trimmed.length > 0 && trimmed.length <= 30 && !trimmed.includes("/") && !trimmed.includes("http")) {
     return trimmed;
   }
 
@@ -222,7 +237,7 @@ export const TableCameraScannerModal: React.FC<TableCameraScannerModalProps> = (
               ctx.drawImage(video, 0, 0, width, height);
               const imageData = ctx.getImageData(0, 0, width, height);
               const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: "dontInvert",
+                inversionAttempts: "attemptBoth",
               });
 
               if (code && code.data) {

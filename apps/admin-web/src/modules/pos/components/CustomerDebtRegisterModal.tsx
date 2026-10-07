@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   BookOpen, X, Search, RefreshCw, User, Phone, ArrowUpRight, CheckCircle2,
   DollarSign, QrCode, CreditCard, Building, AlertCircle, Receipt, ArrowRight,
-  Clock, ShieldAlert, Sparkles, Filter, Printer
+  Clock, ShieldAlert, Sparkles, Filter, Printer, PlusCircle, Calendar, Tag
 } from "lucide-react";
 import { Button, Input } from "@ssrone/ui";
 import { api } from "@ssrone/api-client";
@@ -51,6 +51,8 @@ interface CustomerDebtLedger {
     created_at?: string | null;
     items_count: number;
     items_summary: string;
+    notes?: string | null;
+    special_instructions?: string | null;
   }>;
   payments: Array<{
     id: number;
@@ -264,6 +266,131 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
     }
   };
 
+  // Opening Balance Modal State
+  const [isOpeningBalanceModalOpen, setIsOpeningBalanceModalOpen] = useState(false);
+  const [openingBalanceCustomerMode, setOpeningBalanceCustomerMode] = useState<"existing" | "new">("existing");
+  const [openingBalanceCustomerId, setOpeningBalanceCustomerId] = useState<number | null>(null);
+  const [openingBalanceCustomerName, setOpeningBalanceCustomerName] = useState("");
+  const [openingBalanceCustomerPhone, setOpeningBalanceCustomerPhone] = useState("");
+  const [openingBalanceAmount, setOpeningBalanceAmount] = useState<string>("");
+  const [openingBalanceDetailType, setOpeningBalanceDetailType] = useState<string>(
+    "Previous Register / Old Khata (पुराना खाता / रजिस्टर)"
+  );
+  const [openingBalanceCustomDetailType, setOpeningBalanceCustomDetailType] = useState("");
+  const [openingBalanceNotes, setOpeningBalanceNotes] = useState("");
+  const [openingBalanceDate, setOpeningBalanceDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [isSubmittingOpeningBalance, setIsSubmittingOpeningBalance] = useState(false);
+
+  const handleOpenOpeningBalanceModal = (targetCust?: any) => {
+    const cust = targetCust || (customerLedger && customerLedger.customer.id !== 0 ? customerLedger.customer : null);
+    if (cust && cust.id !== 0) {
+      setOpeningBalanceCustomerMode("existing");
+      setOpeningBalanceCustomerId(cust.id);
+      setOpeningBalanceCustomerName(cust.name);
+      setOpeningBalanceCustomerPhone(cust.phone);
+    } else {
+      if (debtors.length > 0 && selectedCustomerId && selectedCustomerId !== 0) {
+        const found = debtors.find((d) => d.customer_id === selectedCustomerId);
+        if (found) {
+          setOpeningBalanceCustomerMode("existing");
+          setOpeningBalanceCustomerId(found.customer_id);
+          setOpeningBalanceCustomerName(found.customer_name);
+          setOpeningBalanceCustomerPhone(found.customer_phone);
+        } else {
+          setOpeningBalanceCustomerMode("new");
+          setOpeningBalanceCustomerId(null);
+          setOpeningBalanceCustomerName("");
+          setOpeningBalanceCustomerPhone("");
+        }
+      } else {
+        setOpeningBalanceCustomerMode("new");
+        setOpeningBalanceCustomerId(null);
+        setOpeningBalanceCustomerName("");
+        setOpeningBalanceCustomerPhone("");
+      }
+    }
+    setOpeningBalanceAmount("");
+    setOpeningBalanceDetailType("Previous Register / Old Khata (पुराना खाता / रजिस्टर)");
+    setOpeningBalanceCustomDetailType("");
+    setOpeningBalanceNotes("");
+    setOpeningBalanceDate(new Date().toISOString().split("T")[0]);
+    setIsOpeningBalanceModalOpen(true);
+  };
+
+  const handleRecordOpeningBalance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmittingOpeningBalance) return;
+
+    const amt = parseFloat(openingBalanceAmount);
+    if (isNaN(amt) || amt <= 0) {
+      toast.error("Please enter a valid opening debt amount greater than ₹0");
+      return;
+    }
+
+    let effCustomerId: number | null = null;
+    let effCustomerName = openingBalanceCustomerName.trim();
+    let effCustomerPhone = openingBalanceCustomerPhone.trim();
+
+    if (openingBalanceCustomerMode === "existing") {
+      if (!openingBalanceCustomerId) {
+        toast.error("Please select a customer from the database");
+        return;
+      }
+      effCustomerId = openingBalanceCustomerId;
+      const found = debtors.find((d) => d.customer_id === effCustomerId);
+      if (found) {
+        effCustomerName = found.customer_name;
+        effCustomerPhone = found.customer_phone;
+      }
+    } else {
+      if (!effCustomerPhone) {
+        toast.error("Please enter customer's mobile number");
+        return;
+      }
+      if (!effCustomerName) {
+        effCustomerName = `Customer ${effCustomerPhone.slice(-4)}`;
+      }
+    }
+
+    const effType =
+      openingBalanceDetailType === "Other Past Debt / Custom" && openingBalanceCustomDetailType.trim()
+        ? openingBalanceCustomDetailType.trim()
+        : openingBalanceDetailType;
+
+    setIsSubmittingOpeningBalance(true);
+    try {
+      const activeBranchId = localStorage.getItem("active_branch_id");
+      const res = await api.post<any>("/orders/debts/opening-balance", {
+        customer_id: effCustomerId,
+        customer_name: effCustomerName,
+        customer_phone: effCustomerPhone,
+        amount: amt,
+        debt_detail_type: effType,
+        notes: openingBalanceNotes.trim() || undefined,
+        debt_date: openingBalanceDate ? new Date(openingBalanceDate).toISOString() : undefined,
+        branch_id: activeBranchId ? Number(activeBranchId) : undefined,
+      });
+
+      toast.success(res.message || `Opening balance of ₹${amt.toLocaleString("en-IN")} recorded!`);
+      setIsOpeningBalanceModalOpen(false);
+
+      // Refresh registers
+      await fetchDebtorsSummary();
+      if (res.customer_id) {
+        setSelectedCustomerId(res.customer_id);
+        await fetchCustomerLedger(res.customer_id);
+        setActiveLedgerTab("bills");
+        setBillStatusFilter("unpaid");
+      }
+      onRefreshData?.();
+    } catch (err: any) {
+      console.error("Failed to record opening balance", err);
+      toast.error(err.response?.data?.detail || "Failed to record opening balance. Please check inputs.");
+    } finally {
+      setIsSubmittingOpeningBalance(false);
+    }
+  };
+
   const effectiveDueForCalculation = selectedOrderIdsForSettlement.length > 0
     ? (customerLedger?.orders || [])
         .filter((o) => selectedOrderIdsForSettlement.includes(o.id))
@@ -310,6 +437,18 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
               </strong>
               <span className="text-[10px] text-muted-foreground">({debtors.length} Debtors)</span>
             </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleOpenOpeningBalanceModal()}
+              className="h-8 gap-1.5 text-xs font-bold cursor-pointer border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 shadow-2xs"
+              title="Record customer opening balance or previous debt (Purana Udhar)"
+            >
+              <PlusCircle size={14} className="text-amber-500" />
+              <span className="hidden sm:inline">+ Add Opening Balance / Old Udhar</span>
+              <span className="sm:hidden">+ Old Debt</span>
+            </Button>
 
             <Button
               variant="outline"
@@ -376,6 +515,22 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                   className="pl-8 h-8 text-xs bg-background"
                 />
               </div>
+            </div>
+
+            {/* Quick Action: Add Opening Balance / Old Udhar */}
+            <div className="px-2.5 py-1.5 border-b border-border bg-card/60 flex items-center justify-between shrink-0">
+              <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                Old Udhar / Register
+              </span>
+              <button
+                type="button"
+                onClick={() => handleOpenOpeningBalanceModal()}
+                className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 inline-flex items-center gap-1 cursor-pointer transition-colors"
+                title="Create opening balance for any new or existing customer"
+              >
+                <PlusCircle size={12} />
+                <span>+ Record Old Debt</span>
+              </button>
             </div>
 
             {/* Debtor List */}
@@ -483,6 +638,19 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
 
                     {/* Action Button: Settle Debt */}
                     <div className="flex items-center gap-2">
+                      {customerLedger.customer.id !== 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenOpeningBalanceModal(customerLedger.customer)}
+                          className="h-9 gap-1.5 text-xs font-bold cursor-pointer px-3 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 rounded-lg shadow-2xs"
+                          title={`Record previous debt / opening balance for ${customerLedger.customer.name}`}
+                        >
+                          <PlusCircle size={14} className="text-amber-500" />
+                          <span>+ Add Opening Balance</span>
+                        </Button>
+                      )}
+
                       <Button
                         variant="primary"
                         size="sm"
@@ -640,21 +808,55 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                               <tbody className="divide-y divide-border">
                                 {displayedBills.map((ord) => {
                                   const hasDebt = ord.balance_due > 0;
+                                  const isOpeningBalance =
+                                    ord.order_type === "OPENING_BALANCE" ||
+                                    (Boolean(ord.order_number) && ord.order_number.startsWith("OPEN-"));
                                   return (
                                     <tr
                                       key={ord.id}
                                       className={`hover:bg-muted/20 transition-colors ${
-                                        hasDebt ? "bg-amber-500/5 font-medium" : "text-muted-foreground"
+                                        isOpeningBalance
+                                          ? "bg-amber-500/10 font-medium border-l-2 border-l-amber-500"
+                                          : hasDebt
+                                          ? "bg-amber-500/5 font-medium"
+                                          : "text-muted-foreground"
                                       }`}
                                     >
                                       <td className="p-2.5 font-mono font-bold text-foreground whitespace-nowrap">
-                                        {ord.order_number}
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span>{ord.order_number}</span>
+                                          {isOpeningBalance && (
+                                            <span className="px-1.5 py-0.2 rounded text-[9px] font-sans font-black bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                                              PURANA UDHAR
+                                            </span>
+                                          )}
+                                        </div>
                                       </td>
                                       <td className="p-2.5 text-[11px] font-mono text-muted-foreground whitespace-nowrap">
                                         {ord.created_at ? new Date(ord.created_at).toLocaleString() : "—"}
                                       </td>
-                                      <td className="p-2.5 text-[11px] truncate max-w-[200px]" title={ord.items_summary}>
-                                        {ord.items_summary || `${ord.items_count} items`}
+                                      <td className="p-2.5 text-[11px] max-w-[280px]">
+                                        {isOpeningBalance ? (
+                                          <div>
+                                            <span className="font-bold text-foreground block">
+                                              {ord.special_instructions || ord.items_summary || "Opening Balance"}
+                                            </span>
+                                            {ord.notes && (
+                                              <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2" title={ord.notes}>
+                                                <span className="font-semibold text-amber-600 dark:text-amber-400">Detail:</span> {ord.notes}
+                                              </p>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <div className="truncate" title={ord.items_summary}>
+                                            {ord.items_summary || `${ord.items_count} items`}
+                                            {ord.notes && (
+                                              <p className="text-[10px] text-muted-foreground truncate" title={ord.notes}>
+                                                Note: {ord.notes}
+                                              </p>
+                                            )}
+                                          </div>
+                                        )}
                                       </td>
                                       <td className="p-2.5 text-right font-mono font-semibold text-foreground whitespace-nowrap">
                                         ₹{ord.grand_total.toLocaleString("en-IN")}
@@ -1050,6 +1252,313 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
           </div>
         </div>
       )}
+
+      {/* Sub-Modal: Record Opening Balance / Previous Debt (Purana Udhar) */}
+      {isOpeningBalanceModalOpen && (
+        <div className="fixed inset-0 z-60 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-lg p-5 space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  <BookOpen size={18} />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm text-foreground leading-tight">
+                    Record Customer Opening Balance (Purana Udhar)
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Add old / previous debt from register book, diary, or previous software.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsOpeningBalanceModalOpen(false)}
+                className="p-1 text-muted-foreground hover:bg-muted rounded-md cursor-pointer transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleRecordOpeningBalance} className="space-y-3.5 text-xs">
+              {/* Customer Selection Mode Toggle */}
+              <div>
+                <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">
+                  Customer (ग्राहक) *
+                </label>
+                <div className="grid grid-cols-2 gap-1 bg-muted/40 p-1 rounded-lg border border-border">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpeningBalanceCustomerMode("existing");
+                      if (selectedCustomerId && selectedCustomerId !== 0) {
+                        setOpeningBalanceCustomerId(selectedCustomerId);
+                        const found = debtors.find((d) => d.customer_id === selectedCustomerId);
+                        if (found) {
+                          setOpeningBalanceCustomerName(found.customer_name);
+                          setOpeningBalanceCustomerPhone(found.customer_phone);
+                        }
+                      }
+                    }}
+                    className={`py-1.5 px-3 rounded-md text-xs font-bold transition-all cursor-pointer text-center ${
+                      openingBalanceCustomerMode === "existing"
+                        ? "bg-card text-foreground shadow-2xs border border-border"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Select Existing Customer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpeningBalanceCustomerMode("new");
+                      setOpeningBalanceCustomerId(null);
+                    }}
+                    className={`py-1.5 px-3 rounded-md text-xs font-bold transition-all cursor-pointer text-center ${
+                      openingBalanceCustomerMode === "new"
+                        ? "bg-card text-foreground shadow-2xs border border-border"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    + New Customer
+                  </button>
+                </div>
+              </div>
+
+              {/* Customer Input Section */}
+              {openingBalanceCustomerMode === "existing" ? (
+                <div>
+                  <label className="text-[10px] font-bold text-muted-foreground block mb-1">
+                    Choose Customer from Directory:
+                  </label>
+                  <select
+                    value={openingBalanceCustomerId || ""}
+                    onChange={(e) => {
+                      const id = Number(e.target.value);
+                      setOpeningBalanceCustomerId(id);
+                      const found = debtors.find((d) => d.customer_id === id);
+                      if (found) {
+                        setOpeningBalanceCustomerName(found.customer_name);
+                        setOpeningBalanceCustomerPhone(found.customer_phone);
+                      }
+                    }}
+                    className="w-full h-9 rounded-lg border border-border bg-background px-3 text-xs font-medium focus:ring-1 focus:ring-primary focus:outline-none"
+                  >
+                    <option value="" disabled>-- Select Customer --</option>
+                    {debtors
+                      .filter((d) => d.customer_id !== 0)
+                      .map((d) => (
+                        <option key={d.customer_id} value={d.customer_id}>
+                          {d.customer_name} ({d.customer_phone}) — Current Due: ₹{d.total_balance_due.toLocaleString("en-IN")}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-muted-foreground block mb-1">
+                      Customer Name (नाम) *
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. Aman"
+                      value={openingBalanceCustomerName}
+                      onChange={(e) => setOpeningBalanceCustomerName(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-muted-foreground block mb-1">
+                      Mobile Number (मोबाइल नं.) *
+                    </label>
+                    <Input
+                      type="tel"
+                      placeholder="e.g. 8278482476"
+                      value={openingBalanceCustomerPhone}
+                      onChange={(e) => setOpeningBalanceCustomerPhone(e.target.value)}
+                      className="h-8 text-xs font-mono bg-background"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Opening Balance Amount */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] uppercase font-bold text-muted-foreground">
+                    Opening Debt Amount (उधार राशि) *
+                  </label>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    {openingBalanceAmount ? `₹${Number(openingBalanceAmount).toLocaleString("en-IN")}` : "₹0"}
+                  </span>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-foreground text-sm">
+                    ₹
+                  </span>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="any"
+                    placeholder="Enter old debt amount (e.g. 1500)"
+                    value={openingBalanceAmount}
+                    onChange={(e) => setOpeningBalanceAmount(e.target.value)}
+                    className="h-9 pl-7 text-sm font-mono font-bold bg-background border-amber-500/40 focus:border-amber-500"
+                    required
+                    autoFocus
+                  />
+                </div>
+
+                {/* Quick Add Amount Chips */}
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                  <span className="text-[10px] text-muted-foreground font-medium">Quick add:</span>
+                  {[500, 1000, 2000, 5000, 10000].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => {
+                        const current = parseFloat(openingBalanceAmount) || 0;
+                        setOpeningBalanceAmount(String(current + preset));
+                      }}
+                      className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-muted hover:bg-muted/80 text-foreground border border-border cursor-pointer transition-colors"
+                    >
+                      +₹{preset >= 1000 ? `${preset / 1000}k` : preset}
+                    </button>
+                  ))}
+                  {openingBalanceAmount && (
+                    <button
+                      type="button"
+                      onClick={() => setOpeningBalanceAmount("")}
+                      className="px-2 py-0.5 rounded text-[10px] text-red-500 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 cursor-pointer transition-colors"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Debt Detail Type (Requested by user) */}
+              <div>
+                <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">
+                  Debt Detail Type (उधार प्रकार / खाता स्रोत) *
+                </label>
+                <select
+                  value={openingBalanceDetailType}
+                  onChange={(e) => setOpeningBalanceDetailType(e.target.value)}
+                  className="w-full h-8.5 rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground focus:ring-1 focus:ring-primary focus:outline-none"
+                >
+                  <option value="Previous Register / Old Khata (पुराना खाता / रजिस्टर)">
+                    Previous Register / Old Khata (पुराना खाता / रजिस्टर)
+                  </option>
+                  <option value="Diary / Notebook Udhar (डायरी उधार)">
+                    Diary / Notebook Udhar (डायरी उधार)
+                  </option>
+                  <option value="Previous Software / Migration Balance">
+                    Previous Software / Migration Balance (पुराने सॉफ्टवेयर का बकाया)
+                  </option>
+                  <option value="Manual Credit / Customer Khata">
+                    Manual Credit / Customer Khata (मैन्युअल क्रेडिट खाता)
+                  </option>
+                  <option value="Emergency Loan / Cash Advance">
+                    Emergency Loan / Cash Advance (इमरजेंसी नकद उधार / एडवांस)
+                  </option>
+                  <option value="Opening Balance (General)">
+                    Opening Balance (General Udhar)
+                  </option>
+                  <option value="Other Past Debt / Custom">
+                    Other Past Debt / Custom (अन्य विवरण)
+                  </option>
+                </select>
+
+                {openingBalanceDetailType === "Other Past Debt / Custom" && (
+                  <div className="mt-1.5">
+                    <Input
+                      type="text"
+                      placeholder="Type custom debt type (e.g. Festival Catering Udhar)"
+                      value={openingBalanceCustomDetailType}
+                      onChange={(e) => setOpeningBalanceCustomDetailType(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                      required
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Debt Details / Notes Field (Requested by user: "give me a debt detail type field also where i write details") */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] uppercase font-bold text-muted-foreground">
+                    Debt Details & Remarks (विवरण / टिप्पणी)
+                  </label>
+                  <span className="text-[10px] text-muted-foreground italic">
+                    Notebook page, items list, reason, etc.
+                  </span>
+                </div>
+                <textarea
+                  rows={2}
+                  value={openingBalanceNotes}
+                  onChange={(e) => setOpeningBalanceNotes(e.target.value)}
+                  placeholder="Write details e.g. 'Old register page 45, groceries pending from last month, promised to pay by 15th'..."
+                  className="w-full rounded-lg border border-border bg-background p-2.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-primary focus:outline-none resize-none leading-relaxed"
+                />
+              </div>
+
+              {/* Debt Date Field */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-muted-foreground block mb-1">
+                    Debt Incurred Date (उधार की तारीख)
+                  </label>
+                  <Input
+                    type="date"
+                    value={openingBalanceDate}
+                    onChange={(e) => setOpeningBalanceDate(e.target.value)}
+                    className="h-8 text-xs font-mono bg-background"
+                  />
+                </div>
+                <div className="flex items-center p-2 rounded-lg bg-amber-500/5 border border-amber-500/20 text-[11px] text-amber-700 dark:text-amber-300">
+                  <AlertCircle size={14} className="shrink-0 mr-1.5" />
+                  <span>This balance will be added as an unpaid bill in customer's live ledger.</span>
+                </div>
+              </div>
+
+              {/* Form Action Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsOpeningBalanceModalOpen(false)}
+                  className="h-8 text-xs cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isSubmittingOpeningBalance || !openingBalanceAmount || parseFloat(openingBalanceAmount) <= 0}
+                  size="sm"
+                  className="h-8 text-xs font-extrabold cursor-pointer px-4 bg-amber-600 hover:bg-amber-700 text-white shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmittingOpeningBalance ? (
+                    <span className="flex items-center gap-1.5">
+                      <RefreshCw size={13} className="animate-spin" /> Recording...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      <PlusCircle size={14} /> Record Opening Balance
+                    </span>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Customer Debt Settlement Printable Receipt Modal */}
       <CustomerDebtSettlementReceiptModal
         isOpen={isSettlementReceiptOpen}

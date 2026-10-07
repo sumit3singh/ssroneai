@@ -529,8 +529,6 @@ async def create_order(
         )
 
     total_discount = Decimal(str(body.discount_amount)) if body.discount_amount is not None else Decimal("0")
-    if eff_type == "takeaway" and (body.discount_amount is None or total_discount == Decimal("0")):
-        total_discount = (subtotal * Decimal("0.10")).quantize(Decimal("0.01"))
 
     pkg_charge = Decimal(str(body.packaging_charge)) if body.packaging_charge is not None else Decimal("0")
     taxable = max(Decimal("0"), subtotal + pkg_charge - total_discount)
@@ -1723,6 +1721,18 @@ class CustomerDebtSettleSchema(BaseModel):
     order_ids: list[int] | None = None
 
 
+class CustomerOpeningBalanceSchema(BaseModel):
+    customer_id: int | None = None
+    customer_name: str | None = None
+    customer_phone: str | None = None
+    customer_email: str | None = None
+    amount: Decimal = Field(gt=0, description="Opening balance / previous debt amount")
+    debt_detail_type: str = Field(default="Previous Register / Old Khata", description="Detail type e.g. Old Khata, Notebook Udhar, Migration")
+    notes: str | None = Field(default=None, description="Detailed remarks/notes where user writes specifics")
+    debt_date: datetime | None = Field(default=None, description="Date when old debt was incurred")
+    branch_id: int | None = None
+
+
 @router.get("/debts/summary")
 async def get_customer_debts_summary(
     search: str | None = None,
@@ -1897,6 +1907,8 @@ async def get_customer_debt_ledger(
                 "created_at": o.created_at.isoformat() if o.created_at else None,
                 "items_count": len(o.items),
                 "items_summary": ", ".join(f"{int(it.quantity) if it.quantity == int(it.quantity) else it.quantity}x {it.name}" for it in o.items[:4]) + ("..." if len(o.items) > 4 else ""),
+                "notes": o.notes,
+                "special_instructions": o.special_instructions,
             })
             for p in o.payments:
                 payments_list.append({
@@ -1968,6 +1980,8 @@ async def get_customer_debt_ledger(
             "created_at": o.created_at.isoformat() if o.created_at else None,
             "items_count": len(o.items),
             "items_summary": ", ".join(f"{int(it.quantity) if it.quantity == int(it.quantity) else it.quantity}x {it.name}" for it in o.items[:4]) + ("..." if len(o.items) > 4 else ""),
+            "notes": o.notes,
+            "special_instructions": o.special_instructions,
         })
 
         for p in o.payments:
@@ -2131,6 +2145,139 @@ async def settle_customer_debt(
         "settled_orders": settled_orders,
         "timestamp": now_dt.isoformat(),
     }
+
+
+@router.post("/debts/opening-balance")
+async def create_customer_opening_balance(
+    body: CustomerOpeningBalanceSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Create an opening balance / previous debt (Purana Udhar) record for a customer."""
+    from datetime import timezone
+    tenant_id = current_user.tenant_id
+    user_id = current_user.id
+    branch_id = body.branch_id or getattr(current_user, "branch_id", None) or 1
+
+    # 1. Resolve or create customer
+    customer: Customer | None = None
+    if body.customer_id and body.customer_id > 0:
+        c_res = await db.execute(
+            select(Customer).where(Customer.id == body.customer_id, Customer.tenant_id == tenant_id)
+        )
+        customer = c_res.scalar_one_or_none()
+        if not customer:
+            raise HTTPException(status_code=404, detail="Selected customer not found in database")
+    else:
+        phone_clean = (body.customer_phone or "").strip()
+        name_clean = (body.customer_name or "").strip()
+        if not phone_clean:
+            raise HTTPException(status_code=400, detail="Customer mobile number is required to record opening balance")
+        if not name_clean:
+            name_clean = f"Customer {phone_clean[-4:] if len(phone_clean) >= 4 else phone_clean}"
+
+        c_res = await db.execute(
+            select(Customer).where(
+                Customer.tenant_id == tenant_id,
+                Customer.phone == phone_clean,
+                (Customer.is_deleted == False) | (Customer.is_deleted.is_(None)),
+            )
+        )
+        customer = c_res.scalar_one_or_none()
+        if not customer:
+            customer = Customer(
+                tenant_id=tenant_id,
+                branch_id=branch_id,
+                name=name_clean,
+                phone=phone_clean,
+                email=body.customer_email.strip() if body.customer_email else None,
+            )
+            db.add(customer)
+            await db.flush()
+
+    # 2. Determine timestamps & order number
+    now_dt = datetime.now(timezone.utc)
+    incurred_date = body.debt_date or now_dt
+    date_prefix = incurred_date.strftime("%d%m%y")
+    phone_suffix = customer.phone[-4:] if len(customer.phone) >= 4 else str(customer.id)
+    random_suffix = secrets.token_hex(2).upper()
+    order_number = f"OPEN-{date_prefix}-{phone_suffix}-{random_suffix}"
+
+    # 3. Construct Order with balance due
+    order_notes = f"[{body.debt_detail_type}] {body.notes}" if body.notes else f"Opening Balance: {body.debt_detail_type}"
+    order = Order(
+        tenant_id=tenant_id,
+        branch_id=branch_id,
+        customer_id=customer.id,
+        order_number=order_number,
+        order_type="OPENING_BALANCE",
+        status=OrderStatus.COMPLETED,
+        payment_status=PaymentStatus.UNPAID,
+        guest_count=1,
+        subtotal=body.amount,
+        taxable_amount=body.amount,
+        grand_total=body.amount,
+        amount_paid=Decimal("0.00"),
+        balance_due=body.amount,
+        notes=order_notes,
+        special_instructions=body.debt_detail_type,
+        source_channel="pos_opening_balance",
+        created_at=incurred_date,
+        created_by=user_id,
+        metadata_payload={
+            "is_opening_balance": True,
+            "debt_detail_type": body.debt_detail_type,
+            "debt_notes": body.notes,
+            "recorded_by_user_id": user_id,
+            "recorded_at": now_dt.isoformat(),
+        },
+    )
+    db.add(order)
+    await db.flush()
+
+    # 4. Add OrderItem so that line item summaries and audit ledgers are 100% complete
+    item_title = f"Opening Balance ({body.debt_detail_type})"
+    order_item = OrderItem(
+        tenant_id=tenant_id,
+        order_id=order.id,
+        product_id=0,
+        product_name=item_title,
+        item_name=item_title,
+        quantity=Decimal("1.000"),
+        unit_price=body.amount,
+        line_total=body.amount,
+        total_price=body.amount,
+        preparation_notes=body.notes or body.debt_detail_type,
+        created_by=user_id,
+    )
+    db.add(order_item)
+
+    await db.commit()
+    await db.refresh(order)
+
+    logger.info(
+        "Customer opening balance recorded",
+        customer_id=customer.id,
+        customer_name=customer.name,
+        amount=float(body.amount),
+        order_number=order.order_number,
+        detail_type=body.debt_detail_type,
+    )
+
+    return {
+        "success": True,
+        "message": f"Opening balance of ₹{body.amount} successfully recorded for {customer.name}",
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "customer_id": customer.id,
+        "customer_name": customer.name,
+        "customer_phone": customer.phone,
+        "amount": float(body.amount),
+        "debt_detail_type": body.debt_detail_type,
+        "notes": body.notes,
+        "created_at": order.created_at.isoformat(),
+    }
+
 
 
 @router.post("/guest", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
