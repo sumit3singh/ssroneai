@@ -126,7 +126,7 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
             setLocalCategories(list);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [isOpen, categories]);
 
@@ -147,7 +147,7 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
             }
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [isOpen, editingItem]);
 
@@ -167,10 +167,10 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
       setIsCodeUserEdited(Boolean(existingCode));
       setPrice(Number(editingItem.selling_price || editingItem.base_price || editingItem.price || 0));
       setPackagingCharge(Number(editingItem.packaging_charge || 0));
-      
+
       const matchCat = categories.find(c => String(c.id) === String(editingItem.category_id));
       setCategoryId(matchCat ? Number(matchCat.id) : (editingItem.category_id ? Number(editingItem.category_id) : defaultCatId));
-      
+
       const rawKds = editingItem.kds_station || (editingItem as any).kdsStation || "";
       if (kdsStationsList.length > 0) {
         const matched = kdsStationsList.find((s) => s.name.toLowerCase() === rawKds.toLowerCase());
@@ -303,15 +303,15 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
       id: `ag-${Date.now()}`,
       name: "Crust Upgrade & Addons",
       options: [
-        { 
-          id: `ao-${Date.now()}-1`, 
-          name: "Cheese Burst Crust", 
+        {
+          id: `ao-${Date.now()}-1`,
+          name: "Cheese Burst Crust",
           price: 80,
           variantPrices: { "Small (7\")": 50, "Medium (10\")": 80, "Large (12\")": 100 }
         },
-        { 
-          id: `ao-${Date.now()}-2`, 
-          name: "Extra Mozzarella Cheese", 
+        {
+          id: `ao-${Date.now()}-2`,
+          name: "Extra Mozzarella Cheese",
           price: 40,
           variantPrices: { "Small (7\")": 30, "Medium (10\")": 40, "Large (12\")": 60 }
         },
@@ -413,7 +413,7 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div className="backdrop-blur-2xl bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800/80 rounded-3xl p-6 w-full max-w-2xl shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-        
+
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800/80 pb-4">
           <div className="flex items-center gap-3">
@@ -437,27 +437,24 @@ export const MenuItemDialog: React.FC<MenuItemDialogProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab("general")}
-            className={`px-4 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-              activeTab === "general" ? "border-indigo-600 text-indigo-600 dark:text-indigo-400" : "border-transparent text-slate-400 hover:text-slate-600"
-            }`}
+            className={`px-4 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer ${activeTab === "general" ? "border-indigo-600 text-indigo-600 dark:text-indigo-400" : "border-transparent text-slate-400 hover:text-slate-600"
+              }`}
           >
             General & Pricing
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("variants")}
-            className={`px-4 py-2 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
-              activeTab === "variants" ? "border-indigo-600 text-indigo-600 dark:text-indigo-400" : "border-transparent text-slate-400 hover:text-slate-600"
-            }`}
+            className={`px-4 py-2 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === "variants" ? "border-indigo-600 text-indigo-600 dark:text-indigo-400" : "border-transparent text-slate-400 hover:text-slate-600"
+              }`}
           >
             <Layers size={14} /> Portion / Size Variants ({variantGroups.length})
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("addons")}
-            className={`px-4 py-2 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
-              activeTab === "addons" ? "border-indigo-600 text-indigo-600 dark:text-indigo-400" : "border-transparent text-slate-400 hover:text-slate-600"
-            }`}
+            className={`px-4 py-2 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === "addons" ? "border-indigo-600 text-indigo-600 dark:text-indigo-400" : "border-transparent text-slate-400 hover:text-slate-600"
+              }`}
           >
             <Tag size={14} /> Size-Linked Addons ({addonGroups.length})
           </button>

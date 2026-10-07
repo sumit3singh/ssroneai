@@ -78,6 +78,14 @@ const VERSION_SPECS_M: VersionSpec[] = [
   { version: 10, totalCodewords: 346, dataCodewords: 216, eccPerBlock: 26, numBlocks: 5, alignments: [6, 28, 50] },
 ];
 
+// ISO 18004 Version Information table (18-bit BCH for versions 7-10)
+const VERSION_INFO: Record<number, number> = {
+  7: 0x07c94,
+  8: 0x085bc,
+  9: 0x09a99,
+  10: 0x0a4d3,
+};
+
 export function generateQRCodeMatrix(text: string): boolean[][] {
   const encoder = new TextEncoder();
   const utf8 = encoder.encode(text);
@@ -121,27 +129,35 @@ export function generateQRCodeMatrix(text: string): boolean[][] {
     dataCodewords[i] = b;
   }
 
-  const blockSize = Math.floor(spec.dataCodewords / spec.numBlocks);
+  // Divide data into blocks according to ISO 18004 (some blocks have +1 length when uneven)
+  const numBlocks = spec.numBlocks;
+  const shortLen = Math.floor(spec.dataCodewords / numBlocks);
+  const numLongBlocks = spec.dataCodewords % numBlocks;
+  const numShortBlocks = numBlocks - numLongBlocks;
+
   const blocks: Uint8Array[] = [];
   const eccBlocks: Uint8Array[] = [];
+  let offset = 0;
 
-  for (let b = 0; b < spec.numBlocks; b++) {
-    const start = b * blockSize;
-    const end = b === spec.numBlocks - 1 ? spec.dataCodewords : start + blockSize;
-    const blockData = dataCodewords.slice(start, end);
+  for (let b = 0; b < numBlocks; b++) {
+    const len = b < numShortBlocks ? shortLen : shortLen + 1;
+    const blockData = dataCodewords.slice(offset, offset + len);
+    offset += len;
     blocks.push(blockData);
     eccBlocks.push(rsComputeEcc(blockData, spec.eccPerBlock));
   }
 
+  // Interleave data codewords
   const finalCodewords: number[] = [];
   const maxBlockLen = Math.max(...blocks.map((b) => b.length));
   for (let i = 0; i < maxBlockLen; i++) {
-    for (let b = 0; b < spec.numBlocks; b++) {
+    for (let b = 0; b < numBlocks; b++) {
       if (i < blocks[b].length) finalCodewords.push(blocks[b][i]);
     }
   }
+  // Interleave ECC codewords
   for (let i = 0; i < spec.eccPerBlock; i++) {
-    for (let b = 0; b < spec.numBlocks; b++) {
+    for (let b = 0; b < numBlocks; b++) {
       finalCodewords.push(eccBlocks[b][i]);
     }
   }
@@ -194,6 +210,7 @@ export function generateQRCodeMatrix(text: string): boolean[][] {
 
   matrix[4 * spec.version + 9][8] = true;
 
+  // Format info reservation
   for (let i = 0; i < 9; i++) {
     if (matrix[8][i] === null) matrix[8][i] = false;
     if (matrix[i][8] === null) matrix[i][8] = false;
@@ -201,6 +218,16 @@ export function generateQRCodeMatrix(text: string): boolean[][] {
   for (let i = 0; i < 8; i++) {
     if (matrix[8][size - 1 - i] === null) matrix[8][size - 1 - i] = false;
     if (matrix[size - 1 - i][8] === null) matrix[size - 1 - i][8] = false;
+  }
+
+  // Version info reservation (Versions 7+)
+  if (spec.version >= 7) {
+    for (let r = 0; r < 6; r++) {
+      for (let c = 0; c < 3; c++) {
+        matrix[r][size - 11 + c] = false;
+        matrix[size - 11 + c][r] = false;
+      }
+    }
   }
 
   let bitIdx = 0;
@@ -233,6 +260,7 @@ export function generateQRCodeMatrix(text: string): boolean[][] {
     upwards = !upwards;
   }
 
+  // Format info (Level M, Mask 0)
   const formatBits = [1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0];
   matrix[8][0] = formatBits[0] === 1;
   matrix[8][1] = formatBits[1] === 1;
@@ -255,6 +283,18 @@ export function generateQRCodeMatrix(text: string): boolean[][] {
   }
   for (let i = 0; i < 8; i++) {
     matrix[8][size - 8 + i] = formatBits[7 + i] === 1;
+  }
+
+  // Version info placement for Version >= 7
+  if (spec.version >= 7 && VERSION_INFO[spec.version]) {
+    const vPattern = VERSION_INFO[spec.version];
+    for (let i = 0; i < 18; i++) {
+      const bit = ((vPattern >> i) & 1) === 1;
+      const row = Math.floor(i / 3);
+      const col = size - 11 + (i % 3);
+      matrix[row][col] = bit;
+      matrix[col][row] = bit;
+    }
   }
 
   return matrix.map((row) => row.map((cell) => cell === true));

@@ -17,6 +17,7 @@
     "@ssrone/api-client": "workspace:*",
     "@ssrone/auth": "workspace:*",
     "@ssrone/ui": "workspace:*",
+    "@ssrone/utils": "workspace:*",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",

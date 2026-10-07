@@ -10,75 +10,109 @@ declare global {
   }
 }
 
+export interface ScannedQRData {
+  tableNumber: string;
+  tenantSlug?: string;
+  branchCode?: string;
+  fullUrl?: string;
+}
+
 interface TableCameraScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onTableScanned: (tableNumber: string) => void;
+  onTableScanned: (result: ScannedQRData | string) => void;
 }
 
 /**
- * Parses scanned QR text into a clean table number.
+ * Parses scanned QR text into clean table number, tenant slug and branch code.
  * Supports:
- * - Direct URLs: http://domain/t/cafe/b/101/table/5/menu -> "5"
+ * - Direct URLs: http://domain/t/cafe/b/101/table/5 -> { tableNumber: "5", tenantSlug: "cafe", branchCode: "101" }
  * - Route fragments: /table/12 -> "12"
  * - Prefix notations: "TABLE: 3", "Table-4", "T-7" -> "3", "4", "7"
- * - JSON: {"table": "8"} -> "8"
+ * - JSON: {"table": "8", "tenant": "..."}
  * - Raw string / number: "5" -> "5"
  */
-export function parseTableNumberFromQR(rawText: string): string | null {
+export function parseQRData(rawText: string): ScannedQRData | null {
   if (!rawText) return null;
   let trimmed = rawText.trim();
 
-  // Try decoding URI-encoded strings (e.g. Table%20C-1 -> Table C-1)
+  // Try decoding URI-encoded strings
   try {
     trimmed = decodeURIComponent(trimmed);
-  } catch {
-    // keep as is
-  }
+  } catch {}
 
   // 1. JSON payload
   if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
     try {
       const parsed = JSON.parse(trimmed);
       const val = parsed.table || parsed.tableNumber || parsed.table_number || parsed.table_id || parsed.id;
-      if (val !== undefined && val !== null) return String(val).trim();
-    } catch {
-      // not valid json, proceed to regex
+      if (val !== undefined && val !== null) {
+        return {
+          tableNumber: String(val).trim(),
+          tenantSlug: parsed.tenant || parsed.tenantSlug || parsed.tenant_slug,
+          branchCode: parsed.branch || parsed.branchCode || parsed.branch_code,
+        };
+      }
+    } catch {}
+  }
+
+  // 2. Full URL or path containing /t/:tenantSlug/b/:branchCode/table/:tableNumber
+  const fullRouteMatch = trimmed.match(/\/t\/([^/?#]+)\/b\/([^/?#]+)\/table\/([^/?#]+)/i);
+  if (fullRouteMatch) {
+    let tenantSlug = fullRouteMatch[1]?.trim();
+    let branchCode = fullRouteMatch[2]?.trim();
+    let tableNumber = fullRouteMatch[3]?.trim();
+    try { tenantSlug = decodeURIComponent(tenantSlug); } catch {}
+    try { branchCode = decodeURIComponent(branchCode); } catch {}
+    try { tableNumber = decodeURIComponent(tableNumber); } catch {}
+    if (tableNumber) {
+      return {
+        tableNumber,
+        tenantSlug,
+        branchCode,
+        fullUrl: trimmed.startsWith("http") ? trimmed : undefined,
+      };
     }
   }
 
-  // 2. URL or path containing /table/:number (extract up to next slash, query '?' or hash '#')
+  // 3. URL or path containing /table/:number
   const urlMatch = trimmed.match(/\/table\/([^/?#]+)/i);
   if (urlMatch && urlMatch[1]) {
     let clean = urlMatch[1].trim();
-    try {
-      clean = decodeURIComponent(clean);
-    } catch {}
-    if (clean) return clean;
+    try { clean = decodeURIComponent(clean); } catch {}
+    const tenantParamMatch = trimmed.match(/[?&]tenant(?:_slug)?=([^&?#]+)/i);
+    const branchParamMatch = trimmed.match(/[?&]branch(?:_code)?=([^&?#]+)/i);
+    return {
+      tableNumber: clean,
+      tenantSlug: tenantParamMatch ? decodeURIComponent(tenantParamMatch[1].trim()) : undefined,
+      branchCode: branchParamMatch ? decodeURIComponent(branchParamMatch[1].trim()) : undefined,
+    };
   }
 
-  // 3. Query param ?table=C-1 or ?table_number=C-1 or ?table_id=5
+  // 4. Query param ?table=C-1 or ?table_number=C-1 or ?table_id=5
   const queryMatch = trimmed.match(/[?&](?:table|table_number|table_id)=([^&?#]+)/i);
   if (queryMatch && queryMatch[1]) {
     let clean = queryMatch[1].trim();
-    try {
-      clean = decodeURIComponent(clean);
-    } catch {}
-    if (clean) return clean;
+    try { clean = decodeURIComponent(clean); } catch {}
+    return { tableNumber: clean };
   }
 
-  // 4. Prefix like "TABLE: 4", "Table-5", "Table C-1", "T-6", "TBL 2"
+  // 5. Prefix like "TABLE: 4", "Table-5", "Table C-1", "T-6", "TBL 2"
   const prefixMatch = trimmed.match(/^(?:table|tbl|t)[\s:_#-]*([^\r\n]+)$/i);
   if (prefixMatch && prefixMatch[1]) {
-    return prefixMatch[1].trim();
+    return { tableNumber: prefixMatch[1].trim() };
   }
 
-  // 5. Raw number or short identifier (e.g. "1", "12", "C-1", "Table C-1")
+  // 6. Raw number or short identifier (e.g. "1", "12", "C-1", "Table C-1")
   if (trimmed.length > 0 && trimmed.length <= 30 && !trimmed.includes("/") && !trimmed.includes("http")) {
-    return trimmed;
+    return { tableNumber: trimmed };
   }
 
   return null;
+}
+
+export function parseTableNumberFromQR(rawText: string): string | null {
+  return parseQRData(rawText)?.tableNumber || null;
 }
 
 export const TableCameraScannerModal: React.FC<TableCameraScannerModalProps> = ({
@@ -116,7 +150,7 @@ export const TableCameraScannerModal: React.FC<TableCameraScannerModalProps> = (
 
   // Handle successful scan
   const handleSuccessfulScan = useCallback(
-    (detectedTable: string) => {
+    (detected: ScannedQRData) => {
       if (!isScanningActiveRef.current) return;
       isScanningActiveRef.current = false;
 
@@ -129,12 +163,12 @@ export const TableCameraScannerModal: React.FC<TableCameraScannerModalProps> = (
         }
       }
 
-      setScannedResult(detectedTable);
+      setScannedResult(detected.tableNumber);
       stopCamera();
 
       // Brief animation pause so user sees confirmation checkmark
       setTimeout(() => {
-        onTableScanned(detectedTable);
+        onTableScanned(detected);
         onClose();
         setScannedResult(null);
       }, 700);
@@ -208,9 +242,9 @@ export const TableCameraScannerModal: React.FC<TableCameraScannerModalProps> = (
             const barcodes = await barcodeDetector.detect(video);
             if (barcodes && barcodes.length > 0) {
               const rawValue = barcodes[0].rawValue;
-              const tableNum = parseTableNumberFromQR(rawValue);
-              if (tableNum) {
-                handleSuccessfulScan(tableNum);
+              const parsed = parseQRData(rawValue);
+              if (parsed && parsed.tableNumber) {
+                handleSuccessfulScan(parsed);
                 return;
               }
             }
@@ -225,8 +259,8 @@ export const TableCameraScannerModal: React.FC<TableCameraScannerModalProps> = (
             const canvas = canvasRef.current;
             const ctx = canvas.getContext("2d", { willReadFrequently: true });
             if (ctx && video.videoWidth > 0 && video.videoHeight > 0) {
-              // Scale down slightly for performance and high-speed detection
-              const width = Math.min(640, video.videoWidth);
+              // High-DPI frame capture for instant long-range scanning
+              const width = Math.min(960, video.videoWidth);
               const height = Math.round((width / video.videoWidth) * video.videoHeight);
 
               if (canvas.width !== width || canvas.height !== height) {
@@ -241,9 +275,9 @@ export const TableCameraScannerModal: React.FC<TableCameraScannerModalProps> = (
               });
 
               if (code && code.data) {
-                const tableNum = parseTableNumberFromQR(code.data);
-                if (tableNum) {
-                  handleSuccessfulScan(tableNum);
+                const parsed = parseQRData(code.data);
+                if (parsed && parsed.tableNumber) {
+                  handleSuccessfulScan(parsed);
                   return;
                 }
               }

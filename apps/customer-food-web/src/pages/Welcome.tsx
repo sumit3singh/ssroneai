@@ -59,10 +59,18 @@ const Welcome = () => {
     setShowTableScannerModal(true);
   };
 
-  const handleTableScanned = (scannedTable: string) => {
-    setTableNumber(scannedTable);
+  const handleTableScanned = (scanned: { tableNumber: string; tenantSlug?: string; branchCode?: string } | string) => {
+    const table = typeof scanned === "string" ? scanned : scanned.tableNumber;
+    const targetTenant = typeof scanned !== "string" && scanned.tenantSlug ? scanned.tenantSlug : (tenantSlug || "baithak-cafe");
+    const targetBranch = typeof scanned !== "string" && scanned.branchCode ? scanned.branchCode : (branchCode || "101");
+
+    if (typeof scanned !== "string" && scanned.branchCode && scanned.branchCode !== branchCode) {
+      switchBranch(scanned.branchCode);
+    }
+
+    setTableNumber(table);
     setOrderMode("dine-in");
-    navigate(`/t/${tenantSlug || "baithak-cafe"}/b/${branchCode || "101"}/table/${scannedTable}/menu`);
+    navigate(`/t/${targetTenant}/b/${targetBranch}/table/${encodeURIComponent(table)}/menu`);
   };
 
   // Direct Option 2: Takeaway -> Directly access takeaway menu

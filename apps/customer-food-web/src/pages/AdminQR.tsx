@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Download, Plus, Trash2, QrCode, Printer } from "lucide-react";
+import { ArrowLeft, Download, Plus, Trash2, QrCode, FileDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
+import { generateQRCodeSVG } from "@ssrone/utils";
 
 export const AdminQR = () => {
   const navigate = useNavigate();
@@ -13,10 +14,9 @@ export const AdminQR = () => {
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
   const getTableUrl = (num: number) => {
-    if (tenantSlug && branchCode) {
-      return `${baseUrl}/t/${tenantSlug}/b/${branchCode}/table/${num}`;
-    }
-    return `${baseUrl}/order/table/${num}`;
+    const slug = tenantSlug || "baithak-cafe";
+    const branch = branchCode || "BAITHAK-CUH";
+    return `${baseUrl}/t/${encodeURIComponent(slug)}/b/${encodeURIComponent(branch)}/table/${num}`;
   };
 
   const addTable = () => {
@@ -33,15 +33,19 @@ export const AdminQR = () => {
 
   const downloadQR = (tableNum: number) => {
     const url = getTableUrl(tableNum);
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(url)}`;
+    const svgString = generateQRCodeSVG(url, { size: 512, includeMargin: true });
+    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+    const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = qrUrl;
-    a.download = `table-${tableNum}-qr.png`;
-    a.target = "_blank";
+    a.href = blobUrl;
+    a.download = `table-${tableNum}-qr.svg`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
   };
 
-  const handlePrintSheet = () => {
+  const handleExportPdf = () => {
     window.print();
   };
 
@@ -62,18 +66,19 @@ export const AdminQR = () => {
                 Table QR Codes
               </h1>
               <p className="text-xs text-muted-foreground">
-                {branchName} ({tenantSlug || "default"})
+                {branchName || "Main Outlet"} ({tenantSlug || "default"})
               </p>
             </div>
           </div>
 
           <button
             type="button"
-            onClick={handlePrintSheet}
+            onClick={handleExportPdf}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold shadow-xs hover:bg-primary/90 transition cursor-pointer active:scale-95"
+            title="Export Standees to PDF"
           >
-            <Printer className="w-3.5 h-3.5" />
-            <span>Print All</span>
+            <FileDown className="w-3.5 h-3.5" />
+            <span>Export PDF</span>
           </button>
         </div>
       </header>
@@ -105,14 +110,14 @@ export const AdminQR = () => {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 print:grid-cols-2 print:gap-6">
           {tables.map((num, idx) => {
             const url = getTableUrl(num);
-            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(url)}`;
+            const qrSvg = generateQRCodeSVG(url, { size: 180, includeMargin: true });
             return (
               <motion.div
                 key={num}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: idx * 0.03 }}
-                className="bg-card rounded-2xl border border-border p-4 text-center space-y-3 shadow-xs hover:shadow-md transition-shadow print:border-2 print:border-black print:shadow-none"
+                className="bg-card rounded-2xl border border-border p-4 text-center space-y-3 shadow-xs hover:shadow-md transition-shadow print:border-2 print:border-black print:shadow-none print:break-inside-avoid"
               >
                 <div className="flex items-center justify-between">
                   <span className="font-black text-sm sm:text-base text-foreground font-serif">Table {num}</span>
@@ -125,14 +130,10 @@ export const AdminQR = () => {
                   </button>
                 </div>
 
-                <div className="bg-white rounded-xl border border-border p-3 flex items-center justify-center">
-                  <img
-                    src={qrUrl}
-                    alt={`QR for Table ${num}`}
-                    className="w-32 h-32 rounded-lg"
-                    loading="lazy"
-                  />
-                </div>
+                <div
+                  className="bg-white rounded-xl border border-border p-3 flex items-center justify-center transition-transform hover:scale-105"
+                  dangerouslySetInnerHTML={{ __html: qrSvg }}
+                />
 
                 <p className="text-[10px] text-muted-foreground break-all leading-tight font-mono">{url}</p>
 
@@ -140,7 +141,7 @@ export const AdminQR = () => {
                   onClick={() => downloadQR(num)}
                   className="w-full min-h-[38px] py-2 px-3 rounded-full border border-border text-foreground hover:bg-muted text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-95 print:hidden"
                 >
-                  <Download className="w-3.5 h-3.5" /> Download QR
+                  <Download className="w-3.5 h-3.5" /> Download SVG
                 </button>
               </motion.div>
             );

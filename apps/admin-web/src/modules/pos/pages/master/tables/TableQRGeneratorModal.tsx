@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useRef } from "react";
-import { QrCode, Download, Printer, Check, CheckSquare, Square, Copy, Sparkles, ExternalLink, ShieldCheck, RefreshCw, X, FileText } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { QrCode, Download, CheckSquare, Square, Copy, Sparkles, ShieldCheck, RefreshCw, X, FileDown, Check } from "lucide-react";
 import { Button } from "@ssrone/ui";
 import { POSTable } from "../../../types";
 import { tablesApi } from "../../../api/tables.api";
@@ -15,33 +15,46 @@ interface TableQRGeneratorModalProps {
   onRefreshTables?: () => void;
 }
 
-function getDefaultCustomerWebUrl(): string {
+function getDefaultCustomerWebUrl(tenantSlug: string): string {
   if (typeof window !== "undefined") {
     try {
+      if (tenantSlug) {
+        const savedTenant = localStorage.getItem(`customer_food_web_url_${tenantSlug}`);
+        if (savedTenant && savedTenant.trim()) return savedTenant.trim();
+      }
       const saved = localStorage.getItem("customer_food_web_url");
       if (saved && saved.trim()) return saved.trim();
 
       const host = window.location.hostname;
-      // If on Railway, convert admin-web-production-... to customer-food-production-...
+      // If hosted on Railway, point to the companion customer-food app
       if (host.endsWith(".railway.app")) {
         if (host.startsWith("admin-web-")) {
           return `https://${host.replace("admin-web-", "customer-food-")}`;
         }
-        return "https://customer-food-production.up.railway.app";
+        return "https://customer-food-web-production.up.railway.app";
       }
-      return `${window.location.protocol}//${host}:3000`;
+      // If hosted on custom subdomain, e.g. pos.company.com -> food.company.com
+      if (host.startsWith("pos.") || host.startsWith("admin.")) {
+        const domain = host.replace(/^(pos|admin)\./, "food.");
+        return `${window.location.protocol}//${domain}`;
+      }
+      // Local development
+      if (host === "localhost" || host === "127.0.0.1") {
+        return `${window.location.protocol}//${host}:3002`;
+      }
+      return "https://customer-food-web-production.up.railway.app";
     } catch {
-      return "http://localhost:3000";
+      return "https://customer-food-web-production.up.railway.app";
     }
   }
-  return "http://localhost:3000";
+  return "https://customer-food-web-production.up.railway.app";
 }
 
-function printStandeesViaIframe(contentHtml: string) {
-  let iframe = document.getElementById("standees-print-iframe") as HTMLIFrameElement;
+function exportPdfViaIframe(contentHtml: string) {
+  let iframe = document.getElementById("standees-pdf-iframe") as HTMLIFrameElement;
   if (!iframe) {
     iframe = document.createElement("iframe");
-    iframe.id = "standees-print-iframe";
+    iframe.id = "standees-pdf-iframe";
     iframe.style.position = "fixed";
     iframe.style.top = "-9999px";
     iframe.style.left = "-9999px";
@@ -67,7 +80,7 @@ function printStandeesViaIframe(contentHtml: string) {
       iframe.contentWindow?.focus();
       iframe.contentWindow?.print();
     } catch (err) {
-      console.error("Standees iframe print failed", err);
+      console.error("Standees PDF print failed", err);
       window.print();
     }
   }, 350);
@@ -80,17 +93,15 @@ export const TableQRGeneratorModal: React.FC<TableQRGeneratorModalProps> = ({
   initialSelectedTable = null,
   onRefreshTables,
 }) => {
-  const { tenant_slug, selected_branch, selected_company, user } = useAuthStore();
+  const { tenant_slug, selected_branch, user } = useAuthStore();
 
-  const tenantSlug = tenant_slug || "baithak-cafe";
+  const tenantSlug = tenant_slug || (user as any)?.tenant_slug || "baithak-cafe";
   const branchCode = selected_branch?.code || "BAITHAK-CUH";
-  const branchName = selected_branch?.name || "Main Campus Outlet";
-  const companyId = selected_company?.id || 1;
-  const branchId = selected_branch?.id || 1;
-  const tenantId = user?.tenant_id || 1;
+  const branchName = selected_branch?.name || "Main Dining";
 
-  const [customerWebBaseUrl, setCustomerWebBaseUrl] = useState<string>(() => getDefaultCustomerWebUrl());
-  const [printFormat, setPrintFormat] = useState<"thermal" | "a4">("thermal");
+  const [customerWebBaseUrl, setCustomerWebBaseUrl] = useState<string>(() =>
+    getDefaultCustomerWebUrl(tenantSlug)
+  );
 
   const [selectedTableIds, setSelectedTableIds] = useState<Set<number | string>>(() => {
     if (initialSelectedTable) return new Set([initialSelectedTable.id]);
@@ -99,10 +110,11 @@ export const TableQRGeneratorModal: React.FC<TableQRGeneratorModalProps> = ({
 
   const [isSaving, setIsSaving] = useState(false);
 
-  // Generate Table QR URL
-  const getTableQrUrl = (tableNumber: string, tableId: number | string) => {
+  // Generate lightweight, ultra-high scannability Table QR URL
+  // Omitting redundant query parameters keeps QR version low (V4-V6), making modules huge and bold for instant scanning
+  const getTableQrUrl = (tableNumber: string) => {
     const base = customerWebBaseUrl.replace(/\/+$/, "");
-    return `${base}/t/${tenantSlug}/b/${branchCode}/table/${encodeURIComponent(tableNumber)}?company_id=${companyId}&branch_id=${branchId}&tenant_id=${tenantId}&table_id=${tableId}`;
+    return `${base}/t/${encodeURIComponent(tenantSlug)}/b/${encodeURIComponent(branchCode)}/table/${encodeURIComponent(tableNumber)}`;
   };
 
   const selectedTablesList = useMemo(() => {
@@ -131,6 +143,9 @@ export const TableQRGeneratorModal: React.FC<TableQRGeneratorModalProps> = ({
     setCustomerWebBaseUrl(val);
     try {
       localStorage.setItem("customer_food_web_url", val);
+      if (tenantSlug) {
+        localStorage.setItem(`customer_food_web_url_${tenantSlug}`, val);
+      }
     } catch {}
   };
 
@@ -140,14 +155,17 @@ export const TableQRGeneratorModal: React.FC<TableQRGeneratorModalProps> = ({
     setIsSaving(true);
     try {
       localStorage.setItem("customer_food_web_url", customerWebBaseUrl);
+      if (tenantSlug) {
+        localStorage.setItem(`customer_food_web_url_${tenantSlug}`, customerWebBaseUrl);
+      }
       const payload = tables.map((t) => ({
         table_id: t.id,
-        qr_code_url: getTableQrUrl(t.table_number, t.id),
+        qr_code_url: getTableQrUrl(t.table_number),
       }));
 
       const res = await tablesApi.saveBatchTableQRs(payload);
       toast.success("QR Codes Saved to Database", {
-        description: `Successfully synchronized ${res.updated_count || payload.length} table QR codes into PostgreSQL dining_tables.`,
+        description: `Successfully synchronized ${res.updated_count || payload.length} table QR codes into dining_tables for ${branchName}.`,
       });
       if (onRefreshTables) onRefreshTables();
     } catch (err: any) {
@@ -159,293 +177,163 @@ export const TableQRGeneratorModal: React.FC<TableQRGeneratorModalProps> = ({
     }
   };
 
-  // High-DPI Iframe Print: Never Blank, Supports 80mm POS Thermal & A4 Desktop
-  const handlePrint = () => {
+  // High-DPI A4 Standees PDF Export (2 Standees per Page)
+  const handleExportPdf = () => {
     if (selectedTablesList.length === 0) {
-      toast.error("No Tables Selected", { description: "Please select at least one table to print standees." });
+      toast.error("No Tables Selected", { description: "Please select at least one table to generate standees PDF." });
       return;
     }
 
     try {
       localStorage.setItem("customer_food_web_url", customerWebBaseUrl);
+      if (tenantSlug) {
+        localStorage.setItem(`customer_food_web_url_${tenantSlug}`, customerWebBaseUrl);
+      }
     } catch {}
 
-    if (printFormat === "thermal") {
-      // 80mm Thermal Standee Slip for POS roll printers (like RETSOL RPT82)
-      const slipsHtml = selectedTablesList.map((table) => {
-        const qrUrl = getTableQrUrl(table.table_number, table.id);
-        const qrSvg = generateQRCodeSVG(qrUrl, { size: 240, includeMargin: true });
-        return `
-          <div class="thermal-standee-slip">
+    const cardsHtml = selectedTablesList.map((table, idx) => {
+      const qrUrl = getTableQrUrl(table.table_number);
+      const qrSvg = generateQRCodeSVG(qrUrl, { size: 320, includeMargin: true });
+      const isPageBreak = (idx + 1) % 2 === 0 && idx < selectedTablesList.length - 1;
+
+      return `
+        <div class="a4-standee-card">
+          <div class="header-band">
             <div class="shop-title">${branchName}</div>
             <div class="shop-sub">Digital Dining Experience</div>
-            <div class="table-pill">TABLE ${table.table_number}</div>
-            <div class="table-meta">${table.section || "Main Dining"} · ${table.capacity || 4} Guests</div>
-            <div class="qr-container">${qrSvg}</div>
-            <div class="cta-bold">📱 Scan Camera to View Menu & Order</div>
-            <div class="cta-sub">Compatible with iPhone & Android · No App Required</div>
-            <div class="url-hint">${qrUrl}</div>
           </div>
-        `;
-      }).join("");
-
-      const fullHtml = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <title>Table Standees (80mm Thermal)</title>
-            <style>
-              @page {
-                size: 80mm auto;
-                margin: 0mm;
-              }
-              * {
-                box-sizing: border-box !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-              }
-              html, body {
-                margin: 0 !important;
-                padding: 0 !important;
-                width: 80mm !important;
-                max-width: 80mm !important;
-                background: #ffffff !important;
-                color: #000000 !important;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-              }
-              .thermal-standee-slip {
-                display: flex !important;
-                flex-direction: column !important;
-                align-items: center !important;
-                justify-content: center !important;
-                width: 100% !important;
-                max-width: 76mm !important;
-                margin: 0 auto !important;
-                padding: 6mm 3mm 8mm 3mm !important;
-                text-align: center !important;
-                border-bottom: 2px dashed #000000 !important;
-                page-break-after: always !important;
-                break-after: page !important;
-              }
-              .thermal-standee-slip:last-child {
-                border-bottom: none !important;
-                page-break-after: auto !important;
-              }
-              .shop-title {
-                font-size: 16px !important;
-                font-weight: 900 !important;
-                text-transform: uppercase !important;
-                letter-spacing: -0.3px !important;
-                line-height: 1.2 !important;
-              }
-              .shop-sub {
-                font-size: 10px !important;
-                font-weight: 700 !important;
-                text-transform: uppercase !important;
-                color: #444444 !important;
-                margin-top: 2px !important;
-                letter-spacing: 0.5px !important;
-              }
-              .table-pill {
-                display: inline-block !important;
-                font-size: 18px !important;
-                font-weight: 900 !important;
-                background: #000000 !important;
-                color: #ffffff !important;
-                padding: 4px 16px !important;
-                border-radius: 9999px !important;
-                margin: 6px 0 2px 0 !important;
-                letter-spacing: 0.5px !important;
-              }
-              .table-meta {
-                font-size: 10.5px !important;
-                font-weight: 600 !important;
-                color: #555555 !important;
-                margin-bottom: 4px !important;
-              }
-              .qr-container {
-                display: block !important;
-                background: #ffffff !important;
-                padding: 2px !important;
-                margin: 4px auto !important;
-                width: 180px !important;
-                height: 180px !important;
-              }
-              .qr-container svg {
-                width: 100% !important;
-                height: 100% !important;
-                display: block !important;
-              }
-              .cta-bold {
-                font-size: 12px !important;
-                font-weight: 900 !important;
-                margin-top: 5px !important;
-                line-height: 1.3 !important;
-              }
-              .cta-sub {
-                font-size: 9.5px !important;
-                font-weight: 600 !important;
-                color: #333333 !important;
-                margin-top: 2px !important;
-              }
-              .url-hint {
-                font-size: 8px !important;
-                font-family: monospace !important;
-                color: #666666 !important;
-                word-break: break-all !important;
-                margin-top: 5px !important;
-                max-width: 68mm !important;
-              }
-            </style>
-          </head>
-          <body>
-            ${slipsHtml}
-          </body>
-        </html>
+          <div class="table-pill">TABLE ${table.table_number}</div>
+          <div class="table-meta">${table.section || "Dining Floor"} · ${table.capacity || 4} Guests</div>
+          <div class="qr-box">${qrSvg}</div>
+          <div class="cta-bold">📱 Scan Camera to View Menu & Order</div>
+          <div class="cta-sub">Compatible with iPhone & Android · No App Download Required</div>
+          <div class="url-hint">${qrUrl}</div>
+        </div>
+        ${isPageBreak ? '<div style="page-break-after: always; break-after: page;"></div>' : ''}
       `;
-      printStandeesViaIframe(fullHtml);
-    } else {
-      // A4 Sheet Cards (2 per page)
-      const cardsHtml = selectedTablesList.map((table, idx) => {
-        const qrUrl = getTableQrUrl(table.table_number, table.id);
-        const qrSvg = generateQRCodeSVG(qrUrl, { size: 300, includeMargin: false });
-        const isPageBreak = (idx + 1) % 2 === 0;
-        return `
-          <div class="a4-standee-card">
-            <div class="shop-title">${branchName}</div>
-            <div class="shop-sub">Digital Dining Experience</div>
-            <div class="table-pill">TABLE ${table.table_number}</div>
-            <div class="table-meta">${table.section || "Main Dining"} · ${table.capacity || 4} Guests</div>
-            <div class="qr-box">${qrSvg}</div>
-            <div class="cta-bold">📱 Scan Camera to View Menu & Order</div>
-            <div class="cta-sub">Compatible with iPhone & Android · No App Download Required</div>
-            <div class="url-hint">${qrUrl}</div>
+    }).join("");
+
+    const fullHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Table Standees PDF - ${branchName}</title>
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 12mm 10mm;
+            }
+            * {
+              box-sizing: border-box !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              color: #0f172a !important;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+            }
+            .a4-grid {
+              display: flex !important;
+              flex-direction: column !important;
+              gap: 10mm !important;
+            }
+            .a4-standee-card {
+              border: 2.5px solid #0f172a !important;
+              border-radius: 24px !important;
+              padding: 9mm 8mm !important;
+              display: flex !important;
+              flex-direction: column !important;
+              align-items: center !important;
+              text-align: center !important;
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+              margin-bottom: 4mm !important;
+              background: #ffffff !important;
+            }
+            .shop-title {
+              font-size: 22px !important;
+              font-weight: 900 !important;
+              text-transform: uppercase !important;
+              letter-spacing: -0.5px !important;
+              margin-bottom: 2px !important;
+            }
+            .shop-sub {
+              font-size: 11px !important;
+              font-weight: 700 !important;
+              text-transform: uppercase !important;
+              color: #475569 !important;
+              letter-spacing: 1.5px !important;
+            }
+            .table-pill {
+              font-size: 24px !important;
+              font-weight: 900 !important;
+              padding: 6px 28px !important;
+              background: #0f172a !important;
+              color: #ffffff !important;
+              border-radius: 9999px !important;
+              margin: 8px 0 3px 0 !important;
+              letter-spacing: 0.5px !important;
+            }
+            .table-meta {
+              font-size: 11.5px !important;
+              font-weight: 600 !important;
+              color: #64748b !important;
+              text-transform: uppercase !important;
+              letter-spacing: 0.5px !important;
+            }
+            .qr-box {
+              padding: 10px !important;
+              background: #ffffff !important;
+              border: 2px solid #e2e8f0 !important;
+              border-radius: 20px !important;
+              margin: 8px auto !important;
+              width: 230px !important;
+              height: 230px !important;
+            }
+            .qr-box svg {
+              width: 100% !important;
+              height: 100% !important;
+              display: block !important;
+            }
+            .cta-bold {
+              font-size: 14.5px !important;
+              font-weight: 900 !important;
+              color: #0f172a !important;
+              margin-top: 5px !important;
+            }
+            .cta-sub {
+              font-size: 11px !important;
+              font-weight: 600 !important;
+              color: #64748b !important;
+              margin-top: 2px !important;
+            }
+            .url-hint {
+              font-size: 9px !important;
+              font-family: monospace !important;
+              color: #94a3b8 !important;
+              word-break: break-all !important;
+              margin-top: 6px !important;
+              max-width: 110mm !important;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="a4-grid">
+            ${cardsHtml}
           </div>
-          ${isPageBreak ? '<div style="page-break-after: always; break-after: page;"></div>' : ''}
-        `;
-      }).join("");
-
-      const fullHtml = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <title>Table Standees (A4 Cards)</title>
-            <style>
-              @page {
-                size: A4 portrait;
-                margin: 12mm 10mm;
-              }
-              * {
-                box-sizing: border-box !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-              }
-              html, body {
-                margin: 0 !important;
-                padding: 0 !important;
-                background: #ffffff !important;
-                color: #000000 !important;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-              }
-              .a4-grid {
-                display: flex !important;
-                flex-direction: column !important;
-                gap: 10mm !important;
-              }
-              .a4-standee-card {
-                border: 3px solid #0f172a !important;
-                border-radius: 24px !important;
-                padding: 8mm 6mm !important;
-                display: flex !important;
-                flex-direction: column !important;
-                align-items: center !important;
-                text-align: center !important;
-                page-break-inside: avoid !important;
-                break-inside: avoid !important;
-                margin-bottom: 6mm !important;
-              }
-              .shop-title {
-                font-size: 20px !important;
-                font-weight: 900 !important;
-                text-transform: uppercase !important;
-                letter-spacing: -0.5px !important;
-                margin-bottom: 2px !important;
-              }
-              .shop-sub {
-                font-size: 11px !important;
-                font-weight: 700 !important;
-                text-transform: uppercase !important;
-                color: #475569 !important;
-                letter-spacing: 1px !important;
-              }
-              .table-pill {
-                font-size: 22px !important;
-                font-weight: 900 !important;
-                padding: 5px 24px !important;
-                background: #0f172a !important;
-                color: #ffffff !important;
-                border-radius: 9999px !important;
-                margin: 8px 0 2px 0 !important;
-              }
-              .table-meta {
-                font-size: 11px !important;
-                font-weight: 600 !important;
-                color: #64748b !important;
-                text-transform: uppercase !important;
-                letter-spacing: 0.5px !important;
-              }
-              .qr-box {
-                padding: 10px !important;
-                background: #ffffff !important;
-                border: 2px solid #e2e8f0 !important;
-                border-radius: 20px !important;
-                margin: 8px auto !important;
-                width: 220px !important;
-                height: 220px !important;
-              }
-              .qr-box svg {
-                width: 100% !important;
-                height: 100% !important;
-                display: block !important;
-              }
-              .cta-bold {
-                font-size: 14px !important;
-                font-weight: 900 !important;
-                color: #0f172a !important;
-                margin-top: 4px !important;
-              }
-              .cta-sub {
-                font-size: 11px !important;
-                font-weight: 500 !important;
-                color: #64748b !important;
-                margin-top: 2px !important;
-              }
-              .url-hint {
-                font-size: 9px !important;
-                font-family: monospace !important;
-                color: #94a3b8 !important;
-                word-break: break-all !important;
-                margin-top: 6px !important;
-                max-width: 100mm !important;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="a4-grid">
-              ${cardsHtml}
-            </div>
-          </body>
-        </html>
-      `;
-      printStandeesViaIframe(fullHtml);
-    }
+        </body>
+      </html>
+    `;
+    exportPdfViaIframe(fullHtml);
   };
 
   // Download individual SVG
   const handleDownloadSingleQR = (table: POSTable) => {
-    const url = getTableQrUrl(table.table_number, table.id);
+    const url = getTableQrUrl(table.table_number);
     const svgString = generateQRCodeSVG(url, { size: 512, includeMargin: true });
     const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
     const blobUrl = URL.createObjectURL(blob);
@@ -475,7 +363,7 @@ export const TableQRGeneratorModal: React.FC<TableQRGeneratorModalProps> = ({
                 Table QR Codes & Printable Standees
               </h2>
               <p className="text-xs text-muted-foreground">
-                Generate unique digital dining QR codes for tables in {branchName}
+                Generate high-scannability QR codes for {branchName} ({tenantSlug})
               </p>
             </div>
           </div>
@@ -498,12 +386,12 @@ export const TableQRGeneratorModal: React.FC<TableQRGeneratorModalProps> = ({
                 type="text"
                 value={customerWebBaseUrl}
                 onChange={(e) => handleUpdateUrl(e.target.value)}
-                placeholder="https://customer-food-production.up.railway.app"
+                placeholder="https://customer-food-web-production.up.railway.app"
                 className="flex-1 px-3 py-1.5 rounded-md bg-muted/50 border border-border text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <button
                 type="button"
-                onClick={() => handleUpdateUrl(getDefaultCustomerWebUrl())}
+                onClick={() => handleUpdateUrl(getDefaultCustomerWebUrl(tenantSlug))}
                 className="px-2 py-1 text-[11px] border border-border rounded bg-card hover:bg-muted font-medium transition cursor-pointer"
                 title="Reset to default URL"
               >
@@ -513,34 +401,6 @@ export const TableQRGeneratorModal: React.FC<TableQRGeneratorModalProps> = ({
           </div>
 
           <div className="md:col-span-6 flex flex-wrap items-center justify-end gap-2 pt-2 md:pt-4">
-            {/* Print Mode Selector */}
-            <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-[11px] font-semibold">
-              <button
-                type="button"
-                onClick={() => setPrintFormat("thermal")}
-                className={`px-2 py-1 rounded-md transition cursor-pointer ${
-                  printFormat === "thermal"
-                    ? "bg-primary text-primary-foreground shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-                title="Format for 80mm POS Thermal Roll Printer (RETSOL RPT82)"
-              >
-                🧾 80mm Thermal (RETSOL)
-              </button>
-              <button
-                type="button"
-                onClick={() => setPrintFormat("a4")}
-                className={`px-2 py-1 rounded-md transition cursor-pointer ${
-                  printFormat === "a4"
-                    ? "bg-primary text-primary-foreground shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-                title="Format for A4 Sheet Cards / Acrylic Standees"
-              >
-                📄 A4 Cards
-              </button>
-            </div>
-
             <Button
               variant="outline"
               size="sm"
@@ -554,11 +414,11 @@ export const TableQRGeneratorModal: React.FC<TableQRGeneratorModalProps> = ({
 
             <Button
               size="sm"
-              onClick={handlePrint}
+              onClick={handleExportPdf}
               disabled={selectedTablesList.length === 0}
-              className="gap-1.5 text-xs font-semibold shadow-xs cursor-pointer"
+              className="gap-1.5 text-xs font-bold shadow-xs cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              <Printer size={14} /> Print Standees ({selectedTablesList.length})
+              <FileDown size={15} /> Export Standees PDF ({selectedTablesList.length})
             </Button>
           </div>
         </div>
@@ -581,7 +441,7 @@ export const TableQRGeneratorModal: React.FC<TableQRGeneratorModalProps> = ({
 
             <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
               <Sparkles size={13} className="text-amber-500" />
-              <span>Encodes Tenant, Company, Branch, & Table Number</span>
+              <span>Optimized 4x-Scannability QR · Works with any Tenant, Branch & Host</span>
             </div>
           </div>
 
@@ -589,7 +449,7 @@ export const TableQRGeneratorModal: React.FC<TableQRGeneratorModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {tables.map((table) => {
               const isSelected = selectedTableIds.has(table.id);
-              const qrUrl = getTableQrUrl(table.table_number, table.id);
+              const qrUrl = getTableQrUrl(table.table_number);
               const qrSvg = generateQRCodeSVG(qrUrl, { size: 160, includeMargin: true });
 
               return (
@@ -617,7 +477,7 @@ export const TableQRGeneratorModal: React.FC<TableQRGeneratorModalProps> = ({
                       <span>Table {table.table_number}</span>
                     </div>
                     <p className="text-[10px] text-muted-foreground uppercase font-mono">
-                      {table.section || "Main Dining"} · {table.capacity} Guests
+                      {table.section || "Main Floor"} · {table.capacity} Guests
                     </p>
                   </div>
 
@@ -627,7 +487,7 @@ export const TableQRGeneratorModal: React.FC<TableQRGeneratorModalProps> = ({
                     dangerouslySetInnerHTML={{ __html: qrSvg }}
                   />
 
-                  {/* Destination URL & Download */}
+                  {/* Destination URL & Actions */}
                   <div className="w-full space-y-2">
                     <div className="text-[9px] font-mono text-muted-foreground bg-muted/60 p-1.5 rounded truncate text-left" title={qrUrl}>
                       {qrUrl}
@@ -669,7 +529,7 @@ export const TableQRGeneratorModal: React.FC<TableQRGeneratorModalProps> = ({
         {/* Footer */}
         <div className="px-5 py-3 border-t border-border bg-muted/30 flex items-center justify-between text-xs">
           <div className="text-muted-foreground text-[11px]">
-            Ready for {printFormat === "thermal" ? "80mm POS Thermal receipt roll printers" : "A4 acrylic stands and desktop printers"}.
+            A4 Standees PDF ready · Select tables and click <b>Export Standees PDF</b> (choose "Save as PDF" in print dialog).
           </div>
           <Button variant="outline" size="sm" onClick={onClose} className="cursor-pointer">
             Done
