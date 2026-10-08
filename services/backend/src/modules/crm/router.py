@@ -347,12 +347,7 @@ async def get_customer_detail(
             {
                 "id": i.id,
                 "interaction_type": i.interaction_type,
-                "channel": i.channel,
-                "subject": i.subject,
-                "notes": i.notes,
-                "sentiment": i.sentiment,
-                "follow_up_date": i.follow_up_date.isoformat() if i.follow_up_date else None,
-                "is_resolved": bool(i.is_resolved),
+                "notes": i.notes or "",
                 "created_at": i.created_at.isoformat() if i.created_at else None,
             }
             for i in (found.interactions or [])
@@ -522,12 +517,7 @@ async def delete_customer(
 class InteractionCreateSchema(BaseModel):
     customer_id: int
     interaction_type: str = "feedback"
-    channel: str | None = "in_person"
-    sentiment: str | None = "positive"
-    subject: str | None = None
     notes: str | None = None
-    follow_up_date: date | None = None
-    is_resolved: bool = True
 
 
 @router.post("/interactions")
@@ -542,12 +532,7 @@ async def create_interaction_log(
         tenant_id=resolved_tenant,
         customer_id=body.customer_id,
         interaction_type=body.interaction_type,
-        channel=body.channel,
-        sentiment=body.sentiment,
-        subject=body.subject or f"{body.interaction_type.capitalize()} Log",
         notes=body.notes,
-        follow_up_date=body.follow_up_date,
-        is_resolved=body.is_resolved,
         created_by=current_user.id,
     )
     db.add(interaction)

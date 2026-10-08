@@ -303,6 +303,7 @@ export function CRMPage() {
       {/* Customer Detail & History Modal */}
       <CustomerDetailModal
         isOpen={isDetailModalOpen}
+        customer={selectedCustomerForDetail}
         customerId={selectedCustomerForDetail?.id || null}
         onClose={() => {
           setIsDetailModalOpen(false);

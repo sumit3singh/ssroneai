@@ -109,15 +109,8 @@ class CustomerInteraction(TenantBaseModel):
     customer_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("customers.id"), nullable=False, index=True
     )
-    interaction_type: Mapped[str] = mapped_column(String(30), nullable=False)
-    # visit, call, email, complaint, feedback, enquiry
-    channel: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    subject: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    interaction_type: Mapped[str] = mapped_column(String(50), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    sentiment: Mapped[str | None] = mapped_column(String(20), nullable=True)  # positive, neutral, negative
-    follow_up_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    is_resolved: Mapped[bool] = mapped_column(Boolean, default=False)
-    handled_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     customer: Mapped["Customer"] = relationship(
         "Customer",
         primaryjoin="CustomerInteraction.customer_id == Customer.id",
@@ -128,18 +121,9 @@ class CustomerInteraction(TenantBaseModel):
 class Campaign(TenantBaseModel):
     __tablename__ = "campaigns"
 
+    company_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     branch_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    name: Mapped[str] = mapped_column(String(200), nullable=False)
-    campaign_type: Mapped[str] = mapped_column(String(30), nullable=False)
-    # sms, email, whatsapp, push, in_app
-    status: Mapped[str] = mapped_column(String(20), default="draft")
-    target_segment: Mapped[dict] = mapped_column(JSONB, default=dict)
-    content: Mapped[dict] = mapped_column(JSONB, default=dict)
-    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    total_recipients: Mapped[int] = mapped_column(Integer, default=0)
-    delivered_count: Mapped[int] = mapped_column(Integer, default=0)
-    opened_count: Mapped[int] = mapped_column(Integer, default=0)
-    clicked_count: Mapped[int] = mapped_column(Integer, default=0)
-    budget: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
-    actual_cost: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    channel: Mapped[str] = mapped_column(String(50), nullable=False)  # SMS, EMAIL, WHATSAPP, PUSH
+    status: Mapped[str] = mapped_column(String(50), default="ACTIVE")
+

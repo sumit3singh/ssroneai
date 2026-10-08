@@ -317,6 +317,8 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
   const [openingBalanceNotes, setOpeningBalanceNotes] = useState("");
   const [openingBalanceDate, setOpeningBalanceDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [isSubmittingOpeningBalance, setIsSubmittingOpeningBalance] = useState(false);
+  const [directorySearchQuery, setDirectorySearchQuery] = useState("");
+  const [isSavingCustomerOnly, setIsSavingCustomerOnly] = useState(false);
 
   // Combined Directory containing ALL database customers + real debt figures
   const combinedCustomerDirectory = React.useMemo(() => {
@@ -348,6 +350,48 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
       return a.name.localeCompare(b.name);
     });
   }, [allCustomersDirectory, debtors]);
+
+  const modalFilteredDirectory = React.useMemo(() => {
+    if (!directorySearchQuery.trim()) return combinedCustomerDirectory;
+    const q = directorySearchQuery.toLowerCase().trim();
+    return combinedCustomerDirectory.filter(
+      (c) => c.name.toLowerCase().includes(q) || c.phone.includes(q)
+    );
+  }, [combinedCustomerDirectory, directorySearchQuery]);
+
+  const handleSaveCustomerOnly = async () => {
+    if (isSavingCustomerOnly) return;
+    if (!openingBalanceCustomerPhone.trim()) {
+      toast.error("Please enter customer's mobile number");
+      return;
+    }
+    const effName = openingBalanceCustomerName.trim() || `Customer ${openingBalanceCustomerPhone.slice(-4)}`;
+    setIsSavingCustomerOnly(true);
+    try {
+      const activeBranchId = localStorage.getItem("active_branch_id");
+      const res = await api.post<any>("/crm/customers", {
+        name: effName,
+        phone: openingBalanceCustomerPhone.trim(),
+        city: openingBalanceCustomerCity.trim() || undefined,
+        address: openingBalanceCustomerAddress.trim() || undefined,
+        branch_id: activeBranchId ? Number(activeBranchId) : undefined,
+      });
+
+      toast.success(`Customer '${effName}' (${openingBalanceCustomerPhone}) saved to database!`);
+      await fetchDebtorsSummary();
+      if (res && res.id) {
+        setOpeningBalanceCustomerMode("existing");
+        setOpeningBalanceCustomerId(Number(res.id));
+        setOpeningBalanceCustomerName(effName);
+        setOpeningBalanceCustomerPhone(openingBalanceCustomerPhone.trim());
+      }
+    } catch (err: any) {
+      console.error("Failed to save customer", err);
+      toast.error(err.response?.data?.detail || "Failed to save customer to database");
+    } finally {
+      setIsSavingCustomerOnly(false);
+    }
+  };
 
   const handleOpenOpeningBalanceModal = (targetCust?: any) => {
     const cust = targetCust || (customerLedger && customerLedger.customer.id !== 0 ? customerLedger.customer : null);
@@ -1416,15 +1460,39 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
 
               {/* Customer Input Section */}
               {openingBalanceCustomerMode === "existing" ? (
-                <div>
-                  <div className="flex items-center justify-between mb-1">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between mb-0.5">
                     <label className="text-[10px] font-bold text-muted-foreground block">
                       Choose Customer from Directory:
                     </label>
                     <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400">
-                      {combinedCustomerDirectory.length} Guests Available
+                      {modalFilteredDirectory.length} of {combinedCustomerDirectory.length} Guests
                     </span>
                   </div>
+
+                  {/* Search Input by Name or Mobile No */}
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Search by name or mobile number (e.g. Aman, 893085...)..."
+                      value={directorySearchQuery}
+                      onChange={(e) => setDirectorySearchQuery(e.target.value)}
+                      className="h-8 pl-8 pr-7 text-xs bg-background"
+                    />
+                    {directorySearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setDirectorySearchQuery("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs cursor-pointer font-bold"
+                        title="Clear search"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Dropdown Select */}
                   <select
                     value={openingBalanceCustomerId || ""}
                     onChange={(e) => {
@@ -1438,13 +1506,41 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                     }}
                     className="w-full h-9 rounded-lg border border-border bg-background px-3 text-xs font-medium focus:ring-1 focus:ring-primary focus:outline-none"
                   >
-                    <option value="" disabled>-- Select Customer ({combinedCustomerDirectory.length} in database) --</option>
-                    {combinedCustomerDirectory.map((c) => (
+                    <option value="" disabled>-- Select Customer ({modalFilteredDirectory.length} in list) --</option>
+                    {modalFilteredDirectory.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name} ({c.phone}) {c.balanceDue > 0 ? `— Current Due: ₹${c.balanceDue.toLocaleString("en-IN")}` : "— No Debt (₹0)"}
                       </option>
                     ))}
                   </select>
+
+                  {/* Quick Select Pills when searching */}
+                  {directorySearchQuery && modalFilteredDirectory.length > 0 && modalFilteredDirectory.length <= 8 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {modalFilteredDirectory.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            setOpeningBalanceCustomerId(c.id);
+                            setOpeningBalanceCustomerName(c.name);
+                            setOpeningBalanceCustomerPhone(c.phone);
+                          }}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all cursor-pointer flex items-center gap-1.5 ${
+                            openingBalanceCustomerId === c.id
+                              ? "bg-primary/10 text-primary border-primary font-bold shadow-2xs"
+                              : "bg-muted/40 text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                          }`}
+                        >
+                          <span>{c.name}</span>
+                          <span className="font-mono text-[10px] opacity-75">({c.phone})</span>
+                          {c.balanceDue > 0 && (
+                            <span className="text-amber-600 dark:text-amber-400 font-bold font-mono text-[10px]">₹{c.balanceDue}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -1646,32 +1742,58 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
               </div>
 
               {/* Form Action Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsOpeningBalanceModalOpen(false)}
-                  className="h-8 text-xs cursor-pointer"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={isSubmittingOpeningBalance || !openingBalanceAmount || parseFloat(openingBalanceAmount) <= 0}
-                  size="sm"
-                  className="h-8 text-xs font-extrabold cursor-pointer px-4 bg-amber-600 hover:bg-amber-700 text-white shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSubmittingOpeningBalance ? (
-                    <span className="flex items-center gap-1.5">
-                      <RefreshCw size={13} className="animate-spin" /> Recording...
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1.5">
-                      <PlusCircle size={14} /> Record Opening Balance
-                    </span>
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-border flex-wrap">
+                <div>
+                  {openingBalanceCustomerMode === "new" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isSavingCustomerOnly || isSubmittingOpeningBalance || !openingBalanceCustomerPhone.trim()}
+                      onClick={handleSaveCustomerOnly}
+                      className="h-8 text-xs font-bold gap-1.5 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 cursor-pointer disabled:opacity-50"
+                      title="Save this new customer into database without adding old debt"
+                    >
+                      {isSavingCustomerOnly ? (
+                        <RefreshCw size={12} className="animate-spin" />
+                      ) : (
+                        <CheckCircle2 size={12} />
+                      )}
+                      <span>Save Customer Only (No Debt)</span>
+                    </Button>
                   )}
-                </Button>
+                </div>
+
+                <div className="flex items-center gap-2 ml-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsOpeningBalanceModalOpen(false)}
+                    className="h-8 text-xs cursor-pointer"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isSubmittingOpeningBalance || !openingBalanceAmount || parseFloat(openingBalanceAmount) <= 0}
+                    size="sm"
+                    className="h-8 text-xs font-extrabold cursor-pointer px-4 bg-amber-600 hover:bg-amber-700 text-white shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSubmittingOpeningBalance ? (
+                      <span className="flex items-center gap-1.5">
+                        <RefreshCw size={13} className="animate-spin" /> Saving...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <PlusCircle size={14} />
+                        {openingBalanceCustomerMode === "new"
+                          ? `Save Customer & Record Debt${openingBalanceAmount ? ` (₹${parseFloat(openingBalanceAmount).toLocaleString("en-IN")})` : ""}`
+                          : "Record Opening Balance"}
+                      </span>
+                    )}
+                  </Button>
+                </div>
               </div>
             </form>
           </div>

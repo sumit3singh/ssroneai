@@ -12,6 +12,7 @@ import { getInitials } from "@/shared/utils/formatters";
 interface CustomerDetailModalProps {
   isOpen: boolean;
   customerId: number | string | null;
+  customer?: any | null;
   onClose: () => void;
   onEdit: (customer: any) => void;
   onDelete: (customer: any) => void;
@@ -21,6 +22,7 @@ interface CustomerDetailModalProps {
 export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   isOpen,
   customerId,
+  customer,
   onClose,
   onEdit,
   onDelete,
@@ -121,14 +123,11 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
 
     setIsSubmittingInteraction(true);
     try {
+      const fullNotes = [interactionSubject.trim() ? `[${interactionSubject.trim()}]` : null, interactionNotes.trim()].filter(Boolean).join(" ");
       await api.post("/crm/interactions", {
         customer_id: Number(customerId),
         interaction_type: interactionType,
-        channel: interactionChannel,
-        sentiment: interactionSentiment,
-        subject: interactionSubject.trim() || `${interactionType.toUpperCase()} Log`,
-        notes: interactionNotes.trim() || undefined,
-        is_resolved: true,
+        notes: fullNotes || undefined,
       });
 
       toast.success("Customer interaction recorded!");
@@ -143,7 +142,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
     }
   };
 
-  const cust = data?.customer;
+  const cust = data?.customer || customer;
   const summary = data?.summary || { total_billed: 0, total_paid: 0, total_balance_due: 0, unpaid_orders_count: 0 };
   const addresses = data?.addresses || [];
   const interactions = data?.interactions || [];
