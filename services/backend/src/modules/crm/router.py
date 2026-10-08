@@ -3,10 +3,12 @@ The ssrone – CRM Router
 Customer management and loyalty endpoints.
 """
 
+from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.core.database.engine import get_db_session
 from src.modules.auth.dependencies import get_current_user
@@ -263,6 +265,121 @@ class CustomerUpdateSchema(BaseModel):
     address: dict | str | None = None
     city: str | None = None
     pincode: str | None = None
+    loyalty_points: int | None = None
+
+
+@router.get("/customers/{customer_id}")
+async def get_customer_detail(
+    customer_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Get full details of a customer including addresses, interactions, and financial ledger."""
+    resolved_tenant = current_user.tenant_id
+    found = None
+    try:
+        cid = int(customer_id)
+        q = (
+            select(Customer)
+            .options(selectinload(Customer.customer_addresses), selectinload(Customer.interactions))
+            .where(Customer.id == cid, Customer.tenant_id == resolved_tenant, (Customer.is_deleted == False) | (Customer.is_deleted.is_(None)))
+        )
+        found = (await db.execute(q)).scalar_one_or_none()
+    except (ValueError, TypeError):
+        pass
+
+    if not found:
+        clean_phone = "".join(filter(str.isdigit, customer_id))
+        if len(clean_phone) >= 10:
+            target_phone = clean_phone[-10:]
+            q_phone = (
+                select(Customer)
+                .options(selectinload(Customer.customer_addresses), selectinload(Customer.interactions))
+                .where(
+                    Customer.tenant_id == resolved_tenant,
+                    (Customer.phone == target_phone) | (Customer.phone == f"+91{target_phone}") | (Customer.phone == customer_id),
+                    (Customer.is_deleted == False) | (Customer.is_deleted.is_(None)),
+                )
+            )
+            found = (await db.execute(q_phone)).scalar_one_or_none()
+
+    if not found:
+        raise HTTPException(status_code=404, detail="Customer not found in database")
+
+    # Fetch financial orders ledger (STRICTLY EXCLUDING CANCELLED AND VOID ORDERS)
+    from src.modules.orders.models import Order
+    orders_res = await db.execute(
+        select(Order)
+        .where(
+            Order.tenant_id == resolved_tenant,
+            Order.customer_id == found.id,
+            (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
+        )
+        .order_by(Order.created_at.desc())
+        .limit(25)
+    )
+    all_orders = orders_res.scalars().all()
+    active_orders = [o for o in all_orders if (o.status or "").lower() not in ("cancelled", "void")]
+
+    total_billed = sum(o.grand_total for o in active_orders)
+    total_paid = sum(o.amount_paid for o in active_orders)
+    total_due = sum(o.balance_due for o in active_orders)
+
+    return {
+        "customer": CustomerResponse.model_validate(found).model_dump(),
+        "loyalty_points": found.loyalty_points,
+        "addresses": [
+            {
+                "id": a.id,
+                "label": a.label,
+                "flat_no": a.flat_no or "",
+                "area_street": a.area_street or "",
+                "landmark": a.landmark or "",
+                "city": a.city or "Mahendragarh",
+                "state": a.state or "Haryana",
+                "pincode": a.pincode or "",
+                "is_default": bool(a.is_default),
+            }
+            for a in (found.customer_addresses or [])
+            if not getattr(a, "is_deleted", False)
+        ],
+        "interactions": [
+            {
+                "id": i.id,
+                "interaction_type": i.interaction_type,
+                "channel": i.channel,
+                "subject": i.subject,
+                "notes": i.notes,
+                "sentiment": i.sentiment,
+                "follow_up_date": i.follow_up_date.isoformat() if i.follow_up_date else None,
+                "is_resolved": bool(i.is_resolved),
+                "created_at": i.created_at.isoformat() if i.created_at else None,
+            }
+            for i in (found.interactions or [])
+            if not getattr(i, "is_deleted", False)
+        ],
+        "summary": {
+            "total_billed": float(total_billed),
+            "total_paid": float(total_paid),
+            "total_balance_due": float(total_due),
+            "unpaid_orders_count": sum(1 for o in active_orders if o.balance_due > 0),
+            "total_orders_count": len(all_orders),
+        },
+        "recent_orders": [
+            {
+                "id": o.id,
+                "order_number": o.order_number,
+                "order_type": o.order_type,
+                "grand_total": float(o.grand_total),
+                "amount_paid": float(o.amount_paid),
+                "balance_due": 0.0 if (o.status or "").lower() in ("cancelled", "void") else float(o.balance_due),
+                "status": o.status,
+                "payment_status": "cancelled" if (o.status or "").lower() in ("cancelled", "void") else o.payment_status,
+                "created_at": o.created_at.isoformat() if o.created_at else None,
+            }
+            for o in all_orders[:8]
+        ],
+    }
 
 
 @router.put("/customers/{customer_id}")
@@ -270,6 +387,7 @@ async def update_customer_profile(
     customer_id: str,
     body: CustomerUpdateSchema,
     phone: str | None = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     target_phone = body.phone or phone
@@ -277,11 +395,16 @@ async def update_customer_profile(
     if clean_target_phone.startswith("91") and len(clean_target_phone) == 12:
         clean_target_phone = clean_target_phone[2:]
 
+    resolved_tenant = current_user.tenant_id
     found = None
     # 1. Try resolving by numeric customer ID
     try:
         cid = int(customer_id)
-        q = select(Customer).where(Customer.id == cid, Customer.is_deleted == False)
+        q = select(Customer).where(
+            Customer.id == cid,
+            Customer.tenant_id == resolved_tenant,
+            (Customer.is_deleted == False) | (Customer.is_deleted.is_(None)),
+        )
         found = (await db.execute(q)).scalars().first()
     except (ValueError, TypeError):
         pass
@@ -292,7 +415,8 @@ async def update_customer_profile(
             (Customer.phone == clean_target_phone) |
             (Customer.phone == f"+91{clean_target_phone}") |
             (Customer.phone == target_phone),
-            Customer.is_deleted == False
+            Customer.tenant_id == resolved_tenant,
+            (Customer.is_deleted == False) | (Customer.is_deleted.is_(None)),
         )
         found = (await db.execute(q_phone)).scalars().first()
 
@@ -304,7 +428,8 @@ async def update_customer_profile(
             q_digits = select(Customer).where(
                 (Customer.phone == clean_id_phone) |
                 (Customer.phone == f"+91{clean_id_phone}"),
-                Customer.is_deleted == False
+                Customer.tenant_id == resolved_tenant,
+                (Customer.is_deleted == False) | (Customer.is_deleted.is_(None)),
             )
             found = (await db.execute(q_digits)).scalars().first()
 
@@ -313,18 +438,126 @@ async def update_customer_profile(
 
     if body.name and body.name.strip():
         found.name = body.name.strip()
-    if body.email:
-        found.email = body.email.strip()
-    if body.city:
-        found.city = body.city.strip()
-    if body.pincode:
-        found.pincode = body.pincode.strip()
-    if body.address:
-        found.address = {"fullAddress": body.address} if isinstance(body.address, str) else body.address
+    if body.phone and body.phone.strip():
+        found.phone = clean_target_phone or body.phone.strip()
+    if body.email is not None:
+        found.email = body.email.strip() if body.email else None
+    if body.city is not None:
+        found.city = body.city.strip() if body.city else None
+    if body.pincode is not None:
+        found.pincode = body.pincode.strip() if body.pincode else None
+    if body.loyalty_points is not None:
+        found.loyalty_points = body.loyalty_points
+    if body.address is not None:
+        addr_dict = {"fullAddress": body.address} if isinstance(body.address, str) else (body.address or {})
+        found.address = addr_dict
 
+        # Keep customer_addresses in sync
+        addr_str = addr_dict.get("fullAddress") or addr_dict.get("area_street") or ""
+        if addr_str and addr_str.strip():
+            addr_res = await db.execute(
+                select(CustomerAddress).where(
+                    CustomerAddress.customer_id == found.id,
+                    CustomerAddress.is_default == True,
+                    (CustomerAddress.is_deleted == False) | (CustomerAddress.is_deleted.is_(None)),
+                )
+            )
+            default_addr = addr_res.scalar_one_or_none()
+            if default_addr:
+                default_addr.area_street = addr_str.strip()
+                if body.city:
+                    default_addr.city = body.city.strip()
+                if body.pincode:
+                    default_addr.pincode = body.pincode.strip()
+            else:
+                db.add(CustomerAddress(
+                    tenant_id=found.tenant_id,
+                    customer_id=found.id,
+                    label="Default",
+                    area_street=addr_str.strip(),
+                    city=body.city.strip() if body.city else "General",
+                    pincode=body.pincode.strip() if body.pincode else None,
+                    is_default=True,
+                ))
+
+    found.updated_by = current_user.id
+    found.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(found)
     return {"success": True, "customer": CustomerResponse.model_validate(found).model_dump()}
+
+
+@router.delete("/customers/{customer_id}")
+async def delete_customer(
+    customer_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Soft delete customer profile from PostgreSQL."""
+    resolved_tenant = current_user.tenant_id
+    found = None
+    try:
+        cid = int(customer_id)
+        q = select(Customer).where(
+            Customer.id == cid,
+            Customer.tenant_id == resolved_tenant,
+            (Customer.is_deleted == False) | (Customer.is_deleted.is_(None)),
+        )
+        found = (await db.execute(q)).scalars().first()
+    except (ValueError, TypeError):
+        pass
+
+    if not found:
+        raise HTTPException(status_code=404, detail="Customer not found in database")
+
+    found.is_deleted = True
+    found.updated_by = current_user.id
+    found.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    logger.info("Customer soft-deleted", customer_id=customer_id, tenant_id=resolved_tenant)
+    return {"success": True, "message": f"Customer '{found.name}' deleted successfully", "id": found.id}
+
+
+class InteractionCreateSchema(BaseModel):
+    customer_id: int
+    interaction_type: str = "feedback"
+    channel: str | None = "in_person"
+    sentiment: str | None = "positive"
+    subject: str | None = None
+    notes: str | None = None
+    follow_up_date: date | None = None
+    is_resolved: bool = True
+
+
+@router.post("/interactions")
+async def create_interaction_log(
+    body: InteractionCreateSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Record customer interaction/feedback in PostgreSQL."""
+    resolved_tenant = current_user.tenant_id
+    interaction = CustomerInteraction(
+        tenant_id=resolved_tenant,
+        customer_id=body.customer_id,
+        interaction_type=body.interaction_type,
+        channel=body.channel,
+        sentiment=body.sentiment,
+        subject=body.subject or f"{body.interaction_type.capitalize()} Log",
+        notes=body.notes,
+        follow_up_date=body.follow_up_date,
+        is_resolved=body.is_resolved,
+        created_by=current_user.id,
+    )
+    db.add(interaction)
+    await db.commit()
+    await db.refresh(interaction)
+    return {
+        "success": True,
+        "message": "Customer interaction logged successfully",
+        "id": interaction.id,
+    }
 
 
 class AddressCreateSchema(BaseModel):
@@ -525,7 +758,9 @@ customers_alias_router.add_api_route("", create_customer, methods=["POST"], resp
 customers_alias_router.add_api_route("/guest", create_guest_customer, methods=["POST"], response_model=CustomerResponse, status_code=status.HTTP_201_CREATED)
 customers_alias_router.add_api_route("/check-phone", check_customer_phone, methods=["GET"])
 customers_alias_router.add_api_route("/register", register_customer, methods=["POST"])
+customers_alias_router.add_api_route("/{customer_id}", get_customer_detail, methods=["GET"])
 customers_alias_router.add_api_route("/{customer_id}", update_customer_profile, methods=["PUT"])
+customers_alias_router.add_api_route("/{customer_id}", delete_customer, methods=["DELETE"])
 customers_alias_router.add_api_route("/addresses", list_customer_addresses, methods=["GET"])
 customers_alias_router.add_api_route("/addresses", create_customer_address, methods=["POST"])
 customers_alias_router.add_api_route("/addresses/{address_id}", delete_customer_address, methods=["DELETE"])

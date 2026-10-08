@@ -115,6 +115,7 @@ class OrderRepository:
         order.status = OrderStatus.CANCELLED
         order.cancelled_at = datetime.now(timezone.utc)
         order.cancellation_reason = reason
+        order.balance_due = Decimal("0.00")
         order.updated_by = user_id
         await self.session.commit()
         return order

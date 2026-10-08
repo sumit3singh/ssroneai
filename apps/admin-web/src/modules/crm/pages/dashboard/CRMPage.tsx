@@ -9,6 +9,9 @@ import { CRMTransactionSection } from "../transaction/CRMTransactionSection";
 import { CRMReportSection } from "../report/CRMReportSection";
 import { CampaignModal } from "../transaction/CampaignModal";
 import { CustomerInteractionModal } from "../transaction/CustomerInteractionModal";
+import { CustomerDetailModal } from "../../components/dialogs/CustomerDetailModal";
+import { CustomerEditModal } from "../../components/dialogs/CustomerEditModal";
+import { CustomerDeleteModal } from "../../components/dialogs/CustomerDeleteModal";
 
 export function CRMPage() {
   const routerState = useRouterState();
@@ -22,12 +25,24 @@ export function CRMPage() {
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
   const [isInteractionModalOpen, setIsInteractionModalOpen] = useState(false);
 
+  // Full CRUD state
+  const [selectedCustomerForDetail, setSelectedCustomerForDetail] = useState<any | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  const [selectedCustomerForEdit, setSelectedCustomerForEdit] = useState<any | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  const [selectedCustomerForDelete, setSelectedCustomerForDelete] = useState<any | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
   const [newCustomer, setNewCustomer] = useState({
     first_name: "",
     last_name: "",
     phone: "",
     email: "",
     city: "",
+    pincode: "",
+    address: "",
   });
 
   // Sync active section from router path if present
@@ -85,18 +100,45 @@ export function CRMPage() {
         phone: newCustomer.phone,
         email: newCustomer.email || null,
         city: newCustomer.city || null,
+        pincode: newCustomer.pincode || null,
+        address: newCustomer.address || null,
       });
       if (res && res.id) {
         setCustomers((prev) => [res, ...prev.filter((c) => String(c.id) !== String(res.id))]);
       }
       toast.success(`Guest ${newCustomer.first_name} saved successfully!`);
       setShowAddModal(false);
-      setNewCustomer({ first_name: "", last_name: "", phone: "", email: "", city: "" });
+      setNewCustomer({ first_name: "", last_name: "", phone: "", email: "", city: "", pincode: "", address: "" });
       fetchCustomers().catch(() => {});
-    } catch (err) {
-      toast.error("Failed to save guest profile to database");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Failed to save guest profile to database");
     }
   };
+
+  const handleViewCustomer = (customer: any) => {
+    setSelectedCustomerForDetail(customer);
+    setIsDetailModalOpen(true);
+  };
+
+  const handleEditCustomer = (customer: any) => {
+    setSelectedCustomerForEdit(customer);
+    setIsEditModalOpen(true);
+  };
+
+  const handleDeleteCustomer = (customer: any) => {
+    setSelectedCustomerForDelete(customer);
+    setIsDeleteModalOpen(true);
+  };
+
+  const filteredCustomers = customers.filter((c) => {
+    if (!search.trim()) return true;
+    const term = search.toLowerCase();
+    const name = (c.name || `${c.first_name || ""} ${c.last_name || ""}`).toLowerCase();
+    const phone = (c.phone || "").toLowerCase();
+    const email = (c.email || "").toLowerCase();
+    const city = (c.city || "").toLowerCase();
+    return name.includes(term) || phone.includes(term) || email.includes(term) || city.includes(term);
+  });
 
   return (
     <PageContainer>
@@ -148,10 +190,13 @@ export function CRMPage() {
       {/* ── Active Section Render ── */}
       {activeTab === "master" && (
         <CRMMasterSection
-          customers={customers}
+          customers={filteredCustomers}
           search={search}
           onSearchChange={setSearch}
           onOpenAddModal={() => setShowAddModal(true)}
+          onViewCustomer={handleViewCustomer}
+          onEditCustomer={handleEditCustomer}
+          onDeleteCustomer={handleDeleteCustomer}
         />
       )}
 
@@ -168,7 +213,7 @@ export function CRMPage() {
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">Onboard Guest Customer Profile</h3>
-            <p className="text-xs text-slate-500">Add guest profile into PostgreSQL database with loyalty rewards.</p>
+            <p className="text-xs text-slate-500">Add guest profile into PostgreSQL database with loyalty rewards and address.</p>
 
             <form onSubmit={handleAddSubmit} className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-3">
@@ -215,24 +260,101 @@ export function CRMPage() {
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-medium mb-1">City</label>
+                  <input
+                    value={newCustomer.city}
+                    onChange={(e) => setNewCustomer({ ...newCustomer, city: e.target.value })}
+                    placeholder="e.g. Mahendragarh"
+                    className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium mb-1">Pincode</label>
+                  <input
+                    value={newCustomer.pincode}
+                    onChange={(e) => setNewCustomer({ ...newCustomer, pincode: e.target.value })}
+                    placeholder="e.g. 123029"
+                    className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block font-medium mb-1">City</label>
+                <label className="block font-medium mb-1">Street Address / Landmark</label>
                 <input
-                  value={newCustomer.city}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, city: e.target.value })}
-                  placeholder="e.g. Mahendragarh"
+                  value={newCustomer.address}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, address: e.target.value })}
+                  placeholder="e.g. Flat 102, Near Bus Stand, Main Market"
                   className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950"
                 />
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 font-semibold text-slate-600 rounded-lg">Cancel</button>
-                <button type="submit" className="px-4 py-2 font-semibold bg-pink-600 text-white rounded-lg">Save to Database</button>
+                <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 font-semibold text-slate-600 rounded-lg cursor-pointer">Cancel</button>
+                <button type="submit" className="px-4 py-2 font-semibold bg-pink-600 hover:bg-pink-700 text-white rounded-lg cursor-pointer transition-colors">Save to Database</button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Customer Detail & History Modal */}
+      <CustomerDetailModal
+        isOpen={isDetailModalOpen}
+        customerId={selectedCustomerForDetail?.id || null}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedCustomerForDetail(null);
+        }}
+        onEdit={(cust) => {
+          setIsDetailModalOpen(false);
+          setSelectedCustomerForEdit(cust || selectedCustomerForDetail);
+          setIsEditModalOpen(true);
+        }}
+        onDelete={(cust) => {
+          setIsDetailModalOpen(false);
+          setSelectedCustomerForDelete(cust || selectedCustomerForDetail);
+          setIsDeleteModalOpen(true);
+        }}
+        onCustomerUpdated={() => {
+          fetchCustomers();
+        }}
+      />
+
+      {/* Customer Edit Modal */}
+      <CustomerEditModal
+        isOpen={isEditModalOpen}
+        customer={selectedCustomerForEdit}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedCustomerForEdit(null);
+        }}
+        onSuccess={(updatedCustomer) => {
+          setCustomers((prev) =>
+            prev.map((c) => (String(c.id) === String(updatedCustomer.id) ? { ...c, ...updatedCustomer } : c))
+          );
+          fetchCustomers();
+        }}
+      />
+
+      {/* Customer Soft-Delete Modal */}
+      <CustomerDeleteModal
+        isOpen={isDeleteModalOpen}
+        customer={selectedCustomerForDelete}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setSelectedCustomerForDelete(null);
+        }}
+        onSuccess={(deletedId) => {
+          setCustomers((prev) => prev.filter((c) => String(c.id) !== String(deletedId)));
+          if (selectedCustomerForDetail && String(selectedCustomerForDetail.id) === String(deletedId)) {
+            setIsDetailModalOpen(false);
+            setSelectedCustomerForDetail(null);
+          }
+        }}
+      />
 
       {/* Campaign Broadcasts Modal */}
       <CampaignModal
@@ -249,3 +371,4 @@ export function CRMPage() {
     </PageContainer>
   );
 }
+

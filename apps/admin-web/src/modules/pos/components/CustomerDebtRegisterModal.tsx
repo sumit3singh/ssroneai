@@ -115,12 +115,15 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
       setSelectedOrderIdsForSettlement([order.id]);
       setSettleAmount(order.balance_due);
     } else {
-      const unpaidOrders = (customerLedger?.orders || []).filter((o) => o.balance_due > 0);
+      const unpaidOrders = (customerLedger?.orders || []).filter((o) => (o.status || "").toLowerCase() !== "cancelled" && (o.status || "").toLowerCase() !== "void" && o.balance_due > 0);
       setSelectedOrderIdsForSettlement(unpaidOrders.map((o) => o.id));
       setSettleAmount(customerLedger?.summary?.total_balance_due || 0);
     }
     setIsSettleModalOpen(true);
   };
+
+  // Debtor list state
+  const [allCustomersDirectory, setAllCustomersDirectory] = useState<Array<{ id: number; name: string; phone: string; total_balance_due?: number }>>([]);
 
   // Fetch summary of all debtors directly from PostgreSQL
   const fetchDebtorsSummary = useCallback(async () => {
@@ -137,6 +140,23 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
       const list: DebtorSummary[] = res.debtors || [];
       setDebtors(list);
       setTotalOutstandingDebt(res.total_outstanding_debt || 0);
+
+      // Also fetch full CRM customer master to ensure all 25+ database customers appear in directory
+      try {
+        const cRes = await api.get<any>("/crm/customers", { params: { page_size: 500 } });
+        const cItems = Array.isArray(cRes) ? cRes : Array.isArray(cRes?.items) ? cRes.items : [];
+        if (cItems.length > 0) {
+          setAllCustomersDirectory(
+            cItems.map((c: any) => ({
+              id: Number(c.id),
+              name: c.name || `${c.first_name || ""} ${c.last_name || ""}`.trim() || `Customer #${c.id}`,
+              phone: c.phone || "",
+            }))
+          );
+        }
+      } catch (e) {
+        console.warn("Could not fetch CRM customer directory fallback:", e);
+      }
 
       // Auto-select first debtor if none selected
       if (selectedCustomerId === null && list.length > 0) {
@@ -209,7 +229,9 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
 
       // Construct comprehensive Debt Settlement Receipt payload
       // Strictly restrict settled bills to those that were unpaid and targeted in this settlement
-      const candidateOrders = (customerLedger.orders || []).filter((o) => o.balance_due > 0);
+      const candidateOrders = (customerLedger.orders || []).filter(
+        (o) => (o.status || "").toLowerCase() !== "cancelled" && (o.status || "").toLowerCase() !== "void" && o.balance_due > 0
+      );
       const targetOrders = selectedOrderIdsForSettlement.length > 0
         ? candidateOrders.filter((o) => selectedOrderIdsForSettlement.includes(o.id))
         : candidateOrders;
@@ -272,6 +294,8 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
   const [openingBalanceCustomerId, setOpeningBalanceCustomerId] = useState<number | null>(null);
   const [openingBalanceCustomerName, setOpeningBalanceCustomerName] = useState("");
   const [openingBalanceCustomerPhone, setOpeningBalanceCustomerPhone] = useState("");
+  const [openingBalanceCustomerAddress, setOpeningBalanceCustomerAddress] = useState("");
+  const [openingBalanceCustomerCity, setOpeningBalanceCustomerCity] = useState("");
   const [openingBalanceAmount, setOpeningBalanceAmount] = useState<string>("");
   const [openingBalanceDetailType, setOpeningBalanceDetailType] = useState<string>(
     "Previous Register / Old Khata (पुराना खाता / रजिस्टर)"
@@ -281,6 +305,37 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
   const [openingBalanceDate, setOpeningBalanceDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [isSubmittingOpeningBalance, setIsSubmittingOpeningBalance] = useState(false);
 
+  // Combined Directory containing ALL database customers + real debt figures
+  const combinedCustomerDirectory = React.useMemo(() => {
+    const map = new Map<number, { id: number; name: string; phone: string; balanceDue: number }>();
+
+    // Seed all CRM customer master profiles
+    for (const c of allCustomersDirectory) {
+      if (c.id > 0) {
+        map.set(c.id, { id: c.id, name: c.name, phone: c.phone, balanceDue: 0 });
+      }
+    }
+
+    // Overlay real balance due from active debtors summary
+    for (const d of debtors) {
+      if (d.customer_id > 0) {
+        const existing = map.get(d.customer_id);
+        map.set(d.customer_id, {
+          id: d.customer_id,
+          name: d.customer_name || existing?.name || `Customer #${d.customer_id}`,
+          phone: d.customer_phone || existing?.phone || "",
+          balanceDue: d.total_balance_due || 0,
+        });
+      }
+    }
+
+    return Array.from(map.values()).sort((a, b) => {
+      // First show customers with outstanding debt, then alphabetically
+      if (b.balanceDue !== a.balanceDue) return b.balanceDue - a.balanceDue;
+      return a.name.localeCompare(b.name);
+    });
+  }, [allCustomersDirectory, debtors]);
+
   const handleOpenOpeningBalanceModal = (targetCust?: any) => {
     const cust = targetCust || (customerLedger && customerLedger.customer.id !== 0 ? customerLedger.customer : null);
     if (cust && cust.id !== 0) {
@@ -289,13 +344,13 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
       setOpeningBalanceCustomerName(cust.name);
       setOpeningBalanceCustomerPhone(cust.phone);
     } else {
-      if (debtors.length > 0 && selectedCustomerId && selectedCustomerId !== 0) {
-        const found = debtors.find((d) => d.customer_id === selectedCustomerId);
+      if (combinedCustomerDirectory.length > 0 && selectedCustomerId && selectedCustomerId !== 0) {
+        const found = combinedCustomerDirectory.find((d) => d.id === selectedCustomerId);
         if (found) {
           setOpeningBalanceCustomerMode("existing");
-          setOpeningBalanceCustomerId(found.customer_id);
-          setOpeningBalanceCustomerName(found.customer_name);
-          setOpeningBalanceCustomerPhone(found.customer_phone);
+          setOpeningBalanceCustomerId(found.id);
+          setOpeningBalanceCustomerName(found.name);
+          setOpeningBalanceCustomerPhone(found.phone);
         } else {
           setOpeningBalanceCustomerMode("new");
           setOpeningBalanceCustomerId(null);
@@ -309,6 +364,8 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
         setOpeningBalanceCustomerPhone("");
       }
     }
+    setOpeningBalanceCustomerAddress("");
+    setOpeningBalanceCustomerCity("");
     setOpeningBalanceAmount("");
     setOpeningBalanceDetailType("Previous Register / Old Khata (पुराना खाता / रजिस्टर)");
     setOpeningBalanceCustomDetailType("");
@@ -337,10 +394,10 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
         return;
       }
       effCustomerId = openingBalanceCustomerId;
-      const found = debtors.find((d) => d.customer_id === effCustomerId);
+      const found = combinedCustomerDirectory.find((d) => d.id === effCustomerId);
       if (found) {
-        effCustomerName = found.customer_name;
-        effCustomerPhone = found.customer_phone;
+        effCustomerName = found.name;
+        effCustomerPhone = found.phone;
       }
     } else {
       if (!effCustomerPhone) {
@@ -364,6 +421,8 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
         customer_id: effCustomerId,
         customer_name: effCustomerName,
         customer_phone: effCustomerPhone,
+        address: openingBalanceCustomerAddress.trim() || undefined,
+        city: openingBalanceCustomerCity.trim() || undefined,
         amount: amt,
         debt_detail_type: effType,
         notes: openingBalanceNotes.trim() || undefined,
@@ -724,7 +783,7 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                             : "text-muted-foreground hover:text-foreground"
                         }`}
                       >
-                        Unpaid Only ({customerLedger.orders.filter((o) => o.balance_due > 0).length})
+                        Unpaid Only ({customerLedger.orders.filter((o) => o.status !== "cancelled" && o.status !== "void" && o.balance_due > 0).length})
                       </button>
                       <button
                         type="button"
@@ -746,7 +805,7 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                             : "text-muted-foreground hover:text-foreground"
                         }`}
                       >
-                        Paid ({customerLedger.orders.filter((o) => o.balance_due <= 0).length})
+                        Paid ({customerLedger.orders.filter((o) => o.status !== "cancelled" && o.status !== "void" && o.balance_due <= 0).length})
                       </button>
                     </div>
                   )}
@@ -755,8 +814,8 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                 {/* Tab Content */}
                 <div className="flex-1 overflow-y-auto p-4 scrollbar-thin">
                   {activeLedgerTab === "bills" && (() => {
-                    const unpaidList = customerLedger.orders.filter((o) => o.balance_due > 0);
-                    const paidList = customerLedger.orders.filter((o) => o.balance_due <= 0);
+                    const unpaidList = customerLedger.orders.filter((o) => o.status !== "cancelled" && o.status !== "void" && o.balance_due > 0);
+                    const paidList = customerLedger.orders.filter((o) => o.status !== "cancelled" && o.status !== "void" && o.balance_due <= 0);
                     const displayedBills =
                       billStatusFilter === "unpaid"
                         ? unpaidList
@@ -807,7 +866,8 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                               </thead>
                               <tbody className="divide-y divide-border">
                                 {displayedBills.map((ord) => {
-                                  const hasDebt = ord.balance_due > 0;
+                                  const isCancelled = (ord.status || "").toLowerCase() === "cancelled" || (ord.status || "").toLowerCase() === "void";
+                                  const hasDebt = !isCancelled && ord.balance_due > 0;
                                   const isOpeningBalance =
                                     ord.order_type === "OPENING_BALANCE" ||
                                     (Boolean(ord.order_number) && ord.order_number.startsWith("OPEN-"));
@@ -815,7 +875,9 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                                     <tr
                                       key={ord.id}
                                       className={`hover:bg-muted/20 transition-colors ${
-                                        isOpeningBalance
+                                        isCancelled
+                                          ? "opacity-60 bg-muted/10 line-through-none"
+                                          : isOpeningBalance
                                           ? "bg-amber-500/10 font-medium border-l-2 border-l-amber-500"
                                           : hasDebt
                                           ? "bg-amber-500/5 font-medium"
@@ -825,7 +887,12 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                                       <td className="p-2.5 font-mono font-bold text-foreground whitespace-nowrap">
                                         <div className="flex items-center gap-1.5 flex-wrap">
                                           <span>{ord.order_number}</span>
-                                          {isOpeningBalance && (
+                                          {isCancelled && (
+                                            <span className="px-1.5 py-0.2 rounded text-[9px] font-sans font-bold bg-destructive/15 text-destructive border border-destructive/25">
+                                              CANCELLED
+                                            </span>
+                                          )}
+                                          {isOpeningBalance && !isCancelled && (
                                             <span className="px-1.5 py-0.2 rounded text-[9px] font-sans font-black bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                                               PURANA UDHAR
                                             </span>
@@ -866,24 +933,32 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                                       </td>
                                       <td className="p-2.5 text-right font-mono font-bold whitespace-nowrap">
                                         <span className={hasDebt ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}>
-                                          ₹{ord.balance_due.toLocaleString("en-IN")}
+                                          ₹{(isCancelled ? 0 : ord.balance_due).toLocaleString("en-IN")}
                                         </span>
                                       </td>
                                       <td className="p-2.5 text-center whitespace-nowrap">
-                                        <span
-                                          className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase border ${
-                                            ord.payment_status === "paid"
-                                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                                              : ord.payment_status === "partial"
-                                              ? "bg-blue-500/10 text-blue-600 border-blue-500/20"
-                                              : "bg-amber-500/10 text-amber-600 border-amber-500/20"
-                                          }`}
-                                        >
-                                          {ord.payment_status || "UNPAID"}
-                                        </span>
+                                        {isCancelled ? (
+                                          <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase bg-destructive/10 text-destructive border border-destructive/20">
+                                            CANCELLED
+                                          </span>
+                                        ) : (
+                                          <span
+                                            className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase border ${
+                                              ord.payment_status === "paid"
+                                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                                : ord.payment_status === "partial"
+                                                ? "bg-blue-500/10 text-blue-600 border-blue-500/20"
+                                                : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                                            }`}
+                                          >
+                                            {ord.payment_status || "UNPAID"}
+                                          </span>
+                                        )}
                                       </td>
                                       <td className="p-2.5 text-center whitespace-nowrap">
-                                        {hasDebt ? (
+                                        {isCancelled ? (
+                                          <span className="text-[10px] text-muted-foreground font-mono">Void</span>
+                                        ) : hasDebt ? (
                                           <button
                                             type="button"
                                             onClick={() => openSettleModal(ord)}
@@ -1329,59 +1404,90 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
               {/* Customer Input Section */}
               {openingBalanceCustomerMode === "existing" ? (
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground block mb-1">
-                    Choose Customer from Directory:
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-bold text-muted-foreground block">
+                      Choose Customer from Directory:
+                    </label>
+                    <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400">
+                      {combinedCustomerDirectory.length} Guests Available
+                    </span>
+                  </div>
                   <select
                     value={openingBalanceCustomerId || ""}
                     onChange={(e) => {
                       const id = Number(e.target.value);
                       setOpeningBalanceCustomerId(id);
-                      const found = debtors.find((d) => d.customer_id === id);
+                      const found = combinedCustomerDirectory.find((d) => d.id === id);
                       if (found) {
-                        setOpeningBalanceCustomerName(found.customer_name);
-                        setOpeningBalanceCustomerPhone(found.customer_phone);
+                        setOpeningBalanceCustomerName(found.name);
+                        setOpeningBalanceCustomerPhone(found.phone);
                       }
                     }}
                     className="w-full h-9 rounded-lg border border-border bg-background px-3 text-xs font-medium focus:ring-1 focus:ring-primary focus:outline-none"
                   >
-                    <option value="" disabled>-- Select Customer --</option>
-                    {debtors
-                      .filter((d) => d.customer_id !== 0)
-                      .map((d) => (
-                        <option key={d.customer_id} value={d.customer_id}>
-                          {d.customer_name} ({d.customer_phone}) — Current Due: ₹{d.total_balance_due.toLocaleString("en-IN")}
-                        </option>
-                      ))}
+                    <option value="" disabled>-- Select Customer ({combinedCustomerDirectory.length} in database) --</option>
+                    {combinedCustomerDirectory.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.phone}) {c.balanceDue > 0 ? `— Current Due: ₹${c.balanceDue.toLocaleString("en-IN")}` : "— No Debt (₹0)"}
+                      </option>
+                    ))}
                   </select>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] font-bold text-muted-foreground block mb-1">
-                      Customer Name (नाम) *
-                    </label>
-                    <Input
-                      type="text"
-                      placeholder="e.g. Aman"
-                      value={openingBalanceCustomerName}
-                      onChange={(e) => setOpeningBalanceCustomerName(e.target.value)}
-                      className="h-8 text-xs bg-background"
-                      required
-                    />
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-bold text-muted-foreground block mb-1">
+                        Customer Name (नाम) *
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="e.g. Ajay"
+                        value={openingBalanceCustomerName}
+                        onChange={(e) => setOpeningBalanceCustomerName(e.target.value)}
+                        className="h-8 text-xs bg-background"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-muted-foreground block mb-1">
+                        Mobile Number (मोबाइल नं.) *
+                      </label>
+                      <Input
+                        type="tel"
+                        placeholder="e.g. 8930850777"
+                        value={openingBalanceCustomerPhone}
+                        onChange={(e) => setOpeningBalanceCustomerPhone(e.target.value)}
+                        className="h-8 text-xs font-mono bg-background"
+                        required
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-muted-foreground block mb-1">
-                      Mobile Number (मोबाइल नं.) *
-                    </label>
-                    <Input
-                      type="tel"
-                      placeholder="e.g. 8278482476"
-                      value={openingBalanceCustomerPhone}
-                      onChange={(e) => setOpeningBalanceCustomerPhone(e.target.value)}
-                      className="h-8 text-xs font-mono bg-background"
-                      required
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-bold text-muted-foreground block mb-1">
+                        Address / Street (पता / मोहल्ला)
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="e.g. Near Bus Stand, Main Market"
+                        value={openingBalanceCustomerAddress}
+                        onChange={(e) => setOpeningBalanceCustomerAddress(e.target.value)}
+                        className="h-8 text-xs bg-background"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-muted-foreground block mb-1">
+                        City (शहर)
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="e.g. Mahendragarh"
+                        value={openingBalanceCustomerCity}
+                        onChange={(e) => setOpeningBalanceCustomerCity(e.target.value)}
+                        className="h-8 text-xs bg-background"
+                      />
+                    </div>
                   </div>
                 </div>
               )}

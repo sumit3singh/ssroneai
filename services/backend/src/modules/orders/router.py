@@ -27,7 +27,7 @@ from src.modules.orders.models import (
     Order, OrderItem, OrderPayment, OrderStatus, DiningTable,
     DailyOrderSequence, QueueToken, KitchenStation, KOT, KOTItem, OrderStatusLog
 )
-from src.modules.crm.models import Customer
+from src.modules.crm.models import Customer, CustomerAddress
 from src.shared.logger import get_logger
 
 logger = get_logger(__name__)
@@ -1470,6 +1470,7 @@ async def cancel_order(
     order.status = OrderStatus.CANCELLED
     order.cancelled_at = datetime.now(timezone.utc)
     order.cancellation_reason = reason
+    order.balance_due = Decimal("0.00")
     order.updated_by = current_user.id
 
     logger.info("Order cancelled", order_id=str(order_id), reason=reason)
@@ -1665,6 +1666,7 @@ async def update_order_status(
             order.metadata_payload["payment_method"] = pm_str.upper() if pm_str else "CASH"
         elif order.status == "cancelled":
             order.cancelled_at = datetime.now(timezone.utc)
+            order.balance_due = Decimal("0.00")
 
     # Automatically free dining table if order is completed or cancelled
     if order.status in ("completed", "paid", "cancelled"):
@@ -1726,6 +1728,9 @@ class CustomerOpeningBalanceSchema(BaseModel):
     customer_name: str | None = None
     customer_phone: str | None = None
     customer_email: str | None = None
+    address: str | None = None
+    city: str | None = None
+    pincode: str | None = None
     amount: Decimal = Field(gt=0, description="Opening balance / previous debt amount")
     debt_detail_type: str = Field(default="Previous Register / Old Khata", description="Detail type e.g. Old Khata, Notebook Udhar, Migration")
     notes: str | None = Field(default=None, description="Detailed remarks/notes where user writes specifics")
@@ -1737,7 +1742,7 @@ class CustomerOpeningBalanceSchema(BaseModel):
 async def get_customer_debts_summary(
     search: str | None = None,
     branch_id: int | None = None,
-    include_all_customers: bool = False,
+    include_all_customers: bool = True,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
@@ -1758,20 +1763,21 @@ async def get_customer_debts_summary(
     customers = c_res.scalars().all()
     customers_map = {c.id: c for c in customers}
 
-    # 2. Aggregate real order finances grouped by customer_id
+    # 2. Aggregate real order finances grouped by customer_id (STRICTLY EXCLUDE CANCELLED/VOID ORDERS)
     agg_query = (
         select(
             Order.customer_id,
             func.count(Order.id).label("total_orders_count"),
-            func.count(case((Order.balance_due > 0, Order.id))).label("unpaid_orders_count"),
-            func.sum(Order.grand_total).label("total_billed"),
-            func.sum(Order.amount_paid).label("total_paid"),
-            func.sum(Order.balance_due).label("total_balance_due"),
-            func.max(Order.created_at).label("last_order_date"),
+            func.count(case((and_(Order.balance_due > 0, Order.status.not_in(["cancelled", "void"])), Order.id))).label("unpaid_orders_count"),
+            func.sum(case((Order.status.not_in(["cancelled", "void"]), Order.grand_total), else_=0)).label("total_billed"),
+            func.sum(case((Order.status.not_in(["cancelled", "void"]), Order.amount_paid), else_=0)).label("total_paid"),
+            func.sum(case((Order.status.not_in(["cancelled", "void"]), Order.balance_due), else_=0)).label("total_balance_due"),
+            func.max(case((Order.status.not_in(["cancelled", "void"]), Order.created_at), else_=None)).label("last_order_date"),
         )
         .where(
             Order.tenant_id == tenant_id,
             Order.customer_id.is_not(None),
+            Order.status.not_in(["cancelled", "void"]),
             (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
         )
         .group_by(Order.customer_id)
@@ -1795,7 +1801,7 @@ async def get_customer_debts_summary(
             Order.tenant_id == tenant_id,
             Order.customer_id.is_(None),
             Order.balance_due > 0,
-            Order.status.not_in(["cancelled"]),
+            Order.status.not_in(["cancelled", "void"]),
             (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
         )
     )
@@ -1959,14 +1965,17 @@ async def get_customer_debt_ledger(
     )
     orders = orders_res.scalars().all()
 
-    total_billed = sum(o.grand_total for o in orders)
-    total_paid = sum(o.amount_paid for o in orders)
-    total_due = sum(o.balance_due for o in orders)
+    active_orders = [o for o in orders if (o.status or "").lower() not in ("cancelled", "void")]
+    total_billed = sum(o.grand_total for o in active_orders)
+    total_paid = sum(o.amount_paid for o in active_orders)
+    total_due = sum(o.balance_due for o in active_orders)
 
     orders_list = []
     payments_list = []
 
     for o in orders:
+        is_cancelled = (o.status or "").lower() in ("cancelled", "void")
+        eff_bal_due = 0.0 if is_cancelled else float(o.balance_due)
         orders_list.append({
             "id": o.id,
             "order_number": o.order_number,
@@ -1974,9 +1983,9 @@ async def get_customer_debt_ledger(
             "table_id": o.table_id,
             "grand_total": float(o.grand_total),
             "amount_paid": float(o.amount_paid),
-            "balance_due": float(o.balance_due),
+            "balance_due": eff_bal_due,
             "status": o.status,
-            "payment_status": o.payment_status,
+            "payment_status": "cancelled" if is_cancelled else o.payment_status,
             "created_at": o.created_at.isoformat() if o.created_at else None,
             "items_count": len(o.items),
             "items_summary": ", ".join(f"{int(it.quantity) if it.quantity == int(it.quantity) else it.quantity}x {it.name}" for it in o.items[:4]) + ("..." if len(o.items) > 4 else ""),
@@ -2011,7 +2020,7 @@ async def get_customer_debt_ledger(
             "total_billed": float(total_billed),
             "total_paid": float(total_paid),
             "total_balance_due": float(total_due),
-            "unpaid_orders_count": sum(1 for o in orders if o.balance_due > 0),
+            "unpaid_orders_count": sum(1 for o in active_orders if o.balance_due > 0),
             "total_orders_count": len(orders),
         },
         "orders": orders_list,
@@ -2043,6 +2052,7 @@ async def settle_customer_debt(
                 Order.tenant_id == tenant_id,
                 Order.customer_id == body.customer_id,
                 Order.balance_due > 0,
+                Order.status.not_in(["cancelled", "void"]),
                 (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
             )
             .order_by(Order.created_at.asc())
@@ -2055,7 +2065,7 @@ async def settle_customer_debt(
                 Order.tenant_id == tenant_id,
                 Order.customer_id.is_(None),
                 Order.balance_due > 0,
-                Order.status.not_in(["cancelled"]),
+                Order.status.not_in(["cancelled", "void"]),
                 (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
             )
             .order_by(Order.created_at.asc())
@@ -2116,12 +2126,13 @@ async def settle_customer_debt(
     rem_q = select(func.coalesce(func.sum(Order.balance_due), Decimal("0.00"))).where(
         Order.tenant_id == tenant_id,
         Order.balance_due > 0,
+        Order.status.not_in(["cancelled", "void"]),
         (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
     )
     if body.customer_id != 0:
         rem_q = rem_q.where(Order.customer_id == body.customer_id)
     else:
-        rem_q = rem_q.where(Order.customer_id.is_(None), Order.status.not_in(["cancelled"]))
+        rem_q = rem_q.where(Order.customer_id.is_(None))
     rem_res = await db.execute(rem_q)
     new_remaining_debt = rem_res.scalar() or Decimal("0.00")
 
@@ -2187,13 +2198,31 @@ async def create_customer_opening_balance(
         if not customer:
             customer = Customer(
                 tenant_id=tenant_id,
+                company_id=getattr(current_user, "company_id", None) or 1,
                 branch_id=branch_id,
                 name=name_clean,
                 phone=phone_clean,
                 email=body.customer_email.strip() if body.customer_email else None,
+                city=body.city.strip() if body.city else None,
+                pincode=body.pincode.strip() if body.pincode else None,
+                address={"fullAddress": body.address.strip()} if body.address else {},
+                loyalty_points=0,
             )
             db.add(customer)
             await db.flush()
+
+            if body.address and body.address.strip():
+                addr_rec = CustomerAddress(
+                    tenant_id=tenant_id,
+                    customer_id=customer.id,
+                    label="Default",
+                    area_street=body.address.strip(),
+                    city=body.city or "Mahendragarh",
+                    pincode=body.pincode,
+                    is_default=True,
+                )
+                db.add(addr_rec)
+                await db.flush()
 
     # 2. Determine timestamps & order number
     now_dt = datetime.now(timezone.utc)

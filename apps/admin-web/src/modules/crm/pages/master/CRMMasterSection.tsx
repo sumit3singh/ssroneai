@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { Users, Plus, Search, ShieldCheck, Phone, Mail, Award, CheckCircle2 } from "lucide-react";
+import { Users, Plus, Search, ShieldCheck, Phone, Mail, Award, CheckCircle2, Eye, Edit, Trash2, MapPin } from "lucide-react";
 import { Button, Input, Badge } from "@ssrone/ui";
 import { formatCurrency, getInitials } from "@/shared/utils/formatters";
 
 interface Customer {
-  id: string;
+  id: string | number;
   name?: string;
   first_name?: string;
   last_name?: string;
@@ -13,6 +13,8 @@ interface Customer {
   loyalty_tier?: string;
   loyalty_points?: number;
   city?: string | null;
+  pincode?: string | null;
+  address?: any;
 }
 
 interface CRMMasterSectionProps {
@@ -20,6 +22,9 @@ interface CRMMasterSectionProps {
   search: string;
   onSearchChange: (v: string) => void;
   onOpenAddModal: () => void;
+  onViewCustomer?: (customer: Customer) => void;
+  onEditCustomer?: (customer: Customer) => void;
+  onDeleteCustomer?: (customer: Customer) => void;
 }
 
 const TIER_COLOR: Record<string, string> = {
@@ -37,6 +42,9 @@ export const CRMMasterSection: React.FC<CRMMasterSectionProps> = ({
   search,
   onSearchChange,
   onOpenAddModal,
+  onViewCustomer,
+  onEditCustomer,
+  onDeleteCustomer,
 }) => {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
@@ -76,28 +84,74 @@ export const CRMMasterSection: React.FC<CRMMasterSectionProps> = ({
                 return (
                   <div
                     key={c.id}
-                    className="p-3.5 rounded-md border border-border bg-card shadow-2xs hover:border-primary/40 transition-colors space-y-2.5"
+                    className="p-3.5 rounded-xl border border-border bg-card shadow-2xs hover:border-primary/40 transition-all space-y-2.5 group"
                   >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded bg-primary/10 border border-primary/20 text-primary font-bold flex items-center justify-center text-xs">
-                        {getInitials(c.name ? c.name.split(" ")[0] : c.first_name || "", c.name ? (c.name.split(" ")[1] || "") : c.last_name || "")}
+                    <div className="flex items-start justify-between gap-2">
+                      <div
+                        onClick={() => onViewCustomer?.(c)}
+                        className="flex items-center gap-2.5 cursor-pointer min-w-0"
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 text-primary font-bold flex items-center justify-center text-xs shrink-0 group-hover:scale-105 transition-transform">
+                          {getInitials(c.name ? c.name.split(" ")[0] : c.first_name || "", c.name ? (c.name.split(" ")[1] || "") : c.last_name || "")}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-xs text-foreground truncate hover:text-primary transition-colors">
+                            {displayName}
+                          </h4>
+                          <span className="text-[9px] font-mono uppercase px-1.5 py-0.2 rounded border bg-muted text-muted-foreground border-border">
+                            {tier} Tier
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-semibold text-xs text-foreground">{displayName}</h4>
-                        <span className="text-[10px] font-mono uppercase px-1.5 py-0.2 rounded border bg-muted text-muted-foreground border-border">
-                          {tier} Tier
-                        </span>
+
+                      {/* Action Icon Buttons */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => onViewCustomer?.(c)}
+                          className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                          title="View Full Profile Details & Ledger"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onEditCustomer?.(c)}
+                          className="p-1 rounded text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                          title="Edit Customer Profile"
+                        >
+                          <Edit size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteCustomer?.(c)}
+                          className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                          title="Delete Customer Profile"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
 
                     <div className="text-xs space-y-0.5 text-muted-foreground border-t border-b border-border py-2">
-                      <p className="flex items-center gap-1.5"><Phone className="w-3 h-3 text-muted-foreground" /> {c.phone || "No Phone"}</p>
-                      <p className="flex items-center gap-1.5"><Mail className="w-3 h-3 text-muted-foreground" /> {c.email || "No Email"}</p>
+                      <p className="flex items-center gap-1.5 font-mono text-[11px]">
+                        <Phone className="w-3 h-3 text-muted-foreground shrink-0" /> {c.phone || "No Phone"}
+                      </p>
+                      {c.email && (
+                        <p className="flex items-center gap-1.5 truncate text-[11px]">
+                          <Mail className="w-3 h-3 text-muted-foreground shrink-0" /> {c.email}
+                        </p>
+                      )}
+                      {c.city && (
+                        <p className="flex items-center gap-1.5 text-[11px]">
+                          <MapPin className="w-3 h-3 text-muted-foreground shrink-0" /> {c.city}
+                        </p>
+                      )}
                     </div>
 
-                    <div className="flex items-center justify-between pt-0.5 font-mono text-xs">
-                      <span className="text-muted-foreground text-[11px]">Loyalty Balance</span>
-                      <span className="font-bold text-foreground">{points} pts</span>
+                    <div className="flex items-center justify-between pt-0.5 text-xs font-mono">
+                      <span className="text-muted-foreground text-[11px] font-sans">Loyalty Balance</span>
+                      <span className="font-bold text-primary">{points} pts</span>
                     </div>
                   </div>
                 );
