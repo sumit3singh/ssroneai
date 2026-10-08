@@ -15,7 +15,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel, Field, model_validator
 
-from sqlalchemy import func, select, case, or_
+from sqlalchemy import func, select, case, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -1768,11 +1768,11 @@ async def get_customer_debts_summary(
         select(
             Order.customer_id,
             func.count(Order.id).label("total_orders_count"),
-            func.count(case((and_(Order.balance_due > 0, Order.status.not_in(["cancelled", "void"])), Order.id))).label("unpaid_orders_count"),
-            func.sum(case((Order.status.not_in(["cancelled", "void"]), Order.grand_total), else_=0)).label("total_billed"),
-            func.sum(case((Order.status.not_in(["cancelled", "void"]), Order.amount_paid), else_=0)).label("total_paid"),
-            func.sum(case((Order.status.not_in(["cancelled", "void"]), Order.balance_due), else_=0)).label("total_balance_due"),
-            func.max(case((Order.status.not_in(["cancelled", "void"]), Order.created_at), else_=None)).label("last_order_date"),
+            func.count(case((Order.balance_due > 0, Order.id), else_=None)).label("unpaid_orders_count"),
+            func.sum(Order.grand_total).label("total_billed"),
+            func.sum(Order.amount_paid).label("total_paid"),
+            func.sum(Order.balance_due).label("total_balance_due"),
+            func.max(Order.created_at).label("last_order_date"),
         )
         .where(
             Order.tenant_id == tenant_id,
@@ -1829,8 +1829,8 @@ async def get_customer_debts_summary(
         if b_due > 0 or search or include_all_customers:
             debtors.append({
                 "customer_id": c.id,
-                "customer_name": c.name,
-                "customer_phone": c.phone,
+                "customer_name": c.name or f"Customer #{c.id}",
+                "customer_phone": c.phone or "",
                 "customer_email": c.email,
                 "unpaid_orders_count": unpaid_count,
                 "total_billed": total_billed,
@@ -1856,7 +1856,7 @@ async def get_customer_debts_summary(
         })
 
     # Sort: highest balance due first, then alphabetically
-    debtors.sort(key=lambda x: (-x["total_balance_due"], x["customer_name"]))
+    debtors.sort(key=lambda x: (-x["total_balance_due"], x["customer_name"] or ""))
 
     return {
         "total_outstanding_debt": float(total_market_debt),

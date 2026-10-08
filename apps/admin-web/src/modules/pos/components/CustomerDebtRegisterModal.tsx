@@ -130,20 +130,30 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
     setIsLoadingSummary(true);
     try {
       const activeBranchId = localStorage.getItem("active_branch_id");
-      const res = await api.get<any>("/orders/debts/summary", {
-        params: {
-          search: searchQuery.trim() || undefined,
-          branch_id: activeBranchId ? Number(activeBranchId) : undefined,
-          include_all_customers: true,
-        },
-      });
-      const list: DebtorSummary[] = res.debtors || [];
-      setDebtors(list);
-      setTotalOutstandingDebt(res.total_outstanding_debt || 0);
 
-      // Also fetch full CRM customer master to ensure all 25+ database customers appear in directory
-      try {
-        const cRes = await api.get<any>("/crm/customers", { params: { page_size: 500 } });
+      const [debtsOutcome, crmOutcome] = await Promise.allSettled([
+        api.get<any>("/orders/debts/summary", {
+          params: {
+            search: searchQuery.trim() || undefined,
+            branch_id: activeBranchId ? Number(activeBranchId) : undefined,
+            include_all_customers: true,
+          },
+        }),
+        api.get<any>("/crm/customers", { params: { page_size: 500 } }),
+      ]);
+
+      let list: DebtorSummary[] = [];
+
+      if (debtsOutcome.status === "fulfilled" && debtsOutcome.value) {
+        list = debtsOutcome.value.debtors || [];
+        setDebtors(list);
+        setTotalOutstandingDebt(debtsOutcome.value.total_outstanding_debt || 0);
+      } else if (debtsOutcome.status === "rejected") {
+        console.error("Failed to fetch customer debts summary", debtsOutcome.reason);
+      }
+
+      if (crmOutcome.status === "fulfilled" && crmOutcome.value) {
+        const cRes = crmOutcome.value;
         const cItems = Array.isArray(cRes) ? cRes : Array.isArray(cRes?.items) ? cRes.items : [];
         if (cItems.length > 0) {
           setAllCustomersDirectory(
@@ -154,8 +164,12 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
             }))
           );
         }
-      } catch (e) {
-        console.warn("Could not fetch CRM customer directory fallback:", e);
+      } else if (crmOutcome.status === "rejected") {
+        console.warn("Could not fetch CRM customer directory fallback:", crmOutcome.reason);
+      }
+
+      if (debtsOutcome.status === "rejected" && crmOutcome.status === "rejected") {
+        toast.error("Failed to load customer debts register");
       }
 
       // Auto-select first debtor if none selected
@@ -164,7 +178,6 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
       }
     } catch (err: any) {
       console.error("Failed to fetch customer debts summary", err);
-      toast.error("Failed to load customer debts register");
     } finally {
       setIsLoadingSummary(false);
     }
