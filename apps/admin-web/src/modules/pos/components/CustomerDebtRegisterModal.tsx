@@ -514,7 +514,13 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
       onRefreshData?.();
     } catch (err: any) {
       console.error("Failed to record opening balance", err);
-      toast.error(err.response?.data?.detail || "Failed to record opening balance. Please check inputs.");
+      const rawDetail = err.response?.data?.detail;
+      const msg = typeof rawDetail === "string"
+        ? rawDetail
+        : Array.isArray(rawDetail)
+        ? rawDetail.map((d: any) => d.msg || JSON.stringify(d)).join(", ")
+        : err.response?.data?.message || err.message || "Failed to record opening balance. Please check inputs.";
+      toast.error(msg);
     } finally {
       setIsSubmittingOpeningBalance(false);
     }

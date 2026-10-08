@@ -24,7 +24,7 @@ from src.core.event_bus.bus import event_bus, order_created_event
 from src.modules.auth.dependencies import get_current_user, RequirePermission, get_optional_user
 from src.modules.auth.models import User, Tenant
 from src.modules.orders.models import (
-    Order, OrderItem, OrderPayment, OrderStatus, DiningTable,
+    Order, OrderItem, OrderPayment, OrderStatus, PaymentStatus, DiningTable,
     DailyOrderSequence, QueueToken, KitchenStation, KOT, KOTItem, OrderStatusLog
 )
 from src.modules.crm.models import Customer, CustomerAddress
@@ -2240,8 +2240,8 @@ async def create_customer_opening_balance(
         customer_id=customer.id,
         order_number=order_number,
         order_type="OPENING_BALANCE",
-        status=OrderStatus.COMPLETED,
-        payment_status=PaymentStatus.UNPAID,
+        status=OrderStatus.COMPLETED.value if hasattr(OrderStatus.COMPLETED, "value") else "completed",
+        payment_status=PaymentStatus.UNPAID.value if hasattr(PaymentStatus.UNPAID, "value") else "unpaid",
         guest_count=1,
         subtotal=body.amount,
         taxable_amount=body.amount,
@@ -2272,7 +2272,7 @@ async def create_customer_opening_balance(
         product_id=0,
         product_name=item_title,
         item_name=item_title,
-        quantity=Decimal("1.000"),
+        quantity=1,
         unit_price=body.amount,
         line_total=body.amount,
         total_price=body.amount,
