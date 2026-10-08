@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   BookOpen, X, Search, RefreshCw, User, Phone, ArrowUpRight, CheckCircle2,
   DollarSign, QrCode, CreditCard, Building, AlertCircle, Receipt, ArrowRight,
-  Clock, ShieldAlert, Sparkles, Filter, Printer, PlusCircle, Calendar, Tag
+  Clock, ShieldAlert, Sparkles, Filter, Printer, PlusCircle, Calendar, Tag, ChevronDown
 } from "lucide-react";
 import { Button, Input } from "@ssrone/ui";
 import { api } from "@ssrone/api-client";
@@ -317,8 +317,21 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
   const [openingBalanceNotes, setOpeningBalanceNotes] = useState("");
   const [openingBalanceDate, setOpeningBalanceDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [isSubmittingOpeningBalance, setIsSubmittingOpeningBalance] = useState(false);
-  const [directorySearchQuery, setDirectorySearchQuery] = useState("");
+  const [isComboboxOpen, setIsComboboxOpen] = useState(false);
+  const [comboboxSearch, setComboboxSearch] = useState("");
+  const comboboxRef = useRef<HTMLDivElement>(null);
   const [isSavingCustomerOnly, setIsSavingCustomerOnly] = useState(false);
+
+  // Close combobox when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (comboboxRef.current && !comboboxRef.current.contains(e.target as Node)) {
+        setIsComboboxOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Combined Directory containing ALL database customers + real debt figures
   const combinedCustomerDirectory = React.useMemo(() => {
@@ -352,12 +365,12 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
   }, [allCustomersDirectory, debtors]);
 
   const modalFilteredDirectory = React.useMemo(() => {
-    if (!directorySearchQuery.trim()) return combinedCustomerDirectory;
-    const q = directorySearchQuery.toLowerCase().trim();
+    if (!comboboxSearch.trim()) return combinedCustomerDirectory;
+    const q = comboboxSearch.toLowerCase().trim();
     return combinedCustomerDirectory.filter(
       (c) => c.name.toLowerCase().includes(q) || c.phone.includes(q)
     );
-  }, [combinedCustomerDirectory, directorySearchQuery]);
+  }, [combinedCustomerDirectory, comboboxSearch]);
 
   const handleSaveCustomerOnly = async () => {
     if (isSavingCustomerOnly) return;
@@ -1460,87 +1473,145 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
 
               {/* Customer Input Section */}
               {openingBalanceCustomerMode === "existing" ? (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between mb-0.5">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between mb-1">
                     <label className="text-[10px] font-bold text-muted-foreground block">
-                      Choose Customer from Directory:
+                      Choose Customer (नाम या मोबाइल नं. से खोजें व चुनें):
                     </label>
                     <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400">
-                      {modalFilteredDirectory.length} of {combinedCustomerDirectory.length} Guests
+                      {combinedCustomerDirectory.length} Guests in Database
                     </span>
                   </div>
 
-                  {/* Search Input by Name or Mobile No */}
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="Search by name or mobile number (e.g. Aman, 893085...)..."
-                      value={directorySearchQuery}
-                      onChange={(e) => setDirectorySearchQuery(e.target.value)}
-                      className="h-8 pl-8 pr-7 text-xs bg-background"
-                    />
-                    {directorySearchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => setDirectorySearchQuery("")}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs cursor-pointer font-bold"
-                        title="Clear search"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Dropdown Select */}
-                  <select
-                    value={openingBalanceCustomerId || ""}
-                    onChange={(e) => {
-                      const id = Number(e.target.value);
-                      setOpeningBalanceCustomerId(id);
-                      const found = combinedCustomerDirectory.find((d) => d.id === id);
-                      if (found) {
-                        setOpeningBalanceCustomerName(found.name);
-                        setOpeningBalanceCustomerPhone(found.phone);
-                      }
-                    }}
-                    className="w-full h-9 rounded-lg border border-border bg-background px-3 text-xs font-medium focus:ring-1 focus:ring-primary focus:outline-none"
-                  >
-                    <option value="" disabled>-- Select Customer ({modalFilteredDirectory.length} in list) --</option>
-                    {modalFilteredDirectory.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.phone}) {c.balanceDue > 0 ? `— Current Due: ₹${c.balanceDue.toLocaleString("en-IN")}` : "— No Debt (₹0)"}
-                      </option>
-                    ))}
-                  </select>
-
-                  {/* Quick Select Pills when searching */}
-                  {directorySearchQuery && modalFilteredDirectory.length > 0 && modalFilteredDirectory.length <= 8 && (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {modalFilteredDirectory.map((c) => (
+                  {/* Single Unified Searchable Combobox */}
+                  <div ref={comboboxRef} className="relative">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder={
+                          openingBalanceCustomerName
+                            ? `Current: ${openingBalanceCustomerName} (${openingBalanceCustomerPhone}) — Type to search...`
+                            : "Search & choose customer by name or mobile (e.g. Aman, 893085...)..."
+                        }
+                        value={
+                          isComboboxOpen
+                            ? comboboxSearch
+                            : openingBalanceCustomerId
+                            ? (() => {
+                                const found = combinedCustomerDirectory.find((c) => c.id === openingBalanceCustomerId);
+                                return found
+                                  ? `${found.name} (${found.phone})${found.balanceDue > 0 ? ` — Current Due: ₹${found.balanceDue.toLocaleString("en-IN")}` : " — No Debt (₹0)"}`
+                                  : "";
+                              })()
+                            : ""
+                        }
+                        onFocus={() => {
+                          setIsComboboxOpen(true);
+                          setComboboxSearch("");
+                        }}
+                        onChange={(e) => {
+                          setComboboxSearch(e.target.value);
+                          if (!isComboboxOpen) setIsComboboxOpen(true);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            if (isComboboxOpen && modalFilteredDirectory.length > 0) {
+                              const topMatch = modalFilteredDirectory[0];
+                              setOpeningBalanceCustomerId(topMatch.id);
+                              setOpeningBalanceCustomerName(topMatch.name);
+                              setOpeningBalanceCustomerPhone(topMatch.phone);
+                              setIsComboboxOpen(false);
+                              setComboboxSearch("");
+                            }
+                          } else if (e.key === "Escape") {
+                            setIsComboboxOpen(false);
+                          }
+                        }}
+                        className="w-full h-9 pl-8 pr-16 rounded-lg border border-border bg-background text-xs font-medium focus:ring-1 focus:ring-primary focus:outline-none"
+                      />
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                        {openingBalanceCustomerId && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpeningBalanceCustomerId(null);
+                              setOpeningBalanceCustomerName("");
+                              setOpeningBalanceCustomerPhone("");
+                              setComboboxSearch("");
+                            }}
+                            className="p-1 text-muted-foreground hover:text-foreground text-xs cursor-pointer font-bold"
+                            title="Clear selection"
+                          >
+                            ✕
+                          </button>
+                        )}
                         <button
-                          key={c.id}
                           type="button"
                           onClick={() => {
-                            setOpeningBalanceCustomerId(c.id);
-                            setOpeningBalanceCustomerName(c.name);
-                            setOpeningBalanceCustomerPhone(c.phone);
+                            setIsComboboxOpen((prev) => !prev);
+                            setComboboxSearch("");
                           }}
-                          className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all cursor-pointer flex items-center gap-1.5 ${
-                            openingBalanceCustomerId === c.id
-                              ? "bg-primary/10 text-primary border-primary font-bold shadow-2xs"
-                              : "bg-muted/40 text-muted-foreground border-border hover:bg-muted hover:text-foreground"
-                          }`}
+                          className="p-1 text-muted-foreground hover:text-foreground cursor-pointer"
+                          title="Toggle customer directory"
                         >
-                          <span>{c.name}</span>
-                          <span className="font-mono text-[10px] opacity-75">({c.phone})</span>
-                          {c.balanceDue > 0 && (
-                            <span className="text-amber-600 dark:text-amber-400 font-bold font-mono text-[10px]">₹{c.balanceDue}</span>
-                          )}
+                          <ChevronDown size={14} className={isComboboxOpen ? "rotate-180 transition-transform" : "transition-transform"} />
                         </button>
-                      ))}
+                      </div>
                     </div>
-                  )}
+
+                    {/* Integrated Popover List attached directly to this single input */}
+                    {isComboboxOpen && (
+                      <div className="absolute left-0 right-0 top-full mt-1 max-h-56 overflow-y-auto bg-card border border-border rounded-xl shadow-2xl z-50 py-1 scrollbar-thin">
+                        <div className="px-3 py-1.5 text-[10px] font-mono font-bold text-muted-foreground uppercase border-b border-border flex justify-between bg-muted/30">
+                          <span>Directory Customers</span>
+                          <span>{modalFilteredDirectory.length} Found</span>
+                        </div>
+                        {modalFilteredDirectory.length === 0 ? (
+                          <div className="p-3 text-center text-xs text-muted-foreground">
+                            No customer found matching "{comboboxSearch}"
+                          </div>
+                        ) : (
+                          modalFilteredDirectory.map((c) => (
+                            <div
+                              key={c.id}
+                              onClick={() => {
+                                setOpeningBalanceCustomerId(c.id);
+                                setOpeningBalanceCustomerName(c.name);
+                                setOpeningBalanceCustomerPhone(c.phone);
+                                setIsComboboxOpen(false);
+                                setComboboxSearch("");
+                              }}
+                              className={`px-3 py-2 text-xs flex items-center justify-between cursor-pointer transition-colors ${
+                                openingBalanceCustomerId === c.id
+                                  ? "bg-primary/10 text-primary font-bold"
+                                  : "hover:bg-muted text-foreground"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <User size={13} className="text-muted-foreground shrink-0" />
+                                <div className="min-w-0 truncate">
+                                  <span className="font-semibold">{c.name}</span>
+                                  <span className="font-mono text-[11px] text-muted-foreground ml-1.5">({c.phone})</span>
+                                </div>
+                              </div>
+                              {c.balanceDue > 0 ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 shrink-0">
+                                  ₹{c.balanceDue.toLocaleString("en-IN")} Due
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-muted text-muted-foreground shrink-0">
+                                  No Debt (₹0)
+                                </span>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-2">
