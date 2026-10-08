@@ -13,22 +13,53 @@ import {
   LayoutGrid,
   Sparkles,
   RefreshCw,
-  MessageSquare
+  MessageSquare,
+  Volume2,
+  VolumeX,
+  Tablet,
+  CheckCircle2,
+  Users,
+  ShoppingBag,
+  Trash2,
+  Check,
+  ChevronRight,
+  ShieldCheck,
+  Lock,
+  ArrowRight
 } from "lucide-react";
 import EmployeeDirectory from "@/components/EmployeeDirectory";
 import StaffItemCustomizeModal from "@/components/StaffItemCustomizeModal";
 import TableFloorGrid, { TableInfo } from "@/components/TableFloorGrid";
 import ActiveOrdersTracker, { RunningOrder } from "@/components/ActiveOrdersTracker";
 import StaffLoginModal from "@/components/StaffLoginModal";
-import ActiveTableModal from "@/components/ActiveTableModal";
-import { getAuth, logout } from "@ssrone/auth";
+import { getAuth, logout, setAuth } from "@ssrone/auth";
 import { api } from "@ssrone/api-client";
 import { fetchCategories, fetchMenuItems } from "@/utils/menuApi";
 
-
+// Web Audio synthesizer for crisp tablet touch feedback
+function playTouchSound() {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(640, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(840, ctx.currentTime + 0.04);
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.04);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.04);
+  } catch {
+    // quiet ignore if audio context locked
+  }
+}
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<"order" | "floor" | "kots">("floor");
+  const [activeTab, setActiveTab] = useState<"floor" | "order" | "kots">("floor");
   const [activeUnit, setActiveUnit] = useState<"CUH02" | "GGN01">("CUH02");
   const [selectedTable, setSelectedTable] = useState("T1");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -37,7 +68,10 @@ export function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [orderRemark, setOrderRemark] = useState("");
   const [showLoginModal, setShowLoginModal] = useState(() => !getAuth()?.isLoggedIn);
-  const [activeModalTable, setActiveModalTable] = useState<string | null>(null);
+
+  // Tablet touch-screen special state
+  const [isTabletTouchMode, setIsTabletTouchMode] = useState(true);
+  const [isSoundEnabled, setIsSoundEnabled] = useState(true);
 
   const [cart, setCart] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -59,7 +93,14 @@ export function App() {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  // Fetch Menu Items, Categories, Tables & Orders directly from PostgreSQL DB via REST API
+  // Play audio on tap if sound is enabled
+  const handleTapFeedback = () => {
+    if (isSoundEnabled) {
+      playTouchSound();
+    }
+  };
+
+  // Fetch Menu Items, Categories, Tables & Orders directly from backend
   const loadData = async (overrideBranchId?: number | any) => {
     setIsRefreshing(true);
     const currentAuth = getAuth();
@@ -182,6 +223,7 @@ export function App() {
   }, [products, selectedCategory, searchQuery, vegOnly]);
 
   const handleSelectItem = (prod: any) => {
+    handleTapFeedback();
     const hasVariants = prod.variantGroups && prod.variantGroups.length > 0;
     const hasAddons = prod.addonGroups && prod.addonGroups.length > 0;
 
@@ -212,6 +254,7 @@ export function App() {
   };
 
   const handleConfirmCustomization = (customizedItem: any) => {
+    handleTapFeedback();
     const variantName = customizedItem.selectedVariant?.name || "";
     const addonNames = (customizedItem.selectedAddons || []).map((a: any) => a.name).join(", ");
     const cartKey = `${customizedItem.id}_${variantName}_${addonNames}_${customizedItem.kitchenNote}`;
@@ -239,6 +282,7 @@ export function App() {
   };
 
   const updateQuantity = (cartKey: string, change: number) => {
+    handleTapFeedback();
     setCart((prev) =>
       prev
         .map((x) => {
@@ -261,6 +305,7 @@ export function App() {
 
   const handleDispatchOrder = async () => {
     if (cart.length === 0 || isSubmittingOrder) return;
+    handleTapFeedback();
     setIsSubmittingOrder(true);
 
     const branchParam = activeUnit === "CUH02" ? 1 : 2;
@@ -275,7 +320,7 @@ export function App() {
       subtotal: subtotal,
       tax_amount: tax,
       net_amount: grandTotal,
-      notes: orderRemark ? `Table ${selectedTable}: ${orderRemark}` : `Table ${selectedTable} (Waiter pad order)`,
+      notes: orderRemark ? `Table ${selectedTable}: ${orderRemark}` : `Table ${selectedTable} (Waiter tablet)`,
       items: cart.map((it) => ({
         product_id: parseInt(it.id.replace(/\D/g, ""), 10) || 1,
         product_name: it.name,
@@ -329,15 +374,16 @@ export function App() {
 
     setTimeout(() => {
       setSuccessOrder(null);
-    }, 4000);
+    }, 4500);
   };
 
   return (
-    <div className={`min-h-screen pb-20 font-sans transition-colors duration-200 ${isDark ? "bg-slate-950 text-slate-100" : "bg-[#FAF9F5] text-slate-900"}`}>
+    <div className={`min-h-screen pb-16 font-sans transition-colors duration-200 select-none ${isDark ? "bg-slate-950 text-slate-100" : "bg-[#FAF9F5] text-slate-900"}`}>
 
       {/* Staff Login Modal */}
       {showLoginModal && (
         <StaffLoginModal
+          isOpen={showLoginModal}
           onLoginSuccess={(userData) => {
             setAuth({
               token: "staff-token-" + Date.now(),
@@ -363,134 +409,274 @@ export function App() {
       {/* Directory Modal */}
       {showDirectory && <EmployeeDirectory onClose={() => setShowDirectory(false)} />}
 
-      {/* Rule 17: Top Fixed Header Navbar */}
+      {/* Top Tablet-Optimized Header Navbar */}
       <header className="sticky top-0 z-40 px-4 sm:px-6 py-3 bg-white/95 dark:bg-slate-900/95 border-b border-slate-200/80 dark:border-slate-800 backdrop-blur-md shadow-2xs flex items-center justify-between gap-3">
-        {/* Left Branch Branding & Logged-In Waiter Profile */}
+        {/* Left Branding & Tablet Indicator */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-sky-600 flex items-center justify-center text-white font-bold shadow-2xs shrink-0">
-            <Store size={20} />
+          <div className="w-11 h-11 rounded-xl bg-sky-600 flex items-center justify-center text-white font-bold shadow-sm shrink-0">
+            <Store size={22} />
           </div>
           <div>
-            <h1 className="text-sm font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-              {auth.user?.branch_name || "Baithak Cafe - CUH Mahendragarh"}
+            <h1 className="text-sm sm:text-base font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+              {auth.user?.branch_name || "Baithak Cafe"}
+              {isTabletTouchMode && (
+                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-300 dark:border-sky-800">
+                  <Tablet size={11} /> Tablet Mode
+                </span>
+              )}
             </h1>
-            <p className="text-[11px] text-slate-500 font-semibold">
-              Handheld Waiter Terminal • {auth.name || "Staff Member"}
+            <p className="text-xs text-slate-500 font-semibold">
+              Tablet Waiter POS • {auth.name || "Serving Staff"}
             </p>
           </div>
         </div>
 
-        {/* Right Actions & User Badge */}
+        {/* Right Tablet Controls */}
         <div className="flex items-center gap-2">
+          {/* Sound Feedback Toggle */}
           <button
-            onClick={() => loadData()}
-            disabled={isRefreshing}
-            className="min-h-[36px] p-2 rounded-lg border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50 shadow-2xs"
-            title="Refresh PostgreSQL Database"
+            type="button"
+            onClick={() => {
+              setIsSoundEnabled(!isSoundEnabled);
+              handleTapFeedback();
+            }}
+            title={isSoundEnabled ? "Touch audio feedback ON" : "Touch audio feedback MUTED"}
+            className={`min-h-[44px] min-w-[44px] p-2.5 rounded-xl border transition flex items-center justify-center cursor-pointer ${
+              isSoundEnabled
+                ? "bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800"
+                : "bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800"
+            }`}
           >
-            <RefreshCw size={15} className={isRefreshing ? "animate-spin text-sky-600" : ""} />
+            {isSoundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
           </button>
 
+          {/* Refresh Database */}
+          <button
+            type="button"
+            onClick={() => {
+              handleTapFeedback();
+              loadData();
+            }}
+            disabled={isRefreshing}
+            className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
+            title="Refresh Menu & Orders"
+          >
+            <RefreshCw size={18} className={isRefreshing ? "animate-spin text-sky-600" : ""} />
+          </button>
+
+          {/* Active Waiter Badge */}
           {auth.name && (
-            <div className="hidden sm:block text-xs font-bold text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
-              {auth.name}
+            <div className="hidden lg:flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span>{auth.name}</span>
             </div>
           )}
 
+          {/* Switch Waiter / Lock Button */}
           <button
+            type="button"
             onClick={() => {
+              handleTapFeedback();
               logout();
               setAuthState(getAuth());
               setShowLoginModal(true);
             }}
-            title="Switch Staff Member / Sign Out"
-            className="min-h-[36px] px-3 py-1.5 rounded-lg border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-sky-500 transition cursor-pointer flex items-center gap-1.5 text-xs font-bold shadow-2xs"
+            title="Lock Tablet / Switch Staff"
+            className="min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-sky-500 transition cursor-pointer flex items-center gap-2 text-xs font-bold shadow-2xs"
           >
-            <LogOut size={15} />
-            <span>Switch Staff</span>
+            <Lock size={15} />
+            <span className="hidden sm:inline">Switch Staff</span>
           </button>
         </div>
       </header>
 
-      {/* Rule 15: Mobile Bottom Navigation Bar (min 44px) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 border-t border-slate-200 dark:border-slate-800 backdrop-blur-md px-2 py-1.5 flex items-center justify-around shadow-2xs">
-        <button
-          onClick={() => setActiveTab("order")}
-          className={`min-h-[44px] flex flex-col items-center justify-center gap-0.5 py-1 px-4 rounded-lg text-[10px] font-bold transition ${
-            activeTab === "order" ? "bg-sky-600 text-white" : "text-slate-600 dark:text-slate-400"
-          }`}
-        >
-          <Utensils size={16} />
-          <span>Order Pad</span>
-        </button>
-        <button
-          onClick={() => setActiveTab("floor")}
-          className={`min-h-[44px] flex flex-col items-center justify-center gap-0.5 py-1 px-4 rounded-lg text-[10px] font-bold transition ${
-            activeTab === "floor" ? "bg-sky-600 text-white" : "text-slate-600 dark:text-slate-400"
-          }`}
-        >
-          <LayoutGrid size={16} />
-          <span>Floor Plan</span>
-        </button>
-        <button
-          onClick={() => setActiveTab("kots")}
-          className={`min-h-[44px] flex flex-col items-center justify-center gap-0.5 py-1 px-4 rounded-lg text-[10px] font-bold transition ${
-            activeTab === "kots" ? "bg-sky-600 text-white" : "text-slate-600 dark:text-slate-400"
-          }`}
-        >
-          <ChefHat size={16} />
-          <span>KOTs ({runningOrders.length})</span>
-        </button>
-      </div>
+      {/* Main Tablet Navigation Bar: 48px+ Touch Targets */}
+      <div className="px-4 sm:px-6 pt-3 pb-1 max-w-7xl mx-auto">
+        <div className="grid grid-cols-3 gap-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-1.5 rounded-2xl shadow-2xs">
+          <button
+            type="button"
+            onClick={() => {
+              handleTapFeedback();
+              setActiveTab("floor");
+            }}
+            className={`min-h-[48px] py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 ${
+              activeTab === "floor"
+                ? "bg-sky-600 text-white shadow-sm"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+          >
+            <LayoutGrid size={18} />
+            <span>Floor Plan ({tables.length})</span>
+          </button>
 
-      {/* Desktop Main Navigation Tabs */}
-      <div className="hidden md:flex items-center justify-between px-6 pt-4 max-w-7xl mx-auto">
-        <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-1 rounded-xl shadow-2xs">
           <button
-            onClick={() => setActiveTab("floor")}
-            className={`min-h-[38px] px-4 py-2 rounded-lg text-xs font-extrabold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1.5 ${
-              activeTab === "floor" ? "bg-sky-600 text-white shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+            type="button"
+            onClick={() => {
+              handleTapFeedback();
+              setActiveTab("order");
+            }}
+            className={`min-h-[48px] py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 ${
+              activeTab === "order"
+                ? "bg-sky-600 text-white shadow-sm"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-slate-50"
             }`}
           >
-            <LayoutGrid size={14} /> Floor Plan Grid
+            <Utensils size={18} />
+            <span>Table {selectedTable} Order</span>
+            {cart.length > 0 && (
+              <span className="w-5 h-5 rounded-full bg-white text-sky-700 font-mono text-[10px] font-black flex items-center justify-center">
+                {cart.length}
+              </span>
+            )}
           </button>
+
           <button
-            onClick={() => setActiveTab("order")}
-            className={`min-h-[38px] px-4 py-2 rounded-lg text-xs font-extrabold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1.5 ${
-              activeTab === "order" ? "bg-sky-600 text-white shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+            type="button"
+            onClick={() => {
+              handleTapFeedback();
+              setActiveTab("kots");
+            }}
+            className={`min-h-[48px] py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 ${
+              activeTab === "kots"
+                ? "bg-sky-600 text-white shadow-sm"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-slate-50"
             }`}
           >
-            <Utensils size={14} /> Take Order (Table {selectedTable})
-          </button>
-          <button
-            onClick={() => setActiveTab("kots")}
-            className={`min-h-[38px] px-4 py-2 rounded-lg text-xs font-extrabold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1.5 ${
-              activeTab === "kots" ? "bg-sky-600 text-white shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-            }`}
-          >
-            <ChefHat size={14} /> Active KOT Streams ({runningOrders.length})
+            <ChefHat size={18} />
+            <span>Kitchen KOTs ({runningOrders.length})</span>
           </button>
         </div>
       </div>
 
       {/* Main Container */}
       <main className="p-3 sm:p-5 max-w-7xl mx-auto space-y-4">
-        {/* TAB 1: NEW ORDER PAD */}
+        {/* Success KOT Toast Banner */}
+        {successOrder && (
+          <div className="p-4 rounded-2xl bg-emerald-600 text-white font-bold flex items-center justify-between shadow-lg animate-in fade-in">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 size={24} />
+              <div>
+                <p className="text-sm font-black">KOT Dispatched Successfully!</p>
+                <p className="text-xs text-emerald-100">Order #{successOrder} for Table {selectedTable} sent to kitchen.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSuccessOrder(null)}
+              className="px-3 py-1 bg-white/20 rounded-lg text-xs font-bold"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* TAB 1: TABLE FLOOR PLAN (Touch-Friendly Table Grid)          */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === "floor" && (
+          <TableFloorGrid
+            tables={tables}
+            runningOrders={runningOrders}
+            selectedTable={selectedTable}
+            onSelectTable={(tblNum) => {
+              handleTapFeedback();
+              setSelectedTable(tblNum);
+              setActiveTab("order");
+            }}
+          />
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* TAB 2: ORDER PAD (Tablet Landscape Split Screen / Portrait)  */}
+        {/* ------------------------------------------------------------- */}
         {activeTab === "order" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            {/* Catalog Column (8 cols) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+            {/* Catalog Column (Left 7 cols on tablet landscape) */}
             <div className="lg:col-span-7 xl:col-span-8 space-y-3">
-              {/* Category Filter Buttons */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-1.5 rounded-xl shadow-2xs">
+              {/* Quick Table Switcher Bar for tablet rush hours */}
+              <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2 shadow-2xs">
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+                  <span className="text-xs font-bold uppercase text-slate-400 shrink-0">Switch:</span>
+                  {tables.map((t) => {
+                    const isCurrent = selectedTable === t.number;
+                    return (
+                      <button
+                        key={t.id || t.number}
+                        type="button"
+                        onClick={() => {
+                          handleTapFeedback();
+                          setSelectedTable(t.number);
+                        }}
+                        className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                          isCurrent
+                            ? "bg-sky-600 text-white shadow-xs"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
+                        }`}
+                      >
+                        {t.number}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="shrink-0 px-3 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-300 font-mono text-xs font-black border border-sky-200 dark:border-sky-800">
+                  Table {selectedTable}
+                </div>
+              </div>
+
+              {/* Search & Veg Filter */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search dishes (e.g. Dosa, Chai, Thali)..."
+                    className="w-full h-11 pl-10 pr-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-xs font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-2xs"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+
                 <button
-                  onClick={() => setSelectedCategory("all")}
-                  className={`min-h-[36px] px-3.5 py-1.5 rounded-lg text-xs font-extrabold uppercase tracking-wider shrink-0 transition-colors cursor-pointer flex items-center gap-1.5 ${
-                    selectedCategory === "all"
-                      ? "bg-sky-600 text-white shadow-2xs"
-                      : "bg-slate-50 dark:bg-slate-800 border border-slate-200/80 text-slate-700"
+                  type="button"
+                  onClick={() => {
+                    handleTapFeedback();
+                    setVegOnly(!vegOnly);
+                  }}
+                  className={`min-h-[44px] px-4 rounded-xl border text-xs font-black transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                    vegOnly
+                      ? "bg-emerald-600 text-white border-emerald-600"
+                      : "bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 text-slate-700 dark:text-slate-300"
                   }`}
                 >
-                  <Utensils size={13} /> All Items
+                  <span className={`w-2 h-2 rounded-full ${vegOnly ? "bg-white" : "bg-emerald-500"}`} />
+                  Veg Only
+                </button>
+              </div>
+
+              {/* Category Filter Pills (min 44px touch height) */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-1.5 rounded-2xl shadow-2xs no-scrollbar">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleTapFeedback();
+                    setSelectedCategory("all");
+                  }}
+                  className={`min-h-[44px] px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider shrink-0 transition cursor-pointer flex items-center gap-2 ${
+                    selectedCategory === "all"
+                      ? "bg-sky-600 text-white shadow-xs"
+                      : "bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                  }`}
+                >
+                  <Utensils size={14} /> All Dishes
                 </button>
 
                 {categories.map((cat) => {
@@ -498,11 +684,15 @@ export function App() {
                   return (
                     <button
                       key={cat.id}
-                      onClick={() => setSelectedCategory(cat.name)}
-                      className={`min-h-[36px] px-3.5 py-1.5 rounded-lg text-xs font-extrabold uppercase tracking-wider shrink-0 transition-colors cursor-pointer ${
+                      type="button"
+                      onClick={() => {
+                        handleTapFeedback();
+                        setSelectedCategory(cat.name);
+                      }}
+                      className={`min-h-[44px] px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider shrink-0 transition cursor-pointer ${
                         isSelected
-                          ? "bg-sky-600 text-white shadow-2xs"
-                          : "bg-slate-50 dark:bg-slate-800 border border-slate-200/80 text-slate-700"
+                          ? "bg-sky-600 text-white shadow-xs"
+                          : "bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-300"
                       }`}
                     >
                       {cat.name}
@@ -511,30 +701,33 @@ export function App() {
                 })}
               </div>
 
-              {/* Menu Grid */}
+              {/* Menu Dishes Touch Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {filteredProducts.map((prod) => (
                   <button
                     key={prod.id}
+                    type="button"
                     onClick={() => handleSelectItem(prod)}
-                    className="p-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl shadow-2xs hover:border-sky-500 transition text-left flex flex-col justify-between min-h-[110px] cursor-pointer"
+                    className="p-3.5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-sky-500 rounded-2xl shadow-2xs text-left flex flex-col justify-between min-h-[125px] transition cursor-pointer active:scale-[0.98]"
                   >
                     <div>
                       <div className="flex items-start justify-between gap-1">
-                        <span className="font-extrabold text-xs text-slate-900 dark:text-white leading-snug">
+                        <span className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white leading-snug">
                           {prod.name}
                         </span>
-                        <span className={`w-2 h-2 rounded-full shrink-0 mt-1 ${prod.isVeg ? "bg-emerald-600" : "bg-rose-600"}`} />
+                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${prod.isVeg ? "bg-emerald-600" : "bg-rose-600"}`} />
                       </div>
-                      <p className="text-[11px] text-slate-500 line-clamp-2 mt-1 font-medium">{prod.description}</p>
+                      <p className="text-[11px] text-slate-500 line-clamp-2 mt-1 font-medium leading-relaxed">
+                        {prod.description}
+                      </p>
                     </div>
 
-                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                      <span className="font-mono text-sm font-black text-sky-600 dark:text-sky-400">
+                    <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+                      <span className="font-mono text-sm sm:text-base font-black text-sky-600 dark:text-sky-400">
                         ₹{prod.selling_price || prod.basePrice}
                       </span>
-                      <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
-                        + Add
+                      <span className="min-h-[32px] px-3 rounded-lg text-xs font-black bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 flex items-center gap-1">
+                        <Plus size={12} strokeWidth={3} /> Add
                       </span>
                     </div>
                   </button>
@@ -542,97 +735,127 @@ export function App() {
               </div>
             </div>
 
-            {/* Cart Summary Column (4 cols) */}
-            <div className="lg:col-span-5 xl:col-span-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-4 shadow-2xs flex flex-col justify-between space-y-4">
+            {/* Cart & KOT Summary Column (Right 5 cols on tablet landscape) */}
+            <div className="lg:col-span-5 xl:col-span-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between space-y-4 sticky top-20">
               <div className="space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
-                  <h3 className="font-black text-xs uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <Utensils size={15} className="text-sky-600" /> Order Cart — Table {selectedTable}
-                  </h3>
-                  <span className="text-2xs font-mono font-bold text-slate-500">{cart.length} Items</span>
+                <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-3">
+                  <div>
+                    <h3 className="font-black text-sm uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
+                      <Utensils size={17} className="text-sky-600" />
+                      Table {selectedTable} Order Pad
+                    </h3>
+                    <p className="text-[11px] text-slate-400 font-semibold">Touchscreen Order Punch</p>
+                  </div>
+                  <span className="text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-lg">
+                    {cart.length} Dishes
+                  </span>
                 </div>
 
+                {/* Cart Items List with Large Touch Steppers (40px) */}
                 {cart.length === 0 ? (
-                  <div className="py-12 text-center text-slate-400 space-y-1">
-                    <Utensils size={28} className="mx-auto text-slate-300" />
-                    <p className="text-xs font-bold text-slate-700">Order Cart Empty</p>
-                    <p className="text-[11px] text-slate-400">Select dishes from the menu catalog to begin.</p>
+                  <div className="py-14 text-center text-slate-400 space-y-2">
+                    <ShoppingBag size={36} className="mx-auto text-slate-300 dark:text-slate-700" />
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Order Pad Empty</p>
+                    <p className="text-[11px] text-slate-400">Tap dishes on the menu to add to Table {selectedTable}.</p>
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                  <div className="space-y-2.5 max-h-[340px] overflow-y-auto pr-1">
                     {cart.map((item) => (
-                      <div key={item.cartKey} className="p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 rounded-lg flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <span className="font-extrabold text-xs text-slate-900 dark:text-white block truncate">{item.name}</span>
-                          <span className="font-mono text-2xs text-slate-500">₹{item.unitPrice} each</span>
+                      <div
+                        key={item.cartKey}
+                        className="p-3 bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700 rounded-xl flex items-center justify-between gap-2 shadow-2xs"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <span className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white block truncate">
+                            {item.name}
+                          </span>
+                          <span className="font-mono text-xs font-black text-sky-600 dark:text-sky-400">
+                            ₹{item.unitPrice * item.quantity}
+                            <span className="text-[10px] text-slate-400 font-normal ml-1">
+                              (₹{item.unitPrice} each)
+                            </span>
+                          </span>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button onClick={() => updateQuantity(item.cartKey, -1)} className="w-6 h-6 rounded bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-700 dark:text-slate-200">
-                            -
+                        {/* Large Touch Steppers: 38px touch area */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(item.cartKey, -1)}
+                            className="w-9 h-9 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-black text-slate-700 dark:text-slate-200 hover:bg-slate-100 active:scale-95 transition cursor-pointer shadow-2xs"
+                          >
+                            <Minus size={15} />
                           </button>
-                          <span className="font-mono font-extrabold text-xs text-slate-900 dark:text-white">{item.quantity}</span>
-                          <button onClick={() => updateQuantity(item.cartKey, 1)} className="w-6 h-6 rounded bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-700 dark:text-slate-200">
-                            +
+
+                          <span className="w-7 text-center font-mono font-black text-sm text-slate-900 dark:text-white">
+                            {item.quantity}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(item.cartKey, 1)}
+                            className="w-9 h-9 rounded-xl bg-sky-600 text-white flex items-center justify-center font-black hover:bg-sky-700 active:scale-95 transition cursor-pointer shadow-2xs"
+                          >
+                            <Plus size={15} />
                           </button>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
+
+                {/* Kitchen Remark Note */}
+                <div className="pt-1">
+                  <input
+                    type="text"
+                    value={orderRemark}
+                    onChange={(e) => setOrderRemark(e.target.value)}
+                    placeholder="Kitchen remark (e.g. Less spicy, pack parcel)..."
+                    className="w-full h-10 px-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                </div>
               </div>
 
-              {/* Rule 4, 19 & 20: Primary Dispatch Button (Sky Blue) */}
-              <div className="pt-3 border-t border-slate-200/80 space-y-3">
-                <div className="flex items-center justify-between text-xs font-mono font-bold">
-                  <span className="text-slate-500">Grand Total (incl. tax):</span>
-                  <span className="text-base font-black text-sky-600 dark:text-sky-400">₹{grandTotal}</span>
+              {/* Total & Large 52px Dispatch Button */}
+              <div className="pt-3 border-t border-slate-200/80 dark:border-slate-800 space-y-3">
+                <div className="space-y-1 text-xs font-mono">
+                  <div className="flex justify-between text-slate-500">
+                    <span>Subtotal:</span>
+                    <span>₹{subtotal}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-500">
+                    <span>GST (5%):</span>
+                    <span>₹{tax}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-black text-slate-900 dark:text-white pt-1 border-t border-slate-200 dark:border-slate-700">
+                    <span>Grand Total:</span>
+                    <span className="text-base text-sky-600 dark:text-sky-400 font-mono">₹{grandTotal}</span>
+                  </div>
                 </div>
 
                 <button
-                  onClick={handleDispatchOrder}
+                  type="button"
                   disabled={cart.length === 0 || isSubmittingOrder}
-                  className="w-full min-h-[44px] py-2.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                  onClick={handleDispatchOrder}
+                  className="w-full min-h-[52px] py-3 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-[0.99] text-white text-xs sm:text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition cursor-pointer disabled:opacity-50"
                 >
-                  <Send size={15} />
-                  <span>DISPATCH ORDER TO KITCHEN</span>
+                  <Send size={18} />
+                  <span>
+                    {isSubmittingOrder ? "DISPATCHING KOT..." : `DISPATCH KOT TO KITCHEN (TABLE ${selectedTable})`}
+                  </span>
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* TAB 2: FLOOR PLAN GRID */}
-        {activeTab === "floor" && (
-          <TableFloorGrid
-            tables={tables}
-            runningOrders={runningOrders}
-            selectedTable={selectedTable}
-            onSelectTable={(tblNum) => {
-              setSelectedTable(tblNum);
-              setActiveTab("order");
-            }}
-          />
-        )}
-
-        {/* TAB 3: RUNNING KOTS */}
+        {/* ------------------------------------------------------------- */}
+        {/* TAB 3: RUNNING KOTS                                          */}
+        {/* ------------------------------------------------------------- */}
         {activeTab === "kots" && (
           <ActiveOrdersTracker orders={runningOrders} />
         )}
       </main>
-
-      {/* Rule 18 & 43: Sticky Footer Bar */}
-      <footer className="fixed bottom-0 left-0 right-0 py-2.5 px-6 bg-white/95 dark:bg-slate-900/95 border-t border-slate-200/80 dark:border-slate-800 backdrop-blur-md flex justify-between items-center text-xs font-mono font-semibold text-slate-700 dark:text-slate-300 shadow-2xs z-30">
-        <div className="flex items-center gap-4">
-          <span>Active Table: <strong className="text-slate-900 dark:text-white font-extrabold">Table {selectedTable}</strong></span>
-          <span>Running Orders: <strong className="text-sky-700 dark:text-sky-400 font-extrabold">{runningOrders.length}</strong></span>
-        </div>
-
-        <div className="bg-sky-600 text-white px-3 py-1 rounded-md font-mono text-[10px] font-bold uppercase tracking-wider shadow-2xs flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-300 animate-pulse" />
-          <span>WAITER SYNC ACTIVE • POSTGRESQL LIVE SSOT</span>
-        </div>
-      </footer>
     </div>
   );
 }

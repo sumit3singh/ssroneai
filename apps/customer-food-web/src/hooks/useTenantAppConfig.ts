@@ -31,6 +31,20 @@ const DEFAULT_FOOD_CONFIG: FoodWebConfig = {
     delivery: true,
     onlinePayment: true,
   },
+  taxSettings: {
+    applyGst: false,
+    gstRate: 5.0,
+    pricesIncludeTax: true,
+  },
+  charges: {
+    enablePackingCharge: false,
+    packingChargeAmount: 0.0,
+    enableDeliveryCharge: false,
+    deliveryChargeAmount: 0.0,
+  },
+  kitchenPrinting: {
+    autoPrintKotOnOrder: true,
+  },
   orderConfirmationMessage:
     "Thank you for dining with us! Your order has been placed directly with the kitchen.",
   hiddenCategories: [],
@@ -42,6 +56,20 @@ export interface TenantAppConfigState {
   branding: GlobalBrandingConfig;
   banner: NonNullable<FoodWebConfig["banner"]>;
   features: NonNullable<FoodWebConfig["features"]>;
+  taxSettings: {
+    applyGst: boolean;
+    gstRate: number;
+    pricesIncludeTax: boolean;
+  };
+  charges: {
+    enablePackingCharge: boolean;
+    packingChargeAmount: number;
+    enableDeliveryCharge: boolean;
+    deliveryChargeAmount: number;
+  };
+  kitchenPrinting: {
+    autoPrintKotOnOrder: boolean;
+  };
   orderConfirmationMessage: string;
   hiddenCategories: string[];
   hiddenItems: string[];
@@ -187,10 +215,36 @@ export const useTenantAppConfig = (): TenantAppConfigState => {
     }
   }, [branding.primaryColor, branding.accentColor]);
 
+  const taxSettings = useMemo(() => {
+    return {
+      applyGst: rawConfig?.taxSettings?.applyGst ?? DEFAULT_FOOD_CONFIG.taxSettings!.applyGst,
+      gstRate: rawConfig?.taxSettings?.gstRate ?? DEFAULT_FOOD_CONFIG.taxSettings!.gstRate,
+      pricesIncludeTax: rawConfig?.taxSettings?.pricesIncludeTax ?? DEFAULT_FOOD_CONFIG.taxSettings!.pricesIncludeTax,
+    };
+  }, [rawConfig]);
+
+  const charges = useMemo(() => {
+    return {
+      enablePackingCharge: rawConfig?.charges?.enablePackingCharge ?? DEFAULT_FOOD_CONFIG.charges!.enablePackingCharge,
+      packingChargeAmount: rawConfig?.charges?.packingChargeAmount ?? DEFAULT_FOOD_CONFIG.charges!.packingChargeAmount,
+      enableDeliveryCharge: rawConfig?.charges?.enableDeliveryCharge ?? DEFAULT_FOOD_CONFIG.charges!.enableDeliveryCharge,
+      deliveryChargeAmount: rawConfig?.charges?.deliveryChargeAmount ?? DEFAULT_FOOD_CONFIG.charges!.deliveryChargeAmount,
+    };
+  }, [rawConfig]);
+
+  const kitchenPrinting = useMemo(() => {
+    return {
+      autoPrintKotOnOrder: rawConfig?.kitchenPrinting?.autoPrintKotOnOrder ?? DEFAULT_FOOD_CONFIG.kitchenPrinting!.autoPrintKotOnOrder,
+    };
+  }, [rawConfig]);
+
   return {
     branding,
     banner,
     features,
+    taxSettings,
+    charges,
+    kitchenPrinting,
     orderConfirmationMessage,
     hiddenCategories,
     hiddenItems,

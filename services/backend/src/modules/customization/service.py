@@ -51,6 +51,20 @@ DEFAULT_CONFIGS: dict[str, dict[str, Any]] = {
             "delivery": True,
             "onlinePayment": True,
         },
+        "taxSettings": {
+            "applyGst": False,
+            "gstRate": 5.0,
+            "pricesIncludeTax": True,
+        },
+        "charges": {
+            "enablePackingCharge": False,
+            "packingChargeAmount": 0.0,
+            "enableDeliveryCharge": False,
+            "deliveryChargeAmount": 0.0,
+        },
+        "kitchenPrinting": {
+            "autoPrintKotOnOrder": True,
+        },
         "orderConfirmationMessage": "Thank you for dining with us! Your order has been placed directly with the kitchen.",
         "hiddenCategories": [],
         "hiddenItems": [],
@@ -63,6 +77,10 @@ DEFAULT_CONFIGS: dict[str, dict[str, Any]] = {
             "housekeepingRequests": True,
             "digitalCheckout": True,
         },
+        "taxSettings": {
+            "applyRoomGst": False,
+            "roomGstRate": 12.0,
+        },
         "policies": {
             "checkInTime": "12:00 PM",
             "checkOutTime": "11:00 AM",
@@ -71,17 +89,28 @@ DEFAULT_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "kds-web": {
         "displayTheme": "standard",
+        "soundAlerts": True,
+        "warningThresholdMinutes": 15,
+        "autoArchiveMinutes": 5,
         "stationRouting": {
             "defaultStation": "Main Kitchen",
             "rules": [],
         },
     },
     "staff-web": {
-        "showHousekeepingToWaiters": False,
+        "touchscreenMode": True,
+        "largeButtons": True,
+        "soundFeedback": True,
+        "autoPrintKot": True,
         "floorPlanStyle": "grid",
+        "showHousekeepingToWaiters": False,
+        "requireWaiterPin": False,
     },
     "token-order-web": {
-        "tokenFormat": "daily_reset",
+        "dineInOnly": True,
+        "showTokenTracker": True,
+        "tokenFormat": "daily_sequential",
+        "autoSendKot": True,
         "nowServingText": "Now Serving",
         "screenTheme": "dark",
     },

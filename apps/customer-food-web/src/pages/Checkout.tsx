@@ -37,6 +37,7 @@ import AuthModal from "@/components/AuthModal";
 import ChangeOrderModeDialog from "@/components/ChangeOrderModeDialog";
 import AddressSelectDialog from "@/components/AddressSelectDialog";
 import TableCameraScannerModal from "@/components/TableCameraScannerModal";
+import useTenantAppConfig from "@/hooks/useTenantAppConfig";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -69,6 +70,7 @@ export const Checkout = () => {
   const { tenantSlug, branchCode, tableNumber } = useTenantBranchContext();
   const { toast } = useToast();
   const { t } = useI18n();
+  const { taxSettings, charges } = useTenantAppConfig();
   const {
     items,
     getTotal,
@@ -93,9 +95,16 @@ export const Checkout = () => {
   } = useAuthStore();
 
   const total = getTotal();
-  const tax = Math.round(total * 0.05); // 5% GST
-  const deliveryFee = orderMode === "delivery" ? (total >= 499 ? 0 : 40) : 0;
-  const grandTotal = Math.max(0, total + tax + deliveryFee);
+  const shouldApplyGst = taxSettings?.applyGst ?? false;
+  const gstRate = taxSettings?.gstRate ?? 5;
+  const tax = shouldApplyGst ? Math.round(total * (gstRate / 100)) : 0;
+
+  // Packaging fee (never for dine-in; only if enabled and for takeaway/delivery)
+  const isPackingChargeEnabled = charges?.enablePackingCharge ?? false;
+  const packingCharge = (orderMode !== "dine-in" && isPackingChargeEnabled) ? (charges?.packingChargeAmount ?? 0) : 0;
+
+  const deliveryFee = orderMode === "delivery" ? (total >= 499 ? 0 : (charges?.enableDeliveryCharge ? charges?.deliveryChargeAmount : 40)) : 0;
+  const grandTotal = Math.max(0, total + tax + packingCharge + deliveryFee);
 
   const [placing, setPlacing] = useState(false);
   const [alternatePhone, setAlternatePhone] = useState("");
@@ -882,10 +891,24 @@ export const Checkout = () => {
               <span className="font-semibold text-foreground">₹{total}</span>
             </div>
 
-            <div className="flex justify-between text-muted-foreground">
-              <span>Taxes & GST (5%)</span>
-              <span className="font-semibold text-foreground">₹{tax}</span>
-            </div>
+            {shouldApplyGst ? (
+              <div className="flex justify-between text-muted-foreground">
+                <span>Taxes & GST ({gstRate}%)</span>
+                <span className="font-semibold text-foreground">₹{tax}</span>
+              </div>
+            ) : (
+              <div className="flex justify-between text-muted-foreground">
+                <span>Taxes & GST</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-mono">₹0 (Tax Free)</span>
+              </div>
+            )}
+
+            {packingCharge > 0 && (
+              <div className="flex justify-between text-muted-foreground">
+                <span>Packaging & Container Charge</span>
+                <span className="font-semibold text-foreground">₹{packingCharge}</span>
+              </div>
+            )}
 
             {orderMode === "delivery" && (
               <div className="flex justify-between text-muted-foreground">

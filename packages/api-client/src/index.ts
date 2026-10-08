@@ -779,6 +779,20 @@ export interface FoodWebConfig {
     delivery?: boolean;
     onlinePayment?: boolean;
   };
+  taxSettings?: {
+    applyGst?: boolean;
+    gstRate?: number;
+    pricesIncludeTax?: boolean;
+  };
+  charges?: {
+    enablePackingCharge?: boolean;
+    packingChargeAmount?: number;
+    enableDeliveryCharge?: boolean;
+    deliveryChargeAmount?: number;
+  };
+  kitchenPrinting?: {
+    autoPrintKotOnOrder?: boolean;
+  };
   orderConfirmationMessage?: string;
   hiddenCategories?: string[];
   hiddenItems?: string[];

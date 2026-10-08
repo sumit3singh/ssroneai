@@ -52,6 +52,7 @@
   - [ADR-0013](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0013-world-class-enterprise-pos-innovations.md): World-Class Enterprise POS Innovations & Zero-Ruination Hardening
   - [ADR-0014](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0014-production-cloud-deployment-and-zero-ruination-cd.md): Production Cloud Deployment & Zero-Ruination Continuous Delivery Baseline
   - [ADR-0015](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0015-production-audit-security-and-data-integrity-hardening.md): Final Production Audit, Secret Sanitization & Multi-Tenant Data-Integrity Hardening
+  - [ADR-0016](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0016-tablet-staff-web-token-order-and-admin-portal-controls.md): Tablet Staff Web, Token Order Web, and Admin Portal Multi-App Control Engine
 
 ---
 

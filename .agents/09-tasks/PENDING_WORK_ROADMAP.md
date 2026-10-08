@@ -24,6 +24,12 @@ This document lists living tasks, roadmap execution phases, and completed archit
 
 ## 2. Recently Completed Architectural Milestones
 
+- **[COMPLETED] Tablet Staff Web, Token Order Web, and Admin Portal Multi-App Control Engine ([ADR-0016](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0016-tablet-staff-web-token-order-and-admin-portal-controls.md))**:
+  - **Staff Web Tablet Optimization (`apps/staff-web`)**: Touchscreen mode with 48px+ touch hit areas, large quantity steppers (`+`/`-`), Web Audio API click synthesizer (`playTouchSound`), quick waiter PIN lock/switch, visual table floor grid, and landscape split-screen order dispatch pad.
+  - **Single-Option Dine-In Token Engine (`apps/token-order-web`)**: QR table auto-detection (`?table=T1`), elimination of non-dine-in options, sequential daily token number generation, and a dedicated 3-step Token Detail / Live Kitchen Tracker tab replacing user profile.
+  - **Admin ERP Customization Control Studio (`apps/admin-web/src/modules/customization`)**: Centralized multi-portal control panel for `customer-food-web`, `customer-stay-web`, `kds-web`, `staff-web`, and `token-order-web`. Dynamic GST toggle (`applyGst: boolean`), tax rates, inclusive/exclusive pricing, packaging & delivery charges, and thermal KOT print automation.
+  - **Cashier Ledger Integrity**: Cancelled orders immediately zero out taxable amounts, taxes, and balance due. Single unified combobox search for customers with real-time opening balance and credit ledger balances.
+
 - **[COMPLETED] Final Production Audit, Secret Sanitization & Multi-Tenant Data-Integrity Hardening ([ADR-0015](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0015-production-audit-security-and-data-integrity-hardening.md))**:
   - Purged hardcoded production database credentials from `services/backend/Dockerfile` and `services/backend/src/shared/config.py`.
   - Masked internal python tracebacks and system paths in production HTTP 500 error responses (`services/backend/src/main.py`).

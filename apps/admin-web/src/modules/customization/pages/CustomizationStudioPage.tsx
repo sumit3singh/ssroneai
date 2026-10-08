@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Palette, Globe, Smartphone, Monitor, Tablet, Save, Send, RotateCcw,
   CheckCircle2, AlertCircle, RefreshCw, ExternalLink, Trash2, Plus,
-  Layers, Utensils, Hotel, ChefHat, UserCheck, Hash, Eye, EyeOff, Sparkles, Check
+  Layers, Utensils, Hotel, ChefHat, UserCheck, Hash, Eye, EyeOff, Sparkles, Check,
+  Receipt, Printer, Volume2, Lock, Percent, ShieldCheck, Clock
 } from "lucide-react";
 import {
   Button, Card, CardContent, CardHeader, CardTitle, CardDescription,
@@ -580,6 +581,179 @@ export const CustomizationStudioPage: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* GST & TAX ENGINE CONTROLS (Requested by user) */}
+                    <div className="bg-muted/40 p-3 rounded-lg border border-border space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="font-semibold text-foreground flex items-center gap-1.5">
+                          <Percent size={14} className="text-primary" />
+                          GST & Tax Policy
+                        </p>
+                        <Badge
+                          variant="outline"
+                          className={draftConfig?.taxSettings?.applyGst ? "bg-primary/10 text-primary border-primary/30" : "bg-muted text-muted-foreground"}
+                        >
+                          {draftConfig?.taxSettings?.applyGst ? "GST Active" : "No GST (Tax Free)"}
+                        </Badge>
+                      </div>
+
+                      {/* GST Toggle */}
+                      <div
+                        onClick={() =>
+                          handleUpdateDraftField(
+                            ["taxSettings", "applyGst"],
+                            !draftConfig?.taxSettings?.applyGst
+                          )
+                        }
+                        className={`p-2.5 rounded-lg border cursor-pointer flex items-center justify-between transition-colors ${
+                          draftConfig?.taxSettings?.applyGst
+                            ? "bg-primary/10 border-primary/40 text-foreground"
+                            : "bg-background border-border text-muted-foreground"
+                        }`}
+                      >
+                        <div>
+                          <p className="font-semibold text-xs text-foreground">Apply GST / Taxes on Orders</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            When enabled, configured tax is added to bill. When disabled, customers pay ₹0 tax.
+                          </p>
+                        </div>
+                        <div
+                          className={`w-4 h-4 rounded flex items-center justify-center text-white text-[10px] ${
+                            draftConfig?.taxSettings?.applyGst ? "bg-primary" : "bg-muted-foreground/40"
+                          }`}
+                        >
+                          {draftConfig?.taxSettings?.applyGst && <Check size={12} strokeWidth={3} />}
+                        </div>
+                      </div>
+
+                      {draftConfig?.taxSettings?.applyGst && (
+                        <div className="grid grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <Label className="text-[11px]">GST Rate (%)</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="28"
+                              step="0.5"
+                              value={draftConfig?.taxSettings?.gstRate ?? 5}
+                              onChange={(e) =>
+                                handleUpdateDraftField(
+                                  ["taxSettings", "gstRate"],
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              className="mt-1 text-xs bg-background font-mono"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[11px]">Price Display</Label>
+                            <select
+                              value={draftConfig?.taxSettings?.pricesIncludeTax ? "inclusive" : "exclusive"}
+                              onChange={(e) =>
+                                handleUpdateDraftField(
+                                  ["taxSettings", "pricesIncludeTax"],
+                                  e.target.value === "inclusive"
+                                )
+                              }
+                              className="w-full mt-1 h-8 rounded-md bg-background border border-border px-2 text-xs text-foreground focus:outline-none"
+                            >
+                              <option value="exclusive">Tax added at checkout</option>
+                              <option value="inclusive">Prices include tax (MRP)</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* PACKAGING & DELIVERY CHARGES */}
+                    <div className="bg-muted/40 p-3 rounded-lg border border-border space-y-3">
+                      <p className="font-semibold text-foreground flex items-center gap-1.5">
+                        <Receipt size={14} className="text-amber-500" />
+                        Packaging & Service Fees
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div
+                          onClick={() =>
+                            handleUpdateDraftField(
+                              ["charges", "enablePackingCharge"],
+                              !draftConfig?.charges?.enablePackingCharge
+                            )
+                          }
+                          className={`p-2 rounded-lg border cursor-pointer flex items-center justify-between text-xs transition-colors ${
+                            draftConfig?.charges?.enablePackingCharge
+                              ? "bg-amber-500/10 border-amber-500/40 text-foreground"
+                              : "bg-background border-border text-muted-foreground"
+                          }`}
+                        >
+                          <div>
+                            <p className="font-semibold text-[11px]">Packaging Fee</p>
+                            <p className="text-[9px] text-muted-foreground">Takeaway/Delivery only</p>
+                          </div>
+                          <div
+                            className={`w-4 h-4 rounded flex items-center justify-center text-white text-[10px] ${
+                              draftConfig?.charges?.enablePackingCharge ? "bg-amber-500" : "bg-muted-foreground/40"
+                            }`}
+                          >
+                            {draftConfig?.charges?.enablePackingCharge && <Check size={12} strokeWidth={3} />}
+                          </div>
+                        </div>
+
+                        {draftConfig?.charges?.enablePackingCharge ? (
+                          <div>
+                            <Label className="text-[11px]">Packaging Amount (₹)</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={draftConfig?.charges?.packingChargeAmount ?? 10}
+                              onChange={(e) =>
+                                handleUpdateDraftField(
+                                  ["charges", "packingChargeAmount"],
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              className="mt-1 text-xs bg-background font-mono h-8"
+                            />
+                          </div>
+                        ) : (
+                          <div className="p-2 rounded-lg border border-border bg-background flex items-center text-[11px] text-muted-foreground">
+                            Packaging fee disabled (₹0)
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* KITCHEN PRINTING AUTOMATION */}
+                    <div
+                      onClick={() =>
+                        handleUpdateDraftField(
+                          ["kitchenPrinting", "autoPrintKotOnOrder"],
+                          draftConfig?.kitchenPrinting?.autoPrintKotOnOrder === false ? true : false
+                        )
+                      }
+                      className={`p-3 rounded-lg border cursor-pointer flex items-center justify-between transition-colors ${
+                        draftConfig?.kitchenPrinting?.autoPrintKotOnOrder !== false
+                          ? "bg-emerald-500/10 border-emerald-500/40 text-foreground"
+                          : "bg-muted/40 border-border text-muted-foreground"
+                      }`}
+                    >
+                      <div>
+                        <p className="font-semibold text-xs flex items-center gap-1.5">
+                          <Printer size={13} className="text-emerald-500" />
+                          Auto Hard Print KOT on Order Placement
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          Automatically dispatches print job to thermal kitchen printer when food app order is confirmed.
+                        </p>
+                      </div>
+                      <div
+                        className={`w-4 h-4 rounded flex items-center justify-center text-white text-[10px] ${
+                          draftConfig?.kitchenPrinting?.autoPrintKotOnOrder !== false ? "bg-emerald-500" : "bg-muted-foreground/40"
+                        }`}
+                      >
+                        {draftConfig?.kitchenPrinting?.autoPrintKotOnOrder !== false && <Check size={12} strokeWidth={3} />}
+                      </div>
+                    </div>
+
                     {/* Feature Toggles */}
                     <div className="space-y-2">
                       <Label className="font-semibold">Channel Ordering Features</Label>
@@ -747,59 +921,256 @@ export const CustomizationStudioPage: React.FC = () => {
                 </Card>
               )}
 
-              {/* STAFF WEB FORM */}
+              {/* STAFF WEB FORM (Tablet Touchscreen & Waiter POS) */}
               {selectedApp === "staff-web" && (
                 <Card className="border-border">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-bold flex items-center gap-2">
                       <UserCheck size={16} className="text-primary" />
-                      Staff & Waiter Portal
+                      Staff & Waiter Tablet Experience
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      Floor permissions, table status indicators, and service workflows.
+                      Tablet touch-screen optimizations, large button scaling, and waiter POS workflows.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3.5 text-xs">
+                    {/* Touchscreen Tablet Optimization Toggle */}
                     <div
                       onClick={() =>
                         handleUpdateDraftField(
-                          ["showHousekeepingToWaiters"],
-                          !draftConfig?.showHousekeepingToWaiters
+                          ["touchscreenMode"],
+                          draftConfig?.touchscreenMode === false ? true : false
                         )
                       }
-                      className="p-3 rounded-lg border border-border bg-muted/40 cursor-pointer flex items-center justify-between"
+                      className={`p-3 rounded-lg border cursor-pointer flex items-center justify-between transition-colors ${
+                        draftConfig?.touchscreenMode !== false
+                          ? "bg-primary/10 border-primary/40 text-foreground"
+                          : "bg-muted/40 border-border text-muted-foreground"
+                      }`}
                     >
                       <div>
-                        <p className="font-semibold">Show Housekeeping Tasks</p>
-                        <p className="text-[11px] text-muted-foreground">Allow waitstaff to view room cleaning alerts</p>
+                        <p className="font-semibold text-xs flex items-center gap-1.5">
+                          <Tablet size={13} className="text-primary" />
+                          Tablet Touch-Screen Mode
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          Enlarges tap targets (48px+), enhances visual hierarchy, and prevents accidental mis-taps on iPad/Android tablets.
+                        </p>
                       </div>
                       <div
-                        className={`w-4 h-4 rounded flex items-center justify-center text-white ${
-                          draftConfig?.showHousekeepingToWaiters ? "bg-primary" : "bg-muted-foreground/40"
+                        className={`w-4 h-4 rounded flex items-center justify-center text-white text-[10px] ${
+                          draftConfig?.touchscreenMode !== false ? "bg-primary" : "bg-muted-foreground/40"
                         }`}
                       >
-                        {draftConfig?.showHousekeepingToWaiters && <Check size={12} strokeWidth={3} />}
+                        {draftConfig?.touchscreenMode !== false && <Check size={12} strokeWidth={3} />}
+                      </div>
+                    </div>
+
+                    {/* Floor Plan Style */}
+                    <div>
+                      <Label className="font-semibold">Table Floor Layout</Label>
+                      <select
+                        value={draftConfig?.floorPlanStyle || "grid"}
+                        onChange={(e) => handleUpdateDraftField(["floorPlanStyle"], e.target.value)}
+                        className="w-full mt-1 p-2 rounded-md bg-background border border-border text-xs focus:outline-none"
+                      >
+                        <option value="grid">Visual Touch Grid (Card Tiles with Status Colors)</option>
+                        <option value="list">Compact List View (High Density)</option>
+                      </select>
+                    </div>
+
+                    {/* Auto KOT Print */}
+                    <div
+                      onClick={() =>
+                        handleUpdateDraftField(
+                          ["autoPrintKot"],
+                          draftConfig?.autoPrintKot === false ? true : false
+                        )
+                      }
+                      className={`p-3 rounded-lg border cursor-pointer flex items-center justify-between transition-colors ${
+                        draftConfig?.autoPrintKot !== false
+                          ? "bg-emerald-500/10 border-emerald-500/40 text-foreground"
+                          : "bg-muted/40 border-border text-muted-foreground"
+                      }`}
+                    >
+                      <div>
+                        <p className="font-semibold text-xs flex items-center gap-1.5">
+                          <Printer size={13} className="text-emerald-500" />
+                          Instant Kitchen KOT Print on Send
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          Sends physical print command to station thermal printers as soon as waiter taps 'Send KOT'.
+                        </p>
+                      </div>
+                      <div
+                        className={`w-4 h-4 rounded flex items-center justify-center text-white text-[10px] ${
+                          draftConfig?.autoPrintKot !== false ? "bg-emerald-500" : "bg-muted-foreground/40"
+                        }`}
+                      >
+                        {draftConfig?.autoPrintKot !== false && <Check size={12} strokeWidth={3} />}
+                      </div>
+                    </div>
+
+                    {/* Sound Feedback */}
+                    <div
+                      onClick={() =>
+                        handleUpdateDraftField(
+                          ["soundFeedback"],
+                          draftConfig?.soundFeedback === false ? true : false
+                        )
+                      }
+                      className={`p-3 rounded-lg border cursor-pointer flex items-center justify-between transition-colors ${
+                        draftConfig?.soundFeedback !== false
+                          ? "bg-amber-500/10 border-amber-500/40 text-foreground"
+                          : "bg-muted/40 border-border text-muted-foreground"
+                      }`}
+                    >
+                      <div>
+                        <p className="font-semibold text-xs flex items-center gap-1.5">
+                          <Volume2 size={13} className="text-amber-500" />
+                          Touch Audio Feedback
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          Plays subtle tactile audio click when waiter taps item counters (+/-) or submits orders.
+                        </p>
+                      </div>
+                      <div
+                        className={`w-4 h-4 rounded flex items-center justify-center text-white text-[10px] ${
+                          draftConfig?.soundFeedback !== false ? "bg-amber-500" : "bg-muted-foreground/40"
+                        }`}
+                      >
+                        {draftConfig?.soundFeedback !== false && <Check size={12} strokeWidth={3} />}
+                      </div>
+                    </div>
+
+                    {/* Require PIN */}
+                    <div
+                      onClick={() =>
+                        handleUpdateDraftField(
+                          ["requireWaiterPin"],
+                          !draftConfig?.requireWaiterPin
+                        )
+                      }
+                      className={`p-3 rounded-lg border cursor-pointer flex items-center justify-between transition-colors ${
+                        draftConfig?.requireWaiterPin
+                          ? "bg-primary/10 border-primary/40 text-foreground"
+                          : "bg-muted/40 border-border text-muted-foreground"
+                      }`}
+                    >
+                      <div>
+                        <p className="font-semibold text-xs flex items-center gap-1.5">
+                          <Lock size={13} className="text-primary" />
+                          Require Staff 4-Digit PIN on Order Punch
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          Requires quick PIN validation to associate each KOT with the serving staff member.
+                        </p>
+                      </div>
+                      <div
+                        className={`w-4 h-4 rounded flex items-center justify-center text-white text-[10px] ${
+                          draftConfig?.requireWaiterPin ? "bg-primary" : "bg-muted-foreground/40"
+                        }`}
+                      >
+                        {draftConfig?.requireWaiterPin && <Check size={12} strokeWidth={3} />}
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               )}
 
-              {/* TOKEN ORDER WEB FORM */}
+              {/* TOKEN ORDER WEB FORM (Queue, Token QR & Kiosk Display) */}
               {selectedApp === "token-order-web" && (
                 <Card className="border-border">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-bold flex items-center gap-2">
                       <Hash size={16} className="text-primary" />
-                      Queue & Token Display
+                      Queue & Token Self-Order Portal
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      Public TV screen counter and token announcer branding.
+                      Single-option Dine-in table QR ordering with automated token generation and live status tracker.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3.5 text-xs">
+                    {/* Strictly Dine-In Only (Requested by user) */}
+                    <div
+                      onClick={() =>
+                        handleUpdateDraftField(
+                          ["dineInOnly"],
+                          draftConfig?.dineInOnly === false ? true : false
+                        )
+                      }
+                      className={`p-3 rounded-lg border cursor-pointer flex items-center justify-between transition-colors ${
+                        draftConfig?.dineInOnly !== false
+                          ? "bg-primary/10 border-primary/40 text-foreground"
+                          : "bg-muted/40 border-border text-muted-foreground"
+                      }`}
+                    >
+                      <div>
+                        <p className="font-semibold text-xs flex items-center gap-1.5">
+                          <Utensils size={13} className="text-primary" />
+                          Single Option: Strictly Table Dine-In Only
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          Disables takeaway/delivery toggles. Customers scan table QR code and see table menu exclusively.
+                        </p>
+                      </div>
+                      <div
+                        className={`w-4 h-4 rounded flex items-center justify-center text-white text-[10px] ${
+                          draftConfig?.dineInOnly !== false ? "bg-primary" : "bg-muted-foreground/40"
+                        }`}
+                      >
+                        {draftConfig?.dineInOnly !== false && <Check size={12} strokeWidth={3} />}
+                      </div>
+                    </div>
+
+                    {/* Live Token Tracker Screen on Checkout (Requested by user) */}
+                    <div
+                      onClick={() =>
+                        handleUpdateDraftField(
+                          ["showTokenTracker"],
+                          draftConfig?.showTokenTracker === false ? true : false
+                        )
+                      }
+                      className={`p-3 rounded-lg border cursor-pointer flex items-center justify-between transition-colors ${
+                        draftConfig?.showTokenTracker !== false
+                          ? "bg-emerald-500/10 border-emerald-500/40 text-foreground"
+                          : "bg-muted/40 border-border text-muted-foreground"
+                      }`}
+                    >
+                      <div>
+                        <p className="font-semibold text-xs flex items-center gap-1.5">
+                          <Clock size={13} className="text-emerald-500" />
+                          Live Token Tracker Screen (Replaces User Profile)
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          On checkout, customer gets instant Token No. and live order progress tracker instead of complex user profile.
+                        </p>
+                      </div>
+                      <div
+                        className={`w-4 h-4 rounded flex items-center justify-center text-white text-[10px] ${
+                          draftConfig?.showTokenTracker !== false ? "bg-emerald-500" : "bg-muted-foreground/40"
+                        }`}
+                      >
+                        {draftConfig?.showTokenTracker !== false && <Check size={12} strokeWidth={3} />}
+                      </div>
+                    </div>
+
+                    {/* Token Numbering Sequence */}
                     <div>
-                      <Label className="font-semibold">'Now Serving' Display Text</Label>
+                      <Label className="font-semibold">Token Numbering Scheme</Label>
+                      <select
+                        value={draftConfig?.tokenFormat || "daily_sequential"}
+                        onChange={(e) => handleUpdateDraftField(["tokenFormat"], e.target.value)}
+                        className="w-full mt-1 p-2 rounded-md bg-background border border-border text-xs focus:outline-none"
+                      >
+                        <option value="daily_sequential">Daily Sequential Token (#1, #2, #3... resets daily)</option>
+                        <option value="order_number_suffix">Order Number Suffix (e.g. 081026-15)</option>
+                        <option value="table_prefix">Table Prefix (e.g. T1-01)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <Label className="font-semibold">'Now Serving' Header Title</Label>
                       <Input
                         value={draftConfig?.nowServingText || "Now Serving"}
                         onChange={(e) => handleUpdateDraftField(["nowServingText"], e.target.value)}

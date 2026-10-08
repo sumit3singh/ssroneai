@@ -10,6 +10,7 @@ import { getDishPhoto } from "@/lib/foodImageHelper";
 import ChangeOrderModeDialog from "@/components/ChangeOrderModeDialog";
 import AddressSelectDialog from "@/components/AddressSelectDialog";
 import TableCameraScannerModal from "@/components/TableCameraScannerModal";
+import useTenantAppConfig from "@/hooks/useTenantAppConfig";
 
 interface CartSheetProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export const CartSheet = ({ isOpen, onClose }: CartSheetProps) => {
   const navigate = useNavigate();
   const { tenantSlug, branchCode, tableNumber } = useTenantBranchContext();
   const { orderMode } = useAuthStore();
+  const { taxSettings } = useTenantAppConfig();
   const [openNoteId, setOpenNoteId] = useState<string | null>(null);
 
   // Dining Mode Switcher state
@@ -29,7 +31,9 @@ export const CartSheet = ({ isOpen, onClose }: CartSheetProps) => {
   const [isTableScanOpen, setIsTableScanOpen] = useState(false);
 
   const total = getTotal();
-  const tax = Math.round(total * 0.05);
+  const shouldApplyGst = taxSettings?.applyGst ?? false;
+  const gstRate = taxSettings?.gstRate ?? 5;
+  const tax = shouldApplyGst ? Math.round(total * (gstRate / 100)) : 0;
   const grandTotal = total + tax;
 
   return (
@@ -275,8 +279,10 @@ export const CartSheet = ({ isOpen, onClose }: CartSheetProps) => {
                   <span className="text-foreground font-bold">₹{total}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Taxes (5% GST)</span>
-                  <span className="text-foreground font-bold">₹{tax}</span>
+                  <span>{shouldApplyGst ? `Taxes (${gstRate}% GST)` : "Taxes & GST"}</span>
+                  <span className={`font-bold ${shouldApplyGst ? "text-foreground" : "text-emerald-600 dark:text-emerald-400 font-mono"}`}>
+                    {shouldApplyGst ? `₹${tax}` : "₹0 (Tax Free)"}
+                  </span>
                 </div>
 
                 <div className="flex items-center justify-between pt-2 border-t border-border">

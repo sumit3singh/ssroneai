@@ -25,10 +25,10 @@ This document serves as the **Canonical Current State Snapshot & Safeguard Stand
 | **Enterprise ERP Web** | `apps/admin-web` | `5173` / `3000` | React 19 + TanStack Router + Zustand. 11 domain modules (POS, Hotel, PG, CRM, Finance, Inventory, HR, Customization Studio, Forms, AI Copilot, Settings). Features **Zero-Wait POS** (< 1.2ms order saving, Dual In-Memory Hot-Mounted DOM, Dexie.js offline queue), and dedicated clean Platform Home module launcher. | 🟢 100% Operational (Live) |
 | **Platform Superadmin** | `apps/platform-admin` | `5174` / `3001` | React 19 + Vite. Superadmin tenant provisioning, cluster health status, outlet licensing keys, and live Sales Lead follow-up console (`#leads`) with WhatsApp integration. | 🟢 100% Operational |
 | **Kitchen Operations System (KOS)** | `apps/kds-web` | `8083` / `3002` | Multi-Stage 5-Mode QSR KOS: Station Cook KDS, Batch Prep, EXPO Pass, Packing & Handoff, SLA Command Center. Direct PostgreSQL connection via `/api/v1/orders/kds/live`. 86 Item modal & recipe view. | 🟢 100% Operational (Live) |
-| **Queue-Buster Token Web** | `apps/token-order-web` | `3003` | Mobile fast-order web app for counter QR & kiosk tablets. Generates 3-digit queue tokens (`#104`). Cashier loads entire pre-built cart in < 0.1s via `Alt+Q`. | 🟢 100% Operational |
-| **Customer Food Web** | `apps/customer-food-web` | `3000` / `3004` | Public customer QR menu, dynamic CSS token injection, tenant branding/logo, dynamic item filters, cart customization, and live order status tracker. | 🟢 100% Operational (Live) |
+| **Queue-Buster Token Web** | `apps/token-order-web` | `3003` | Single-option Dine-In Table QR ordering with automatic table parameter binding (`?table=T1`), live sequential Token No. generation, and dedicated 3-step Token Tracker replacing user profile. | 🟢 100% Operational (Live) |
+| **Customer Food Web** | `apps/customer-food-web` | `3000` / `3004` | Public customer QR menu, dynamic CSS token injection, tenant branding/logo, dynamic item filters, cart customization, dynamic GST tax policy (`applyGst: boolean`), and live order status tracker. | 🟢 100% Operational (Live) |
 | **Customer Stay Web** | `apps/customer-stay-web` | `3001` / `3005` | Hotel room booking, date range picker, room catalog, booking folio, guest check-in requests. | 🟢 100% Operational (Live) |
-| **Staff Mobile Web** | `apps/staff-web` | `8084` / `3006` | Staff mobile operations: Housekeeping room cleaning status, room service orders, KOT table entry, staff attendance. | 🟢 100% Operational |
+| **Staff Tablet POS Web** | `apps/staff-web` | `8084` / `3006` | Tablet-optimized touchscreen Waiter POS: 48px+ touch targets, large steppers, Web Audio tap feedback, quick waiter PIN switch, visual table floor grid, and landscape split-screen order dispatch. | 🟢 100% Operational (Live) |
 | **Marketing Scrollytelling Web** | `apps/marketing-web` | `3002` / `3007` | GSAP `MotionPathPlugin` character-guided scrollytelling along a winding emerald road across 7 story beats. Warm paper daylight theme, ₹12,000/yr flat pricing, PostgreSQL lead ingestion. | 🟢 100% Operational (Live) |
 
 ---
@@ -104,6 +104,7 @@ This document serves as the **Canonical Current State Snapshot & Safeguard Stand
 - **[ADR-0013](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0013-world-class-enterprise-pos-innovations.md)**: World-Class Enterprise POS Innovations & Zero-Ruination Hardening.
 - **[ADR-0014](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0014-production-cloud-deployment-and-zero-ruination-cd.md)**: Production Cloud Deployment & Zero-Ruination Continuous Delivery Baseline.
 - **[ADR-0015](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0015-production-audit-security-and-data-integrity-hardening.md)**: Final Production Audit, Secret Sanitization & Multi-Tenant Data-Integrity Hardening.
+- **[ADR-0016](file:///e:/2026/ssr_one_ai/.agents/02-architecture/DECISIONS/ADR-0016-tablet-staff-web-token-order-and-admin-portal-controls.md)**: Tablet Staff Web, Token Order Web, and Admin Portal Multi-App Control Engine.
 
 ---
 
