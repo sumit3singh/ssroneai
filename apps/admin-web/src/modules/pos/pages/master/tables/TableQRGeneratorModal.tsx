@@ -4,7 +4,7 @@ import { Button } from "@ssrone/ui";
 import { POSTable } from "../../../types";
 import { tablesApi } from "../../../api/tables.api";
 import { useAuthStore } from "@ssrone/auth";
-import { generateQRCodeSVG } from "@ssrone/utils";
+import { generateQRCodeSVG } from "../../../../../shared/utils/qrGenerator";
 import { toast } from "sonner";
 
 interface TableQRGeneratorModalProps {

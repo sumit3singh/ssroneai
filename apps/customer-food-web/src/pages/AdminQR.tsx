@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Download, Plus, Trash2, QrCode, FileDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
-import { generateQRCodeSVG } from "@ssrone/utils";
+import { generateQRCodeSVG } from "@/lib/qr";
 
 export const AdminQR = () => {
   const navigate = useNavigate();
