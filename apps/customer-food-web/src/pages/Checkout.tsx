@@ -19,6 +19,8 @@ import {
   Receipt,
   Utensils,
   FileText,
+  AlertCircle,
+  MessageCircle,
 } from "lucide-react";
 import { useCartStore } from "@/stores/cartStore";
 import { useAuthStore } from "@ssrone/auth";
@@ -30,6 +32,8 @@ import {
   saveCustomerAddress,
   createRazorpayOrder,
   verifyRazorpayPayment,
+  cancelOnlineOrderByCustomer,
+  api,
   type SavedAddress,
 } from "@ssrone/api-client";
 import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
@@ -38,6 +42,7 @@ import ChangeOrderModeDialog from "@/components/ChangeOrderModeDialog";
 import AddressSelectDialog from "@/components/AddressSelectDialog";
 import TableCameraScannerModal from "@/components/TableCameraScannerModal";
 import useTenantAppConfig from "@/hooks/useTenantAppConfig";
+import { checkStoreOperatingStatus } from "@/lib/storeOperatingStatus";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -70,7 +75,12 @@ export const Checkout = () => {
   const { tenantSlug, branchCode, tableNumber } = useTenantBranchContext();
   const { toast } = useToast();
   const { t } = useI18n();
-  const { taxSettings, charges } = useTenantAppConfig();
+  const { branding, taxSettings, charges, operatingHours, paymentOptions, deliverySettings } = useTenantAppConfig();
+  const supportPhone = (branding?.phone && branding.phone !== "+91 98765 43210") ? branding.phone : "+91 8708690004";
+  const cleanSupportDigits = supportPhone.replace(/\D/g, "").slice(-10);
+  const whatsappUrl = (branding as any)?.socialLinks?.whatsapp || `https://wa.me/91${cleanSupportDigits || "8708690004"}`;
+  const storeStatus = checkStoreOperatingStatus(operatingHours);
+  const enableRazorpay = paymentOptions?.enableRazorpay ?? false;
   const {
     items,
     getTotal,
@@ -95,6 +105,8 @@ export const Checkout = () => {
   } = useAuthStore();
 
   const total = getTotal();
+  const minDelivery = deliverySettings?.minOrderValue || 0;
+  const isDeliveryUnderMin = orderMode === "delivery" && total < minDelivery;
   const shouldApplyGst = taxSettings?.applyGst ?? false;
   const gstRate = taxSettings?.gstRate ?? 5;
   const tax = shouldApplyGst ? Math.round(total * (gstRate / 100)) : 0;
@@ -108,12 +120,21 @@ export const Checkout = () => {
 
   const [placing, setPlacing] = useState(false);
   const [alternatePhone, setAlternatePhone] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"razorpay" | "cash">("razorpay");
+  const [paymentMethod, setPaymentMethod] = useState<"razorpay" | "cash">(() =>
+    enableRazorpay ? "razorpay" : "cash"
+  );
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | number | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  // Dedicated Order Confirmation Screen State
+  // Sync payment method if razorpay is disabled
+  useEffect(() => {
+    if (!enableRazorpay && paymentMethod === "razorpay") {
+      setPaymentMethod("cash");
+    }
+  }, [enableRazorpay, paymentMethod]);
+
+  // Dedicated Order Confirmation Screen State (for Dine-in)
   const [confirmedOrder, setConfirmedOrder] = useState<{
     orderId: string;
     orderNumber: string;
@@ -126,6 +147,51 @@ export const Checkout = () => {
   } | null>(null);
   const [redirectCountdown, setRedirectCountdown] = useState<number>(4);
   const [copiedToken, setCopiedToken] = useState(false);
+
+  // Dedicated Online Approval State (Takeaway & Delivery)
+  const [pendingOnlineOrder, setPendingOnlineOrder] = useState<{
+    orderId: string;
+    orderNumber: string;
+    itemsCount: number;
+    grandTotal: number;
+    targetStatusUrl: string;
+    paymentMethod: string;
+    deliveryAddress?: string;
+    initialItems: typeof items;
+  } | null>(() => {
+    try {
+      const raw = sessionStorage.getItem("ssrone_pending_online_order");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // Retain if placed within the last 2 hours
+        if (Date.now() - (parsed.createdAt || 0) < 2 * 60 * 60 * 1000) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return null;
+  });
+  const [approvalStatus, setApprovalStatus] = useState<"pending" | "accepted" | "rejected" | "cancelled">(() => {
+    try {
+      const raw = sessionStorage.getItem("ssrone_pending_online_order");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.status) return parsed.status;
+      }
+    } catch {}
+    return "pending";
+  });
+  const [rejectionReason, setRejectionReason] = useState<string>(() => {
+    try {
+      const raw = sessionStorage.getItem("ssrone_pending_online_order");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.rejectionReason) return parsed.rejectionReason;
+      }
+    } catch {}
+    return "";
+  });
+  const [acceptedRedirectCountdown, setAcceptedRedirectCountdown] = useState<number>(4);
 
   // Address creation dialog state
   const [showNewAddressForm, setShowNewAddressForm] = useState(false);
@@ -215,7 +281,340 @@ export const Checkout = () => {
     return () => clearInterval(timer);
   }, [confirmedOrder, navigate]);
 
-  // If order was confirmed, show the Celebration Confirmation View
+  // Poll for staff approval / rejection
+  useEffect(() => {
+    if (!pendingOnlineOrder || approvalStatus !== "pending") return;
+    let isMounted = true;
+    const poll = async () => {
+      try {
+        const res = await api.get<any>(`/orders/${pendingOnlineOrder.orderId}`);
+        if (!isMounted || !res) return;
+        const st = String(res.status || "").toLowerCase();
+        if (["kot_sent", "confirmed", "in_kitchen", "preparing", "ready", "completed"].includes(st)) {
+          setApprovalStatus("accepted");
+          try {
+            sessionStorage.setItem(
+              "ssrone_pending_online_order",
+              JSON.stringify({ ...pendingOnlineOrder, status: "accepted", createdAt: Date.now() })
+            );
+          } catch {}
+          toast.success("Order Confirmed! 🎉", {
+            description: "The cafe has accepted your order and sent KOT to kitchen.",
+          });
+        } else if (st === "rejected") {
+          const reason = res.rejection_reason || "The cafe cannot take this order at this time.";
+          setApprovalStatus("rejected");
+          setRejectionReason(reason);
+          clearCart();
+          setSpecialInstructions("");
+          try {
+            sessionStorage.setItem(
+              "ssrone_pending_online_order",
+              JSON.stringify({ ...pendingOnlineOrder, status: "rejected", rejectionReason: reason, createdAt: Date.now() })
+            );
+          } catch {}
+        } else if (st === "cancelled") {
+          setApprovalStatus("cancelled");
+          clearCart();
+          setSpecialInstructions("");
+          try {
+            sessionStorage.setItem(
+              "ssrone_pending_online_order",
+              JSON.stringify({ ...pendingOnlineOrder, status: "cancelled", createdAt: Date.now() })
+            );
+          } catch {}
+        }
+      } catch {
+        // Silently retry
+      }
+    };
+
+    poll();
+    const timer = setInterval(poll, 2500);
+    return () => {
+      isMounted = false;
+      clearInterval(timer);
+    };
+  }, [pendingOnlineOrder, approvalStatus, toast, clearCart, setSpecialInstructions]);
+
+  // Auto-redirect once accepted
+  useEffect(() => {
+    if (approvalStatus !== "accepted" || !pendingOnlineOrder) return;
+    const timer = setInterval(() => {
+      setAcceptedRedirectCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          try {
+            sessionStorage.removeItem("ssrone_pending_online_order");
+          } catch {}
+          navigate(pendingOnlineOrder.targetStatusUrl, {
+            state: {
+              orderId: pendingOnlineOrder.orderId,
+              orderNumber: pendingOnlineOrder.orderNumber,
+            },
+          });
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [approvalStatus, pendingOnlineOrder, navigate]);
+
+  const handleCancelPendingOrder = async () => {
+    if (!pendingOnlineOrder) return;
+    try {
+      await cancelOnlineOrderByCustomer(pendingOnlineOrder.orderId, "Customer cancelled within 2-min window");
+      setApprovalStatus("cancelled");
+      clearCart();
+      setSpecialInstructions("");
+      try {
+        sessionStorage.setItem(
+          "ssrone_pending_online_order",
+          JSON.stringify({ ...pendingOnlineOrder, status: "cancelled", createdAt: Date.now() })
+        );
+      } catch {}
+      toast.info("Order Cancelled", { description: "Your order has been cancelled." });
+    } catch (err: any) {
+      toast.error("Cancellation Failed", { description: err?.message || "Please contact cafe directly." });
+    }
+  };
+
+  const handleModifyPendingOrder = async () => {
+    if (!pendingOnlineOrder) return;
+    try {
+      await cancelOnlineOrderByCustomer(pendingOnlineOrder.orderId, "Customer modifying cart");
+      try {
+        sessionStorage.removeItem("ssrone_pending_online_order");
+      } catch {}
+      setPendingOnlineOrder(null);
+      setApprovalStatus("pending");
+      if (pendingOnlineOrder.initialItems && pendingOnlineOrder.initialItems.length > 0) {
+        pendingOnlineOrder.initialItems.forEach((ci) => {
+          useCartStore.getState().addItem(ci.menuItem, ci.selectedVariants, ci.selectedAddons);
+        });
+      }
+      toast.info("Cart Restored", { description: "You can modify your items in the cart." });
+      navigate(
+        orderMode === "dine-in" && tableNumber
+          ? `/t/${tenantSlug}/b/${branchCode}/table/${tableNumber}/menu`
+          : `/t/${tenantSlug}/b/${branchCode}/menu`
+      );
+    } catch (err: any) {
+      toast.error("Could not modify order", { description: err?.message || "Please contact cafe directly." });
+    }
+  };
+
+  // ── Pending Online Approval Screen (Takeaway & Delivery) ──
+  if (pendingOnlineOrder) {
+    if (approvalStatus === "accepted") {
+      return (
+        <div className="min-h-screen bg-[#FBF8F3] text-[#2D241E] flex flex-col items-center justify-center p-4 sm:p-6 font-sans">
+          <div className="w-full max-w-md bg-white border border-[#E8E3DC] rounded-3xl shadow-xl p-6 sm:p-8 text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-20 h-20 rounded-full bg-emerald-500/10 border-2 border-emerald-500/30 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
+              <CheckCircle className="w-10 h-10 stroke-[2.5]" />
+            </div>
+            <div>
+              <span className="inline-block px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-black tracking-wide uppercase mb-1">
+                Cafe Confirmed & Accepted 🎉
+              </span>
+              <h1 className="text-2xl font-black text-[#2D241E] font-serif tracking-tight mt-1">
+                Order Confirmed!
+              </h1>
+              <p className="text-xs text-[#7A746B] mt-1 max-w-xs mx-auto">
+                The Baithak Cafe staff accepted your order. KOT ticket has been printed in the kitchen!
+              </p>
+            </div>
+
+            <div className="p-4 bg-[#FBF8F3] rounded-2xl border border-[#E8E3DC] text-center space-y-1">
+              <p className="text-[11px] font-bold text-[#7A746B] uppercase tracking-wider">Your Order Number</p>
+              <span className="text-2xl sm:text-3xl font-mono font-black text-[#9E6B38] tracking-tight">
+                #{pendingOnlineOrder.orderNumber}
+              </span>
+            </div>
+
+            <div className="py-1">
+              <p className="text-xs font-bold text-[#7A746B]">
+                Redirecting to live order tracking in <span className="text-[#9E6B38] font-black">{acceptedRedirectCountdown}s</span>...
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                navigate(pendingOnlineOrder.targetStatusUrl, {
+                  state: {
+                    orderId: pendingOnlineOrder.orderId,
+                    orderNumber: pendingOnlineOrder.orderNumber,
+                  },
+                });
+              }}
+              className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#9E6B38] to-[#8C5E35] text-white hover:brightness-105 font-black text-sm shadow-md shadow-amber-900/20 flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer"
+            >
+              <span>Track Live Order Status</span>
+              <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (approvalStatus === "rejected") {
+      return (
+        <div className="min-h-screen bg-[#FBF8F3] text-[#2D241E] flex flex-col items-center justify-center p-4 sm:p-6 font-sans">
+          <div className="w-full max-w-md bg-white border border-[#E8E3DC] rounded-3xl shadow-xl p-6 sm:p-8 text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-20 h-20 rounded-full bg-rose-500/10 border-2 border-rose-500/30 text-rose-600 flex items-center justify-center mx-auto shadow-sm">
+              <AlertCircle className="w-10 h-10 stroke-[2.5]" />
+            </div>
+            <div>
+              <span className="inline-block px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-xs font-black tracking-wide uppercase mb-1">
+                Order Cannot Be Fulfilled
+              </span>
+              <h1 className="text-xl sm:text-2xl font-black text-[#2D241E] font-serif tracking-tight mt-1">
+                Order at this time is not possible
+              </h1>
+              <p className="text-xs text-[#7A746B] mt-2 max-w-xs mx-auto leading-relaxed">
+                We are sorry! The cafe is unable to process your order at this time.
+              </p>
+              {rejectionReason && (
+                <div className="mt-3 p-3 bg-rose-50/80 border border-rose-200 rounded-xl text-xs font-semibold text-rose-800">
+                  Reason: {rejectionReason}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  sessionStorage.removeItem("ssrone_pending_online_order");
+                } catch {}
+                setPendingOnlineOrder(null);
+                setApprovalStatus("pending");
+                clearCart();
+                setSpecialInstructions("");
+                navigate(`/t/${tenantSlug}/b/${branchCode}/menu`);
+              }}
+              className="w-full py-3.5 px-6 rounded-2xl bg-[#9E6B38] hover:bg-[#8C5E35] text-white font-black text-sm shadow-md transition active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Utensils className="w-4 h-4" />
+              <span>Return to Menu</span>
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (approvalStatus === "cancelled") {
+      return (
+        <div className="min-h-screen bg-[#FBF8F3] text-[#2D241E] flex flex-col items-center justify-center p-4 sm:p-6 font-sans">
+          <div className="w-full max-w-md bg-white border border-[#E8E3DC] rounded-3xl shadow-xl p-6 sm:p-8 text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 rounded-full bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center mx-auto shadow-sm">
+              <ShoppingBag className="w-8 h-8" />
+            </div>
+            <div>
+              <span className="inline-block px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-xs font-black tracking-wide uppercase mb-1">
+                Order Cancelled
+              </span>
+              <h1 className="text-xl sm:text-2xl font-black text-[#2D241E] font-serif tracking-tight mt-1">
+                Order Cancelled
+              </h1>
+              <p className="text-xs text-[#7A746B] mt-2 max-w-xs mx-auto leading-relaxed">
+                Your order #{pendingOnlineOrder.orderNumber} has been successfully cancelled and removed from active processing.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  sessionStorage.removeItem("ssrone_pending_online_order");
+                } catch {}
+                setPendingOnlineOrder(null);
+                setApprovalStatus("pending");
+                clearCart();
+                setSpecialInstructions("");
+                navigate(`/t/${tenantSlug}/b/${branchCode}/menu`);
+              }}
+              className="w-full py-3.5 px-6 rounded-2xl bg-[#9E6B38] hover:bg-[#8C5E35] text-white font-black text-sm shadow-md transition active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Utensils className="w-4 h-4" />
+              <span>Start Fresh Order · Back to Menu</span>
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // Default: approvalStatus === "pending"
+    return (
+      <div className="min-h-screen bg-[#FBF8F3] text-[#2D241E] flex flex-col items-center justify-center p-4 sm:p-6 font-sans">
+        <div className="w-full max-w-md bg-white border border-[#E8E3DC] rounded-3xl shadow-xl p-6 sm:p-8 text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
+          <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
+            <div className="absolute inset-0 rounded-full bg-[#9E6B38]/20 animate-ping opacity-60" />
+            <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-[#9E6B38] to-[#8C5E35] text-white flex items-center justify-center shadow-md">
+              <RefreshCw className="w-9 h-9 animate-spin" />
+            </div>
+          </div>
+
+          <div>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-xs font-black tracking-wide uppercase mb-1">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              Waiting for Cafe Confirmation
+            </span>
+            <h1 className="text-xl sm:text-2xl font-black text-[#2D241E] font-serif tracking-tight mt-1">
+              Order Sent to Cafe
+            </h1>
+            <p className="text-xs text-[#7A746B] mt-1.5 max-w-xs mx-auto leading-relaxed">
+              Please wait for order confirmation from cafe side. Our staff will review and accept your order shortly.
+            </p>
+          </div>
+
+          <div className="p-4 bg-[#FBF8F3] rounded-2xl border border-[#E8E3DC] text-center space-y-1">
+            <p className="text-[11px] font-bold text-[#7A746B] uppercase tracking-wider">Order Reference</p>
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-2xl sm:text-3xl font-mono font-black text-[#9E6B38] tracking-tight">
+                #{pendingOnlineOrder.orderNumber}
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground font-semibold">
+              {pendingOnlineOrder.itemsCount} items · Total: ₹{pendingOnlineOrder.grandTotal} · {orderMode === "takeaway" ? "Takeaway" : "Home Delivery"}
+            </p>
+          </div>
+
+          {/* Cafe Customer Assistance & Query Card */}
+          <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50/70 border border-amber-200/90 rounded-2xl text-center space-y-2.5 shadow-2xs">
+            <div className="flex items-center justify-center gap-1.5 text-xs font-black text-amber-950 uppercase tracking-wide">
+              <Phone className="w-3.5 h-3.5 text-[#9E6B38]" />
+              <span>Have Any Query or Need Assistance?</span>
+            </div>
+            <p className="text-xs text-[#5C4A3E] leading-relaxed max-w-xs mx-auto font-medium">
+              For any questions, order updates, or special inquiries, please reach out to our cafe team:
+            </p>
+            <div className="flex items-center justify-center gap-2 pt-1 flex-wrap">
+              <a
+                href={`tel:${supportPhone.replace(/\s+/g, '')}`}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-amber-300 text-xs font-black text-[#9E6B38] hover:bg-amber-100/60 shadow-xs transition active:scale-95"
+              >
+                <Phone className="w-3.5 h-3.5 text-[#9E6B38]" />
+                <span>{supportPhone}</span>
+              </a>
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white shadow-xs transition active:scale-95"
+              >
+                <MessageCircle className="w-3.5 h-3.5 text-white" />
+                <span>WhatsApp Cafe</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If order was confirmed, show the Celebration Confirmation View (Dine-in)
   if (confirmedOrder) {
     return (
       <div className="min-h-screen bg-[#FBF8F3] text-[#2D241E] flex flex-col items-center justify-center p-4 sm:p-6 font-sans">
@@ -495,20 +894,41 @@ export const Checkout = () => {
           ? `/t/${tenantSlug || "baithak-cafe"}/b/${branchCode || "101"}/table/${tableNumber || "1"}/status/${orderIdStr}`
           : `/t/${tenantSlug || "baithak-cafe"}/b/${branchCode || "101"}/status/${orderIdStr}`;
 
-      // 1. Immediately mount the Order Celebration screen
-      setConfirmedOrder({
-        orderId: orderIdStr,
-        orderNumber: orderNum,
-        estimatedTime: response.estimatedTime || 15,
-        targetStatusUrl,
-        itemsCount: items.length,
-        grandTotal,
-        paymentMethod: selectedPayMethod,
-        tableNumber: actualOrderType === "dine-in" ? (tableNumber || "1") : undefined,
-      });
+      // 1. Mount Order screen (Direct confirmation for Dine-in; Pending Cafe Approval for Takeaway & Delivery)
+      if (actualOrderType === "dine-in") {
+        setConfirmedOrder({
+          orderId: orderIdStr,
+          orderNumber: orderNum,
+          estimatedTime: response.estimatedTime || 15,
+          targetStatusUrl,
+          itemsCount: items.length,
+          grandTotal,
+          paymentMethod: selectedPayMethod,
+          tableNumber: tableNumber || "1",
+        });
+      } else {
+        const pendingData = {
+          orderId: orderIdStr,
+          orderNumber: orderNum,
+          itemsCount: items.length,
+          grandTotal,
+          targetStatusUrl,
+          paymentMethod: selectedPayMethod,
+          deliveryAddress: orderMode === "delivery" ? deliveryAddress : undefined,
+          initialItems: [...items],
+          status: "pending" as const,
+          createdAt: Date.now(),
+        };
+        setPendingOnlineOrder(pendingData);
+        setApprovalStatus("pending");
+        try {
+          sessionStorage.setItem("ssrone_pending_online_order", JSON.stringify(pendingData));
+        } catch {}
+      }
 
-      // 2. Clear cart items
+      // 2. Clear cart items and notes immediately
       clearCart();
+      setSpecialInstructions("");
 
       // 3. Safely record past order locally without breaking the flow
       try {
@@ -540,9 +960,15 @@ export const Checkout = () => {
       }
 
       setPlacing(false);
-      toast.success(`Order #${orderNum} Placed! 🎉`, {
-        description: "Your order has been transmitted to the kitchen.",
-      });
+      if (actualOrderType === "dine-in") {
+        toast.success(`Order #${orderNum} Placed! 🎉`, {
+          description: "Your order has been transmitted to the kitchen.",
+        });
+      } else {
+        toast.info(`Order #${orderNum} Submitted! ⏳`, {
+          description: "Waiting for confirmation from The Baithak Cafe staff.",
+        });
+      }
     } catch (err: any) {
       console.error("Order placement exception:", err);
       toast.error("Order Placement Failed", {
@@ -553,6 +979,22 @@ export const Checkout = () => {
   };
 
   const handlePlaceOrder = async () => {
+    if (!storeStatus.isOpen) {
+      toast({
+        title: "The Baithak Cafe is Currently Closed",
+        description: storeStatus.closedMessage || "We will be back during operational hours.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (orderMode === "delivery" && isDeliveryUnderMin) {
+      toast({
+        title: "Minimum Order Required for Delivery",
+        description: `Minimum delivery order amount is ₹${minDelivery}. Please add ₹${minDelivery - total} more to proceed.`,
+        variant: "destructive",
+      });
+      return;
+    }
     const finalPhone = (effectivePhone || user?.phone || "").trim();
     if (orderMode === "delivery" && !finalPhone) {
       toast.error("Phone Number Required", {
@@ -934,32 +1376,34 @@ export const Checkout = () => {
           </h2>
 
           <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setPaymentMethod("razorpay")}
-              className={cn(
-                "w-full p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between",
-                paymentMethod === "razorpay"
-                  ? "bg-primary/10 border-primary text-foreground shadow-xs"
-                  : "bg-muted/20 border-border text-muted-foreground hover:bg-muted/50"
-              )}
-            >
-              <div className="flex items-center gap-2.5">
-                <div
-                  className={cn(
-                    "w-4 h-4 rounded-full border flex items-center justify-center",
-                    paymentMethod === "razorpay" ? "border-primary bg-primary text-primary-foreground" : "border-border"
-                  )}
-                >
-                  {paymentMethod === "razorpay" && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+            {enableRazorpay && (
+              <button
+                type="button"
+                onClick={() => setPaymentMethod("razorpay")}
+                className={cn(
+                  "w-full p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between",
+                  paymentMethod === "razorpay"
+                    ? "bg-primary/10 border-primary text-foreground shadow-xs"
+                    : "bg-muted/20 border-border text-muted-foreground hover:bg-muted/50"
+                )}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className={cn(
+                      "w-4 h-4 rounded-full border flex items-center justify-center",
+                      paymentMethod === "razorpay" ? "border-primary bg-primary text-primary-foreground" : "border-border"
+                    )}
+                  >
+                    {paymentMethod === "razorpay" && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-foreground">Online Payment (UPI, Cards, NetBanking)</div>
+                    <div className="text-[11px] text-muted-foreground">Powered by Razorpay instant checkout</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-xs font-bold text-foreground">Online Payment (UPI, Cards, NetBanking)</div>
-                  <div className="text-[11px] text-muted-foreground">Powered by Razorpay instant checkout</div>
-                </div>
-              </div>
-              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-            </button>
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+              </button>
+            )}
 
             {/* Offline Payment: Cash on Delivery for Delivery, Pay at Counter for Takeaway and Dine-In */}
             <button
@@ -989,10 +1433,10 @@ export const Checkout = () => {
                   </div>
                   <div className="text-[11px] text-muted-foreground">
                     {orderMode === "delivery"
-                      ? "Pay cash to delivery rider at your doorstep"
+                      ? "Pay cash or scan UPI with delivery rider"
                       : orderMode === "takeaway"
-                      ? "Pay at the counter when collecting your order"
-                      : "Pay at the billing counter or table"}
+                      ? "Pay cash or scan UPI QR when collecting order"
+                      : "Pay at billing counter or table"}
                   </div>
                 </div>
               </div>
@@ -1011,7 +1455,7 @@ export const Checkout = () => {
 
           <button
             type="button"
-            disabled={placing}
+            disabled={placing || !storeStatus.isOpen || isDeliveryUnderMin}
             onClick={handlePlaceOrder}
             className="flex-1 max-w-xs h-12 bg-gradient-to-r from-[#9E6B38] via-[#B45309] to-[#8C5E35] text-white hover:brightness-105 font-black text-xs sm:text-sm rounded-full shadow-md shadow-amber-900/20 flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
           >
@@ -1020,6 +1464,10 @@ export const Checkout = () => {
                 <RefreshCw className="w-4 h-4 animate-spin" />
                 <span>Processing Order...</span>
               </>
+            ) : !storeStatus.isOpen ? (
+              <span>Cafe Closed (Hours: {storeStatus.scheduleSummary})</span>
+            ) : isDeliveryUnderMin ? (
+              <span>Min Delivery Order ₹{minDelivery}</span>
             ) : (
               <span>
                 {paymentMethod === "razorpay"

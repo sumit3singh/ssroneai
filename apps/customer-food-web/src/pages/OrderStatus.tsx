@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@ssrone/api-client";
 import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
+import { useCartStore } from "@/stores/cartStore";
 
 export const OrderStatus = () => {
   const navigate = useNavigate();
@@ -80,7 +81,10 @@ export const OrderStatus = () => {
 
         if (res && res.status) {
           const st = String(res.status || "").toLowerCase();
-          if (st === "kot_sent" || st === "open" || st === "pending" || st === "draft") {
+          if (st === "pending_acceptance") {
+            setCurrentStep(0);
+            setStatusText("Waiting for Cafe Confirmation");
+          } else if (st === "kot_sent" || st === "open" || st === "pending" || st === "draft") {
             setCurrentStep(1);
             setStatusText("Kitchen Confirmed");
           } else if (st === "in_kitchen" || st === "preparing" || st === "kitchen") {
@@ -92,7 +96,21 @@ export const OrderStatus = () => {
           } else if (st === "completed" || st === "paid" || st === "served" || st === "settled") {
             setCurrentStep(4);
             setStatusText("Order Complete");
+            try { useCartStore.getState().clearCart(); } catch {}
+            try { sessionStorage.removeItem("ssrone_pending_online_order"); } catch {}
             return; // Stop polling on terminal state
+          } else if (st === "rejected") {
+            setCurrentStep(0);
+            setStatusText("Order Not Accepted");
+            try { useCartStore.getState().clearCart(); } catch {}
+            try { sessionStorage.removeItem("ssrone_pending_online_order"); } catch {}
+            return;
+          } else if (st === "cancelled") {
+            setCurrentStep(0);
+            setStatusText("Order Cancelled");
+            try { useCartStore.getState().clearCart(); } catch {}
+            try { sessionStorage.removeItem("ssrone_pending_online_order"); } catch {}
+            return;
           }
         }
       } catch {
@@ -192,7 +210,11 @@ export const OrderStatus = () => {
             {statusText}
           </h2>
           <p className="text-xs text-[#7A746B] max-w-xs leading-relaxed mb-4">
-            {currentStep >= steps.length - 1
+            {statusText === "Order Cancelled"
+              ? "This order has been cancelled and will not be prepared."
+              : statusText === "Order Not Accepted"
+              ? "The cafe is unable to accept this order at this time."
+              : currentStep >= steps.length - 1
               ? "Hope you loved the food! Thank you for dining with us."
               : "Your items are being prepared with care in the kitchen."}
           </p>
@@ -298,10 +320,16 @@ export const OrderStatus = () => {
         {!isTableMode && (
           <button
             type="button"
-            onClick={() => navigate(menuUrl)}
+            onClick={() => {
+              if (statusText === "Order Cancelled" || statusText === "Order Not Accepted") {
+                try { useCartStore.getState().clearCart(); } catch {}
+                try { sessionStorage.removeItem("ssrone_pending_online_order"); } catch {}
+              }
+              navigate(menuUrl);
+            }}
             className="w-full py-3.5 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold flex items-center justify-center gap-2 shadow-md transition active:scale-95 cursor-pointer"
           >
-            <span>Back to Menu</span>
+            <span>{statusText === "Order Cancelled" || statusText === "Order Not Accepted" ? "Start New Order · Back to Menu" : "Back to Menu"}</span>
           </button>
         )}
       </div>

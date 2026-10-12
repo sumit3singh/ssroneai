@@ -6,6 +6,9 @@ import OptimizedImage from "@/components/OptimizedImage";
 import { useCartStore } from "@/stores/cartStore";
 import { getDishPhoto } from "@/lib/foodImageHelper";
 import { cn } from "@/lib/utils";
+import useTenantAppConfig from "@/hooks/useTenantAppConfig";
+import { checkMenuItemAvailability } from "@/lib/storeOperatingStatus";
+import { useToast } from "@/hooks/use-toast";
 
 interface MenuItemCardProps {
   item: MenuItem;
@@ -35,6 +38,11 @@ export const FoodTypeBadge: React.FC<{ isNonVeg: boolean; className?: string }> 
 };
 
 const MenuItemCardComponent: React.FC<MenuItemCardProps> = ({ item, categoryName, onAdd }) => {
+  const { toast } = useToast();
+  const { itemAvailabilityRules } = useTenantAppConfig();
+  const availability = checkMenuItemAvailability(item.id, item.name, itemAvailabilityRules);
+  const isAvailable = availability.isAvailable && item.isAvailable !== false;
+
   const updateQuantity = useCartStore((s) => s.updateQuantity);
   const removeItem = useCartStore((s) => s.removeItem);
   const addItem = useCartStore((s) => s.addItem);
@@ -137,8 +145,19 @@ const MenuItemCardComponent: React.FC<MenuItemCardProps> = ({ item, categoryName
 
   return (
     <article
-      className="bg-card rounded-2xl py-2 px-3 border border-border/70 shadow-2xs hover:border-[#8C5E35]/40 hover:shadow-xs transition-all cursor-pointer group flex items-center justify-between gap-2.5 relative overflow-hidden w-full max-w-full"
+      className={cn(
+        "bg-card rounded-2xl py-2 px-3 border border-border/70 shadow-2xs hover:border-[#8C5E35]/40 hover:shadow-xs transition-all cursor-pointer group flex items-center justify-between gap-2.5 relative overflow-hidden w-full max-w-full",
+        !isAvailable && "opacity-75 bg-muted/20 hover:border-border"
+      )}
       onClick={(e) => {
+        if (!isAvailable) {
+          toast({
+            title: "Item Unavailable",
+            description: availability.reason || "This item is currently not available.",
+            variant: "destructive",
+          });
+          return;
+        }
         if (hasVariants) {
           onAdd(item, e);
         } else if (cartQty === 0) {
@@ -150,16 +169,21 @@ const MenuItemCardComponent: React.FC<MenuItemCardProps> = ({ item, categoryName
       {/* ── Left Column: Compact Title, Price, Description ── */}
       <div className="flex-1 min-w-0 pr-2 flex flex-col justify-center">
         {/* Row 1: Veg/Non-Veg dot + Dish Name */}
-        <div className="flex items-start gap-1.5 min-w-0">
+        <div className="flex items-start gap-1.5 min-w-0 flex-wrap">
           <div className="mt-0.5 shrink-0">
             <FoodTypeBadge isNonVeg={isNonVeg} />
           </div>
           <h3 className="font-sans text-xs sm:text-sm font-bold text-foreground leading-snug group-hover:text-[#8C5E35] transition-colors break-words">
             {item.name}
           </h3>
-          {item.isPopular && (
+          {item.isPopular && isAvailable && (
             <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold text-amber-700 bg-amber-500/10 border border-amber-500/20 shrink-0 mt-0.5">
               <Sparkles className="w-2.5 h-2.5 text-amber-500" />
+            </span>
+          )}
+          {!isAvailable && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold text-rose-700 bg-rose-50 border border-rose-200 shrink-0 mt-0.5">
+              {availability.reason || "Not Available"}
             </span>
           )}
         </div>
@@ -169,7 +193,7 @@ const MenuItemCardComponent: React.FC<MenuItemCardProps> = ({ item, categoryName
           <span className="font-extrabold text-xs sm:text-[13px] text-foreground tracking-tight">
             {formattedPrice}
           </span>
-          {hasVariants && (
+          {hasVariants && isAvailable && (
             <span className="text-[9px] text-[#9E6B38] font-bold">
               • Customisable
             </span>
@@ -191,13 +215,23 @@ const MenuItemCardComponent: React.FC<MenuItemCardProps> = ({ item, categoryName
           <OptimizedImage
             src={dishImage}
             alt={item.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+            className={cn(
+              "w-full h-full object-cover transition-transform duration-200",
+              isAvailable ? "group-hover:scale-105" : "grayscale contrast-75"
+            )}
           />
         </div>
 
         {/* Compact Add Button or Quantity Stepper */}
         <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-          {cartQty > 0 ? (
+          {!isAvailable ? (
+            <span
+              className="h-7 px-2 bg-muted/60 text-muted-foreground border border-border/80 text-[10px] font-bold rounded-lg flex items-center justify-center cursor-not-allowed select-none"
+              title={availability.reason || "Item unavailable"}
+            >
+              Unavailable
+            </span>
+          ) : cartQty > 0 ? (
             <div
               className="h-7 w-[68px] min-w-[68px] bg-gradient-to-r from-[#9E6B38] to-[#8C5E35] text-white rounded-lg shadow-xs flex items-center justify-between px-1.5 transition-all border border-[#8C5E35] shrink-0"
             >

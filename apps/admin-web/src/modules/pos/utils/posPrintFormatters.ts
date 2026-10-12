@@ -14,6 +14,34 @@ export function cleanTableName(rawTable?: string | number | null): string {
 }
 
 /**
+ * Formats table/channel identifier on KOT slips.
+ * If takeaway: 'Takeaway ★'
+ * If delivery: 'Delivery ★'
+ * If dine-in: clean table identifier or 'Table <num>'
+ * Never prints 'Food App' or 'foodapp'.
+ */
+export function formatKOTTableDisplay(tableName?: string | number | null, orderType?: string | null): string {
+  const normType = String(orderType || "").toLowerCase();
+  const raw = String(tableName || "").trim();
+  const lowerRaw = raw.toLowerCase();
+
+  if (normType.includes("take") || normType.includes("pickup") || lowerRaw.includes("takeaway") || lowerRaw.includes("take_away")) {
+    return "Takeaway ★";
+  }
+  if (normType.includes("deliv") || lowerRaw.includes("delivery")) {
+    return "Delivery ★";
+  }
+  if (lowerRaw.includes("food app") || lowerRaw.includes("foodapp") || lowerRaw.includes("online")) {
+    return "Takeaway ★";
+  }
+  if (raw && raw !== "0" && raw !== "null" && raw !== "undefined") {
+    const cleaned = cleanTableName(raw);
+    return cleaned || "Takeaway ★";
+  }
+  return "Takeaway ★";
+}
+
+/**
  * Robustly formats branch address whether stored as a JSONB dictionary or string
  */
 export function formatBranchAddress(rawAddress: any): string {

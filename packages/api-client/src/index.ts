@@ -547,27 +547,15 @@ export const placeOrder = async (orderData: any): Promise<{ orderId: string; ord
     items: normalizedItems,
   };
 
-  try {
-    const res = await api.post<any>("/orders", payload);
-    return {
-      orderId: String(res?.id || res?.order_number || res?.order_id),
-      orderNumber: String(res?.order_number || res?.id || ""),
-      status: res?.status || "KOT_SENT",
-      estimatedTime: res?.estimated_time || 15,
-      loyaltyPointsEarned: res?.loyalty_points_earned || 10,
-      raw: res,
-    };
-  } catch (err) {
-    const res = await api.post<any>("/pos/orders", payload);
-    return {
-      orderId: String(res?.id || res?.order_number || res?.order_id),
-      orderNumber: String(res?.order_number || res?.id || ""),
-      status: res?.status || "KOT_SENT",
-      estimatedTime: res?.estimated_time || 15,
-      loyaltyPointsEarned: res?.loyalty_points_earned || 10,
-      raw: res,
-    };
-  }
+  const res = await api.post<any>("/orders", payload);
+  return {
+    orderId: String(res?.id || res?.order_number || res?.order_id),
+    orderNumber: String(res?.order_number || res?.id || ""),
+    status: res?.status || "KOT_SENT",
+    estimatedTime: res?.estimated_time || 15,
+    loyaltyPointsEarned: res?.loyalty_points_earned || 10,
+    raw: res,
+  };
 };
 
 export const createRazorpayOrder = async (data: {
@@ -586,6 +574,30 @@ export const verifyRazorpayPayment = async (data: {
   razorpay_signature: string;
 }): Promise<{ success: boolean; verified: boolean; message: string }> => {
   return await api.post("/orders/razorpay/verify-payment", data);
+};
+
+export const fetchPendingOnlineOrders = async (branchId?: number | string): Promise<{ pending_orders: any[]; total: number }> => {
+  const query = branchId ? { branch_id: Number(branchId) } : undefined;
+  return await api.get("/orders/online/pending", query);
+};
+
+export const acceptOnlineOrder = async (orderId: string | number): Promise<{ success: boolean; message: string; order: any; generated_slips: any[] }> => {
+  return await api.post(`/orders/${orderId}/accept`, {});
+};
+
+export const rejectOnlineOrder = async (orderId: string | number, reason?: string): Promise<{ success: boolean; message: string }> => {
+  return await api.post(`/orders/${orderId}/reject`, { reason });
+};
+
+export const modifyAndAcceptOnlineOrder = async (
+  orderId: string | number,
+  payload: { items?: any[]; notes?: string }
+): Promise<{ success: boolean; message: string; order: any; generated_slips: any[] }> => {
+  return await api.post(`/orders/${orderId}/modify-and-accept`, payload);
+};
+
+export const cancelOnlineOrderByCustomer = async (orderId: string | number, reason?: string): Promise<{ success: boolean; message: string }> => {
+  return await api.post(`/orders/${orderId}/customer-cancel`, { reason });
 };
 
 export interface SavedAddress {
@@ -682,10 +694,18 @@ export const verifyOtp = async (
   phone: string,
   otp: string,
   tenantSlug?: string,
-  name?: string
-): Promise<{ success: boolean; token?: string; access_token?: string; user: { id: string; name: string; phone: string; loyaltyTier: string; loyaltyPoints: number } }> => {
+  name?: string,
+  branchCode?: string
+): Promise<{ success: boolean; token?: string; access_token?: string; user: { id: string; name: string; phone: string; loyaltyTier: string; loyaltyPoints: number; tenantId?: number; branchId?: number; companyId?: number } }> => {
   const slug = tenantSlug || getTenantSlug() || "baithak-cafe";
-  return await api.post("/auth/verify-otp", { phone, otp, tenant_slug: slug, name });
+  const bCode = branchCode || getBranchCode() || "101";
+  return await api.post("/auth/verify-otp", {
+    phone,
+    otp,
+    tenant_slug: slug,
+    name,
+    branch_code: bCode,
+  });
 };
 
 export const saveAddress = async (
@@ -720,7 +740,18 @@ export const saveCustomerAddress = saveAddress;
 
 export const updateCustomerProfile = async (
   userIdOrPhone: string,
-  profileData: { name?: string; email?: string; address?: string; city?: string; pincode?: string; phone?: string }
+  profileData: {
+    name?: string;
+    email?: string;
+    address?: string | Record<string, any>;
+    city?: string;
+    pincode?: string;
+    phone?: string;
+    tenant_id?: number;
+    branch_id?: number;
+    branch_code?: string;
+    company_id?: number;
+  }
 ): Promise<any> => {
   try {
     return await api.put(`/crm/customers/${encodeURIComponent(userIdOrPhone)}`, profileData);
@@ -793,6 +824,31 @@ export interface FoodWebConfig {
   kitchenPrinting?: {
     autoPrintKotOnOrder?: boolean;
   };
+  operatingHours?: {
+    enabled?: boolean;
+    openTime?: string;
+    closeTime?: string;
+    isManuallyClosed?: boolean;
+    closedMessage?: string;
+  };
+  paymentOptions?: {
+    enableRazorpay?: boolean;
+    enablePayAtCounter?: boolean;
+    enableCashOnDelivery?: boolean;
+    enableUpiQr?: boolean;
+  };
+  deliverySettings?: {
+    minOrderValue?: number;
+  };
+  onlineApproval?: {
+    requireApprovalForTakeawayAndDelivery?: boolean;
+  };
+  itemAvailabilityRules?: Record<string, {
+    isAvailable?: boolean;
+    availableFrom?: string;
+    availableTo?: string;
+    message?: string;
+  }>;
   orderConfirmationMessage?: string;
   hiddenCategories?: string[];
   hiddenItems?: string[];

@@ -122,55 +122,19 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
     setIsSettleModalOpen(true);
   };
 
-  // Debtor list state
-  const [allCustomersDirectory, setAllCustomersDirectory] = useState<Array<{ id: number; name: string; phone: string; total_balance_due?: number }>>([]);
-
   // Fetch summary of all debtors directly from PostgreSQL
   const fetchDebtorsSummary = useCallback(async () => {
     setIsLoadingSummary(true);
     try {
       const activeBranchId = localStorage.getItem("active_branch_id");
+      const res = await api.get<any>("/orders/debts/summary", {
+        branch_id: activeBranchId ? Number(activeBranchId) : undefined,
+        include_all_customers: true,
+      });
 
-      const [debtsOutcome, crmOutcome] = await Promise.allSettled([
-        api.get<any>("/orders/debts/summary", {
-          params: {
-            search: searchQuery.trim() || undefined,
-            branch_id: activeBranchId ? Number(activeBranchId) : undefined,
-            include_all_customers: true,
-          },
-        }),
-        api.get<any>("/crm/customers", { params: { page_size: 500 } }),
-      ]);
-
-      let list: DebtorSummary[] = [];
-
-      if (debtsOutcome.status === "fulfilled" && debtsOutcome.value) {
-        list = debtsOutcome.value.debtors || [];
-        setDebtors(list);
-        setTotalOutstandingDebt(debtsOutcome.value.total_outstanding_debt || 0);
-      } else if (debtsOutcome.status === "rejected") {
-        console.error("Failed to fetch customer debts summary", debtsOutcome.reason);
-      }
-
-      if (crmOutcome.status === "fulfilled" && crmOutcome.value) {
-        const cRes = crmOutcome.value;
-        const cItems = Array.isArray(cRes) ? cRes : Array.isArray(cRes?.items) ? cRes.items : [];
-        if (cItems.length > 0) {
-          setAllCustomersDirectory(
-            cItems.map((c: any) => ({
-              id: Number(c.id),
-              name: c.name || `${c.first_name || ""} ${c.last_name || ""}`.trim() || `Customer #${c.id}`,
-              phone: c.phone || "",
-            }))
-          );
-        }
-      } else if (crmOutcome.status === "rejected") {
-        console.warn("Could not fetch CRM customer directory fallback:", crmOutcome.reason);
-      }
-
-      if (debtsOutcome.status === "rejected" && crmOutcome.status === "rejected") {
-        toast.error("Failed to load customer debts register");
-      }
+      const list: DebtorSummary[] = res?.debtors || [];
+      setDebtors(list);
+      setTotalOutstandingDebt(res?.total_outstanding_debt || 0);
 
       // Auto-select first debtor if none selected
       if (selectedCustomerId === null && list.length > 0) {
@@ -178,10 +142,11 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
       }
     } catch (err: any) {
       console.error("Failed to fetch customer debts summary", err);
+      toast.error("Failed to load customer debts register");
     } finally {
       setIsLoadingSummary(false);
     }
-  }, [searchQuery, selectedCustomerId]);
+  }, [selectedCustomerId]);
 
   // Fetch selected customer's itemized ledger
   const fetchCustomerLedger = useCallback(async (customerId: number) => {
@@ -335,34 +300,41 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
 
   // Combined Directory containing ALL database customers + real debt figures
   const combinedCustomerDirectory = React.useMemo(() => {
-    const map = new Map<number, { id: number; name: string; phone: string; balanceDue: number }>();
+    return debtors
+      .filter((d) => d.customer_id > 0)
+      .map((d) => ({
+        id: d.customer_id,
+        name: d.customer_name || `Customer #${d.customer_id}`,
+        phone: d.customer_phone || "",
+        balanceDue: d.total_balance_due || 0,
+      }))
+      .sort((a, b) => {
+        // First show customers with outstanding debt, then alphabetically
+        if (b.balanceDue !== a.balanceDue) return b.balanceDue - a.balanceDue;
+        return (a.name || "").localeCompare(b.name || "");
+      });
+  }, [debtors]);
 
-    // Seed all CRM customer master profiles
-    for (const c of allCustomersDirectory) {
-      if (c.id > 0) {
-        map.set(c.id, { id: c.id, name: c.name, phone: c.phone, balanceDue: 0 });
-      }
+  // Fast 0ms in-memory filtering & sorting for Customer Debt Register
+  const filteredDebtors = React.useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    let baseList = debtors;
+    if (filterTab === "debt") {
+      baseList = debtors.filter((d) => d.total_balance_due > 0);
     }
-
-    // Overlay real balance due from active debtors summary
-    for (const d of debtors) {
-      if (d.customer_id > 0) {
-        const existing = map.get(d.customer_id);
-        map.set(d.customer_id, {
-          id: d.customer_id,
-          name: d.customer_name || existing?.name || `Customer #${d.customer_id}`,
-          phone: d.customer_phone || existing?.phone || "",
-          balanceDue: d.total_balance_due || 0,
-        });
-      }
+    if (q) {
+      baseList = baseList.filter((d) => {
+        const nameMatch = (d.customer_name || "").toLowerCase().includes(q);
+        const phoneMatch = (d.customer_phone || "").toLowerCase().includes(q);
+        return nameMatch || phoneMatch;
+      });
     }
-
-    return Array.from(map.values()).sort((a, b) => {
-      // First show customers with outstanding debt, then alphabetically
-      if (b.balanceDue !== a.balanceDue) return b.balanceDue - a.balanceDue;
-      return a.name.localeCompare(b.name);
-    });
-  }, [allCustomersDirectory, debtors]);
+    // Pin Walk-in & Table Open Tabs (customer_id: 0) on top, sort remainder alphabetically
+    const walkin = baseList.filter((d) => d.customer_id === 0);
+    const regular = baseList.filter((d) => d.customer_id !== 0);
+    regular.sort((a, b) => (a.customer_name || "").localeCompare(b.customer_name || ""));
+    return [...walkin, ...regular];
+  }, [debtors, filterTab, searchQuery]);
 
   const modalFilteredDirectory = React.useMemo(() => {
     if (!comboboxSearch.trim()) return combinedCustomerDirectory;
@@ -652,50 +624,51 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
               </div>
             </div>
 
-            {/* Quick Action: Add Opening Balance / Old Udhar */}
-            <div className="px-2.5 py-1.5 border-b border-border bg-card/60 flex items-center justify-between shrink-0">
-              <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
-                Old Udhar / Register
-              </span>
-              <button
-                type="button"
-                onClick={() => handleOpenOpeningBalanceModal()}
-                className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 inline-flex items-center gap-1 cursor-pointer transition-colors"
-                title="Create opening balance for any new or existing customer"
-              >
-                <PlusCircle size={12} />
-                <span>+ Record Old Debt</span>
-              </button>
-            </div>
-
             {/* Debtor List */}
             <div className="flex-1 overflow-y-auto p-2 space-y-1.5 scrollbar-thin">
               {isLoadingSummary ? (
                 <div className="p-8 text-center text-xs text-muted-foreground">Loading database records...</div>
-              ) : debtors.length === 0 ? (
+              ) : filteredDebtors.length === 0 ? (
                 <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
                   <CheckCircle2 size={24} className="mx-auto text-emerald-500/60" />
-                  <p className="font-semibold text-foreground">Zero Outstanding Debts</p>
-                  <p className="text-[11px]">All customer accounts are settled & paid in full!</p>
+                  <p className="font-semibold text-foreground">
+                    {searchQuery ? "No Matching Customers Found" : "Zero Outstanding Debts"}
+                  </p>
+                  <p className="text-[11px]">
+                    {searchQuery
+                      ? `No customers matching "${searchQuery}" in ${filterTab === "debt" ? "debtors" : "database"}`
+                      : "All customer accounts are settled & paid in full!"}
+                  </p>
                 </div>
               ) : (
-                debtors
-                  .filter((d) => (filterTab === "all" || searchQuery.trim() ? true : d.total_balance_due > 0))
-                  .map((d) => {
-                    const isSelected = selectedCustomerId === d.customer_id;
-                    const isUnassigned = d.customer_id === 0;
+                filteredDebtors.map((d, index) => {
+                  const isSelected = selectedCustomerId === d.customer_id;
+                  const isUnassigned = d.customer_id === 0;
 
-                    return (
-                      <div
-                        key={d.customer_id}
-                        onClick={() => setSelectedCustomerId(d.customer_id)}
-                        className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
-                          isSelected
-                            ? "bg-amber-500/10 border-amber-500/40 shadow-xs"
-                            : "bg-card border-border hover:bg-muted/40"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
+                  return (
+                    <div
+                      key={d.customer_id}
+                      onClick={() => setSelectedCustomerId(d.customer_id)}
+                      className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                        isSelected
+                          ? "bg-amber-500/10 border-amber-500/40 shadow-xs"
+                          : "bg-card border-border hover:bg-muted/40"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2 min-w-0">
+                          {/* Serial Number Badge */}
+                          <span
+                            className={`w-5 h-5 rounded-md text-[10px] font-mono font-bold flex items-center justify-center shrink-0 mt-0.5 ${
+                              isUnassigned
+                                ? "bg-amber-500/20 text-amber-700 dark:text-amber-300"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                            title={`Sr. No. ${index + 1}`}
+                          >
+                            {isUnassigned ? "★" : index + 1}
+                          </span>
+
                           <div className="min-w-0">
                             <p className="font-bold text-foreground truncate flex items-center gap-1.5">
                               {isUnassigned ? (
@@ -710,24 +683,26 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
                               {renderSafeString(d.customer_phone) || "No Phone"}
                             </p>
                           </div>
-                          <div className="text-right shrink-0 font-mono">
-                            <span
-                              className={`text-xs font-black block ${
-                                d.total_balance_due > 0
-                                  ? "text-amber-600 dark:text-amber-400"
-                                  : "text-emerald-600 dark:text-emerald-400"
-                              }`}
-                            >
-                              ₹{d.total_balance_due.toLocaleString("en-IN")}
-                            </span>
-                            <span className="text-[9px] text-muted-foreground">
-                              {d.unpaid_orders_count} {d.unpaid_orders_count === 1 ? "bill" : "bills"}
-                            </span>
-                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0 font-mono">
+                          <span
+                            className={`text-xs font-black block ${
+                              d.total_balance_due > 0
+                                ? "text-amber-600 dark:text-amber-400"
+                                : "text-emerald-600 dark:text-emerald-400"
+                            }`}
+                          >
+                            ₹{d.total_balance_due.toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-[9px] text-muted-foreground">
+                            {d.unpaid_orders_count} {d.unpaid_orders_count === 1 ? "bill" : "bills"}
+                          </span>
                         </div>
                       </div>
-                    );
-                  })
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
@@ -773,19 +748,6 @@ export const CustomerDebtRegisterModal: React.FC<CustomerDebtRegisterModalProps>
 
                     {/* Action Button: Settle Debt */}
                     <div className="flex items-center gap-2">
-                      {customerLedger.customer.id !== 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenOpeningBalanceModal(customerLedger.customer)}
-                          className="h-9 gap-1.5 text-xs font-bold cursor-pointer px-3 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 rounded-lg shadow-2xs"
-                          title={`Record previous debt / opening balance for ${customerLedger.customer.name}`}
-                        >
-                          <PlusCircle size={14} className="text-amber-500" />
-                          <span>+ Add Opening Balance</span>
-                        </Button>
-                      )}
-
                       <Button
                         variant="primary"
                         size="sm"

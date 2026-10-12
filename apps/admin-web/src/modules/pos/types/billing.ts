@@ -40,6 +40,7 @@ export interface POSOrder {
   customer_name?: string;
   customer_phone?: string;
   customer_address?: string;
+  delivery_address?: string;
   order_type: OrderType;
   order_mode?: string;
   status: OrderStatus;

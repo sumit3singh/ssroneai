@@ -45,6 +45,26 @@ const DEFAULT_FOOD_CONFIG: FoodWebConfig = {
   kitchenPrinting: {
     autoPrintKotOnOrder: true,
   },
+  operatingHours: {
+    enabled: true,
+    openTime: "10:30",
+    closeTime: "22:00",
+    isManuallyClosed: false,
+    closedMessage: "The Baithak Cafe is currently closed and not serviceable. We are sorry, we will meet you soon at 10:30 AM!",
+  },
+  paymentOptions: {
+    enableRazorpay: false,
+    enablePayAtCounter: true,
+    enableCashOnDelivery: true,
+    enableUpiQr: true,
+  },
+  deliverySettings: {
+    minOrderValue: 200,
+  },
+  onlineApproval: {
+    requireApprovalForTakeawayAndDelivery: true,
+  },
+  itemAvailabilityRules: {},
   orderConfirmationMessage:
     "Thank you for dining with us! Your order has been placed directly with the kitchen.",
   hiddenCategories: [],
@@ -70,6 +90,11 @@ export interface TenantAppConfigState {
   kitchenPrinting: {
     autoPrintKotOnOrder: boolean;
   };
+  operatingHours: NonNullable<FoodWebConfig["operatingHours"]>;
+  paymentOptions: NonNullable<FoodWebConfig["paymentOptions"]>;
+  deliverySettings: NonNullable<FoodWebConfig["deliverySettings"]>;
+  onlineApproval: NonNullable<FoodWebConfig["onlineApproval"]>;
+  itemAvailabilityRules: NonNullable<FoodWebConfig["itemAvailabilityRules"]>;
   orderConfirmationMessage: string;
   hiddenCategories: string[];
   hiddenItems: string[];
@@ -238,6 +263,43 @@ export const useTenantAppConfig = (): TenantAppConfigState => {
     };
   }, [rawConfig]);
 
+  const operatingHours = useMemo(() => {
+    return {
+      ...DEFAULT_FOOD_CONFIG.operatingHours!,
+      ...(rawConfig?.operatingHours || {}),
+    };
+  }, [rawConfig]);
+
+  const paymentOptions = useMemo(() => {
+    return {
+      ...DEFAULT_FOOD_CONFIG.paymentOptions!,
+      ...(rawConfig?.paymentOptions || {}),
+    };
+  }, [rawConfig]);
+
+  const deliverySettings = useMemo(() => {
+    return {
+      ...DEFAULT_FOOD_CONFIG.deliverySettings!,
+      ...(rawConfig?.deliverySettings || {}),
+    };
+  }, [rawConfig]);
+
+  const onlineApproval = useMemo(() => {
+    return {
+      ...DEFAULT_FOOD_CONFIG.onlineApproval!,
+      ...(rawConfig?.onlineApproval || {}),
+    };
+  }, [rawConfig]);
+
+  const itemAvailabilityRules = useMemo(() => {
+    return (rawConfig?.itemAvailabilityRules || DEFAULT_FOOD_CONFIG.itemAvailabilityRules!) as Record<string, {
+      isAvailable?: boolean;
+      availableFrom?: string;
+      availableTo?: string;
+      message?: string;
+    }>;
+  }, [rawConfig]);
+
   return {
     branding,
     banner,
@@ -245,6 +307,11 @@ export const useTenantAppConfig = (): TenantAppConfigState => {
     taxSettings,
     charges,
     kitchenPrinting,
+    operatingHours,
+    paymentOptions,
+    deliverySettings,
+    onlineApproval,
+    itemAvailabilityRules,
     orderConfirmationMessage,
     hiddenCategories,
     hiddenItems,

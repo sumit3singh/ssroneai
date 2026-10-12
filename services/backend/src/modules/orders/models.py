@@ -225,7 +225,7 @@ class KOT(TenantBaseModel):
     order_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
     kot_number: Mapped[str] = mapped_column(String(30), nullable=False)
     station_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("kitchen_stations.id", ondelete="SET NULL"), nullable=True, index=True)
-    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending, printed, preparing, ready, cancelled
+    status: Mapped[str] = mapped_column(String(20), default="PENDING")  # PENDING, PREPARING, READY, SERVED, CANCELLED
     printed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     order: Mapped[Order] = relationship("Order", back_populates="kots")
@@ -243,8 +243,9 @@ class KOTItem(BaseModel):
     branch_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     kot_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("kots.id", ondelete="CASCADE"), nullable=False, index=True)
     order_item_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("order_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    item_name: Mapped[str] = mapped_column(String(255), nullable=False)
     quantity: Mapped[Decimal] = mapped_column(Numeric(10, 3), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="pending")
+    status: Mapped[str] = mapped_column(String(20), default="PREPARING")  # PREPARING, READY, SERVED, CANCELLED
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()", nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()", nullable=False)

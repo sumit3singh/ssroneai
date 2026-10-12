@@ -11,6 +11,8 @@ import ChangeOrderModeDialog from "@/components/ChangeOrderModeDialog";
 import AddressSelectDialog from "@/components/AddressSelectDialog";
 import TableCameraScannerModal from "@/components/TableCameraScannerModal";
 import useTenantAppConfig from "@/hooks/useTenantAppConfig";
+import { checkStoreOperatingStatus } from "@/lib/storeOperatingStatus";
+import { cn } from "@/lib/utils";
 
 interface CartSheetProps {
   isOpen: boolean;
@@ -22,7 +24,10 @@ export const CartSheet = ({ isOpen, onClose }: CartSheetProps) => {
   const navigate = useNavigate();
   const { tenantSlug, branchCode, tableNumber } = useTenantBranchContext();
   const { orderMode } = useAuthStore();
-  const { taxSettings } = useTenantAppConfig();
+  const { taxSettings, operatingHours, deliverySettings } = useTenantAppConfig();
+  const storeStatus = checkStoreOperatingStatus(operatingHours);
+  const minDelivery = deliverySettings?.minOrderValue || 0;
+  const isDeliveryUnderMin = orderMode === "delivery" && getTotal() < minDelivery;
   const [openNoteId, setOpenNoteId] = useState<string | null>(null);
 
   // Dining Mode Switcher state
@@ -285,6 +290,23 @@ export const CartSheet = ({ isOpen, onClose }: CartSheetProps) => {
                   </span>
                 </div>
 
+                {/* Operating status & min delivery warnings */}
+                {!storeStatus.isOpen && (
+                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                    <span>Store currently closed. Orders will resume during working hours ({storeStatus.scheduleSummary}).</span>
+                  </div>
+                )}
+
+                {isDeliveryUnderMin && (
+                  <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center justify-between gap-2">
+                    <span>Min delivery order is ₹{minDelivery}</span>
+                    <span className="font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md text-[11px]">
+                      Add ₹{minDelivery - total} more
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between pt-2 border-t border-border">
                   <div>
                     <span className="text-[11px] text-muted-foreground uppercase font-bold tracking-wider block">To Pay</span>
@@ -292,8 +314,10 @@ export const CartSheet = ({ isOpen, onClose }: CartSheetProps) => {
                   </div>
 
                   <motion.button
-                    whileTap={{ scale: 0.97 }}
+                    whileTap={{ scale: (!storeStatus.isOpen || isDeliveryUnderMin) ? 1 : 0.97 }}
+                    disabled={!storeStatus.isOpen || isDeliveryUnderMin}
                     onClick={() => {
+                      if (!storeStatus.isOpen || isDeliveryUnderMin) return;
                       onClose();
                       if (tenantSlug && branchCode) {
                         navigate(
@@ -309,7 +333,12 @@ export const CartSheet = ({ isOpen, onClose }: CartSheetProps) => {
                         );
                       }
                     }}
-                    className="flex-1 max-w-[220px] h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-extrabold rounded-full text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
+                    className={cn(
+                      "flex-1 max-w-[220px] h-12 font-extrabold rounded-full text-sm shadow-md flex items-center justify-center gap-2 transition-all",
+                      (!storeStatus.isOpen || isDeliveryUnderMin)
+                        ? "bg-muted text-muted-foreground cursor-not-allowed shadow-none"
+                        : "bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer"
+                    )}
                   >
                     <span>Proceed to Pay</span>
                     <ArrowRight className="w-4 h-4 stroke-[2.5]" />

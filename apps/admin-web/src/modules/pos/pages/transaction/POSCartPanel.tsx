@@ -477,7 +477,7 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
             (orders || []).forEach((o: any) => {
               if (!o || !o.order_number) return;
               const s = (o.status || "").toLowerCase();
-              if (["completed", "paid", "cancelled", "settled"].includes(s)) return;
+              if (["completed", "paid", "cancelled", "settled", "pending_acceptance", "pending_approval", "pending"].includes(s)) return;
               const m = (o.order_mode || o.order_type || "").toLowerCase();
               if (!m.includes("take") && !m.includes("pickup")) return;
               const disp = getDisplayOrderNumber(o) || String(o.order_number);
@@ -524,7 +524,7 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
             (orders || []).forEach((o: any) => {
               if (!o || !o.order_number) return;
               const s = (o.status || "").toLowerCase();
-              if (["completed", "paid", "cancelled", "settled"].includes(s)) return;
+              if (["completed", "paid", "cancelled", "settled", "pending_acceptance", "pending_approval", "pending"].includes(s)) return;
               const m = (o.order_mode || o.order_type || "").toLowerCase();
               if (!m.includes("deliv")) return;
               const disp = getDisplayOrderNumber(o) || String(o.order_number);

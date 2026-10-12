@@ -4,19 +4,23 @@ Customer management and loyalty endpoints.
 """
 
 from datetime import date, datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.security import HTTPAuthorizationCredentials
+from jose import jwt
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.shared.config import get_settings
 from src.core.database.engine import get_db_session
-from src.modules.auth.dependencies import get_current_user
-from src.modules.auth.models import User
+from src.modules.auth.dependencies import get_current_user, bearer_scheme
+from src.modules.auth.models import User, Tenant, Branch
 from src.modules.crm.models import Customer, CustomerAddress, CustomerInteraction, LoyaltyTransaction
 from src.shared.logger import get_logger
 
 logger = get_logger(__name__)
+settings = get_settings()
 router = APIRouter(prefix="/crm", tags=["CRM"])
 
 
@@ -266,25 +270,70 @@ class CustomerUpdateSchema(BaseModel):
     city: str | None = None
     pincode: str | None = None
     loyalty_points: int | None = None
+    tenant_id: int | None = None
+    branch_id: int | None = None
+    branch_code: str | None = None
+    company_id: int | None = None
 
 
 @router.get("/customers/{customer_id}")
 async def get_customer_detail(
     customer_id: str,
-    current_user: User = Depends(get_current_user),
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Get full details of a customer including addresses, interactions, and financial ledger."""
-    resolved_tenant = current_user.tenant_id
+    resolved_tenant = None
+    if credentials and credentials.credentials:
+        try:
+            payload = jwt.decode(
+                credentials.credentials,
+                settings.jwt.secret_key,
+                algorithms=[settings.jwt.algorithm],
+            )
+            t_id = payload.get("tenant_id")
+            if t_id and str(t_id).isdigit():
+                resolved_tenant = int(t_id)
+            elif payload.get("role") != "customer":
+                uid = payload.get("user_id") or payload.get("sub")
+                if uid and str(uid).isdigit():
+                    u_res = await db.execute(select(User.tenant_id).where(User.id == int(uid), User.is_deleted == False))
+                    resolved_tenant = u_res.scalar_one_or_none()
+        except Exception:
+            pass
+
+    if not resolved_tenant:
+        header_tenant = request.headers.get("x-tenant-id") or request.headers.get("x-tenant-slug")
+        if header_tenant:
+            if header_tenant.isdigit():
+                resolved_tenant = int(header_tenant)
+            else:
+                t_res = await db.execute(select(Tenant.id).where(
+                    (Tenant.slug == header_tenant.strip().lower()) |
+                    (func.replace(Tenant.slug, "-", "") == func.replace(header_tenant.strip().lower(), "-", ""))
+                ))
+                resolved_tenant = t_res.scalar_one_or_none()
+
     found = None
     try:
         cid = int(customer_id)
         q = (
             select(Customer)
             .options(selectinload(Customer.customer_addresses), selectinload(Customer.interactions))
-            .where(Customer.id == cid, Customer.tenant_id == resolved_tenant, (Customer.is_deleted == False) | (Customer.is_deleted.is_(None)))
+            .where(Customer.id == cid, (Customer.is_deleted == False) | (Customer.is_deleted.is_(None)))
         )
+        if resolved_tenant:
+            q = q.where((Customer.tenant_id == resolved_tenant) | (Customer.tenant_id.is_(None)))
         found = (await db.execute(q)).scalar_one_or_none()
+        if not found and resolved_tenant:
+            # Fallback across all tenants
+            q_any = (
+                select(Customer)
+                .options(selectinload(Customer.customer_addresses), selectinload(Customer.interactions))
+                .where(Customer.id == cid, (Customer.is_deleted == False) | (Customer.is_deleted.is_(None)))
+            )
+            found = (await db.execute(q_any)).scalar_one_or_none()
     except (ValueError, TypeError):
         pass
 
@@ -296,22 +345,25 @@ async def get_customer_detail(
                 select(Customer)
                 .options(selectinload(Customer.customer_addresses), selectinload(Customer.interactions))
                 .where(
-                    Customer.tenant_id == resolved_tenant,
                     (Customer.phone == target_phone) | (Customer.phone == f"+91{target_phone}") | (Customer.phone == customer_id),
                     (Customer.is_deleted == False) | (Customer.is_deleted.is_(None)),
                 )
             )
+            if resolved_tenant:
+                q_phone = q_phone.where((Customer.tenant_id == resolved_tenant) | (Customer.tenant_id.is_(None)))
             found = (await db.execute(q_phone)).scalar_one_or_none()
 
     if not found:
         raise HTTPException(status_code=404, detail="Customer not found in database")
+
+    effective_tenant = found.tenant_id or resolved_tenant or 1
 
     # Fetch financial orders ledger (STRICTLY EXCLUDING CANCELLED AND VOID ORDERS)
     from src.modules.orders.models import Order
     orders_res = await db.execute(
         select(Order)
         .where(
-            Order.tenant_id == resolved_tenant,
+            Order.tenant_id == effective_tenant,
             Order.customer_id == found.id,
             (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
         )
@@ -381,8 +433,9 @@ async def get_customer_detail(
 async def update_customer_profile(
     customer_id: str,
     body: CustomerUpdateSchema,
+    request: Request,
     phone: str | None = None,
-    current_user: User = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     target_phone = body.phone or phone
@@ -390,17 +443,65 @@ async def update_customer_profile(
     if clean_target_phone.startswith("91") and len(clean_target_phone) == 12:
         clean_target_phone = clean_target_phone[2:]
 
-    resolved_tenant = current_user.tenant_id
+    current_user_id = None
+    resolved_tenant = None
+
+    if credentials and credentials.credentials:
+        try:
+            payload = jwt.decode(
+                credentials.credentials,
+                settings.jwt.secret_key,
+                algorithms=[settings.jwt.algorithm],
+            )
+            t_id = payload.get("tenant_id")
+            if t_id and str(t_id).isdigit():
+                resolved_tenant = int(t_id)
+
+            if payload.get("role") != "customer":
+                uid = payload.get("user_id") or payload.get("sub")
+                if uid and str(uid).isdigit():
+                    u_res = await db.execute(select(User).where(User.id == int(uid), User.is_deleted == False))
+                    staff_user = u_res.scalar_one_or_none()
+                    if staff_user and staff_user.is_active:
+                        current_user_id = staff_user.id
+                        if not resolved_tenant:
+                            resolved_tenant = staff_user.tenant_id
+        except Exception:
+            pass
+
+    if not resolved_tenant:
+        header_tenant = request.headers.get("x-tenant-id") or request.headers.get("x-tenant-slug")
+        if header_tenant:
+            if header_tenant.isdigit():
+                resolved_tenant = int(header_tenant)
+            else:
+                t_res = await db.execute(select(Tenant.id).where(
+                    (Tenant.slug == header_tenant.strip().lower()) |
+                    (func.replace(Tenant.slug, "-", "") == func.replace(header_tenant.strip().lower(), "-", ""))
+                ))
+                resolved_tenant = t_res.scalar_one_or_none()
+
+    if not resolved_tenant and body.tenant_id:
+        resolved_tenant = body.tenant_id
+
     found = None
     # 1. Try resolving by numeric customer ID
     try:
         cid = int(customer_id)
         q = select(Customer).where(
             Customer.id == cid,
-            Customer.tenant_id == resolved_tenant,
             (Customer.is_deleted == False) | (Customer.is_deleted.is_(None)),
         )
+        if resolved_tenant:
+            q = q.where((Customer.tenant_id == resolved_tenant) | (Customer.tenant_id.is_(None)))
         found = (await db.execute(q)).scalars().first()
+        if not found and resolved_tenant:
+            # Fallback across all tenants
+            q_any = select(Customer).where(
+                Customer.id == cid,
+                (Customer.is_deleted == False) | (Customer.is_deleted.is_(None)),
+            )
+            found = (await db.execute(q_any)).scalars().first()
     except (ValueError, TypeError):
         pass
 
@@ -410,9 +511,10 @@ async def update_customer_profile(
             (Customer.phone == clean_target_phone) |
             (Customer.phone == f"+91{clean_target_phone}") |
             (Customer.phone == target_phone),
-            Customer.tenant_id == resolved_tenant,
             (Customer.is_deleted == False) | (Customer.is_deleted.is_(None)),
         )
+        if resolved_tenant:
+            q_phone = q_phone.where((Customer.tenant_id == resolved_tenant) | (Customer.tenant_id.is_(None)))
         found = (await db.execute(q_phone)).scalars().first()
 
     # 3. If customer_id itself contains 10-digit phone digits
@@ -423,9 +525,10 @@ async def update_customer_profile(
             q_digits = select(Customer).where(
                 (Customer.phone == clean_id_phone) |
                 (Customer.phone == f"+91{clean_id_phone}"),
-                Customer.tenant_id == resolved_tenant,
                 (Customer.is_deleted == False) | (Customer.is_deleted.is_(None)),
             )
+            if resolved_tenant:
+                q_digits = q_digits.where((Customer.tenant_id == resolved_tenant) | (Customer.tenant_id.is_(None)))
             found = (await db.execute(q_digits)).scalars().first()
 
     if not found:
@@ -443,6 +546,39 @@ async def update_customer_profile(
         found.pincode = body.pincode.strip() if body.pincode else None
     if body.loyalty_points is not None:
         found.loyalty_points = body.loyalty_points
+
+    # Multi-tenant and Branch assignment
+    target_tenant_id = body.tenant_id or resolved_tenant or found.tenant_id or 1
+    found.tenant_id = target_tenant_id
+
+    req_branch_code = body.branch_code or request.headers.get("x-branch-code")
+    req_branch_id = body.branch_id
+    if not req_branch_id and request.headers.get("x-branch-id"):
+        h_bid = request.headers.get("x-branch-id")
+        if h_bid and h_bid.isdigit():
+            req_branch_id = int(h_bid)
+
+    resolved_branch = None
+    if req_branch_id:
+        resolved_branch = (await db.execute(select(Branch).where(Branch.id == req_branch_id))).scalars().first()
+    elif req_branch_code:
+        resolved_branch = (await db.execute(select(Branch).where(
+            Branch.tenant_id == target_tenant_id,
+            (Branch.code == req_branch_code) | (Branch.name.ilike(f"%{req_branch_code}%"))
+        ))).scalars().first()
+
+    if not resolved_branch and not found.branch_id:
+        # Default branch for this tenant
+        resolved_branch = (await db.execute(
+            select(Branch).where(Branch.tenant_id == target_tenant_id).order_by(Branch.id.asc())
+        )).scalars().first()
+
+    if resolved_branch:
+        found.branch_id = resolved_branch.id
+        found.company_id = resolved_branch.company_id
+    elif body.company_id and not found.company_id:
+        found.company_id = body.company_id
+
     if body.address is not None:
         addr_dict = {"fullAddress": body.address} if isinstance(body.address, str) else (body.address or {})
         found.address = addr_dict
@@ -475,7 +611,8 @@ async def update_customer_profile(
                     is_default=True,
                 ))
 
-    found.updated_by = current_user.id
+    if current_user_id:
+        found.updated_by = current_user_id
     found.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(found)

@@ -73,7 +73,7 @@ export const CustomerDeleteModal: React.FC<CustomerDeleteModalProps> = ({
           </Button>
           <Button
             type="button"
-            variant="destructive"
+            variant="danger"
             size="sm"
             disabled={isDeleting}
             onClick={handleDelete}

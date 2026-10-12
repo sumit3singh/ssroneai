@@ -195,7 +195,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
               <Edit size={13} /> Edit
             </Button>
             <Button
-              variant="destructive"
+              variant="danger"
               size="sm"
               onClick={() => cust && onDelete(cust)}
               className="h-8 gap-1.5 text-xs font-bold cursor-pointer bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/30"

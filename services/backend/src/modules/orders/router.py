@@ -76,12 +76,14 @@ async def get_next_daily_order_sequence(db: AsyncSession, tenant_id: int = 1, br
         seq_record = res.scalar_one_or_none()
 
         if seq_record is None:
-            # Query highest existing daily_order_number for today in DB to avoid collision
+            # Query highest existing daily_order_number for today in DB using indexed timestamp range
             from sqlalchemy import func
+            ist_tz = timezone(timedelta(hours=5, minutes=30))
+            today_start_dt = datetime.strptime(today_str, "%Y-%m-%d").replace(tzinfo=ist_tz)
             max_stmt = select(func.max(Order.daily_order_number)).where(
                 Order.tenant_id == tenant_id,
                 Order.branch_id == branch_id,
-                func.to_char(Order.created_at, 'YYYY-MM-DD') == today_str,
+                Order.created_at >= today_start_dt,
             )
             max_res = await db.execute(max_stmt)
             max_existing = max_res.scalar() or 0
@@ -105,10 +107,12 @@ async def get_next_daily_order_sequence(db: AsyncSession, tenant_id: int = 1, br
         logger.warning("Daily order sequence query failed, fallback check", error=str(err))
         try:
             from sqlalchemy import func
+            ist_tz = timezone(timedelta(hours=5, minutes=30))
+            today_start_dt = datetime.strptime(today_str, "%Y-%m-%d").replace(tzinfo=ist_tz)
             max_stmt = select(func.max(Order.daily_order_number)).where(
                 Order.tenant_id == tenant_id,
                 Order.branch_id == branch_id,
-                func.to_char(Order.created_at, 'YYYY-MM-DD') == today_str,
+                Order.created_at >= today_start_dt,
             )
             max_res = await db.execute(max_stmt)
             max_val = max_res.scalar() or 0
@@ -406,6 +410,124 @@ async def get_pos_grid_projection(
     ]
 
     return {"active_orders": projection, "total": len(projection)}
+
+
+async def generate_kots_for_order(order: Order, tenant_id: int, user_id: int, db: AsyncSession) -> list[dict]:
+    """Generates KOT records and items for an order and returns thermal printable slip payloads."""
+    now_utc = datetime.now(timezone.utc)
+    stations_result = await db.execute(
+        select(KitchenStation).where(
+            KitchenStation.tenant_id == tenant_id,
+            KitchenStation.is_deleted == False
+        )
+    )
+    stations = {s.code.lower(): s for s in stations_result.scalars().all()}
+    default_station = list(stations.values())[0] if stations else None
+
+    items_stmt = select(OrderItem).where(
+        OrderItem.order_id == order.id,
+        OrderItem.is_deleted == False
+    )
+    all_order_items = (await db.execute(items_stmt)).scalars().all()
+    pending_order_items = [it for it in all_order_items if it.kds_status == "pending"]
+    if not pending_order_items:
+        pending_order_items = all_order_items
+
+    generated_slips = []
+    if pending_order_items:
+        items_by_station: dict[int | None, list[OrderItem]] = {}
+        for it in pending_order_items:
+            st_id = default_station.id if default_station else None
+            if it.course and it.course.lower() in stations:
+                st_id = stations[it.course.lower()].id
+            items_by_station.setdefault(st_id, []).append(it)
+
+        kot_counter = 1
+        for st_id, st_items in items_by_station.items():
+            kot_num = f"KOT-{order.order_number}-{now_utc.strftime('%H%M%S')}-{kot_counter}"
+            kot_counter += 1
+            st_name = "Kitchen"
+            if st_id and stations:
+                for s in stations.values():
+                    if s.id == st_id:
+                        st_name = s.name
+                        break
+
+            kot = KOT(
+                tenant_id=tenant_id,
+                branch_id=order.branch_id or 1,
+                order_id=order.id,
+                kot_number=kot_num,
+                station_id=st_id,
+                status="PENDING",
+                printed_at=now_utc,
+                created_by=user_id
+            )
+            db.add(kot)
+            await db.flush()
+
+            slip_items = []
+            for it in st_items:
+                kot_item = KOTItem(
+                    tenant_id=tenant_id,
+                    branch_id=order.branch_id or 1,
+                    kot_id=kot.id,
+                    order_item_id=it.id,
+                    item_name=it.product_name or it.item_name or "Dish Item",
+                    quantity=it.quantity,
+                    status="PREPARING",
+                    notes=it.preparation_notes
+                )
+                db.add(kot_item)
+                it.kds_status = "in_kitchen"
+                it.kot_id = kot.id
+                it.kds_sent_at = now_utc
+                slip_items.append({
+                    "name": it.product_name or it.item_name or "Dish Item",
+                    "quantity": int(it.quantity or 1),
+                    "variant_name": it.variant_name,
+                    "notes": it.preparation_notes or it.notes,
+                    "addons": it.selected_addons or [],
+                })
+
+            raw_tbl = getattr(order, "table_name", None) or (f"Table {order.table_id}" if order.table_id else None)
+            ord_type_lower = str(order.order_type or "").lower()
+            if not raw_tbl or "food" in str(raw_tbl).lower() or "app" in str(raw_tbl).lower():
+                if "take" in ord_type_lower or "pickup" in ord_type_lower:
+                    slip_table = "Takeaway ★"
+                elif "deliv" in ord_type_lower:
+                    slip_table = "Delivery ★"
+                else:
+                    slip_table = (order.order_type or "").upper()
+            else:
+                slip_table = str(raw_tbl).replace("Table Table", "Table").strip()
+
+            generated_slips.append({
+                "kotNumber": kot_num,
+                "stationName": st_name,
+                "orderNumber": order.order_number,
+                "orderType": order.order_type,
+                "tableName": slip_table,
+                "timestamp": now_utc.strftime("%d/%m/%Y, %I:%M %p"),
+                "items": slip_items,
+            })
+
+        order.status = OrderStatus.KOT_SENT.value if hasattr(OrderStatus.KOT_SENT, "value") else "kot_sent"
+        order.kot_sent_at = now_utc
+        try:
+            log = OrderStatusLog(
+                tenant_id=tenant_id,
+                order_id=order.id,
+                old_status="pending_acceptance",
+                new_status=OrderStatus.KOT_SENT.value if hasattr(OrderStatus.KOT_SENT, "value") else "kot_sent",
+                changed_by=user_id,
+                notes=f"KOT tickets generated for order {order.order_number}"
+            )
+            db.add(log)
+        except Exception:
+            pass
+        await db.commit()
+    return generated_slips
 
 
 @router.post("", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
@@ -785,42 +907,41 @@ async def create_order(
         daily_order_number = gen_daily
         order_number = gen_ord
 
-    # Double check if this exact order number already exists in DB for TODAY (avoid duplicate)
-    stmt_taken = select(Order).where(
+    # Fast index-backed check if this exact order number already exists in DB for TODAY (avoid duplicate)
+    ist_tz = timezone(timedelta(hours=5, minutes=30))
+    today_start_dt = datetime.strptime(today_str, "%Y-%m-%d").replace(tzinfo=ist_tz)
+    stmt_taken = select(Order.id).where(
         Order.order_number == order_number,
         Order.tenant_id == tenant_id,
-        func.to_char(Order.created_at, 'YYYY-MM-DD') == today_str,
+        Order.created_at >= today_start_dt,
         (Order.is_deleted == False) | (Order.is_deleted.is_(None))
-    ).options(selectinload(Order.items))
-    taken_order = (await db.execute(stmt_taken)).scalars().first()
-    if taken_order and not getattr(body, "is_update", False):
+    )
+    taken_order_id = (await db.execute(stmt_taken)).scalar_one_or_none()
+    if taken_order_id and not getattr(body, "is_update", False):
         # Number already taken today: atomically fetch next available sequential number
         gen_daily, gen_ord = await get_next_daily_order_sequence(db, tenant_id=tenant_id, branch_id=parsed_branch_id)
         daily_order_number = gen_daily
         order_number = gen_ord
 
-    # Sync DailyOrderSequence with latest daily_order_number
+    # Non-blocking sync of DailyOrderSequence only if manual override daily_order_number exceeds sequence
     try:
-        seq_stmt = (
-            select(DailyOrderSequence)
-            .where(
+        if daily_order_number is not None:
+            seq_stmt = select(DailyOrderSequence).where(
                 DailyOrderSequence.tenant_id == tenant_id,
                 DailyOrderSequence.branch_id == parsed_branch_id,
                 DailyOrderSequence.sequence_date == today_str,
             )
-            .with_for_update()
-        )
-        s_rec = (await db.execute(seq_stmt)).scalar_one_or_none()
-        if s_rec:
-            if daily_order_number > s_rec.last_seq:
-                s_rec.last_seq = daily_order_number
-        else:
-            db.add(DailyOrderSequence(
-                tenant_id=tenant_id,
-                branch_id=parsed_branch_id,
-                sequence_date=today_str,
-                last_seq=daily_order_number,
-            ))
+            s_rec = (await db.execute(seq_stmt)).scalar_one_or_none()
+            if s_rec:
+                if daily_order_number > s_rec.last_seq:
+                    s_rec.last_seq = daily_order_number
+            else:
+                db.add(DailyOrderSequence(
+                    tenant_id=tenant_id,
+                    branch_id=parsed_branch_id,
+                    sequence_date=today_str,
+                    last_seq=daily_order_number,
+                ))
     except Exception as seq_sync_err:
         logger.warning("Could not sync DailyOrderSequence for today", error=str(seq_sync_err))
 
@@ -960,82 +1081,30 @@ async def create_order(
         if inspect.isawaitable(refresh_res):
             await refresh_res
 
-        # For online food app / customer web orders, auto-generate KOT tickets so kitchen prints immediately
+        # For online food app / customer web orders:
+        # Takeaway & Delivery orders enter pending_acceptance awaiting staff approval.
+        # Dine-In table orders auto-generate KOT tickets immediately.
         if (order.source_channel or "").lower() in ("customer_web", "food_app", "online"):
-            try:
-                now_utc = datetime.now(timezone.utc)
-                stations_result = await db.execute(
-                    select(KitchenStation).where(
-                        KitchenStation.tenant_id == tenant_id,
-                        KitchenStation.is_deleted == False
-                    )
+            is_takeaway_or_delivery = (order.order_type or "").lower() in ("takeaway", "delivery")
+            if is_takeaway_or_delivery:
+                order.status = "pending_acceptance"
+                log = OrderStatusLog(
+                    tenant_id=tenant_id,
+                    order_id=order.id,
+                    old_status="draft",
+                    new_status="pending_acceptance",
+                    changed_by=user_id,
+                    notes=f"Online {order.order_type.upper()} order awaiting cafe staff confirmation"
                 )
-                stations = {s.code.lower(): s for s in stations_result.scalars().all()}
-                default_station = list(stations.values())[0] if stations else None
-
-                items_stmt = select(OrderItem).where(
-                    OrderItem.order_id == order.id,
-                    OrderItem.is_deleted == False,
-                    OrderItem.kds_status == "pending"
-                )
-                pending_order_items = (await db.execute(items_stmt)).scalars().all()
-
-                if pending_order_items:
-                    items_by_station: dict[int | None, list[OrderItem]] = {}
-                    for it in pending_order_items:
-                        st_id = default_station.id if default_station else None
-                        if it.course and it.course.lower() in stations:
-                            st_id = stations[it.course.lower()].id
-                        items_by_station.setdefault(st_id, []).append(it)
-
-                    kot_counter = 1
-                    for st_id, st_items in items_by_station.items():
-                        kot_num = f"KOT-{order.order_number}-{now_utc.strftime('%H%M%S')}-{kot_counter}"
-                        kot_counter += 1
-                        kot = KOT(
-                            tenant_id=tenant_id,
-                            branch_id=order.branch_id,
-                            order_id=order.id,
-                            kot_number=kot_num,
-                            station_id=st_id,
-                            status="printed",
-                            printed_at=now_utc,
-                            created_by=user_id
-                        )
-                        db.add(kot)
-                        await db.flush()
-
-                        for it in st_items:
-                            kot_item = KOTItem(
-                                tenant_id=tenant_id,
-                                branch_id=order.branch_id,
-                                kot_id=kot.id,
-                                order_item_id=it.id,
-                                item_name=it.product_name or it.item_name or "Dish Item",
-                                quantity=it.quantity,
-                                status="preparing",
-                                notes=it.preparation_notes
-                            )
-                            db.add(kot_item)
-                            it.kds_status = "in_kitchen"
-                            it.kot_id = kot.id
-                            it.kds_sent_at = now_utc
-
-                    order.status = OrderStatus.KOT_SENT
-                    order.kot_sent_at = now_utc
-                    log = OrderStatusLog(
-                        tenant_id=tenant_id,
-                        order_id=order.id,
-                        old_status="pending",
-                        new_status=OrderStatus.KOT_SENT,
-                        changed_by=user_id,
-                        notes=f"Auto-generated KOT for Online Food App Order ({order.source_channel})"
-                    )
-                    db.add(log)
-                    await db.commit()
-                    logger.info("Auto-generated KOT tickets for Online Food App order", order_number=order.order_number)
-            except Exception as auto_kot_err:
-                logger.warning("Auto KOT generation failed for online order", error=str(auto_kot_err))
+                db.add(log)
+                await db.commit()
+                logger.info("Online takeaway/delivery order queued for staff acceptance", order_number=order.order_number)
+            else:
+                try:
+                    await generate_kots_for_order(order, tenant_id=tenant_id, user_id=user_id, db=db)
+                    logger.info("Auto-generated KOT tickets for Online Dine-In order", order_number=order.order_number)
+                except Exception as auto_kot_err:
+                    logger.warning("Auto KOT generation failed for online order", error=str(auto_kot_err))
     except Exception as commit_err:
         rollback_res = db.rollback()
         if inspect.isawaitable(rollback_res):
@@ -1070,6 +1139,7 @@ async def create_order(
             resource_id=str(order.id),
             new_values={"order_number": order_number, "grand_total": float(grand_total)},
         )
+        await db.commit()
     except Exception as audit_err:
         logger.warning("Audit log failed for order creation", error=str(audit_err))
 
@@ -1407,31 +1477,115 @@ async def get_customer_orders(
         return []
 
 
-@router.get("/{order_id}", response_model=OrderResponse)
-async def get_order(
-    order_id: int,
+@router.get("/online/pending")
+async def get_pending_online_orders(
+    branch_id: int | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
-) -> OrderResponse:
-    """Get a single order by ID."""
+):
+    """Get all pending online orders awaiting staff acceptance (Takeaway & Delivery)."""
     tenant_id = current_user.tenant_id
-    result = await db.execute(
+    stmt = (
         select(Order)
+        .options(selectinload(Order.items), selectinload(Order.payments))
         .where(
-            Order.id == order_id,
             Order.tenant_id == tenant_id,
+            func.lower(Order.status).in_(["pending_acceptance", "pending_approval", "pending"]),
             (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
         )
+        .order_by(Order.created_at.desc())
+    )
+    if branch_id:
+        stmt = stmt.where(Order.branch_id == branch_id)
+
+    res = await db.execute(stmt)
+    orders = res.scalars().all()
+
+    cust_ids = [o.customer_id for o in orders if o.customer_id]
+    cust_map = {}
+    if cust_ids:
+        c_res = await db.execute(select(Customer).where(Customer.id.in_(cust_ids)))
+        for c in c_res.scalars().all():
+            cust_map[c.id] = c
+
+    output = []
+    for o in orders:
+        c_obj = cust_map.get(o.customer_id) if o.customer_id else None
+        cust_name = c_obj.name if c_obj else ((o.metadata_payload.get("customer_name") if isinstance(o.metadata_payload, dict) else None) or "Online Guest")
+        cust_phone = c_obj.phone if c_obj else ((o.metadata_payload.get("customer_phone") if isinstance(o.metadata_payload, dict) else None) or "")
+
+        address_str = ""
+        if (o.order_type or "").lower() == "delivery":
+            address_str = o.special_instructions or (c_obj.address.get("fullAddress") if c_obj and isinstance(c_obj.address, dict) else "") or ""
+
+        output.append({
+            "id": o.id,
+            "order_number": o.order_number,
+            "order_type": o.order_type or "takeaway",
+            "source_channel": o.source_channel or "customer_web",
+            "status": o.status,
+            "created_at": o.created_at.isoformat() if o.created_at else None,
+            "customer_id": o.customer_id,
+            "customer_name": cust_name,
+            "customer_phone": cust_phone,
+            "delivery_address": address_str,
+            "subtotal": float(o.subtotal or 0),
+            "tax_amount": float(o.total_tax or 0),
+            "grand_total": float(o.grand_total or 0),
+            "payment_status": o.payment_status or "unpaid",
+            "payment_method": (o.metadata_payload.get("payment_method") if isinstance(o.metadata_payload, dict) else "CASH") or "CASH",
+            "notes": o.notes or "",
+            "special_instructions": o.special_instructions or "",
+            "items": [
+                {
+                    "id": it.id,
+                    "product_id": it.product_id or it.menu_item_id,
+                    "name": it.product_name or it.item_name or "Dish Item",
+                    "quantity": int(it.quantity or 1),
+                    "unit_price": float(it.unit_price or 0),
+                    "line_total": float(it.line_total or 0),
+                    "variant_name": it.variant_name or "",
+                    "addons": it.selected_addons or [],
+                    "notes": getattr(it, "preparation_notes", None) or getattr(it, "notes", None) or "",
+                }
+                for it in (o.items or [])
+            ]
+        })
+
+    return {"pending_orders": output, "total": len(output)}
+
+
+@router.get("/{order_id}")
+async def get_order(
+    order_id: str,
+    current_user: User | None = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Get a single order by ID or order_number (supports both staff and customer web status polling)."""
+    conditions = [(Order.is_deleted == False) | (Order.is_deleted.is_(None))]
+    if current_user:
+        conditions.append(Order.tenant_id == current_user.tenant_id)
+
+    id_clean = order_id.strip().lstrip("#")
+    if id_clean.isdigit():
+        conditions.append(or_(Order.id == int(id_clean), Order.order_number == id_clean))
+    else:
+        conditions.append(Order.order_number == id_clean)
+
+    result = await db.execute(
+        select(Order)
+        .where(*conditions)
         .options(selectinload(Order.items), selectinload(Order.payments))
     )
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-    res = OrderResponse.model_validate(order)
+
+    res = OrderResponse.model_validate(order).model_dump()
     if hasattr(order, "payments") and order.payments:
         for p in order.payments:
             if getattr(p, "status", None) == "SUCCESS" and getattr(p, "payment_mode", None):
-                res.payment_method = p.payment_mode.upper()
+                res["payment_method"] = p.payment_mode.upper()
                 break
     if order.customer_id:
         try:
@@ -1439,11 +1593,210 @@ async def get_order(
             c_res = await db.execute(select(Customer).where(Customer.id == order.customer_id))
             cust = c_res.scalar_one_or_none()
             if cust:
-                res.customer_name = cust.name
-                res.customer_phone = cust.phone
+                res["customer_name"] = cust.name
+                res["customer_phone"] = cust.phone
         except Exception:
             pass
     return res
+
+
+@router.post("/{order_id}/accept")
+async def accept_online_order(
+    order_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Staff accepts online order (Takeaway/Delivery), transitions to kot_sent and auto-generates KOTs."""
+    tenant_id = current_user.tenant_id
+    user_id = current_user.id
+
+    conditions = [
+        Order.tenant_id == tenant_id,
+        (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
+    ]
+    id_clean = order_id.strip().lstrip("#")
+    if id_clean.isdigit():
+        conditions.append(or_(Order.id == int(id_clean), Order.order_number == id_clean))
+    else:
+        conditions.append(Order.order_number == id_clean)
+
+    stmt = select(Order).options(selectinload(Order.items)).where(*conditions)
+    res = await db.execute(stmt)
+    order = res.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    try:
+        slips = await generate_kots_for_order(order, tenant_id=tenant_id, user_id=user_id, db=db)
+    except Exception as kot_err:
+        logger.warning("KOT generation failed during online order acceptance", error=str(kot_err))
+        slips = []
+
+    order.status = OrderStatus.KOT_SENT.value if hasattr(OrderStatus.KOT_SENT, "value") else "kot_sent"
+    await db.commit()
+
+    # Re-fetch order eagerly with selectinload to prevent expired relation DetachedInstanceError
+    stmt_reload = select(Order).options(selectinload(Order.items)).where(Order.id == order.id)
+    reloaded_order = (await db.execute(stmt_reload)).scalar_one_or_none() or order
+
+    return {
+        "success": True,
+        "message": f"Order #{order.order_number} confirmed and accepted!",
+        "order": OrderResponse.model_validate(reloaded_order),
+        "generated_slips": slips,
+    }
+
+
+@router.post("/{order_id}/reject")
+async def reject_online_order(
+    order_id: str,
+    body: dict | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Staff declines/rejects online order with reason."""
+    tenant_id = current_user.tenant_id
+    user_id = current_user.id
+    reason = (body or {}).get("reason", "Order not possible at this time. We are sorry.")
+
+    conditions = [
+        Order.tenant_id == tenant_id,
+        (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
+    ]
+    id_clean = order_id.strip().lstrip("#")
+    if id_clean.isdigit():
+        conditions.append(or_(Order.id == int(id_clean), Order.order_number == id_clean))
+    else:
+        conditions.append(Order.order_number == id_clean)
+
+    stmt = select(Order).where(*conditions)
+    res = await db.execute(stmt)
+    order = res.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    order.status = OrderStatus.CANCELLED.value if hasattr(OrderStatus.CANCELLED, "value") else "cancelled"
+    order.notes = f"{order.notes or ''} [Declined by Cafe: {reason}]".strip()
+    order.special_instructions = f"Declined: {reason}"
+    try:
+        log = OrderStatusLog(
+            tenant_id=tenant_id,
+            order_id=order.id,
+            old_status="pending_acceptance",
+            new_status=OrderStatus.CANCELLED.value,
+            changed_by=user_id,
+            notes=f"Staff declined order: {reason}"
+        )
+        db.add(log)
+    except Exception:
+        pass
+    await db.commit()
+
+    return {
+        "success": True,
+        "message": f"Order #{order.order_number} declined",
+        "reason": reason,
+    }
+
+
+@router.post("/{order_id}/modify-and-accept")
+async def modify_and_accept_online_order(
+    order_id: str,
+    body: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Staff modifies items/notes and confirms order."""
+    tenant_id = current_user.tenant_id
+    user_id = current_user.id
+
+    conditions = [
+        Order.tenant_id == tenant_id,
+        (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
+    ]
+    id_clean = order_id.strip().lstrip("#")
+    if id_clean.isdigit():
+        conditions.append(or_(Order.id == int(id_clean), Order.order_number == id_clean))
+    else:
+        conditions.append(Order.order_number == id_clean)
+
+    stmt = select(Order).options(selectinload(Order.items)).where(*conditions)
+    res = await db.execute(stmt)
+    order = res.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    incoming_items = body.get("items")
+    if isinstance(incoming_items, list) and len(incoming_items) > 0:
+        incoming_map = {int(it.get("id") or it.get("item_id") or it.get("product_id")): it for it in incoming_items if (it.get("id") or it.get("item_id") or it.get("product_id"))}
+        calc_subtotal = Decimal("0.00")
+        for existing_it in list(order.items):
+            match_key = existing_it.id if existing_it.id in incoming_map else (existing_it.product_id if existing_it.product_id in incoming_map else None)
+            if match_key and match_key in incoming_map:
+                new_data = incoming_map[match_key]
+                new_qty = Decimal(str(new_data.get("quantity") or 1))
+                if new_qty <= 0:
+                    await db.delete(existing_it)
+                else:
+                    existing_it.quantity = new_qty
+                    existing_it.line_total = (new_qty * existing_it.unit_price).quantize(Decimal("0.01"))
+                    calc_subtotal += existing_it.line_total
+            else:
+                await db.delete(existing_it)
+
+        order.subtotal = calc_subtotal
+        order.taxable_amount = calc_subtotal
+        order.grand_total = calc_subtotal + Decimal(str(order.total_tax or 0)) + Decimal(str(order.packaging_charge or 0))
+        order.balance_due = order.grand_total
+
+    if body.get("notes"):
+        order.notes = body["notes"]
+
+    await db.flush()
+    slips = await generate_kots_for_order(order, tenant_id=tenant_id, user_id=user_id, db=db)
+    order.status = OrderStatus.KOT_SENT.value if hasattr(OrderStatus.KOT_SENT, "value") else "kot_sent"
+    await db.commit()
+    await db.refresh(order)
+
+    return {
+        "success": True,
+        "message": f"Order #{order.order_number} modified and accepted!",
+        "order": OrderResponse.model_validate(order),
+        "generated_slips": slips,
+    }
+
+
+@router.post("/{order_id}/customer-cancel")
+async def customer_cancel_order(
+    order_id: str,
+    body: dict | None = None,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Customer cancels order within grace period (2 minutes) before cafe acceptance."""
+    conditions = [
+        (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
+    ]
+    id_clean = order_id.strip().lstrip("#")
+    if id_clean.isdigit():
+        conditions.append(or_(Order.id == int(id_clean), Order.order_number == id_clean))
+    else:
+        conditions.append(Order.order_number == id_clean)
+
+    stmt = select(Order).where(*conditions)
+    res = await db.execute(stmt)
+    order = res.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    st = (order.status or "").lower()
+    if st not in ("pending_acceptance", "pending_approval", "pending", "draft"):
+        raise HTTPException(status_code=400, detail="Order has already been confirmed and accepted by the kitchen. Cannot cancel now.")
+
+    order.status = OrderStatus.CANCELLED.value if hasattr(OrderStatus.CANCELLED, "value") else "cancelled"
+    order.notes = f"{order.notes or ''} [Cancelled by Customer within 2-min grace period]".strip()
+    await db.commit()
+
+    return {"success": True, "message": "Order successfully cancelled."}
 
 
 @router.patch("/{order_id}/cancel")
@@ -1749,97 +2102,90 @@ async def get_customer_debts_summary(
     """Get all customers with outstanding debt (Udhar) and summary aggregates directly from PostgreSQL."""
     tenant_id = current_user.tenant_id
 
-    # 1. Fetch real customers from database for this tenant
-    c_query = select(Customer).where(
-        Customer.tenant_id == tenant_id,
-        (Customer.is_deleted == False) | (Customer.is_deleted.is_(None)),
-    )
-    if search:
-        s_clean = search.strip().lower()
-        c_query = c_query.where(
-            func.lower(Customer.name).ilike(f"%{s_clean}%") | Customer.phone.ilike(f"%{s_clean}%")
-        )
-    c_res = await db.execute(c_query.order_by(Customer.name.asc()))
-    customers = c_res.scalars().all()
-    customers_map = {c.id: c for c in customers}
+    # 1. Single optimized outerjoin query: Customer master + real aggregated orders
+    order_join_conditions = [
+        Order.customer_id == Customer.id,
+        Order.tenant_id == Customer.tenant_id,
+        Order.status.not_in(["cancelled", "void"]),
+        or_(Order.is_deleted == False, Order.is_deleted.is_(None)),
+    ]
+    if branch_id:
+        order_join_conditions.append(Order.branch_id == branch_id)
 
-    # 2. Aggregate real order finances grouped by customer_id (STRICTLY EXCLUDE CANCELLED/VOID ORDERS)
-    agg_query = (
+    stmt = (
         select(
-            Order.customer_id,
+            Customer.id.label("customer_id"),
+            Customer.name.label("customer_name"),
+            Customer.phone.label("customer_phone"),
+            Customer.email.label("customer_email"),
             func.count(Order.id).label("total_orders_count"),
             func.count(case((Order.balance_due > 0, Order.id), else_=None)).label("unpaid_orders_count"),
-            func.sum(Order.grand_total).label("total_billed"),
-            func.sum(Order.amount_paid).label("total_paid"),
-            func.sum(Order.balance_due).label("total_balance_due"),
+            func.coalesce(func.sum(Order.grand_total), 0).label("total_billed"),
+            func.coalesce(func.sum(Order.amount_paid), 0).label("total_paid"),
+            func.coalesce(func.sum(Order.balance_due), 0).label("total_balance_due"),
             func.max(Order.created_at).label("last_order_date"),
         )
+        .outerjoin(Order, and_(*order_join_conditions))
         .where(
-            Order.tenant_id == tenant_id,
-            Order.customer_id.is_not(None),
-            Order.status.not_in(["cancelled", "void"]),
-            (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
-        )
-        .group_by(Order.customer_id)
-    )
-    if branch_id:
-        agg_query = agg_query.where(Order.branch_id == branch_id)
-
-    agg_res = await db.execute(agg_query)
-    customer_order_stats = {r.customer_id: r for r in agg_res.all()}
-
-    # 3. Aggregate all unassigned / counter / table open tabs (orders where customer_id is null and balance_due > 0)
-    unassigned_query = (
-        select(
-            func.count(Order.id).label("unpaid_orders_count"),
-            func.sum(Order.grand_total).label("total_billed"),
-            func.sum(Order.amount_paid).label("total_paid"),
-            func.sum(Order.balance_due).label("total_balance_due"),
-            func.max(Order.created_at).label("last_order_date"),
-        )
-        .where(
-            Order.tenant_id == tenant_id,
-            Order.customer_id.is_(None),
-            Order.balance_due > 0,
-            Order.status.not_in(["cancelled", "void"]),
-            (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
+            Customer.tenant_id == tenant_id,
+            or_(Customer.is_deleted == False, Customer.is_deleted.is_(None)),
         )
     )
-    if branch_id:
-        unassigned_query = unassigned_query.where(Order.branch_id == branch_id)
-    unassigned_res = await db.execute(unassigned_query)
-    unassigned_row = unassigned_res.one_or_none()
+
+    if search:
+        s_clean = search.strip().lower()
+        stmt = stmt.where(
+            func.lower(Customer.name).ilike(f"%{s_clean}%") | func.coalesce(Customer.phone, "").ilike(f"%{s_clean}%")
+        )
+
+    stmt = stmt.group_by(Customer.id, Customer.name, Customer.phone, Customer.email).order_by(Customer.name.asc())
+
+    res = await db.execute(stmt)
+    rows = res.all()
 
     debtors = []
     total_market_debt = Decimal("0.00")
 
-    # Add all registered customers with their real database metrics
-    for c_id, c in customers_map.items():
-        stats = customer_order_stats.get(c_id)
-        b_due = Decimal(str(stats.total_balance_due if stats and stats.total_balance_due else 0))
-        total_billed = float(stats.total_billed if stats and stats.total_billed else 0)
-        total_paid = float(stats.total_paid if stats and stats.total_paid else 0)
-        unpaid_count = int(stats.unpaid_orders_count if stats and stats.unpaid_orders_count else 0)
-        last_date = stats.last_order_date.isoformat() if stats and stats.last_order_date else None
-
+    for r in rows:
+        b_due = Decimal(str(r.total_balance_due or 0))
         if b_due > 0:
             total_market_debt += b_due
 
-        # If include_all_customers is True or search was performed or customer has debt, include in list
         if b_due > 0 or search or include_all_customers:
             debtors.append({
-                "customer_id": c.id,
-                "customer_name": c.name or f"Customer #{c.id}",
-                "customer_phone": c.phone or "",
-                "customer_email": c.email,
-                "unpaid_orders_count": unpaid_count,
-                "total_billed": total_billed,
-                "total_paid": total_paid,
+                "customer_id": r.customer_id,
+                "customer_name": r.customer_name or f"Customer #{r.customer_id}",
+                "customer_phone": r.customer_phone or "",
+                "customer_email": r.customer_email,
+                "unpaid_orders_count": int(r.unpaid_orders_count or 0),
+                "total_billed": float(r.total_billed or 0),
+                "total_paid": float(r.total_paid or 0),
                 "total_balance_due": float(b_due),
-                "last_order_date": last_date,
+                "last_order_date": r.last_order_date.isoformat() if r.last_order_date else None,
             })
 
-    # Include Unassigned / Table & Counter Open Tabs if there are unpaid orders
+    # 2. Query Unassigned / Table & Counter Open Tabs
+    unassigned_conditions = [
+        Order.tenant_id == tenant_id,
+        Order.customer_id.is_(None),
+        Order.balance_due > 0,
+        Order.status.not_in(["cancelled", "void"]),
+        or_(Order.is_deleted == False, Order.is_deleted.is_(None)),
+    ]
+    if branch_id:
+        unassigned_conditions.append(Order.branch_id == branch_id)
+
+    unassigned_stmt = select(
+        func.count(Order.id).label("unpaid_orders_count"),
+        func.sum(Order.grand_total).label("total_billed"),
+        func.sum(Order.amount_paid).label("total_paid"),
+        func.sum(Order.balance_due).label("total_balance_due"),
+        func.max(Order.created_at).label("last_order_date"),
+    ).where(and_(*unassigned_conditions))
+
+    unassigned_res = await db.execute(unassigned_stmt)
+    unassigned_row = unassigned_res.one_or_none()
+
     if unassigned_row and unassigned_row.unpaid_orders_count and unassigned_row.unpaid_orders_count > 0:
         unassigned_due = Decimal(str(unassigned_row.total_balance_due or 0))
         total_market_debt += unassigned_due
@@ -1855,13 +2201,16 @@ async def get_customer_debts_summary(
             "last_order_date": unassigned_row.last_order_date.isoformat() if unassigned_row.last_order_date else None,
         })
 
-    # Sort: highest balance due first, then alphabetically
-    debtors.sort(key=lambda x: (-x["total_balance_due"], x["customer_name"] or ""))
+    # Sort: Walk-in & Table Open Tabs ALWAYS on top, rest sorted alphabetically name-wise
+    walkin = [d for d in debtors if d.get("customer_id") == 0]
+    regular = [d for d in debtors if d.get("customer_id") != 0]
+    regular.sort(key=lambda x: (x.get("customer_name") or "").strip().lower())
+    debtors = walkin + regular
 
     return {
         "total_outstanding_debt": float(total_market_debt),
         "total_debtors_count": len([d for d in debtors if d["total_balance_due"] > 0]),
-        "total_customers_count": len(customers),
+        "total_customers_count": len(rows),
         "debtors": debtors,
     }
 
@@ -2224,13 +2573,12 @@ async def create_customer_opening_balance(
                 db.add(addr_rec)
                 await db.flush()
 
-    # 2. Determine timestamps & order number
+    # 2. Determine timestamps & sequential daily order number consistent with live orders
     now_dt = datetime.now(timezone.utc)
     incurred_date = body.debt_date or now_dt
-    date_prefix = incurred_date.strftime("%d%m%y")
-    phone_suffix = customer.phone[-4:] if len(customer.phone) >= 4 else str(customer.id)
-    random_suffix = secrets.token_hex(2).upper()
-    order_number = f"OPEN-{date_prefix}-{phone_suffix}-{random_suffix}"
+    daily_order_number, order_number = await get_next_daily_order_sequence(
+        db, tenant_id=tenant_id, branch_id=branch_id
+    )
 
     # 3. Construct Order with balance due
     order_notes = f"[{body.debt_detail_type}] {body.notes}" if body.notes else f"Opening Balance: {body.debt_detail_type}"
@@ -2239,6 +2587,8 @@ async def create_customer_opening_balance(
         branch_id=branch_id,
         customer_id=customer.id,
         order_number=order_number,
+        daily_order_number=daily_order_number,
+        token_number=str(daily_order_number),
         order_type="OPENING_BALANCE",
         status=OrderStatus.COMPLETED.value if hasattr(OrderStatus.COMPLETED, "value") else "completed",
         payment_status=PaymentStatus.UNPAID.value if hasattr(PaymentStatus.UNPAID, "value") else "unpaid",

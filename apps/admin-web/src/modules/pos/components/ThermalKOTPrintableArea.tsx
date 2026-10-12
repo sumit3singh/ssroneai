@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom";
 import { renderSafeString } from "../utils/renderSafeString";
-import { cleanTableName, formatItemWithVariantAndAddons } from "../utils/posPrintFormatters";
+import { cleanTableName, formatKOTTableDisplay, formatItemWithVariantAndAddons } from "../utils/posPrintFormatters";
 import { registerFullscreenRestoreAfterPrint } from "../utils/printUtils";
 import { getDisplayOrderNumber } from "../utils/order-sequence";
 
@@ -94,8 +94,7 @@ export const ThermalKOTPrintableArea: React.FC<ThermalKOTPrintableAreaProps> = (
       `}</style>
 
       {slips.map((slip, idx) => {
-        const rawTable = cleanTableName(slip.tableName);
-        const displayTable = rawTable || (slip.orderType || "N/A");
+        const displayTable = formatKOTTableDisplay(slip.tableName, slip.orderType);
         const displayOrderNum = getDisplayOrderNumber({ order_number: slip.orderNumber }) || slip.orderNumber;
         const totalQty = slip.items.reduce((sum, it) => sum + (it.quantity || 1), 0);
 
@@ -203,8 +202,7 @@ export async function printKOTSlipsDirectly(slips: StationKOTSlip[]) {
   if (!slips || slips.length === 0) return;
 
   const slipsHtml = slips.map((slip) => {
-    const rawTable = cleanTableName(slip.tableName);
-    const displayTable = rawTable || (slip.orderType || "N/A");
+    const displayTable = formatKOTTableDisplay(slip.tableName, slip.orderType);
     const displayOrderNum = getDisplayOrderNumber({ order_number: slip.orderNumber }) || slip.orderNumber;
     const totalQty = slip.items.reduce((sum, it) => sum + (it.quantity || 1), 0);
 

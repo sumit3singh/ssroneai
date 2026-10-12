@@ -22,14 +22,17 @@ import {
   Minimize2,
   ShoppingBag,
   Truck,
-  BookOpen
+  BookOpen,
+  Bell
 } from "lucide-react";
 import { Button, Input } from "@ssrone/ui";
 import { toast } from "sonner";
+import { fetchPendingOnlineOrders } from "@ssrone/api-client";
 import { POSOrder, POSTable, POSWaiter } from "../../../types";
 import { IndianLiveClock } from "../../../components/IndianLiveClock";
 import { POSTableQuickSettleModal } from "./POSTableQuickSettleModal";
 import { CustomerDebtRegisterModal } from "../../../components/CustomerDebtRegisterModal";
+import { OnlineOrderApprovalModal } from "../../../components/OnlineOrderApprovalModal";
 import { POSOrderHoverTooltip } from "../../../components/POSOrderHoverTooltip";
 import { renderSafeString } from "../../../utils/renderSafeString";
 import { getDisplayOrderNumber, syncLocalOrderSequenceWithOrders } from "../../../utils/order-sequence";
@@ -83,6 +86,80 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
   const [selectedSettleOrder, setSelectedSettleOrder] = useState<POSOrder | null>(null);
   const [isSettleModalOpen, setIsSettleModalOpen] = useState(false);
   const [isDebtRegisterOpen, setIsDebtRegisterOpen] = useState(false);
+  const [pendingOnlineOrders, setPendingOnlineOrders] = useState<any[]>([]);
+  const [isOnlineApprovalModalOpen, setIsOnlineApprovalModalOpen] = useState(false);
+  const prevPendingCountRef = React.useRef<number>(0);
+
+  // Audio notification chime using Web Audio API
+  const playNewOrderChime = React.useCallback(() => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.45);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.5);
+    } catch {
+      // Audio autoplay policy fallback
+    }
+  }, []);
+
+  // Poll for incoming food app takeaway/delivery orders awaiting confirmation
+  const pollPendingOnlineOrders = React.useCallback(async () => {
+    try {
+      const activeBranchId = localStorage.getItem("active_branch_id");
+      const res: any = await fetchPendingOnlineOrders(activeBranchId ? Number(activeBranchId) : undefined);
+      const list = Array.isArray(res?.pending_orders)
+        ? res.pending_orders
+        : Array.isArray(res)
+        ? res
+        : [];
+      if (list.length > prevPendingCountRef.current) {
+        playNewOrderChime();
+      }
+      prevPendingCountRef.current = list.length;
+      setPendingOnlineOrders(list);
+    } catch (err) {
+      console.warn("Could not poll pending food app orders:", err);
+    }
+  }, [playNewOrderChime]);
+
+  React.useEffect(() => {
+    pollPendingOnlineOrders();
+    const interval = setInterval(pollPendingOnlineOrders, 3000);
+    return () => clearInterval(interval);
+  }, [pollPendingOnlineOrders]);
+
+  const handleModifyPendingOrderInPOS = React.useCallback(
+    (order: any) => {
+      const mode = (order.order_mode || order.order_type || "takeaway").toLowerCase();
+      try {
+        localStorage.removeItem("selected_pos_table_id");
+        localStorage.setItem("selected_pos_order_mode", mode);
+        localStorage.setItem("edit_pos_order", JSON.stringify(order));
+      } catch {}
+
+      if (onRecallOrderToCart) {
+        onRecallOrderToCart(order);
+      } else {
+        goToView("billing");
+      }
+
+      // Micro-delay modal close to prevent browser click-through to underlying tables
+      setTimeout(() => {
+        setIsOnlineApprovalModalOpen(false);
+      }, 100);
+    },
+    [onRecallOrderToCart, goToView]
+  );
 
   const searchInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -197,6 +274,9 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
       const p = (o.payment_status || "").toLowerCase();
       if (["completed", "paid", "cancelled", "settled"].includes(s) || p === "paid") return false;
 
+      // Unaccepted online food app orders must NEVER appear on the table floor until accepted by staff!
+      if (["pending_acceptance", "pending_approval", "pending"].includes(s)) return false;
+
       return true;
     });
 
@@ -246,11 +326,15 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
 
   // Active Takeaway and Delivery Orders (Non-table active orders)
   const activeTakeawayOrders = activeOrders.filter((ord) => {
+    const s = (ord.status || "").toLowerCase();
+    if (["pending_acceptance", "pending_approval", "pending"].includes(s)) return false;
     const mode = (ord.order_mode || ord.order_type || "").toLowerCase();
     return mode.includes("take") || mode.includes("pickup");
   });
 
   const activeDeliveryOrders = activeOrders.filter((ord) => {
+    const s = (ord.status || "").toLowerCase();
+    if (["pending_acceptance", "pending_approval", "pending"].includes(s)) return false;
     const mode = (ord.order_mode || ord.order_type || "").toLowerCase();
     return mode.includes("deliv");
   });
@@ -346,8 +430,8 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
     <div className={`space-y-2.5 flex flex-col ${isFullScreenPOS ? "h-full" : "h-[calc(100vh-4.25rem)]"} overflow-hidden select-none font-sans`}>
       {/* IDE-Style Minimal Control Header Bar */}
       <div className="bg-card border border-border rounded-lg p-2.5 shrink-0 space-y-2.5 shadow-2xs">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {/* Header Title */}
+        {/* ROW 1: Title, LIVE Badge, and Live Indian Date/Time Clock */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 bg-muted text-foreground rounded-md border border-border">
               <LayoutGrid size={16} />
@@ -362,111 +446,148 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
             </div>
           </div>
 
-          {/* KPI Counters & Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono">
-              <button
-                type="button"
-                onClick={() => setStatusFilter("ALL")}
-                className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md border font-medium cursor-pointer transition-all select-none ${
-                  statusFilter === "ALL"
-                    ? "bg-foreground text-background border-foreground font-bold shadow-xs scale-[1.02]"
-                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border-border"
-                }`}
-                title="Show all tables"
-              >
-                Total: <strong className={statusFilter === "ALL" ? "text-background font-bold" : "text-foreground font-bold"}>{tables.length}</strong>
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter(statusFilter === "OCCUPIED" ? "ALL" : "OCCUPIED")}
-                className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md border font-bold flex items-center gap-1.5 cursor-pointer transition-all select-none ${
-                  statusFilter === "OCCUPIED"
-                    ? "bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-500/30 scale-[1.02]"
-                    : "bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 border-amber-500/30"
-                }`}
-                title="Filter to show only occupied tables (Click again to show all)"
-              >
-                <span className={`h-2 w-2 rounded-full inline-block ${statusFilter === "OCCUPIED" ? "bg-white animate-pulse" : "bg-amber-500"}`}></span>
-                Occupied: <strong>{occupiedCount}</strong>
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter(statusFilter === "FREE" ? "ALL" : "FREE")}
-                className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md border font-bold flex items-center gap-1.5 cursor-pointer transition-all select-none ${
-                  statusFilter === "FREE"
-                    ? "bg-emerald-600 text-white border-emerald-700 shadow-xs ring-2 ring-emerald-500/30 scale-[1.02]"
-                    : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/30"
-                }`}
-                title="Filter to show only free / available tables (Click again to show all)"
-              >
-                <span className={`h-2 w-2 rounded-full inline-block ${statusFilter === "FREE" ? "bg-white animate-pulse" : "bg-emerald-500"}`}></span>
-                Free: <strong>{freeCount}</strong>
-              </button>
-              <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-muted text-foreground rounded-md border border-border font-bold select-none">
-                Active: <strong className="text-primary">₹{activeRevenueTotal.toLocaleString("en-IN")}</strong>
-              </span>
-            </div>
+          <div className="flex items-center gap-2">
+            <IndianLiveClock compact className="inline-flex" />
+          </div>
+        </div>
 
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <IndianLiveClock compact className="hidden sm:inline-flex" />
-              {onRefresh && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onRefresh()}
-                  className="h-8 text-xs font-semibold rounded-md px-2 cursor-pointer hover:bg-muted"
-                  title="Refresh Table States"
-                >
-                  <RefreshCw size={13} />
-                </Button>
-              )}
-              {onToggleFullScreen && (
-                <Button
-                  variant={isFullScreenPOS ? "danger" : "outline"}
-                  size="sm"
-                  onClick={onToggleFullScreen}
-                  data-exit-fullscreen={isFullScreenPOS ? "true" : undefined}
-                  className={`h-8 gap-1.5 text-xs font-bold rounded-md cursor-pointer px-2.5 transition-all shadow-2xs ${
-                    isFullScreenPOS
-                      ? "bg-rose-500 hover:bg-rose-600 text-white border-rose-600 dark:bg-rose-600 dark:hover:bg-rose-700 ring-2 ring-rose-500/25 active:scale-95"
-                      : "bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800"
-                  }`}
-                  title={isFullScreenPOS ? "Exit Fullscreen Kiosk Mode (F11)" : "Enter Fullscreen Kiosk Mode (F11)"}
-                >
-                  {isFullScreenPOS ? <Minimize2 size={13} className="text-white" /> : <Maximize2 size={13} />}
-                  <span className="hidden sm:inline">{isFullScreenPOS ? "Exit Fullscreen" : "Fullscreen (F11)"}</span>
-                </Button>
-              )}
+        {/* ROW 2: Table Status KPI Badges (Left) & Operational Action Buttons (Right) */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/60">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono">
+            <button
+              type="button"
+              onClick={() => setStatusFilter("ALL")}
+              className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md border font-medium cursor-pointer transition-all select-none ${
+                statusFilter === "ALL"
+                  ? "bg-foreground text-background border-foreground font-bold shadow-xs scale-[1.02]"
+                  : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border-border"
+              }`}
+              title="Show all tables"
+            >
+              Total: <strong className={statusFilter === "ALL" ? "text-background font-bold" : "text-foreground font-bold"}>{tables.length}</strong>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === "OCCUPIED" ? "ALL" : "OCCUPIED")}
+              className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md border font-bold flex items-center gap-1.5 cursor-pointer transition-all select-none ${
+                statusFilter === "OCCUPIED"
+                  ? "bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-500/30 scale-[1.02]"
+                  : "bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 border-amber-500/30"
+              }`}
+              title="Filter to show only occupied tables (Click again to show all)"
+            >
+              <span className={`h-2 w-2 rounded-full inline-block ${statusFilter === "OCCUPIED" ? "bg-white animate-pulse" : "bg-amber-500"}`}></span>
+              Occupied: <strong>{occupiedCount}</strong>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === "FREE" ? "ALL" : "FREE")}
+              className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md border font-bold flex items-center gap-1.5 cursor-pointer transition-all select-none ${
+                statusFilter === "FREE"
+                  ? "bg-emerald-600 text-white border-emerald-700 shadow-xs ring-2 ring-emerald-500/30 scale-[1.02]"
+                  : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/30"
+              }`}
+              title="Filter to show only free / available tables (Click again to show all)"
+            >
+              <span className={`h-2 w-2 rounded-full inline-block ${statusFilter === "FREE" ? "bg-white animate-pulse" : "bg-emerald-500"}`}></span>
+              Free: <strong>{freeCount}</strong>
+            </button>
+            <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-muted text-foreground rounded-md border border-border font-bold select-none">
+              Active: <strong className="text-primary">₹{activeRevenueTotal.toLocaleString("en-IN")}</strong>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {onRefresh && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => goToView("orders")}
-                className="h-8 gap-1.5 text-xs font-semibold rounded-md cursor-pointer px-2.5"
+                onClick={() => onRefresh()}
+                className="h-8 text-xs font-semibold rounded-md px-2 cursor-pointer hover:bg-muted"
+                title="Refresh Table States"
               >
-                <ClipboardList size={13} />
-                <span className="hidden sm:inline">Active Orders</span>
+                <RefreshCw size={13} />
               </Button>
+            )}
+            {onToggleFullScreen && (
               <Button
-                variant="outline"
+                variant={isFullScreenPOS ? "danger" : "outline"}
                 size="sm"
-                onClick={() => setIsDebtRegisterOpen(true)}
-                className="h-8 gap-1.5 text-xs font-bold rounded-md cursor-pointer px-2.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20 shadow-2xs"
-                title="Open Customer Debt Register (Udhar Khata)"
+                onClick={onToggleFullScreen}
+                data-exit-fullscreen={isFullScreenPOS ? "true" : undefined}
+                className={`h-8 gap-1.5 text-xs font-bold rounded-md cursor-pointer px-2.5 transition-all shadow-2xs ${
+                  isFullScreenPOS
+                    ? "bg-rose-500 hover:bg-rose-600 text-white border-rose-600 dark:bg-rose-600 dark:hover:bg-rose-700 ring-2 ring-rose-500/25 active:scale-95"
+                    : "bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800"
+                }`}
+                title={isFullScreenPOS ? "Exit Fullscreen Kiosk Mode (F11)" : "Enter Fullscreen Kiosk Mode (F11)"}
               >
-                <BookOpen size={13} />
-                <span>Customer Debt (Udhar)</span>
+                {isFullScreenPOS ? <Minimize2 size={13} className="text-white" /> : <Maximize2 size={13} />}
+                <span className="hidden sm:inline">{isFullScreenPOS ? "Exit Fullscreen" : "Fullscreen (F11)"}</span>
               </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => goToView("billing")}
-                className="h-8 gap-1.5 text-xs font-bold rounded-md cursor-pointer px-3 bg-primary text-primary-foreground hover:opacity-90"
-              >
-                <UtensilsCrossed size={13} />
-                <span>POS Terminal</span>
-              </Button>
-            </div>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsOnlineApprovalModalOpen(true)}
+              className={`h-8 gap-1.5 text-xs font-bold rounded-md cursor-pointer px-3 transition-all ${
+                pendingOnlineOrders.length > 0
+                  ? "bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white border border-amber-300 shadow-sm ring-2 ring-orange-400/30"
+                  : "bg-gradient-to-r from-orange-500/15 via-amber-500/15 to-orange-500/10 text-orange-950 dark:text-orange-200 border border-orange-400/50 hover:bg-orange-500/25 shadow-2xs"
+              }`}
+              title="View incoming online takeaway and delivery orders from food app"
+            >
+              <Bell
+                size={14}
+                className={
+                  pendingOnlineOrders.length > 0
+                    ? "text-white stroke-[2.5]"
+                    : "text-orange-600 dark:text-orange-400 stroke-[2.5]"
+                }
+              />
+              <span className="font-extrabold tracking-tight">Food App Orders</span>
+              {pendingOnlineOrders.length > 0 ? (
+                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white text-orange-700 text-[10px] font-black uppercase tracking-wider shadow-xs">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-600 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-600"></span>
+                  </span>
+                  NEW ({pendingOnlineOrders.length})
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-800 dark:text-orange-300 text-[10px] font-bold">
+                  0
+                </span>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => goToView("orders")}
+              className="h-8 gap-1.5 text-xs font-semibold rounded-md cursor-pointer px-2.5"
+            >
+              <ClipboardList size={13} />
+              <span className="hidden sm:inline">Active Orders</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsDebtRegisterOpen(true)}
+              className="h-8 gap-1.5 text-xs font-bold rounded-md cursor-pointer px-2.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20 shadow-2xs"
+              title="Open Customer Debt Register (Udhar Khata)"
+            >
+              <BookOpen size={13} />
+              <span>Customer Debt (Udhar)</span>
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => goToView("billing")}
+              className="h-8 gap-1.5 text-xs font-bold rounded-md cursor-pointer px-3 bg-primary text-primary-foreground hover:opacity-90"
+            >
+              <UtensilsCrossed size={13} />
+              <span>POS Terminal</span>
+            </Button>
           </div>
         </div>
 
@@ -1023,6 +1144,19 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
         isOpen={isDebtRegisterOpen}
         onClose={() => setIsDebtRegisterOpen(false)}
         onRefreshData={onRefresh}
+      />
+
+      {/* Online Food App Orders Approval Modal */}
+      <OnlineOrderApprovalModal
+        isOpen={isOnlineApprovalModalOpen}
+        onClose={() => setIsOnlineApprovalModalOpen(false)}
+        pendingOrders={pendingOnlineOrders}
+        onRefresh={() => {
+          pollPendingOnlineOrders();
+          if (onRefresh) onRefresh();
+        }}
+        onModifyOrder={handleModifyPendingOrderInPOS}
+        onPrintReceipt={onPrintReceipt}
       />
     </div>
   );

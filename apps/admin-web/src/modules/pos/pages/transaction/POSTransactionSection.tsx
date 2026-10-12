@@ -415,6 +415,9 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
   const [isQueueTokenModalOpen, setIsQueueTokenModalOpen] = useState(false);
   const [recalledOrderNumber, setRecalledOrderNumber] = useState<string | null>(null);
   const [recalledOrderId, setRecalledOrderId] = useState<number | string | null>(null);
+  const recalledOrderSourceChannelRef = useRef<string | null>(null);
+  const recalledOrderDeliveryAddressRef = useRef<string | null>(null);
+  const isRecallingOrderRef = useRef<boolean>(false);
   const [receiptData, setReceiptData] = useState<any | null>(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [isUPIModalOpen, setIsUPIModalOpen] = useState(false);
@@ -457,6 +460,8 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
 
   // Check for pending order to edit from Order Tracker Page, preselected mode, or selected table
   useEffect(() => {
+    // If order is actively being recalled to cart, do not let navigation effects overwrite it
+    if (isRecallingOrderRef.current) return;
     // Reset left dish grid search term & category filter when navigating views
     setSearchTerm("");
     setSelectedCategoryId(null);
@@ -724,8 +729,17 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       const s = ((o.source_channel || (o as any).order_source || "") + "").toLowerCase();
       const isOnline = s.includes("customer") || s.includes("web") || s.includes("qr") || s.includes("food_app") || s.includes("app");
       const st = ((o.status || "") + "").toLowerCase();
-      const isActive = !["completed", "paid", "cancelled"].includes(st);
-      return isOnline && isActive;
+
+      // IMPORTANT: Online Takeaway and Delivery orders enter in "pending_acceptance".
+      // They MUST NEVER auto-print before staff explicitly clicks "Accept Order" in the Food App Orders modal!
+      const orderMode = ((o.order_type || o.order_mode || "") + "").toLowerCase();
+      const isTakeawayOrDelivery = orderMode.includes("take") || orderMode.includes("deliv");
+      if (isTakeawayOrDelivery) return false;
+
+      // Online Dine-in orders auto-print only once active (never when pending acceptance, draft, or finished)
+      const isPending = ["pending_acceptance", "pending_approval", "pending", "draft"].includes(st);
+      const isFinished = ["completed", "paid", "cancelled", "voided"].includes(st);
+      return isOnline && !isPending && !isFinished;
     });
 
     if (newlyArrivedOrders.length === 0) return;
@@ -738,7 +752,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
 
       const assignedNum = numStr;
       const orderType = (newOrder.order_type || newOrder.order_mode || "DINE_IN").toUpperCase();
-      const tableName = newOrder.table_number || newOrder.table_name || "Food App";
+      const tableName = newOrder.table_number || newOrder.table_name || (orderType.includes("DELIV") ? "Delivery ★" : orderType.includes("TAKE") ? "Takeaway ★" : "Table");
 
       // Partition items by mapped kitchen station
       const stationSlipsMap: Record<string, StationKOTSlip> = {};
@@ -764,7 +778,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
             orderNumber: assignedNum,
             orderType: orderType,
             tableName: tableName,
-            waiterName: newOrder.waiter_name || "⭐ Online Food App",
+            waiterName: newOrder.waiter_name || (orderType.includes("DELIV") ? "Delivery Order" : orderType.includes("TAKE") ? "Takeaway Order" : "QR Table Order"),
             kotType: "NEW",
             timestamp: new Date().toLocaleString(),
             items: [],
@@ -1368,6 +1382,10 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
   }, [cartItems, subtotal, discountAmount, taxAmount, netAmount, orderMode]);
 
   const handleSetOrderMode = (mode: OrderMode) => {
+    if (recalledOrderNumber) {
+      toast.warning(`Order mode is locked to ${orderMode.toUpperCase()} while editing order #${recalledOrderNumber}.`);
+      return;
+    }
     setOrderMode(mode);
     if (mode !== "dine_in") {
       setSelectedTableId("");
@@ -1440,9 +1458,11 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
   };
 
   const handleRecallOrderToCart = async (order: POSOrder) => {
+    isRecallingOrderRef.current = true;
     try {
       const st = (order.status || "").toLowerCase();
       if (st === "completed" || st === "paid" || st === "settled") {
+        isRecallingOrderRef.current = false;
         toast.error(`🚫 Order ${order.order_number} is fully closed & settled! Completed orders cannot be modified.`);
         return;
       }
@@ -1542,6 +1562,10 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       });
       baselineOrderItemsRef.current = baselineMap;
 
+      // Capture source channel and delivery address to preserve star mark and mode permanently
+      recalledOrderSourceChannelRef.current = targetOrder.source_channel || (targetOrder as any)?.order_source || null;
+      recalledOrderDeliveryAddressRef.current = targetOrder.delivery_address || targetOrder.special_instructions || null;
+
       const rawMode = (targetOrder.order_mode || targetOrder.order_type || "dine_in").toLowerCase();
       if (rawMode.includes("take") || rawMode.includes("pickup")) {
         setOrderMode("takeaway");
@@ -1604,6 +1628,10 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     } catch (err: any) {
       console.error("Failed to recall order to cart", err);
       toast.error(`Failed to load order into cart: ${err?.message || "Unknown error"}`);
+    } finally {
+      setTimeout(() => {
+        isRecallingOrderRef.current = false;
+      }, 600);
     }
   };
 
@@ -1611,6 +1639,8 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     setCartItems([]);
     setRecalledOrderId(null);
     setRecalledOrderNumber(null);
+    recalledOrderSourceChannelRef.current = null;
+    recalledOrderDeliveryAddressRef.current = null;
     setDiscountAmount(0);
     setSelectedCustomerId("");
     setOrderNotes("");
@@ -1787,6 +1817,8 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       customer_id: selectedCustomerId ? (Number(selectedCustomerId) || selectedCustomerId) : undefined,
       customer_name: selectedCust ? selectedCust.name : undefined,
       customer_phone: selectedCust ? selectedCust.phone : undefined,
+      source_channel: recalledOrderSourceChannelRef.current || existingOrd?.source_channel || (existingOrd as any)?.order_source || "pos",
+      delivery_address: recalledOrderDeliveryAddressRef.current || (existingOrd as any)?.delivery_address || undefined,
       table_id: isDineIn && selectedTable ? selectedTable.id : undefined,
       table_name: isDineIn && selectedTable ? selectedTable.table_number : undefined,
       waiter_id: isDineIn && selectedWaiter ? Number(selectedWaiter.id) : undefined,
@@ -1812,6 +1844,8 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     setCartItems([]);
     setRecalledOrderId(null);
     setRecalledOrderNumber(null);
+    recalledOrderSourceChannelRef.current = null;
+    recalledOrderDeliveryAddressRef.current = null;
     setDiscountAmount(0);
     setOrderNotes("");
 
@@ -1836,6 +1870,8 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       branch_id: Number(activeBranchId),
       order_type: orderMode.toUpperCase() as OrderType,
       order_mode: orderMode,
+      source_channel: recalledOrderSourceChannelRef.current || existingOrd?.source_channel || (existingOrd as any)?.order_source || undefined,
+      delivery_address: recalledOrderDeliveryAddressRef.current || (existingOrd as any)?.delivery_address || undefined,
       customer_id: selectedCustomerId ? (Number(selectedCustomerId) || selectedCustomerId) : null,
       table_id: isDineIn && selectedTable ? selectedTable.id : null,
       table_name: isDineIn && selectedTable ? selectedTable.table_number : undefined,
@@ -2098,6 +2134,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
             switchVirtualTab("billing");
           }}
           onSelectTableForNewOrder={(tableId) => {
+            if (isRecallingOrderRef.current) return;
             setSelectedTableId(tableId);
             setOrderMode("dine_in");
             setRecalledOrderNumber(null);
@@ -2105,6 +2142,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
             switchVirtualTab("billing");
           }}
           onSelectOrderModeForNewOrder={(mode) => {
+            if (isRecallingOrderRef.current) return;
             setOrderMode(mode);
             setSelectedTableId("");
             setSelectedWaiterId("");

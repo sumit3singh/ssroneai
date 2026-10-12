@@ -25,7 +25,7 @@ export const AuthModal = ({
   const { setLoyalty } = useAuthStore();
   const { t } = useI18n();
   const { toast } = useToast();
-  const { tenantSlug } = useTenantBranchContext();
+  const { tenantSlug, branchCode } = useTenantBranchContext();
 
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -86,12 +86,17 @@ export const AuthModal = ({
     setVerifying(true);
     try {
       const cleanDigits = phone.replace(/\D/g, "");
-      const result = await verifyOtp(cleanDigits, otp, tenantSlug, name.trim() || undefined);
+      const validName = name.trim() && !name.startsWith("Customer ") ? name.trim() : undefined;
+      const result = await verifyOtp(cleanDigits, otp, tenantSlug, validName, branchCode);
       if (result.success) {
-        const userName = name.trim() || result.user.name || `Customer ${phone.slice(-4)}`;
-        if (name.trim()) {
+        const userName = validName || result.user.name || `Customer ${phone.slice(-4)}`;
+        if (validName) {
           try {
-            await updateCustomerProfile(result.user.id, { name: name.trim(), phone: result.user.phone });
+            await updateCustomerProfile(result.user.id, {
+              name: validName,
+              phone: result.user.phone,
+              branch_code: branchCode,
+            });
           } catch {
             // non-fatal fallback
           }

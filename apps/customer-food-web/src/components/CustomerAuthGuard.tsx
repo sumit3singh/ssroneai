@@ -137,7 +137,16 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({
         exists: false,
         name: "",
       }));
-      if (check.exists && check.name) {
+      if (
+        !name.trim() &&
+        check.exists &&
+
+
+
+        check.name &&
+        !check.name.startsWith("Customer ") &&
+        check.name !== "Guest Customer"
+      ) {
         setName(check.name);
       }
 
@@ -204,10 +213,14 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({
 
     try {
       const cleanDigits = phone.replace(/\D/g, "");
-      const result = await verifyOtp(cleanDigits, fullOtp, tenantSlug, name || undefined);
+      const validName =
+        name && !name.startsWith("Customer ") && name !== "Guest Customer"
+          ? name.trim()
+          : undefined;
+      const result = await verifyOtp(cleanDigits, fullOtp, tenantSlug, validName, branchCode);
 
       if (result.success) {
-        const candidateName = result.user?.name || name || "";
+        const candidateName = result.user?.name || validName || "";
         const isPlaceholder =
           !candidateName.trim() ||
           candidateName.startsWith("Customer ") ||
@@ -258,13 +271,18 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({
         await updateCustomerProfile(tempUserObj.id, {
           name: finalName,
           phone: tempUserObj.phone,
+          branch_code: branchCode,
         });
-      } catch {
+      } catch (err) {
+        console.warn("Update customer by id failed, attempting by phone:", err);
         try {
           const digits = tempUserObj.phone.replace(/\D/g, "");
-          await updateCustomerProfile(digits, { name: finalName });
-        } catch {
-          // non-fatal
+          await updateCustomerProfile(digits, {
+            name: finalName,
+            branch_code: branchCode,
+          });
+        } catch (err2) {
+          console.warn("Update customer by phone failed:", err2);
         }
       }
 
@@ -372,6 +390,18 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({
                     }}
                     className="w-full bg-transparent text-sm font-bold text-[#2D241E] placeholder:text-[#A8A29E] focus:outline-none tracking-wider py-1"
                     autoFocus
+                  />
+                </div>
+
+                {/* Name Input */}
+                <div className="relative flex items-center bg-[#FAF8F5] rounded-2xl border border-[#E8E3DC] focus-within:border-[#9E6B38] focus-within:ring-2 focus-within:ring-[#9E6B38]/15 transition px-3 py-1.5">
+                  <User className="w-4 h-4 text-[#7A746B] mr-2 shrink-0 select-none" />
+                  <input
+                    type="text"
+                    placeholder="Your Name (e.g. Test)"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full bg-transparent text-sm font-semibold text-[#2D241E] placeholder:text-[#A8A29E] focus:outline-none py-1"
                   />
                 </div>
 

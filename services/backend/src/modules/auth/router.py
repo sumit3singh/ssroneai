@@ -904,6 +904,8 @@ class VerifyOtpRequest(BaseModel):
     otp: str
     tenant_slug: str | None = None
     name: str | None = None
+    branch_code: str | None = None
+    branch_id: int | None = None
 
 class ResetPasswordRequest(BaseModel):
     phone: str
@@ -1149,7 +1151,11 @@ async def send_otp(body: SendOtpRequest, db: AsyncSession = Depends(get_db_sessi
 
 
 @router.post("/verify-otp")
-async def verify_otp(body: VerifyOtpRequest, db: AsyncSession = Depends(get_db_session)):
+async def verify_otp(
+    body: VerifyOtpRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session)
+):
     clean_phone = "".join(filter(str.isdigit, body.phone))
     if clean_phone.startswith("91") and len(clean_phone) == 12:
         clean_phone = clean_phone[2:]
@@ -1191,8 +1197,9 @@ async def verify_otp(body: VerifyOtpRequest, db: AsyncSession = Depends(get_db_s
 
     # Multi-tenant resolution with prefix normalization
     active_tenant_id = 1
-    if body.tenant_slug:
-        raw_slug = body.tenant_slug.strip().lower()
+    req_tenant_slug = body.tenant_slug or request.headers.get("x-tenant-slug")
+    if req_tenant_slug:
+        raw_slug = req_tenant_slug.strip().lower()
         clean_slug = raw_slug.replace("the-", "").strip()
         t_res = await db.execute(
             select(Tenant.id).where(
@@ -1204,6 +1211,37 @@ async def verify_otp(body: VerifyOtpRequest, db: AsyncSession = Depends(get_db_s
         resolved_t_id = t_res.scalar_one_or_none()
         if resolved_t_id:
             active_tenant_id = resolved_t_id
+    elif request.headers.get("x-tenant-id"):
+        try:
+            active_tenant_id = int(request.headers.get("x-tenant-id"))
+        except (ValueError, TypeError):
+            pass
+
+    # Branch & Company resolution
+    req_branch_code = body.branch_code or request.headers.get("x-branch-code")
+    req_branch_id = body.branch_id
+    if not req_branch_id and request.headers.get("x-branch-id"):
+        h_bid = request.headers.get("x-branch-id")
+        if h_bid and h_bid.isdigit():
+            req_branch_id = int(h_bid)
+
+    resolved_branch = None
+    if req_branch_id:
+        resolved_branch = (await db.execute(select(Branch).where(Branch.id == req_branch_id))).scalars().first()
+    elif req_branch_code:
+        resolved_branch = (await db.execute(select(Branch).where(
+            Branch.tenant_id == active_tenant_id,
+            (Branch.code == req_branch_code) | (Branch.name.ilike(f"%{req_branch_code}%"))
+        ))).scalars().first()
+
+    if not resolved_branch:
+        # Default branch for this tenant
+        resolved_branch = (await db.execute(
+            select(Branch).where(Branch.tenant_id == active_tenant_id).order_by(Branch.id.asc())
+        )).scalars().first()
+
+    resolved_branch_id = resolved_branch.id if resolved_branch else None
+    resolved_company_id = resolved_branch.company_id if resolved_branch else None
 
     from src.modules.crm.models import Customer
     query = select(Customer).where(
@@ -1226,6 +1264,8 @@ async def verify_otp(body: VerifyOtpRequest, db: AsyncSession = Depends(get_db_s
         initial_name = body.name.strip() if (body.name and body.name.strip()) else f"Customer {clean_phone[-4:]}"
         found = Customer(
             tenant_id=active_tenant_id,
+            company_id=resolved_company_id,
+            branch_id=resolved_branch_id,
             name=initial_name,
             phone=clean_phone,
             loyalty_points=100
@@ -1234,19 +1274,29 @@ async def verify_otp(body: VerifyOtpRequest, db: AsyncSession = Depends(get_db_s
         await db.commit()
         await db.refresh(found)
     else:
+        # Backfill branch_id, company_id, tenant_id if missing or switched
+        if resolved_branch_id and not found.branch_id:
+            found.branch_id = resolved_branch_id
+        if resolved_company_id and not found.company_id:
+            found.company_id = resolved_company_id
+        if active_tenant_id and (not found.tenant_id or found.tenant_id != active_tenant_id):
+            found.tenant_id = active_tenant_id
+
         # If user passed a real name and DB still has placeholder "Customer XXXX", update it now
         if body.name and body.name.strip():
             candidate = body.name.strip()
             if not found.name or found.name.startswith("Customer ") or found.name == "Guest Customer":
                 found.name = candidate
-                await db.commit()
-                await db.refresh(found)
+        await db.commit()
+        await db.refresh(found)
 
     # Issue secure cryptographically-signed JWT session token
     access_token = auth_service.create_access_token({
         "sub": str(found.id),
         "phone": clean_phone,
-        "tenant_id": active_tenant_id,
+        "tenant_id": found.tenant_id or active_tenant_id,
+        "branch_id": found.branch_id or resolved_branch_id,
+        "company_id": found.company_id or resolved_company_id,
         "role": "customer",
     })
 
@@ -1258,6 +1308,9 @@ async def verify_otp(body: VerifyOtpRequest, db: AsyncSession = Depends(get_db_s
             "id": str(found.id),
             "name": found.name,
             "phone": found.phone,
+            "tenantId": found.tenant_id or active_tenant_id,
+            "branchId": found.branch_id or resolved_branch_id,
+            "companyId": found.company_id or resolved_company_id,
             "loyaltyTier": "BRONZE",
             "loyaltyPoints": found.loyalty_points or 0,
         }

@@ -63,33 +63,29 @@ async def get_current_user(
                 settings.jwt.secret_key,
                 algorithms=[settings.jwt.algorithm],
             )
+            user_id_val = payload_dict.get("user_id")
             sub_val = payload_dict.get("sub")
-            if sub_val and str(sub_val).isdigit():
+            if user_id_val and str(user_id_val).isdigit():
+                target_user_id = int(user_id_val)
+            elif sub_val and str(sub_val).isdigit():
                 target_user_id = int(sub_val)
         except Exception as exc:
             logger.debug("JWT decode failed", error=str(exc))
 
     if target_user_id is None and (getattr(settings, "app_env", "development") == "development" or getattr(settings, "is_development", True)):
-        target_user_id = 1
+        target_user_id = 10
 
     if target_user_id is not None:
-        now = time.time()
-        cached_entry = _AUTH_CACHE.get(target_user_id)
-        if cached_entry and cached_entry[1] > now:
-            user = cached_entry[0]
-        else:
-            from sqlalchemy.orm import selectinload
-            result = await db.execute(
-                select(User)
-                .options(selectinload(User.roles).selectinload(UserRole.role))
-                .where(
-                    User.id == target_user_id,
-                    User.is_deleted == False,
-                )
+        from sqlalchemy.orm import selectinload
+        result = await db.execute(
+            select(User)
+            .options(selectinload(User.roles).selectinload(UserRole.role))
+            .where(
+                User.id == target_user_id,
+                User.is_deleted == False,
             )
-            user = result.scalar_one_or_none()
-            if user and user.is_active:
-                _AUTH_CACHE[target_user_id] = (user, now + AUTH_CACHE_TTL)
+        )
+        user = result.scalar_one_or_none()
 
     if not user or not user.is_active:
         raise UNAUTHORIZED

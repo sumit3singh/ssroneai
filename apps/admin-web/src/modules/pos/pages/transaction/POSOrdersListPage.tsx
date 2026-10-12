@@ -64,11 +64,6 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
       navigate({ to: `/pos/transaction/${target}` });
     }
   };
-  const [internalOrders, setInternalOrders] = useState<POSOrder[]>([]);
-  const orders = propOrders && propOrders.length > 0 ? propOrders : internalOrders;
-  const [isLoading, setIsLoading] = useState(false);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
   // Date Presets Helpers
   const getTodayStr = () => getLocalDateString(new Date());
   const getYesterdayStr = () => {
@@ -81,6 +76,27 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
   const [toDate, setToDate] = useState<string>(getTodayStr());
   const [orderModeFilter, setOrderModeFilter] = useState<string>("ALL");
   const [orderSourceFilter, setOrderSourceFilter] = useState<string>("ALL");
+  const [loadedServerOrders, setLoadedServerOrders] = useState<POSOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+
+  const isViewingTodayOnly = fromDate === getTodayStr() && toDate === getTodayStr();
+  const orders = React.useMemo(() => {
+    if (isViewingTodayOnly && propOrders && propOrders.length > 0) {
+      const map = new Map<string, POSOrder>();
+      for (const ord of loadedServerOrders) {
+        if (ord?.order_number) map.set(String(ord.order_number), ord);
+      }
+      for (const ord of propOrders) {
+        if (ord?.order_number && !map.has(String(ord.order_number))) {
+          map.set(String(ord.order_number), ord);
+        }
+      }
+      return Array.from(map.values());
+    }
+    return loadedServerOrders.length > 0 ? loadedServerOrders : (propOrders || []);
+  }, [isViewingTodayOnly, propOrders, loadedServerOrders]);
 
   const handleSetToday = () => {
     const today = getTodayStr();
@@ -106,18 +122,26 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [isSettling, setIsSettling] = useState(false);
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (overrideFrom?: string, overrideTo?: string) => {
     setIsLoading(true);
     try {
       const activeBranchId = localStorage.getItem("active_branch_id");
       const isValidBranch = activeBranchId && activeBranchId !== "undefined" && activeBranchId !== "null" && activeBranchId !== "0";
-      const param = isValidBranch ? `?branch_id=${activeBranchId}` : "";
-      const res = await api.get<any>(`/orders${param}`);
+      const params: string[] = ["page_size=200"];
+      if (isValidBranch) params.push(`branch_id=${activeBranchId}`);
+
+      const effFrom = overrideFrom !== undefined ? overrideFrom : fromDate;
+      const effTo = overrideTo !== undefined ? overrideTo : toDate;
+      if (effFrom) params.push(`start_date=${effFrom}`);
+      if (effTo) params.push(`end_date=${effTo}`);
+
+      const queryStr = `?${params.join("&")}`;
+      const res = await api.get<any>(`/orders${queryStr}`);
       const list = Array.isArray(res) ? res : res?.items || [];
       if (list && list.length > 0) {
         syncLocalOrderSequenceWithOrders(list);
       }
-      setInternalOrders(list);
+      setLoadedServerOrders(list);
       onRefresh?.();
     } catch (err) {
       console.error("Failed to fetch live orders", err);
@@ -128,8 +152,8 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
   };
 
   useEffect(() => {
-    fetchOrders();
-  }, []);
+    fetchOrders(fromDate, toDate);
+  }, [fromDate, toDate]);
 
   const matchStatus = (ordStatus: string | undefined, filter: string) => {
     const st = (ordStatus || "").toLowerCase();
@@ -395,7 +419,7 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <button
-                onClick={fetchOrders}
+                onClick={() => fetchOrders(fromDate, toDate)}
                 className="p-1.5 rounded border border-border bg-background hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
                 title="Refresh Order List"
               >

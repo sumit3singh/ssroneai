@@ -28,6 +28,7 @@ import { getCategoryPhoto } from "@/lib/foodImageHelper";
 import { cn } from "@/lib/utils";
 import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
 import { useTenantAppConfig } from "@/hooks/useTenantAppConfig";
+import { checkStoreOperatingStatus } from "@/lib/storeOperatingStatus";
 import type { MenuItem } from "@/data/mockMenu";
 import type { CartItemVariant, CartItemAddon } from "@/stores/cartStore";
 import BranchSwitchDialog from "@/components/BranchSwitchDialog";
@@ -40,7 +41,8 @@ export const MenuPage = () => {
   const navigate = useNavigate();
   const { tenantSlug, branchCode, tableNumber, branches, switchBranch } = useTenantBranchContext();
   const { orderMode } = useAuthStore();
-  const { branding, hiddenItems } = useTenantAppConfig();
+  const { branding, hiddenItems, operatingHours } = useTenantAppConfig();
+  const storeStatus = checkStoreOperatingStatus(operatingHours);
   const { t } = useI18n();
 
   const [activeCategory, setActiveCategory] = useState<string>("all");
@@ -309,6 +311,26 @@ export const MenuPage = () => {
           </div>
         </div>
       </header>
+
+      {/* ── Store Operating Status Banner (if closed) ── */}
+      {!storeStatus.isOpen && (
+        <div className="bg-amber-950/95 text-amber-100 border-b border-amber-800/60 px-4 py-2.5 backdrop-blur-sm shadow-sm transition-all animate-in fade-in">
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+              <span className="font-semibold text-amber-200">
+                {storeStatus.closedMessage || "The Baithak Cafe is currently closed."}
+              </span>
+              <span className="opacity-80 text-[11px] hidden sm:inline">
+                ({storeStatus.scheduleSummary})
+              </span>
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full shrink-0">
+              Currently Closed
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ── STICKY TOP CONTAINER: Search Bar + Cart Pop-up Icon + Category Carousel ── */}
       <div className="sticky top-0 z-30 bg-[#FBF8F3]/95 backdrop-blur-md border-b border-[#E8E3DC] shadow-xs">
