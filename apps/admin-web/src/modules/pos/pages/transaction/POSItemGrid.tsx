@@ -11,6 +11,7 @@ import { getCategoryColor, CategoryColorTheme } from "../../utils/posCategoryCol
 interface POSItemGridProps {
   categories: POSCategory[];
   menuItems: POSMenuItem[];
+  orders?: any[];
   cartItems?: POSCartItem[];
   tables?: POSTable[];
   waiters?: POSWaiter[];
@@ -136,6 +137,7 @@ const POSItemCard: React.FC<POSItemCardProps> = React.memo(({
 export const POSItemGrid: React.FC<POSItemGridProps> = ({
   categories,
   menuItems,
+  orders = [],
   cartItems = [],
   selectedCategoryId,
   setSelectedCategoryId,
@@ -484,7 +486,7 @@ export const POSItemGrid: React.FC<POSItemGridProps> = ({
   return (
     <div className="space-y-2 flex flex-col h-full max-h-full overflow-hidden">
       {/* Express Bestseller Hotbar */}
-      <POSExpressHotbar menuItems={menuItems} onAddToCart={onAddToCart} />
+      <POSExpressHotbar menuItems={menuItems} orders={orders} onAddToCart={onAddToCart} />
 
       {/* Search Input, Category Tabs & Controls Header Bar */}
       <div className="bg-card border border-border rounded-lg p-2 shadow-2xs space-y-1.5 shrink-0">

@@ -1,23 +1,44 @@
 import React, { useState, useEffect } from "react";
-import { Zap, HelpCircle, Keyboard } from "lucide-react";
+import { Zap, Keyboard, ChevronDown, ChevronUp } from "lucide-react";
 import { POSMenuItem } from "../types";
 import { IndianLiveClock } from "./IndianLiveClock";
 import { POSSyncStatusBar } from "./POSSyncStatusBar";
 import { POSKeyboardCheatSheetModal } from "./POSKeyboardCheatSheetModal";
-
 import { useExpressHotbar } from "../utils/posHotbarStorage";
 
 interface POSExpressHotbarProps {
   menuItems: POSMenuItem[];
+  orders?: any[];
   onAddToCart: (item: POSMenuItem) => void;
 }
 
 export const POSExpressHotbar: React.FC<POSExpressHotbarProps> = ({
   menuItems,
+  orders,
   onAddToCart,
 }) => {
   const [isCheatSheetOpen, setIsCheatSheetOpen] = useState(false);
-  const { expressItems } = useExpressHotbar(menuItems);
+  // Collapsed by default as requested: provides maximum vertical space for menu items
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("pos_hotbar_collapsed");
+      return saved !== null ? saved === "true" : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleCollapsed = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("pos_hotbar_collapsed", String(next));
+      } catch { }
+      return next;
+    });
+  };
+
+  const { expressItems } = useExpressHotbar(menuItems, orders);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -33,19 +54,35 @@ export const POSExpressHotbar: React.FC<POSExpressHotbarProps> = ({
   if (expressItems.length === 0) return null;
 
   return (
-    <div className="bg-card/90 border border-primary/20 rounded-lg p-1.5 shadow-2xs">
-      <div className="flex items-center justify-between mb-1.5 px-1 flex-wrap gap-1.5">
+    <div className="bg-card/90 border border-primary/20 rounded-lg p-1.5 shadow-2xs transition-all">
+      {/* Hotbar Header: Always visible, displaying Live Indian Clock, Sync, and Expand/Collapse Controls */}
+      <div className={`flex items-center justify-between px-1 flex-wrap gap-1.5 ${!isCollapsed ? "mb-1.5" : ""}`}>
+        {/* Left Side: Title or Toggle */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-primary uppercase tracking-wider">
-            <Zap size={13} className="text-amber-500 fill-amber-500 animate-pulse" />
-            <span>Top 12 Express Bestseller Hotbar</span>
-          </div>
+          {isCollapsed ? (
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[11px] font-bold cursor-pointer transition-all active:scale-98 shadow-2xs"
+              title="Top 12 Hotbar (Shift+F1 – Shift+F12)"
+            >
+              <Zap size={13} className="text-amber-500 fill-amber-500 animate-pulse" />
+              <span>Top 12 Hotbar</span>
+              <ChevronDown size={13} className="text-amber-600 dark:text-amber-400" />
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-primary uppercase tracking-wider">
+              <Zap size={13} className="text-amber-500 fill-amber-500 animate-pulse" />
+              <span>Top 12 Hotbar</span>
+            </div>
+          )}
+
           <span className="text-[10px] font-mono text-muted-foreground hidden md:inline">
             (<kbd className="px-1 py-0.2 rounded bg-muted border border-border text-[9px]">Shift+F1</kbd> – <kbd className="px-1 py-0.2 rounded bg-muted border border-border text-[9px]">Shift+F12</kbd>)
           </span>
         </div>
 
-        {/* Right Controls: Sync Status Bar + Shortcuts Button + Real Indian Live Clock */}
+        {/* Right Controls: Sync Status Bar + Shortcuts Button + Real Indian Live Clock + Close Button */}
         <div className="flex items-center gap-2">
           <POSSyncStatusBar />
 
@@ -60,45 +97,62 @@ export const POSExpressHotbar: React.FC<POSExpressHotbarProps> = ({
             <kbd className="px-1 rounded bg-background border border-border text-[9px]">?</kbd>
           </button>
 
+          {/* Live Indian Time & Date: ALWAYS VISIBLE whether hotbar is open or closed */}
           <IndianLiveClock compact className="hidden sm:inline-flex" />
+
+          {/* Close / Hide Button: Visible when hotbar is expanded */}
+          {!isCollapsed && (
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/80 hover:bg-rose-500/15 hover:text-rose-600 hover:border-rose-500/30 text-muted-foreground text-[10px] font-bold border border-border transition-all cursor-pointer"
+              title="Close Hotbar (Provides more vertical space for dishes)"
+            >
+              <ChevronUp size={12} />
+              <span>Close Hotbar</span>
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-1.5">
-        {expressItems.map((item, idx) => {
-          const keyLabel = `⇧F${idx + 1}`;
-          const isVeg = item.is_veg;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onAddToCart(item)}
-              title={`[Shift+F${idx + 1}] 1-Touch Add: ${item.name}`}
-              className="group relative flex flex-col justify-between p-1.5 rounded-md bg-background hover:bg-primary/10 border border-border hover:border-primary/50 transition-all text-left cursor-pointer active:scale-95 shadow-2xs h-[58px] overflow-hidden select-none"
-            >
-              {/* Top Row: Clean Key Badge */}
-              <div className="flex items-center justify-between w-full">
-                <span className="px-1.5 py-0.5 rounded bg-primary/15 text-primary text-[9px] font-mono font-black">
-                  {keyLabel}
-                </span>
-                {!isVeg && (
-                  <span
-                    title="Non-Vegetarian"
-                    className="h-2.5 w-2.5 rounded-xs border border-rose-600 bg-rose-50 dark:bg-rose-950/40 flex items-center justify-center p-0.5"
-                  >
-                    <span className="h-1 w-1 rounded-full bg-rose-600" />
+      {/* Expanded Hotbar 12-Slot Grid */}
+      {!isCollapsed && (
+        <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-1.5 pt-1.5 border-t border-border/40 animate-in fade-in slide-in-from-top-1 duration-150">
+          {expressItems.map((item, idx) => {
+            const keyLabel = `⇧F${idx + 1}`;
+            const isVeg = item.is_veg;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onAddToCart(item)}
+                title={`[Shift+F${idx + 1}] 1-Touch Add: ${item.name}`}
+                className="group relative flex flex-col justify-between p-1.5 rounded-md bg-background hover:bg-primary/10 border border-border hover:border-primary/50 transition-all text-left cursor-pointer active:scale-95 shadow-2xs h-[58px] overflow-hidden select-none"
+              >
+                {/* Top Row: Clean Key Badge */}
+                <div className="flex items-center justify-between w-full">
+                  <span className="px-1.5 py-0.5 rounded bg-primary/15 text-primary text-[9px] font-mono font-black">
+                    {keyLabel}
                   </span>
-                )}
-              </div>
+                  {!isVeg && (
+                    <span
+                      title="Non-Vegetarian"
+                      className="h-2.5 w-2.5 rounded-xs border border-rose-600 bg-rose-50 dark:bg-rose-950/40 flex items-center justify-center p-0.5"
+                    >
+                      <span className="h-1 w-1 rounded-full bg-rose-600" />
+                    </span>
+                  )}
+                </div>
 
-              {/* Title with full width and breathing room */}
-              <p className="text-[10px] font-medium text-foreground group-hover:text-primary transition-colors leading-tight line-clamp-2 mt-0.5">
-                {item.name}
-              </p>
-            </button>
-          );
-        })}
-      </div>
+                {/* Title with full width and breathing room */}
+                <p className="text-[10px] font-medium text-foreground group-hover:text-primary transition-colors leading-tight line-clamp-2 mt-0.5">
+                  {item.name}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Cashier Keyboard Shortcuts Overlay */}
       <POSKeyboardCheatSheetModal
@@ -108,4 +162,3 @@ export const POSExpressHotbar: React.FC<POSExpressHotbarProps> = ({
     </div>
   );
 };
-

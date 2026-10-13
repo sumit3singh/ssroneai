@@ -43,54 +43,62 @@ export function setStoredHotbarSlotIds(slots: (number | null)[]): void {
 }
 
 /**
- * Resolves the 12 hotbar slots into actual POSMenuItem objects.
- * If slots are explicitly configured, returns those dishes in exact slot order.
- * If slots are unconfigured, gracefully falls back to popular / bestseller items.
+ * Resolves the top 12 hotbar dishes into actual POSMenuItem objects.
+ * Ranks automatically by most-sold order item counts and popular/bestseller status.
  */
-export function resolveHotbarItems(menuItems: POSMenuItem[], slotIds: (number | null)[]): POSMenuItem[] {
+export function resolveHotbarItems(
+  menuItems: POSMenuItem[],
+  slotIds?: (number | null)[],
+  orders?: any[]
+): POSMenuItem[] {
   if (!menuItems || menuItems.length === 0) return [];
 
-  const itemMap = new Map<number, POSMenuItem>();
-  for (const item of menuItems) {
-    if (item && item.id != null) {
-      itemMap.set(Number(item.id), item);
-    }
-  }
+  // Filter available, non-deleted items
+  const validItems = menuItems.filter(
+    (i) => i && !i.is_deleted && i.is_available !== false
+  );
+  if (validItems.length === 0) return [];
 
-  // Check if at least one slot is configured
-  const hasConfiguredSlots = slotIds.some((id) => id !== null && itemMap.has(id));
-
-  if (hasConfiguredSlots) {
-    const assignedItems: POSMenuItem[] = [];
-    for (let i = 0; i < TOTAL_HOTBAR_SLOTS; i++) {
-      const id = slotIds[i];
-      if (id !== null && itemMap.has(id)) {
-        assignedItems.push(itemMap.get(id)!);
+  // Tally sales from orders if orders array is provided
+  const salesMap = new Map<number, number>();
+  if (orders && Array.isArray(orders)) {
+    for (const o of orders) {
+      if (o && Array.isArray(o.items)) {
+        for (const it of o.items) {
+          const rawId = it.item_id || it.product_id || it.id;
+          const numId = Number(rawId);
+          if (!isNaN(numId) && numId > 0) {
+            const qty = Number(it.quantity || 1);
+            salesMap.set(numId, (salesMap.get(numId) || 0) + (isNaN(qty) ? 1 : qty));
+          }
+        }
       }
     }
-    if (assignedItems.length > 0) {
-      return assignedItems;
-    }
   }
 
-  // Fallback to top popular / bestseller items
-  const popular = menuItems.filter(
-    (i) => (i.is_popular || (i as any).is_bestseller) && !i.is_deleted && i.is_available !== false
-  );
-  if (popular.length >= TOTAL_HOTBAR_SLOTS) {
-    return popular.slice(0, TOTAL_HOTBAR_SLOTS);
-  }
-  const popularIds = new Set(popular.map((p) => String(p.id)));
-  const remaining = menuItems.filter(
-    (i) => !popularIds.has(String(i.id)) && !i.is_deleted && i.is_available !== false
-  );
-  return [...popular, ...remaining].slice(0, TOTAL_HOTBAR_SLOTS);
+  // Sort dishes: highest sales count first, then is_popular / is_bestseller flag, then sort_order
+  const ranked = [...validItems].sort((a, b) => {
+    const salesA = salesMap.get(Number(a.id)) || 0;
+    const salesB = salesMap.get(Number(b.id)) || 0;
+    if (salesB !== salesA) return salesB - salesA;
+
+    const popA = a.is_popular || (a as any).is_bestseller ? 1 : 0;
+    const popB = b.is_popular || (b as any).is_bestseller ? 1 : 0;
+    if (popB !== popA) return popB - popA;
+
+    return (a.sort_order || 999) - (b.sort_order || 999);
+  });
+
+  return ranked.slice(0, TOTAL_HOTBAR_SLOTS);
 }
 
 /**
  * Reactive hook for live hotbar items, instantly re-evaluating on local change or event dispatch.
  */
-export function useExpressHotbar(menuItems: POSMenuItem[]): {
+export function useExpressHotbar(
+  menuItems: POSMenuItem[],
+  orders?: any[]
+): {
   expressItems: POSMenuItem[];
   slotIds: (number | null)[];
 } {
@@ -109,8 +117,9 @@ export function useExpressHotbar(menuItems: POSMenuItem[]): {
   }, []);
 
   const expressItems = useMemo(() => {
-    return resolveHotbarItems(menuItems, slotIds);
-  }, [menuItems, slotIds]);
+    return resolveHotbarItems(menuItems, slotIds, orders);
+  }, [menuItems, slotIds, orders]);
 
   return { expressItems, slotIds };
 }
+

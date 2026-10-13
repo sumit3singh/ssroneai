@@ -636,7 +636,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     },
     onAddExpressItem: (index: number) => {
       const slotIds = getStoredHotbarSlotIds();
-      const expressItems = resolveHotbarItems(menuItems, slotIds);
+      const expressItems = resolveHotbarItems(menuItems, slotIds, orders);
       if (expressItems[index]) {
         handleAddToCart(expressItems[index]);
         toast.success(`Quick Added: ${expressItems[index].name}`, { icon: "⚡" });
@@ -2017,6 +2017,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
             <POSItemGrid
               categories={categories}
               menuItems={menuItems}
+              orders={orders}
               cartItems={cartItems}
               tables={tables}
               waiters={waiters}

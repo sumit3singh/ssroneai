@@ -7,7 +7,6 @@ import { POSMenuItem, POSCategory } from "../../../types";
 import { MenuTagMasterModal } from "../MenuTagMasterModal";
 import { ItemVariantsAddonsModal } from "../ItemVariantsAddonsModal";
 import { RecipeBOMModal } from "../RecipeBOMModal";
-import { POSHotbarSetupModal } from "./POSHotbarSetupModal";
 
 interface MenuItemMasterPageProps {
   menuItems: POSMenuItem[];
@@ -187,7 +186,6 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
 
   // Sub-modals state for Enterprise Features
   const [isTagModalOpen, setIsTagModalOpen] = useState(false);
-  const [isHotbarModalOpen, setIsHotbarModalOpen] = useState(false);
   const [variantModalItem, setVariantModalItem] = useState<POSMenuItem | null>(null);
   const [recipeModalItem, setRecipeModalItem] = useState<POSMenuItem | null>(null);
 
@@ -268,14 +266,6 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
         badge={`${totalCount} Dishes`}
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsHotbarModalOpen(true)}
-              size="sm"
-              className="text-xs font-bold gap-1.5 cursor-pointer shadow-xs border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
-            >
-              <Zap size={14} className="fill-amber-500 text-amber-500" /> Hotbar Setup (F1–F12)
-            </Button>
             <Button
               variant="outline"
               onClick={() => setIsTagModalOpen(true)}
@@ -537,8 +527,8 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                                     }}
                                     title={
                                       item.is_popular
-                                        ? "Remove from Top 12 Express Bestseller Hotbar"
-                                        : "Pin to Top 12 Express Bestseller Hotbar (Shift+F1–F12)"
+                                        ? "Remove from Bestsellers (Top 12 Hotbar)"
+                                        : "Mark as Bestseller (Top 12 Hotbar)"
                                     }
                                     className="cursor-pointer p-0.5 hover:scale-110 transition-transform"
                                   >
@@ -555,7 +545,7 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
                                 <span className="font-semibold text-xs text-foreground">{item.name}</span>
                                 {item.is_popular && (
                                   <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded uppercase bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                                    Hotbar
+                                    Bestseller
                                   </span>
                                 )}
                               </div>
@@ -788,14 +778,6 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
         isOpen={!!recipeModalItem}
         menuItem={recipeModalItem}
         onClose={() => setRecipeModalItem(null)}
-      />
-
-      <POSHotbarSetupModal
-        isOpen={isHotbarModalOpen}
-        onClose={() => setIsHotbarModalOpen(false)}
-        menuItems={menuItems}
-        categories={categories}
-        onSaveMenuItem={onSaveMenuItem}
       />
     </PageContainer>
   );
