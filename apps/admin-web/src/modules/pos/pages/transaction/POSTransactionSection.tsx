@@ -1636,6 +1636,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
   };
 
   const handleClearCart = () => {
+    isRecallingOrderRef.current = false;
     setCartItems([]);
     setRecalledOrderId(null);
     setRecalledOrderNumber(null);
@@ -2134,20 +2135,18 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
             switchVirtualTab("billing");
           }}
           onSelectTableForNewOrder={(tableId) => {
-            if (isRecallingOrderRef.current) return;
+            isRecallingOrderRef.current = false;
+            handleClearCart();
             setSelectedTableId(tableId);
             setOrderMode("dine_in");
-            setRecalledOrderNumber(null);
-            setCartItems([]);
             switchVirtualTab("billing");
           }}
           onSelectOrderModeForNewOrder={(mode) => {
-            if (isRecallingOrderRef.current) return;
+            isRecallingOrderRef.current = false;
+            handleClearCart();
             setOrderMode(mode);
             setSelectedTableId("");
             setSelectedWaiterId("");
-            setRecalledOrderNumber(null);
-            setCartItems([]);
             switchVirtualTab("billing");
           }}
           onSwitchView={switchVirtualTab}

@@ -206,11 +206,50 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
     }
   };
 
+  // Handle clicking a table card -> ALWAYS opens a NEW ORDER for this table (Multi-Order / Table Sharing support)
+  const handleStartNewOrderForTable = (table: POSTable) => {
+    const rawTableId = table?.id !== undefined && table?.id !== null ? table.id : table?.table_number;
+    try {
+      localStorage.removeItem("edit_pos_order");
+      if (rawTableId) {
+        localStorage.setItem("selected_pos_table_id", String(rawTableId));
+      }
+      localStorage.setItem("selected_pos_order_mode", "dine_in");
+      if (onSelectTableForNewOrder && rawTableId) {
+        onSelectTableForNewOrder(rawTableId);
+      } else {
+        goToView("billing");
+      }
+    } catch (e) {
+      goToView("billing");
+    }
+  };
+
+  // Handle clicking the "Edit" button on an active order -> Loads that specific order into cart in Edit mode
+  const handleEditOrder = (table: POSTable, order: POSOrder) => {
+    const rawTableId = table?.id !== undefined && table?.id !== null ? table.id : table?.table_number;
+    try {
+      localStorage.setItem("edit_pos_order", JSON.stringify(order));
+      if (rawTableId) {
+        localStorage.setItem("selected_pos_table_id", String(rawTableId));
+      }
+      localStorage.setItem("selected_pos_order_mode", "dine_in");
+      if (onRecallOrderToCart) {
+        onRecallOrderToCart(order);
+      } else {
+        goToView("billing");
+      }
+    } catch (err) {
+      console.error("Failed to load order for editing", err);
+      toast.error("Failed to load table order into cart");
+    }
+  };
+
   const handleSearchSubmitOnEnter = () => {
     if (!searchTerm.trim()) return;
     const term = searchTerm.trim().toLowerCase();
 
-    // 1. Search in tables
+    // 1. Search in tables -> opens table for a new order
     const matchingTable = tables.find(
       (t) =>
         t.table_number.toLowerCase() === term ||
@@ -218,8 +257,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
     );
 
     if (matchingTable) {
-      const activeOrd = getActiveOrderForTable(matchingTable);
-      handleTableClick(matchingTable, activeOrd);
+      handleStartNewOrderForTable(matchingTable);
       setSearchTerm("");
       return;
     }
@@ -388,43 +426,6 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
     }).length;
   };
 
-  // Handle clicking an Occupied Table -> Recalls order to cart in Edit mode
-  const handleTableClick = (table: POSTable, activeOrder?: POSOrder) => {
-    const rawTableId = table?.id !== undefined && table?.id !== null ? table.id : table?.table_number;
-    if (activeOrder) {
-      try {
-        localStorage.setItem("edit_pos_order", JSON.stringify(activeOrder));
-        if (rawTableId) {
-          localStorage.setItem("selected_pos_table_id", String(rawTableId));
-        }
-        localStorage.setItem("selected_pos_order_mode", "dine_in");
-        if (onRecallOrderToCart) {
-          onRecallOrderToCart(activeOrder);
-        } else {
-          goToView("billing");
-        }
-      } catch (err) {
-        console.error("Failed to load order for table", err);
-        toast.error("Failed to load table order into cart");
-      }
-    } else {
-      // Free Table -> Start new order with this table pre-selected
-      try {
-        if (rawTableId) {
-          localStorage.setItem("selected_pos_table_id", String(rawTableId));
-        }
-        localStorage.setItem("selected_pos_order_mode", "dine_in");
-        localStorage.removeItem("edit_pos_order");
-        if (onSelectTableForNewOrder && rawTableId) {
-          onSelectTableForNewOrder(rawTableId);
-        } else {
-          goToView("billing");
-        }
-      } catch (e) {
-        goToView("billing");
-      }
-    }
-  };
 
   return (
     <div className={`space-y-2.5 flex flex-col ${isFullScreenPOS ? "h-full" : "h-[calc(100vh-4.25rem)]"} overflow-hidden select-none font-sans`}>
@@ -768,7 +769,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                     return (
                       <div
                         key={table.id}
-                        onClick={() => handleTableClick(table, activeOrd)}
+                        onClick={() => handleStartNewOrderForTable(table)}
                         className={`group relative rounded-md border p-2.5 sm:p-3 flex flex-col justify-between min-h-[96px] transition-all duration-150 cursor-pointer bg-card text-foreground shadow-2xs ${
                           isOccupied
                             ? "border-amber-500/60 bg-amber-500/5 dark:bg-amber-950/20 border-l-4 border-l-amber-500 hover:border-amber-600 hover:shadow-xs"
@@ -839,7 +840,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                                           type="button"
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            handleTableClick(table, ord);
+                                            handleEditOrder(table, ord);
                                           }}
                                           className="px-2 py-0.5 rounded bg-muted hover:bg-primary hover:text-primary-foreground text-foreground border border-border cursor-pointer text-[9px] font-sans font-bold transition-all shrink-0"
                                           title="Edit Cart"
@@ -1109,7 +1110,7 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                 onClick={() => {
                   const ord = previewOrderModal;
                   setPreviewOrderModal(null);
-                  handleTableClick({ id: ord.table_id || "table", table_number: ord.table_name || "Table", capacity: 4, status: "occupied" }, ord);
+                  handleEditOrder({ id: ord.table_id || "table", table_number: ord.table_name || "Table", capacity: 4, status: "occupied" }, ord);
                 }}
                 className="gap-1 text-xs font-bold rounded-md cursor-pointer h-8"
               >
