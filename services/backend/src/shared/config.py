@@ -20,15 +20,15 @@ _ENV_FILES = (
 
 class DatabaseSettings(BaseSettings):
     url: str | None = Field(
-        default="postgresql://neondb_owner:npg_Nx0sXMZqRF6c@ep-solitary-snow-b55t825b-pooler.c-7.us-east-2.aws.neon.tech:5432/neondb?sslmode=require",
+        default="postgresql://neondb_owner:npg_uBWDO1HGedK3@ep-summer-king-b51kkifu-pooler.c-7.us-east-2.aws.neon.tech:5432/neondb?sslmode=require",
         alias="DATABASE_URL"
     )
     provider: str = Field(default="postgresql", alias="DB_PROVIDER")
-    host: str = Field(default="ep-solitary-snow-b55t825b-pooler.c-7.us-east-2.aws.neon.tech", alias="DB_HOST")
+    host: str = Field(default="ep-summer-king-b51kkifu-pooler.c-7.us-east-2.aws.neon.tech", alias="DB_HOST")
     port: int = Field(default=5432, alias="DB_PORT")
     name: str = Field(default="neondb", alias="DB_NAME")
     user: str = Field(default="neondb_owner", alias="DB_USER")
-    password: str = Field(default="npg_Nx0sXMZqRF6c", alias="DB_PASSWORD")
+    password: str = Field(default="npg_uBWDO1HGedK3", alias="DB_PASSWORD")
     pool_size: int = Field(default=15, alias="DB_POOL_SIZE")
     max_overflow: int = Field(default=25, alias="DB_MAX_OVERFLOW")
     echo: bool = Field(default=False, alias="DB_ECHO")
@@ -46,7 +46,12 @@ class DatabaseSettings(BaseSettings):
                 raw = "postgresql+asyncpg://" + raw[len("postgresql://"):]
             # asyncpg expects 'ssl' parameter instead of 'sslmode'
             raw = raw.replace("sslmode=", "ssl=")
-            return raw
+            # asyncpg and libpq variants without SCRAM channel binding support
+            import re
+            raw = re.sub(r"[?&]channel_binding=[^&]*", "", raw)
+            if "?" not in raw and "&" in raw:
+                raw = raw.replace("&", "?", 1)
+            return raw.rstrip("?")
         if self.provider.lower() == "sqlite":
             return "sqlite+aiosqlite:///./cafedb.db"
         return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
@@ -66,7 +71,11 @@ class DatabaseSettings(BaseSettings):
                 raw = "postgresql+psycopg2://" + raw[len("postgresql://"):]
             if "ssl=" in raw and "sslmode=" not in raw:
                 raw = raw.replace("ssl=", "sslmode=")
-            return raw
+            import re
+            raw = re.sub(r"[?&]channel_binding=[^&]*", "", raw)
+            if "?" not in raw and "&" in raw:
+                raw = raw.replace("&", "?", 1)
+            return raw.rstrip("?")
         if self.provider.lower() == "sqlite":
             return "sqlite:///./cafedb.db"
         return f"postgresql+psycopg2://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"

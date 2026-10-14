@@ -31,3 +31,9 @@ def test_database_url_normalization():
     assert db_short.async_url == "postgresql+asyncpg://user:pass@db.supabase.co:5432/postgres"
     assert db_short.sync_url == "postgresql+psycopg2://user:pass@db.supabase.co:5432/postgres"
 
+    # Test Neon channel_binding stripping
+    db_neon = DatabaseSettings(DATABASE_URL="postgresql://user:pass@ep-neon.tech/neondb?sslmode=require&channel_binding=require")
+    assert db_neon.async_url == "postgresql+asyncpg://user:pass@ep-neon.tech/neondb?ssl=require"
+    assert db_neon.sync_url == "postgresql+psycopg2://user:pass@ep-neon.tech/neondb?sslmode=require"
+
+
