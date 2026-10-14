@@ -1,9 +1,9 @@
 # Netlify Configuration for SSR One AI Monorepo
 # Default site build target: @ssrone/admin-web
 
-[build]
-  command = "pnpm --filter @ssrone/admin-web build"
-  publish = "apps/admin-web/dist"
+# Default build settings are configured per site in Netlify UI:
+# Site 1 (admin-web): Build: `pnpm --filter @ssrone/admin-web build`, Publish: `apps/admin-web/dist`
+# Site 2 (customer-food-web): Build: `pnpm --filter @ssrone/customer-food-web build`, Publish: `apps/customer-food-web/dist`
 
 [build.environment]
   NODE_VERSION = "20"
