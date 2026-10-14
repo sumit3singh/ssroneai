@@ -132,7 +132,7 @@ default_origins = [
 ]
 
 all_allowed_origins = list(set(default_origins + custom_origins))
-cors_regex = os.getenv("CORS_ORIGIN_REGEX", r"https?://.*(\.ssrone\.ai|\.railway\.app)(:[0-9]+)?")
+cors_regex = os.getenv("CORS_ORIGIN_REGEX", r"https?://.*(\.ssrone\.ai|\.railway\.app|\.netlify\.app)(:[0-9]+)?")
 if os.getenv("APP_ENV", "development").lower() == "development":
     cors_regex = r"https?://.*"
 

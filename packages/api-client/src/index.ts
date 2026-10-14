@@ -27,8 +27,8 @@ const resolveDynamicBaseUrl = (): string => {
     : undefined;
   const normalizedEnv = normalizeApiBaseUrl(envUrl);
 
-  // Auto-detect Railway cloud environment when running in browser
-  if (typeof window !== "undefined" && window.location.hostname.endsWith(".railway.app")) {
+  // Auto-detect Railway or Netlify cloud environment when running in browser
+  if (typeof window !== "undefined" && (window.location.hostname.endsWith(".railway.app") || window.location.hostname.endsWith(".netlify.app"))) {
     if (!normalizedEnv || normalizedEnv.includes("localhost") || normalizedEnv.includes("127.0.0.1")) {
       return "https://backend-production-43941.up.railway.app/api/v1";
     }
