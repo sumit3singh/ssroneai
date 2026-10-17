@@ -144,3 +144,41 @@ export function formatItemWithVariantAndAddons(
   }
   return result;
 }
+
+/**
+ * Formats a clean KOT item line with Quantity, Variant, Item Name, and Addons
+ * Pattern: [QTY] [Variant] [Item Name] with [Addons]
+ * Examples:
+ * - 2, "Chai" -> "2 Chai"
+ * - 5, "Banana Shake" -> "5 Banana Shake"
+ * - 1, "Veg Pizza", "Medium", ["cheese brust"] -> "1 Medium Veg Pizza with cheese brust"
+ * - 2, "Kadai Panner", "Half" -> "2 Half Kadai Panner"
+ */
+export function formatKOTItemLine(
+  quantity: number | string,
+  name: string,
+  variantName?: string | null,
+  addons?: any[]
+): string {
+  const qty = Number(quantity) || 1;
+  const cleanName = cleanString(name);
+  const cleanVariant = cleanString(variantName);
+  const cleanAddons = formatAddonsString(addons);
+
+  const parts: string[] = [String(qty)];
+  if (cleanVariant) {
+    const variantLower = cleanVariant.toLowerCase();
+    const nameLower = cleanName.toLowerCase();
+    if (!nameLower.startsWith(variantLower + " ")) {
+      parts.push(cleanVariant);
+    }
+  }
+  if (cleanName) {
+    parts.push(cleanName);
+  }
+  let line = parts.join(" ");
+  if (cleanAddons) {
+    line += ` with ${cleanAddons}`;
+  }
+  return line;
+}

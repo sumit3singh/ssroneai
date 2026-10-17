@@ -1,7 +1,9 @@
 import React from "react";
 import ReactDOM from "react-dom";
 import { renderSafeString } from "../utils/renderSafeString";
-import { cleanTableName, formatKOTTableDisplay, formatItemWithVariantAndAddons } from "../utils/posPrintFormatters";
+import { cleanTableName, formatKOTTableDisplay, formatItemWithVariantAndAddons,
+  formatKOTItemLine,
+  } from "../utils/posPrintFormatters";
 import { registerFullscreenRestoreAfterPrint } from "../utils/printUtils";
 import { getDisplayOrderNumber } from "../utils/order-sequence";
 
@@ -136,29 +138,38 @@ export const ThermalKOTPrintableArea: React.FC<ThermalKOTPrintableAreaProps> = (
             {/* 4. Dashed Divider */}
             <div style={{ borderBottom: "1px dashed #000000", marginBottom: "6px" }} />
 
-            {/* 5. Menu Items with Inlined Variant & Addons */}
+            {/* 5. Menu Items: [QTY] [Variant] [Item Name] with [Addons] */}
+            <div
+              style={{
+                fontSize: "11px",
+                fontWeight: "900",
+                textTransform: "uppercase",
+                marginBottom: "4px",
+                borderBottom: "1px solid #000000",
+                paddingBottom: "2px",
+              }}
+            >
+              ITEMS
+            </div>
             <div style={{ fontSize: "12px", lineHeight: "1.3" }}>
               {slip.items.map((it, itemIdx) => {
-                const itemTitle = formatItemWithVariantAndAddons(
+                const itemLine = formatKOTItemLine(
+                  it.quantity,
                   it.name,
                   it.variant_name,
-                  it.addons,
-                  "spaced"
+                  it.addons
                 );
 
                 return (
                   <div key={`${it.name}-${itemIdx}`} style={{ marginBottom: "5px" }}>
                     <div
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "flex-start",
                         fontWeight: "900",
                         fontSize: "12.5px",
+                        wordBreak: "break-word",
                       }}
                     >
-                      <span style={{ flex: 1, paddingRight: "8px" }}>{itemTitle}</span>
-                      <span style={{ whiteSpace: "nowrap" }}>QTY: {it.quantity}</span>
+                      {itemLine}
                     </div>
 
                     {it.notes && it.notes.trim() && (
@@ -207,19 +218,16 @@ export async function printKOTSlipsDirectly(slips: StationKOTSlip[]) {
     const totalQty = slip.items.reduce((sum, it) => sum + (it.quantity || 1), 0);
 
     const itemsHtml = slip.items.map((it) => {
-      const itemTitle = formatItemWithVariantAndAddons(
+      const itemLine = formatKOTItemLine(
+        it.quantity,
         it.name,
         it.variant_name,
-        it.addons,
-        "spaced"
+        it.addons
       );
 
       return `
         <div style="margin-bottom: 5px;">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; font-weight: 900; font-size: 13px;">
-            <span style="flex: 1; padding-right: 6px; word-break: break-word; overflow-wrap: break-word;">${itemTitle}</span>
-            <span style="white-space: nowrap; font-weight: 900;">QTY: ${it.quantity}</span>
-          </div>
+          <div style="font-weight: 900; font-size: 13px; word-break: break-word; overflow-wrap: break-word;">${itemLine}</div>
           ${it.notes && it.notes.trim() ? `<div style="font-size: 10.5px; font-weight: 700; margin-top: 1px; color: #111;">Remark: ${it.notes.trim()}</div>` : ""}
         </div>
       `;
@@ -237,8 +245,9 @@ export async function printKOTSlipsDirectly(slips: StationKOTSlip[]) {
         <div style="font-size: 10.5px; margin-bottom: 4px;">
           TIME: ${slip.timestamp}
         </div>
-        <div style="border-bottom: 1px dashed #000000; margin-bottom: 6px;"></div>
-        <div style="font-size: 12px; line-height: 1.35;">
+        <div style="border-bottom: 1px dashed #000000; margin-bottom: 4px;"></div>
+        <div style="font-size: 11.5px; font-weight: 900; text-transform: uppercase; border-bottom: 1px solid #000000; padding-bottom: 2px; margin-bottom: 4px;">ITEMS</div>
+        <div style="font-size: 12.5px; line-height: 1.35;">
           ${itemsHtml}
         </div>
         <div style="border-bottom: 1px dashed #000000; margin-top: 4px; margin-bottom: 6px;"></div>

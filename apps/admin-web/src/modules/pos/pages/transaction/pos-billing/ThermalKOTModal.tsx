@@ -3,7 +3,9 @@ import { Printer, ChefHat, X } from "lucide-react";
 import { Button } from "@ssrone/ui";
 import { useAuthStore } from "@ssrone/auth";
 import { renderSafeString } from "../../../utils/renderSafeString";
-import { cleanTableName, formatItemWithVariantAndAddons } from "../../../utils/posPrintFormatters";
+import { cleanTableName, formatItemWithVariantAndAddons,
+  formatKOTItemLine,
+} from "../../../utils/posPrintFormatters";
 import { safePrintWithFullscreenRestore } from "../../../utils/printUtils";
 
 export interface StationKOTItem {
@@ -180,20 +182,22 @@ export const ThermalKOTModal: React.FC<ThermalKOTModalProps> = ({
                   <div className="border-b border-dashed border-black my-1" />
 
                   {/* Items List */}
+                  <div className="font-black text-[11px] uppercase border-b border-black pb-0.5 mb-1">
+                    ITEMS
+                  </div>
                   <div className="space-y-1 py-0.5">
                     {slip.items.map((it, itemIdx) => {
-                      const itemTitle = formatItemWithVariantAndAddons(
+                      const itemLine = formatKOTItemLine(
+                        it.quantity,
                         it.name,
                         it.variant_name,
-                        it.addons,
-                        "spaced"
+                        it.addons
                       );
 
                       return (
                         <div key={`${it.name}-${itemIdx}`} className="space-y-0.5">
-                          <div className="flex items-start justify-between font-black text-xs text-neutral-900">
-                            <span className="flex-1 pr-2">{itemTitle}</span>
-                            <span className="whitespace-nowrap">QTY: {it.quantity}</span>
+                          <div className="font-black text-xs text-neutral-900">
+                            {itemLine}
                           </div>
                           {it.notes && it.notes.trim() && (
                             <div className="text-[10px] font-bold text-neutral-800">

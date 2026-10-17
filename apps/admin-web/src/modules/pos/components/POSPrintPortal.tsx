@@ -8,6 +8,7 @@ import {
   cleanString,
   formatBranchAddress,
   formatItemWithVariantAndAddons,
+  formatKOTItemLine,
 } from "../utils/posPrintFormatters";
 import { getDisplayOrderNumber } from "../utils/order-sequence";
 
@@ -206,35 +207,33 @@ export const POSPrintPortal: React.FC<POSPrintPortalProps> = ({
                   >
                     STATION: {slip.stationName}
                   </div>
-                  {slip.items.map((it, itIdx) => (
-                    <div
-                      key={`cons-item-${itIdx}`}
-                      style={{
-                        display: "flex",
-                        alignItems: "flex-start",
-                        marginBottom: "4px",
-                        borderBottom: "1px dotted #ccc",
-                        paddingBottom: "2px",
-                      }}
-                    >
-                      <span style={{ width: "32px", fontWeight: "900", fontSize: "12px" }}>
-                        {it.quantity}x
-                      </span>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: "bold", fontSize: "11.5px" }}>{it.name}</div>
-                        {it.variant_name && (
-                          <div style={{ fontSize: "9.5px", fontStyle: "italic" }}>
-                            ↳ {it.variant_name}
-                          </div>
-                        )}
-                        {it.notes && (
-                          <div style={{ fontSize: "9.5px", fontWeight: "bold", background: "#eee", padding: "1px 2px" }}>
-                            *** {it.notes} ***
+                  {slip.items.map((it, itIdx) => {
+                    const itemLine = formatKOTItemLine(
+                      it.quantity,
+                      it.name,
+                      it.variant_name,
+                      it.addons
+                    );
+                    return (
+                      <div
+                        key={`cons-item-${itIdx}`}
+                        style={{
+                          marginBottom: "4px",
+                          borderBottom: "1px dotted #ccc",
+                          paddingBottom: "2px",
+                        }}
+                      >
+                        <div style={{ fontWeight: "900", fontSize: "11.5px" }}>
+                          {itemLine}
+                        </div>
+                        {it.notes && it.notes.trim() && (
+                          <div style={{ fontSize: "9.5px", fontWeight: "bold", color: "#111", marginTop: "1px" }}>
+                            Remark: {it.notes.trim()}
                           </div>
                         )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ))}
 
@@ -320,31 +319,24 @@ export const POSPrintPortal: React.FC<POSPrintPortalProps> = ({
                   <div style={{ marginBottom: "6px" }}>
                     <div
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
                         fontWeight: "900",
-                        fontSize: "9.5px",
+                        fontSize: is58mm ? "9.5px" : "10.5px",
                         borderBottom: "1px solid #000",
                         paddingBottom: "2px",
                         marginBottom: "4px",
+                        textTransform: "uppercase",
                       }}
                     >
-                      <span style={{ width: "36px" }}>QTY</span>
-                      <span style={{ flex: 1 }}>ITEM / NOTES</span>
+                      ITEMS
                     </div>
 
                     {slip.items.map((it, itemIdx) => {
-                      const addonsList = it.addons || [];
-                      const addonStr = Array.isArray(addonsList)
-                        ? addonsList
-                          .map((a: any) =>
-                            typeof a === "string"
-                              ? a
-                              : renderSafeString(a?.name || a?.title || a?.label)
-                          )
-                          .filter(Boolean)
-                          .join(", ")
-                        : "";
+                      const itemLine = formatKOTItemLine(
+                        it.quantity,
+                        it.name,
+                        it.variant_name,
+                        it.addons
+                      );
 
                       return (
                         <div
@@ -355,48 +347,21 @@ export const POSPrintPortal: React.FC<POSPrintPortalProps> = ({
                             borderBottom: "1px dotted #ccc",
                           }}
                         >
-                          <div style={{ display: "flex", alignItems: "flex-start" }}>
-                            <span
+                          <div style={{ fontWeight: "900", fontSize: is58mm ? "10.5px" : "12px", lineHeight: "1.25" }}>
+                            {itemLine}
+                          </div>
+                          {it.notes && it.notes.trim() && (
+                            <div
                               style={{
-                                width: "36px",
-                                fontWeight: "900",
-                                fontSize: "13px",
-                                lineHeight: "1.1",
-                                flexShrink: 0,
+                                fontSize: "9.5px",
+                                fontWeight: "700",
+                                marginTop: "1px",
+                                color: "#111",
                               }}
                             >
-                              {it.quantity} x
-                            </span>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontWeight: "900", fontSize: "11.5px", lineHeight: "1.2" }}>
-                                {it.name}
-                              </div>
-                              {it.variant_name && (
-                                <div style={{ fontSize: "9.5px", fontStyle: "italic", marginTop: "1px" }}>
-                                  ↳ {it.variant_name}
-                                </div>
-                              )}
-                              {addonStr && (
-                                <div style={{ fontSize: "9px", marginTop: "1px" }}>
-                                  ↳ Addons: {addonStr}
-                                </div>
-                              )}
-                              {it.notes && it.notes.trim() && (
-                                <div
-                                  style={{
-                                    fontSize: "9.5px",
-                                    fontWeight: "900",
-                                    marginTop: "2px",
-                                    padding: "1px 3px",
-                                    border: "1px dashed #000",
-                                    background: "#eee",
-                                  }}
-                                >
-                                  *** NOTE: {it.notes.trim().toUpperCase()} ***
-                                </div>
-                              )}
+                              Remark: {it.notes.trim()}
                             </div>
-                          </div>
+                          )}
                         </div>
                       );
                     })}
