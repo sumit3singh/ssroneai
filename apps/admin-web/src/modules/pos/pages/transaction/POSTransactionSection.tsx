@@ -25,7 +25,7 @@ import { playPaymentSuccessSound } from "@ssrone/utils";
 import { usePOSShortcuts, useBarcodeScanner, useAsyncPrintQueue, useZeroWaitOrderSync } from "../../hooks";
 import { renderSafeString } from "../../utils/renderSafeString";
 import { generateLocalOrderNumber, peekNextLocalOrderNumber, generateDailyTokenNumber, generateIdempotencyKey, syncLocalOrderSequenceWithOrders, getDisplayOrderNumber } from "../../utils/order-sequence";
-import { resolveHotbarItems, getStoredHotbarSlotIds } from "../../utils/posHotbarStorage";
+import { resolveHotbarItems, getStoredHotbarSlotIds, resolveFavoriteItems, getStoredFavoriteSlotIds, getStoredBarMode } from "../../utils/posHotbarStorage";
 import { cacheCatalog } from "@/shared/utils/offline-store";
 
 export type POSVirtualTab = "billing" | "tables" | "orders" | "kds" | "shift";
@@ -635,11 +635,21 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       }
     },
     onAddExpressItem: (index: number) => {
-      const slotIds = getStoredHotbarSlotIds();
-      const expressItems = resolveHotbarItems(menuItems, slotIds, orders);
-      if (expressItems[index]) {
-        handleAddToCart(expressItems[index]);
-        toast.success(`Quick Added: ${expressItems[index].name}`, { icon: "⚡" });
+      const mode = getStoredBarMode();
+      if (mode === "hotbar") {
+        const slotIds = getStoredHotbarSlotIds();
+        const expressItems = resolveHotbarItems(menuItems, slotIds, orders);
+        if (expressItems[index]) {
+          handleAddToCart(expressItems[index]);
+          toast.success(`Quick Added: ${expressItems[index].name}`, { icon: "⚡" });
+        }
+      } else {
+        const slotIds = getStoredFavoriteSlotIds(activeBranchId);
+        const favoriteItems = resolveFavoriteItems(menuItems, slotIds);
+        if (favoriteItems[index]) {
+          handleAddToCart(favoriteItems[index]);
+          toast.success(`Quick Added: ${favoriteItems[index].name}`, { icon: "⭐" });
+        }
       }
     },
     onViewHeldBills: () => setIsHoldModalOpen(true),

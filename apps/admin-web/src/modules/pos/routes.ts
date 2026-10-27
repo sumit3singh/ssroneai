@@ -5,6 +5,7 @@ export const posRoutes = {
     root: "/pos/master",
     categories: "/pos/master/categories",
     menuItems: "/pos/master/menu-items",
+    favorites: "/pos/master/favorites",
     tables: "/pos/master/tables",
     waiters: "/pos/master/waiters",
     paymentModes: "/pos/master/payment-modes",

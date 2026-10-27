@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Plus, Search, Utensils, Edit2, Trash2, Layers, Package, Sparkles, ChevronDown, ChevronUp, Tag, AlertCircle, CheckCircle2, X, Zap, Scale, Check } from "lucide-react";
+import { Plus, Search, Utensils, Edit2, Trash2, Layers, Package, Sparkles, ChevronDown, ChevronUp, Tag, AlertCircle, CheckCircle2, X, Zap, Scale, Check, Star } from "lucide-react";
 import { Button, Input, PageHeader, PageContainer } from "@ssrone/ui";
 import { api } from "@ssrone/api-client";
 import { toast } from "sonner";
@@ -7,6 +7,7 @@ import { POSMenuItem, POSCategory } from "../../../types";
 import { MenuTagMasterModal } from "../MenuTagMasterModal";
 import { ItemVariantsAddonsModal } from "../ItemVariantsAddonsModal";
 import { RecipeBOMModal } from "../RecipeBOMModal";
+import { POSFavoritesConfigModal } from "../favorites/POSFavoritesConfigModal";
 
 interface MenuItemMasterPageProps {
   menuItems: POSMenuItem[];
@@ -186,6 +187,7 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
 
   // Sub-modals state for Enterprise Features
   const [isTagModalOpen, setIsTagModalOpen] = useState(false);
+  const [isFavoritesModalOpen, setIsFavoritesModalOpen] = useState(false);
   const [variantModalItem, setVariantModalItem] = useState<POSMenuItem | null>(null);
   const [recipeModalItem, setRecipeModalItem] = useState<POSMenuItem | null>(null);
 
@@ -266,6 +268,15 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
         badge={`${totalCount} Dishes`}
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsFavoritesModalOpen(true)}
+              size="sm"
+              className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+              title="Configure Top 12 Favorites for Speed Billing"
+            >
+              <Star size={14} className="text-amber-500 fill-amber-500" /> Top 12 Favorites
+            </Button>
             <Button
               variant="outline"
               onClick={() => setIsTagModalOpen(true)}
@@ -778,6 +789,12 @@ export const MenuItemMasterPage: React.FC<MenuItemMasterPageProps> = ({
         isOpen={!!recipeModalItem}
         menuItem={recipeModalItem}
         onClose={() => setRecipeModalItem(null)}
+      />
+
+      <POSFavoritesConfigModal
+        isOpen={isFavoritesModalOpen}
+        onClose={() => setIsFavoritesModalOpen(false)}
+        menuItems={menuItems}
       />
     </PageContainer>
   );

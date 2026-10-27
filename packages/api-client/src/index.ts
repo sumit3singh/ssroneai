@@ -27,10 +27,16 @@ const resolveDynamicBaseUrl = (): string => {
     : undefined;
   const normalizedEnv = normalizeApiBaseUrl(envUrl);
 
-  // Auto-detect Railway or Netlify cloud environment when running in browser
-  if (typeof window !== "undefined" && (window.location.hostname.endsWith(".railway.app") || window.location.hostname.endsWith(".netlify.app"))) {
+  // Auto-detect Render, Netlify, Railway, or ssrit.online cloud environment when running in browser
+  if (
+    typeof window !== "undefined" &&
+    (window.location.hostname.endsWith(".railway.app") ||
+      window.location.hostname.endsWith(".netlify.app") ||
+      window.location.hostname.endsWith(".onrender.com") ||
+      window.location.hostname.endsWith(".ssrit.online"))
+  ) {
     if (!normalizedEnv || normalizedEnv.includes("localhost") || normalizedEnv.includes("127.0.0.1")) {
-      return "https://backend-production-43941.up.railway.app/api/v1";
+      return "https://ssrone-backend.onrender.com/api/v1";
     }
   }
 

@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M.Sc. Computer Science Semester IV — Academic Portfolio Portal | JGND PSOU</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Marked.js (Markdown Parsing) -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- html2pdf.js (1-Click PDF Generation) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="styles.css">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            psou: {
+              navy: '#0F1E36',
+              blue: '#1E3A8A',
+              gold: '#C58B3A',
+              amber: '#D97706',
+              light: '#F8FAFC'
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col overflow-x-hidden w-full">
+
+  <!-- Top Academic Navigation Bar (Clean Light Theme) -->
+  <header class="no-print sticky top-0 z-40 bg-white text-slate-800 shadow-sm border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between">
+
+      <!-- Brand & University Details -->
+      <div class="flex items-center space-x-3">
+        <div
+          class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center p-1 shadow-sm border border-amber-300">
+          <svg class="w-6 h-6 text-amber-700" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 2L1 7l11 5 9-4.09V17h2V7L12 2zM3.46 8.78L12 12.58l8.54-3.8V15c-.9 1.15-2.28 2.08-3.93 2.72-2.15.83-4.66.83-6.81 0-1.65-.64-3.03-1.57-3.93-2.72v-6.22z" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-xs sm:text-sm font-bold tracking-wide uppercase text-blue-950 font-heading">Jagat Guru Nanak
+            Dev Punjab State Open University</h1>
+          <div class="text-[11px] text-slate-500 flex items-center space-x-2">
+            <span class="font-medium text-slate-700">M.Sc. (Computer Science) Semester-IV</span>
+            <span class="text-amber-500">•</span>
+            <span
+              class="bg-amber-100 text-amber-900 px-2 py-0.2 rounded font-semibold text-[10px] border border-amber-300">Final
+              Portfolio (250 Marks)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Navigation Buttons (Master PDF, Hard Words, Dev Mode, Profile) -->
+      <div class="flex items-center space-x-2 sm:space-x-2.5">
+
+        <!-- 📕 Master PDF Button (All 11 Documents in 1 Consolidated File) -->
+        <button id="btn-master-pdf"
+          class="px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow-sm"
+          title="Download all 11 documents merged into one complete Master Academic Portfolio PDF">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          <span class="hidden sm:inline">📕 Master PDF (All-in-One)</span>
+          <span class="sm:hidden">Master PDF</span>
+        </button>
+
+        <!-- 📖 Hard Words Meaning Button (कठिन शब्द सरल हिंदी अर्थ) -->
+        <button id="btn-open-glossary"
+          class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-lg text-xs font-bold border border-amber-300 transition flex items-center space-x-1.5 shadow-sm">
+          <span class="text-sm">📖</span>
+          <span class="hidden md:inline">कठिन शब्दार्थ (Viva Glossary)</span>
+          <span class="md:hidden">Glossary</span>
+        </button>
+
+        <!-- 🛠️ Developer Mode Toggle Button -->
+        <button id="btn-toggle-dev"
+          class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 transition flex items-center space-x-1 shadow-sm"
+          title="Toggle In-Browser Live Developer Edit Mode">
+          <span>🛠️</span>
+          <span class="hidden md:inline">Dev Mode</span>
+        </button>
+
+        <!-- Student Profile Badge & Edit -->
+        <div class="hidden xl:flex flex-col text-right">
+          <span id="profile-badge-name" class="text-xs font-bold text-blue-950">Sumit Singh</span>
+          <span id="profile-badge-roll" class="text-[10px] text-slate-500 font-mono">PSOU/MSCS/2026/042</span>
+        </div>
+
+        <button id="btn-open-profile"
+          class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium border border-slate-300 transition flex items-center space-x-1 shadow-sm">
+          <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+            </path>
+          </svg>
+          <span class="hidden sm:inline">Edit Profile</span>
+        </button>
+
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Developer Mode Ribbon (Active when Dev Mode is ON) -->
+  <div id="dev-mode-bar" class="hidden no-print bg-amber-50 border-b border-amber-300 px-4 py-2 text-xs text-amber-950 flex flex-wrap items-center justify-between gap-2 sticky top-[57px] z-30 shadow-xs">
+    <div class="flex items-center space-x-2">
+      <span class="px-2 py-0.5 bg-amber-600 text-white font-bold rounded text-[10px] uppercase dev-badge-pulse">STUDENT DEVELOPER MODE</span>
+      <span class="font-medium hidden sm:inline text-amber-950">Customize deliverables, viva questions, oral slides, and technical vocabulary!</span>
+    </div>
+    <div class="flex items-center space-x-2">
+      <button id="btn-open-dev-studio" class="px-3 py-1.5 bg-blue-900 hover:bg-blue-950 text-white rounded-lg font-bold shadow-xs transition flex items-center space-x-1.5 border border-blue-950" title="Open Complete Student Customization Studio">
+        <span>🎛️</span>
+        <span>Open Developer Studio</span>
+      </button>
+      <button id="btn-toggle-inline-edit" class="px-2.5 py-1.5 bg-amber-200 hover:bg-amber-300 text-amber-950 rounded-lg font-bold border border-amber-400 transition flex items-center space-x-1" title="Toggle Direct In-Page Editing">
+        <span>✏️</span>
+        <span id="inline-edit-status">In-Page Edit: OFF</span>
+      </button>
+      <button id="btn-save-dev-edits" class="hidden px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-bold shadow-xs transition flex items-center space-x-1" title="Save in-page edits to browser storage">
+        <span>💾</span>
+        <span>Save Page Edits</span>
+      </button>
+      <button id="btn-reset-dev-edits" class="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 rounded-lg font-semibold border border-slate-300 transition" title="Reset current document to university original">
+        🔄 Reset Doc
+      </button>
+      <button id="btn-close-dev-bar" class="px-2 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg font-semibold transition" title="Exit Developer Mode">
+        ✕
+      </button>
+    </div>
+  </div>
+
+  <!-- Document Action Floating Sub-Header (Screen Only) -->
+  <div class="no-print bg-white/95 backdrop-blur-sm border-b border-slate-200 sticky top-[57px] z-30 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex flex-wrap items-center justify-between gap-2">
+
+      <!-- Current Document Title Breadcrumb -->
+      <div>
+        <h2 id="doc-header-title" class="text-sm font-bold text-blue-950 font-heading">Document Title</h2>
+        <p id="doc-header-path" class="text-[11px] text-slate-500 font-mono">msccs/path/to/file.md</p>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center space-x-2">
+        <!-- 1-Click PDF Download -->
+        <button id="btn-download-pdf"
+          class="px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded-lg text-xs font-bold shadow-sm flex items-center space-x-1.5 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+            </path>
+          </svg>
+          <span>Download PDF</span>
+        </button>
+
+        <!-- 1-Click Direct PPTX Download (Active for Slide Decks) -->
+        <button id="btn-download-pptx"
+          class="hidden px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-sm items-center space-x-1.5 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
+          </svg>
+          <span>Download PPTX (PowerPoint)</span>
+        </button>
+
+        <!-- Present Fullscreen Slides (Active for Slide Decks) -->
+        <button id="btn-present-slides"
+          class="hidden px-3 py-1.5 bg-blue-900 hover:bg-blue-950 text-white rounded-lg text-xs font-bold shadow-sm items-center space-x-1.5 transition">
+          <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z">
+            </path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <span>Present Slides (Viva)</span>
+        </button>
+
+        <!-- Print Document -->
+        <button id="btn-print-doc"
+          class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium border border-slate-300 flex items-center space-x-1 transition">
+          <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z">
+            </path>
+          </svg>
+          <span class="hidden sm:inline">Print</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Main Layout Grid -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex-1 flex flex-col md:flex-row gap-5 w-full min-w-0">
+
+    <!-- Left Navigation Sidebar (Light, Clean) -->
+    <aside class="no-print w-full md:w-72 shrink-0">
+      <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-3.5 sticky top-[115px]">
+
+        <h3 class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 px-2">Final Semester Deliverables
+        </h3>
+
+        <!-- MSCS-4-03P: Major Project -->
+        <div class="mb-3">
+          <div
+            class="flex items-center justify-between px-2 py-1 bg-amber-50/80 rounded-md text-xs font-bold text-amber-950 border border-amber-200 mb-1.5">
+            <span>MSCS-4-03P: Major Project</span>
+            <span class="bg-amber-200/80 text-amber-900 text-[10px] px-1.5 py-0.2 rounded font-bold">200 Marks</span>
+          </div>
+          <nav class="space-y-0.5">
+            <a href="#" data-key="project_application"
+              class="nav-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-50 transition border border-transparent">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2 shrink-0"></span>
+              <span>1. Topic Approval Letter</span>
+            </a>
+            <a href="#" data-key="project_synopsis"
+              class="nav-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-50 transition border border-transparent">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2 shrink-0"></span>
+              <span>2. Project Synopsis (8-Part)</span>
+            </a>
+            <a href="#" data-key="project_thesis"
+              class="nav-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-50 transition border border-transparent">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2 shrink-0"></span>
+              <span>3. Final Thesis (30-35 Pgs)</span>
+            </a>
+            <a href="#" data-key="project_slides"
+              class="nav-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-50 transition border border-transparent">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-2 shrink-0"></span>
+              <span class="font-semibold text-blue-950">4. Presentation Slides & Speech</span>
+            </a>
+            <a href="#" data-key="project_viva"
+              class="nav-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-50 transition border border-transparent">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2 shrink-0"></span>
+              <span>5. Viva Examiner Q&A Guide</span>
+            </a>
+            <a href="#" data-key="project_paper"
+              class="nav-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-50 transition border border-transparent">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2 shrink-0"></span>
+              <span>6. IEEE Research Paper</span>
+            </a>
+          </nav>
+        </div>
+
+        <!-- MSCS-4-04: Seminar -->
+        <div class="mb-3">
+          <div
+            class="flex items-center justify-between px-2 py-1 bg-blue-50/80 rounded-md text-xs font-bold text-blue-950 border border-blue-200 mb-1.5">
+            <span>MSCS-4-04: Seminar</span>
+            <span class="bg-blue-200/80 text-blue-950 text-[10px] px-1.5 py-0.2 rounded font-bold">50 Marks</span>
+          </div>
+          <nav class="space-y-0.5">
+            <a href="#" data-key="seminar_application"
+              class="nav-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-50 transition border border-transparent">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2 shrink-0"></span>
+              <span>1. Seminar Approval Letter</span>
+            </a>
+            <a href="#" data-key="seminar_report"
+              class="nav-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-50 transition border border-transparent">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2 shrink-0"></span>
+              <span>2. Seminar Report (10-15 Pgs)</span>
+            </a>
+            <a href="#" data-key="seminar_slides"
+              class="nav-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-50 transition border border-transparent">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-2 shrink-0"></span>
+              <span class="font-semibold text-blue-950">3. Oral Slides & Speech</span>
+            </a>
+            <a href="#" data-key="seminar_viva"
+              class="nav-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-50 transition border border-transparent">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2 shrink-0"></span>
+              <span>4. Seminar Discussion Q&A</span>
+            </a>
+          </nav>
+        </div>
+
+        <!-- Master Index Link -->
+        <div class="pt-2 border-t border-slate-100">
+          <a href="#" data-key="master_index"
+            class="nav-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-50 transition border border-transparent">
+            <svg class="w-3.5 h-3.5 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2">
+              </path>
+            </svg>
+            <span>Master Index & Guidelines</span>
+          </a>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- Center Document Container -->
+    <main id="main-content" class="flex-1 min-w-0 w-full overflow-hidden">
+      <div id="printable-doc-container"
+        class="bg-white rounded-xl shadow-xs border border-slate-200 p-6 sm:p-10 academic-doc w-full min-w-0">
+
+        <!-- Official University Header for Printed / Exported Documents -->
+        <div class="border-b-2 border-blue-950 pb-3 mb-6 text-center">
+          <h2 class="text-[11px] font-bold tracking-widest uppercase text-amber-700">Jagat Guru Nanak Dev Punjab State
+            Open University, Patiala</h2>
+          <h1 class="text-base font-bold uppercase text-blue-950 mt-0.5">Department of Computer Science & Applications
+          </h1>
+          <p class="text-[11px] text-slate-500 mt-0.5">M.Sc. (Computer Science) — Semester-IV</p>
+        </div>
+
+        <!-- Dynamic Markdown Render Target -->
+        <div id="doc-render-target" class="w-full min-w-0">
+          <!-- Content dynamically injected by app.js -->
+        </div>
+
+      </div>
+    </main>
+
+  </div>
+
+  <!-- 📖 कठिन शब्द (Hard Words Dictionary Modal in Hindi & English) -->
+  <div id="glossary-modal"
+    class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5">
+    <div
+      class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-200 flex flex-col max-h-[85vh] overflow-hidden">
+
+      <!-- Modal Header -->
+      <div class="p-4 bg-amber-50/80 border-b border-amber-200 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <span class="text-2xl">📖</span>
+          <div>
+            <h3 class="text-base font-bold text-blue-950 font-heading">कठिन शब्दार्थ कोष (Viva Examination Vocabulary)
+            </h3>
+            <p class="text-xs text-amber-800">Prepared by Sumit Singh for viva voce oral defense & practical technical review</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-1.5">
+          <button id="glossary-btn-add-word"
+            class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center space-x-1 transition"
+            title="Add a new technical term in Developer Studio">
+            <span>+ Add Word</span>
+          </button>
+          <button id="btn-close-glossary" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search Filter Bar -->
+      <div class="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
+        <div class="relative flex-1">
+          <input type="text" id="glossary-search"
+            placeholder="शब्द खोजें (Search term: e.g. Idempotency, RLS, WebSockets)..."
+            class="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none">
+          <svg class="w-4 h-4 text-slate-400 absolute left-2.5 top-2" fill="none" stroke="currentColor"
+            viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </div>
+        <span id="glossary-count" class="text-[11px] font-semibold text-slate-500 whitespace-nowrap">15 terms</span>
+      </div>
+
+      <!-- Scrollable List of Terms -->
+      <div id="glossary-list-target" class="flex-1 overflow-y-auto p-4 space-y-3">
+        <!-- Rendered by app.js -->
+      </div>
+
+      <!-- Footer Info -->
+      <div class="p-2.5 bg-slate-50 border-t border-slate-200 text-center text-[11px] text-slate-500 font-medium">
+        💡 Note: Compiled by candidate Sumit Singh for viva voce oral examination defense.
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Student Profile Edit Modal -->
+  <div id="profile-modal"
+    class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-slate-200 p-5">
+
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div>
+          <h3 class="text-base font-bold text-blue-950 font-heading">Student Particulars</h3>
+          <p class="text-xs text-slate-500">Updating here replaces details across all documents, PDFs, and PPTX files.
+          </p>
+        </div>
+        <button id="btn-close-profile" class="text-slate-400 hover:text-slate-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <form id="form-student-profile" class="mt-3 space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Full Student Name</label>
+          <input type="text" id="input-student-name"
+            class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none"
+            required>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Roll Number / Enrollment No.</label>
+          <input type="text" id="input-roll-number"
+            class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-900 focus:outline-none"
+            required>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Admission Cycle / Session</label>
+          <input type="text" id="input-admission-cycle"
+            class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none"
+            placeholder="e.g. July 2024 - 2026 Cycle">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Study Centre Code & Name</label>
+          <input type="text" id="input-study-centre"
+            class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none"
+            placeholder="JGND PSOU Regional Centre">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Supervisor / Faculty Guide Name &
+            Designation</label>
+          <input type="text" id="input-guide-name"
+            class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none"
+            required>
+        </div>
+
+        <div class="pt-3 flex items-center justify-end space-x-2 border-t border-slate-100">
+          <button type="submit"
+            class="px-4 py-2 bg-blue-900 hover:bg-blue-950 text-white rounded-lg text-xs font-semibold shadow-sm transition">
+            Save & Update All Documents
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- 🛠️ Student Developer Studio Modal (Comprehensive Customization Center) -->
+  <div id="dev-studio-modal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-6xl w-full h-[92vh] flex flex-col border border-slate-200 overflow-hidden">
+      
+      <!-- Studio Header -->
+      <div class="px-5 py-3.5 bg-gradient-to-r from-blue-950 via-slate-900 to-blue-900 text-white flex items-center justify-between shrink-0 shadow-md">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-400/20 border border-amber-300/40 flex items-center justify-center text-xl shadow-inner">
+            🛠️
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <h2 class="text-base sm:text-lg font-bold font-heading text-white">Student Developer Studio</h2>
+              <span class="bg-amber-400/90 text-blue-950 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">M.Sc. CS Final Project</span>
+            </div>
+            <p class="text-xs text-slate-300">Live customization studio: Change, Add, Edit & Delete documents, viva defense Q&A, slide decks, and vocabulary</p>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+          <div class="hidden md:flex flex-col text-right">
+            <span class="text-xs font-semibold text-amber-300">Candidate: Sumit Singh</span>
+            <span class="text-[10px] text-slate-400 font-mono">PSOU/MSCS/2026/042 • JGND PSOU</span>
+          </div>
+          <button id="btn-close-dev-studio" class="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition" title="Close Studio">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Studio Navigation Tabs Bar -->
+      <div class="bg-slate-100 border-b border-slate-200 px-4 flex items-center justify-between overflow-x-auto shrink-0">
+        <div class="flex items-center space-x-1" id="dev-studio-tabs">
+          <button class="dev-tab-btn active" data-tab="tab-dev-docs">
+            <span>📝</span>
+            <span>Document Editor</span>
+            <span id="badge-doc-count" class="ml-1 text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded-full font-bold">11</span>
+          </button>
+          <button class="dev-tab-btn" data-tab="tab-dev-viva">
+            <span>❓</span>
+            <span>Viva Voce Q&A Manager</span>
+            <span id="badge-viva-count" class="ml-1 text-[10px] bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded-full font-bold">22</span>
+          </button>
+          <button class="dev-tab-btn" data-tab="tab-dev-slides">
+            <span>🎤</span>
+            <span>Slide Decks & Speech</span>
+            <span id="badge-slides-count" class="ml-1 text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.2 rounded-full font-bold">31</span>
+          </button>
+          <button class="dev-tab-btn" data-tab="tab-dev-glossary">
+            <span>📖</span>
+            <span>कठिन शब्दार्थ (Glossary)</span>
+            <span id="badge-glossary-count" class="ml-1 text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded-full font-bold">15</span>
+          </button>
+          <button class="dev-tab-btn" data-tab="tab-dev-backup">
+            <span>💾</span>
+            <span>Backup & Reset</span>
+          </button>
+        </div>
+
+        <div class="text-[11px] text-slate-500 font-medium hidden sm:flex items-center space-x-1">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span>IndexedDB / LocalStorage Sync Active</span>
+        </div>
+      </div>
+
+      <!-- Studio Tab Contents (Scrollable body) -->
+      <div class="flex-1 min-h-0 overflow-hidden flex flex-col bg-slate-50">
+
+        <!-- TAB 1: 📝 Document Editor & Section Studio -->
+        <div id="tab-dev-docs" class="dev-tab-content flex-1 min-h-0 flex flex-col p-4 overflow-hidden">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+            <div class="flex items-center space-x-2">
+              <label class="text-xs font-bold text-slate-700">Select Document:</label>
+              <select id="dev-doc-selector" class="text-xs font-semibold px-3 py-1.5 border border-slate-300 rounded-lg bg-slate-50 text-slate-800 focus:ring-2 focus:ring-blue-900 focus:outline-none">
+                <option value="project_application">Major Project: Topic Approval Application</option>
+                <option value="project_synopsis" selected>Major Project: 8-Part Project Synopsis</option>
+                <option value="project_thesis">Major Project: Full Thesis (30-35 Pgs)</option>
+                <option value="project_slides">Major Project: Viva Slides & Speech</option>
+                <option value="project_viva">Major Project: Examiner Defense Q&A Manual</option>
+                <option value="project_paper">Major Project: IEEE Academic Research Paper</option>
+                <option value="seminar_application">Seminar: Topic Approval Application</option>
+                <option value="seminar_report">Seminar: Academic Report (10-15 Pgs)</option>
+                <option value="seminar_slides">Seminar: Oral Presentation Slides & Speech</option>
+                <option value="seminar_viva">Seminar: Viva Discussion Q&A</option>
+                <option value="master_index">Master Index & Guidelines</option>
+              </select>
+              <span id="dev-doc-status-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">Official Default</span>
+            </div>
+
+            <!-- Quick Append Buttons -->
+            <div class="flex flex-wrap items-center gap-1.5">
+              <span class="text-[11px] font-semibold text-slate-500 mr-1">+ Insert:</span>
+              <button class="btn-snippet px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold border border-slate-300 transition" data-snippet="objective">+ Objective</button>
+              <button class="btn-snippet px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold border border-slate-300 transition" data-snippet="table">+ Academic Table</button>
+              <button class="btn-snippet px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold border border-slate-300 transition" data-snippet="code">+ Python/SQL Code</button>
+              <button class="btn-snippet px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold border border-slate-300 transition" data-snippet="note">+ Examiner Note</button>
+            </div>
+          </div>
+
+          <!-- Dual Workspace (Editor + Live Preview) -->
+          <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 overflow-hidden">
+            <!-- Left: Raw Markdown Editor -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-xs flex flex-col overflow-hidden">
+              <div class="px-3 py-1.5 bg-slate-100 border-b border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-600">
+                <span>Markdown Source (Direct Student Input)</span>
+                <span id="dev-doc-char-count" class="font-mono text-[10px] text-slate-400">0 characters</span>
+              </div>
+              <textarea id="dev-doc-editor-textarea" class="dev-code-editor flex-1 p-3 text-slate-800 bg-white border-none focus:outline-none focus:ring-0 overflow-y-auto leading-relaxed" placeholder="Type or edit markdown text here..."></textarea>
+            </div>
+
+            <!-- Right: Real-Time Live Rendered Preview -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-xs flex flex-col overflow-hidden">
+              <div class="px-3 py-1.5 bg-slate-100 border-b border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-600">
+                <span>Real-Time Live Academic Preview</span>
+                <span class="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">A4 Document Layout</span>
+              </div>
+              <div id="dev-doc-live-preview" class="academic-doc flex-1 p-4 overflow-y-auto bg-white text-slate-800">
+                <!-- Live markdown parsed here -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Document Studio Actions Bar -->
+          <div class="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <button id="btn-save-doc-studio" class="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-sm flex items-center space-x-1.5 transition">
+                <span>💾 Save Document Changes</span>
+              </button>
+              <button id="btn-reset-doc-studio" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold border border-slate-300 transition">
+                <span>🔄 Reset to Original</span>
+              </button>
+              <button id="btn-copy-doc-md" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold border border-slate-300 transition">
+                <span>📋 Copy Markdown</span>
+              </button>
+            </div>
+            <span class="text-[11px] text-slate-500 font-medium hidden sm:inline">Changes are saved in browser storage and apply immediately to portal & print.</span>
+          </div>
+        </div>
+
+        <!-- TAB 2: ❓ Viva Voce Q&A Manager -->
+        <div id="tab-dev-viva" class="dev-tab-content hidden flex-1 min-h-0 flex flex-col p-4 overflow-y-auto">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+            <div class="flex items-center space-x-2">
+              <span class="text-xs font-bold text-slate-700">Course Viva:</span>
+              <div class="inline-flex rounded-lg border border-slate-300 bg-slate-100 p-0.5 text-xs font-semibold">
+                <button id="btn-viva-track-project" class="px-3 py-1 rounded-md bg-white text-blue-950 shadow-xs font-bold">Major Project (MSCS-4-03P)</button>
+                <button id="btn-viva-track-seminar" class="px-3 py-1 rounded-md text-slate-600 hover:text-slate-900">Seminar (MSCS-4-04)</button>
+              </div>
+            </div>
+
+            <div class="flex items-center space-x-2 flex-1 max-w-xs">
+              <input type="text" id="dev-viva-search" placeholder="Search questions or keywords..." class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none">
+            </div>
+
+            <button id="btn-show-add-viva" class="px-3.5 py-1.5 bg-blue-900 hover:bg-blue-950 text-white rounded-lg text-xs font-bold shadow-sm flex items-center space-x-1.5 transition">
+              <span>+ Add New Viva Question</span>
+            </button>
+          </div>
+
+          <!-- Add / Edit Viva Question Form (Collapsible) -->
+          <div id="viva-form-container" class="hidden mb-3 p-4 bg-amber-50/90 border border-amber-300 rounded-xl shadow-sm">
+            <div class="flex items-center justify-between pb-2 mb-3 border-b border-amber-200">
+              <h4 id="viva-form-title" class="text-xs font-bold uppercase tracking-wider text-amber-950 font-heading">Add New Viva Question</h4>
+              <button id="btn-cancel-viva-form" class="text-xs font-bold text-amber-800 hover:text-amber-950">✕ Cancel</button>
+            </div>
+
+            <input type="hidden" id="viva-form-edit-id" value="">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+              <div class="md:col-span-2">
+                <label class="block text-[11px] font-bold text-slate-700 mb-1">Examiner's Question Title *</label>
+                <input type="text" id="viva-form-question" class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none" placeholder="e.g. How does your system guarantee zero database collisions during offline network blackouts?" required>
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 mb-1">Technical Category</label>
+                <input type="text" id="viva-form-category" class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none" placeholder="e.g. Distributed Systems & Synchronization">
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="block text-[11px] font-bold text-slate-700 mb-1">Examiner's Hidden Goal / Conceptual Test</label>
+              <input type="text" id="viva-form-goal" class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none" placeholder="e.g. Testing understanding of UUIDv4 randomness vs centralized sequences and idempotency keys">
+            </div>
+
+            <div class="mb-3">
+              <label class="block text-[11px] font-bold text-slate-700 mb-1">Candidate's Model Defense Answer (Rich Markdown) *</label>
+              <textarea id="viva-form-answer" rows="3" class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none font-sans" placeholder="Write the authoritative answer with bullet points and system metrics..."></textarea>
+            </div>
+
+            <div class="flex items-center justify-end space-x-2">
+              <button id="btn-save-viva-item" class="px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-sm transition">💾 Save Question</button>
+            </div>
+          </div>
+
+          <!-- Questions List -->
+          <div id="viva-questions-list" class="space-y-3 pr-1">
+            <!-- Dynamically populated question cards -->
+          </div>
+        </div>
+
+        <!-- TAB 3: 🎤 Slide Decks & Speech Studio -->
+        <div id="tab-dev-slides" class="dev-tab-content hidden flex-1 min-h-0 flex flex-col p-4 overflow-y-auto">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+            <div class="flex items-center space-x-2">
+              <span class="text-xs font-bold text-slate-700">Slide Deck:</span>
+              <div class="inline-flex rounded-lg border border-slate-300 bg-slate-100 p-0.5 text-xs font-semibold">
+                <button id="btn-slides-track-project" class="px-3 py-1 rounded-md bg-white text-blue-950 shadow-xs font-bold">Major Project (15 Slides)</button>
+                <button id="btn-slides-track-seminar" class="px-3 py-1 rounded-md text-slate-600 hover:text-slate-900">Seminar (16 Slides)</button>
+              </div>
+            </div>
+
+            <div class="flex items-center space-x-2">
+              <button id="btn-show-add-slide" class="px-3.5 py-1.5 bg-blue-900 hover:bg-blue-950 text-white rounded-lg text-xs font-bold shadow-sm flex items-center space-x-1.5 transition">
+                <span>+ Add New Slide</span>
+              </button>
+              <button id="btn-launch-presentation-from-studio" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold shadow-sm flex items-center space-x-1 transition">
+                <span>▶️ Test Presentation</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Add / Edit Slide Form (Collapsible) -->
+          <div id="slide-form-container" class="hidden mb-3 p-4 bg-purple-50/80 border border-purple-200 rounded-xl shadow-sm">
+            <div class="flex items-center justify-between pb-2 mb-3 border-b border-purple-200">
+              <h4 id="slide-form-title" class="text-xs font-bold uppercase tracking-wider text-purple-950 font-heading">Add New Presentation Slide</h4>
+              <button id="btn-cancel-slide-form" class="text-xs font-bold text-purple-800 hover:text-purple-950">✕ Cancel</button>
+            </div>
+
+            <input type="hidden" id="slide-form-edit-index" value="">
+            <div class="mb-3">
+              <label class="block text-[11px] font-bold text-slate-700 mb-1">Slide Title *</label>
+              <input type="text" id="slide-form-title-input" class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none" placeholder="e.g. Empirical Latency Benchmarks: Cloud-Only vs Offline-First" required>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 mb-1">Slide Bullet Points (One per line) *</label>
+                <textarea id="slide-form-bullets" rows="5" class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none font-mono" placeholder="* Sub-millisecond transaction commit (< 0.5ms)
+* 99.7% reduction in median cashier UI latency
+* Zero order collisions during 30-minute blackout"></textarea>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 mb-1">Spoken Speech Script (Examiner Defense Script) *</label>
+                <textarea id="slide-form-speech" rows="5" class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none font-sans" placeholder="Write exactly what you will say to the faculty examiners when presenting this slide..."></textarea>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-end space-x-2">
+              <button id="btn-save-slide-item" class="px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-sm transition">💾 Save Slide</button>
+            </div>
+          </div>
+
+          <!-- Slides List Grid -->
+          <div id="slides-cards-list" class="space-y-3 pr-1">
+            <!-- Dynamically populated slide cards -->
+          </div>
+        </div>
+
+        <!-- TAB 4: 📖 कठिन शब्दार्थ (Glossary) Manager -->
+        <div id="tab-dev-glossary" class="dev-tab-content hidden flex-1 min-h-0 flex flex-col p-4 overflow-y-auto">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+            <div class="flex items-center space-x-2">
+              <span class="text-xs font-bold text-slate-700">Vocabulary:</span>
+              <span id="dev-glossary-total-badge" class="text-xs font-semibold bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full border border-amber-300">15 Terms Active</span>
+            </div>
+
+            <div class="flex items-center space-x-2 flex-1 max-w-xs">
+              <input type="text" id="dev-glossary-search" placeholder="Search term, Hindi meaning..." class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none">
+            </div>
+
+            <button id="btn-show-add-glossary" class="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-sm flex items-center space-x-1.5 transition">
+              <span>+ Add New Hard Word</span>
+            </button>
+          </div>
+
+          <!-- Add / Edit Hard Word Form (Collapsible) -->
+          <div id="glossary-form-container" class="hidden mb-3 p-4 bg-amber-50/90 border border-amber-300 rounded-xl shadow-sm">
+            <div class="flex items-center justify-between pb-2 mb-3 border-b border-amber-200">
+              <h4 id="glossary-form-title" class="text-xs font-bold uppercase tracking-wider text-amber-950 font-heading">Add New Technical Hard Word</h4>
+              <button id="btn-cancel-glossary-form" class="text-xs font-bold text-amber-800 hover:text-amber-950">✕ Cancel</button>
+            </div>
+
+            <input type="hidden" id="glossary-form-edit-id" value="">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 mb-1">Technical Term (English) *</label>
+                <input type="text" id="glossary-form-term" class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none" placeholder="e.g. Two-Phase Commit (2PC)" required>
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 mb-1">Hindi Pronunciation (उच्चारण)</label>
+                <input type="text" id="glossary-form-pronounce" class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none" placeholder="e.g. टू-फेज कमिट">
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 mb-1">Category</label>
+                <input type="text" id="glossary-form-category" class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none" placeholder="e.g. Distributed Database">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 mb-1">Formal English Definition *</label>
+                <textarea id="glossary-form-def" rows="2" class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none font-sans" placeholder="A distributed algorithm that coordinates all processes that participate in a distributed atomic transaction on whether to commit or abort..."></textarea>
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 mb-1">🇮🇳 सरल हिंदी अर्थ (Everyday Simple Explanation) *</label>
+                <textarea id="glossary-form-hindi" rows="2" class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none font-sans" placeholder="दोनों तरफ से पक्की हां मिलने के बाद ही सौदा फाइनल करना। जैसे कैशियर और बैंक दोनों हरी झंडी देंगे तभी बिल कटेगा..."></textarea>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="block text-[11px] font-bold text-slate-700 mb-1">💡 असली दुनिया का उदाहरण (Real-World Practical Example)</label>
+              <input type="text" id="glossary-form-example" class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none" placeholder="जब ग्राहक UPI से ₹500 देता है, तो बैंक खाते से पैसा कटने और रेस्टोरेंट में रसीद निकलने का काम एक साथ पूरा होता है।">
+            </div>
+
+            <div class="flex items-center justify-end space-x-2">
+              <button id="btn-save-glossary-item" class="px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-sm transition">💾 Save Term</button>
+            </div>
+          </div>
+
+          <!-- Glossary Terms List -->
+          <div id="glossary-cards-list" class="space-y-3 pr-1">
+            <!-- Dynamically populated term cards -->
+          </div>
+        </div>
+
+        <!-- TAB 5: 💾 Backup, Restore & Reset -->
+        <div id="tab-dev-backup" class="dev-tab-content hidden flex-1 min-h-0 flex flex-col p-6 overflow-y-auto">
+          <div class="max-w-4xl mx-auto w-full space-y-6">
+            
+            <!-- Summary Stats Card -->
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
+              <h3 class="text-sm font-bold text-blue-950 font-heading mb-3 flex items-center space-x-2">
+                <span>📊 Current Academic Portfolio State</span>
+              </h3>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="p-3 bg-blue-50/60 rounded-xl border border-blue-200 text-center">
+                  <span class="block text-2xl font-bold text-blue-950" id="stat-custom-docs">0</span>
+                  <span class="text-xs text-blue-800 font-medium">Custom Documents</span>
+                </div>
+                <div class="p-3 bg-amber-50/60 rounded-xl border border-amber-200 text-center">
+                  <span class="block text-2xl font-bold text-amber-900" id="stat-custom-viva">0</span>
+                  <span class="text-xs text-amber-800 font-medium">Custom Viva Q&A</span>
+                </div>
+                <div class="p-3 bg-purple-50/60 rounded-xl border border-purple-200 text-center">
+                  <span class="block text-2xl font-bold text-purple-900" id="stat-custom-slides">0</span>
+                  <span class="text-xs text-purple-800 font-medium">Custom Slides</span>
+                </div>
+                <div class="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200 text-center">
+                  <span class="block text-2xl font-bold text-emerald-900" id="stat-custom-glossary">0</span>
+                  <span class="text-xs text-emerald-800 font-medium">Custom Hard Words</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Export & Import Action Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <!-- Export Card -->
+              <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-900 flex items-center justify-center text-xl mb-3">
+                    📥
+                  </div>
+                  <h4 class="text-sm font-bold text-blue-950 font-heading">Export Project Data (Backup)</h4>
+                  <p class="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Download a single, complete JSON file containing all your customized documents, viva answers, presentation slides, and glossary terms. Keep this backup safe on your pen drive or laptop!
+                  </p>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-100">
+                  <button id="btn-export-backup-json" class="w-full py-2.5 bg-blue-900 hover:bg-blue-950 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center justify-center space-x-2">
+                    <span>📥 Download JSON Backup File</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Import Card -->
+              <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center text-xl mb-3">
+                    📤
+                  </div>
+                  <h4 class="text-sm font-bold text-blue-950 font-heading">Restore / Import Data</h4>
+                  <p class="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Upload a previously exported JSON backup file to instantly restore all your customizations across this device.
+                  </p>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-100">
+                  <input type="file" id="input-import-backup-file" accept=".json" class="hidden">
+                  <button id="btn-trigger-import-json" class="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center justify-center space-x-2">
+                    <span>📤 Upload & Restore Backup</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Danger Zone / University Factory Reset -->
+            <div class="bg-red-50/70 p-5 rounded-xl border border-red-200 shadow-xs">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h4 class="text-sm font-bold text-red-950 font-heading flex items-center space-x-1.5">
+                    <span>⚠️</span>
+                    <span>Reset All to JGND PSOU Official Defaults</span>
+                  </h4>
+                  <p class="text-xs text-red-800/80 mt-1">
+                    This will erase all custom changes made in Developer Mode and restore the pristine original academic text and presentation decks.
+                  </p>
+                </div>
+                <button id="btn-factory-reset-all" class="px-4 py-2 bg-red-700 hover:bg-red-800 text-white rounded-lg text-xs font-bold shadow-sm transition whitespace-nowrap">
+                  🔄 Factory Reset
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Fullscreen Slide Presentation Modal (Fit-to-Screen & Light Theme) -->
+  <div id="presentation-modal"
+    class="hidden fixed inset-0 z-50 bg-slate-100 flex flex-col h-screen max-h-screen overflow-hidden">
+
+    <!-- Top Presentation Header (Light, Clean) -->
+    <div class="px-5 py-2.5 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-xs">
+      <div class="flex items-center space-x-2.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span class="text-xs font-bold uppercase tracking-wider text-blue-950 font-heading">Viva Voce Presentation Theater</span>
+        <span class="text-slate-300">|</span>
+        <span id="pres-slide-counter"
+          class="text-xs font-mono font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">Slide
+          1 of 15</span>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <button id="pres-btn-edit-slide"
+          class="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-md text-xs font-semibold border border-blue-300 flex items-center space-x-1 transition shadow-xs"
+          title="Edit this slide in Developer Studio">
+          <span>✏️ Edit Slide</span>
+        </button>
+        <button id="btn-toggle-notes"
+          class="px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-md text-xs font-semibold border border-amber-300 flex items-center space-x-1 transition shadow-xs">
+          <span>🎤 Spoken Speech Script (Notes)</span>
+        </button>
+        <button id="pres-btn-close"
+          class="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md text-xs font-bold transition">
+          Exit (Esc)
+        </button>
+      </div>
+    </div>
+
+    <!-- Presentation Body Grid (Fits 100% inside screen, Side-by-Side View) -->
+    <div class="flex-1 min-h-0 flex overflow-hidden p-3 gap-3">
+
+      <!-- Left: Slide Canvas (Always fully visible, auto-scales) -->
+      <div class="flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+        <div
+          class="w-full h-full max-w-5xl bg-white rounded-xl border border-slate-200 shadow-sm p-6 sm:p-8 flex flex-col justify-between overflow-hidden">
+
+          <!-- Slide Header Card -->
+          <div class="border-b-2 border-blue-950 pb-2 mb-3 flex items-center justify-between shrink-0">
+            <h2 id="pres-slide-title" class="text-lg sm:text-xl font-bold text-blue-950 font-heading">Slide Title</h2>
+            <span
+              class="text-[10px] font-bold text-amber-600 uppercase tracking-widest bg-amber-50 px-2 py-0.5 rounded border border-amber-200">JGND
+              PSOU • M.Sc. CS</span>
+          </div>
+
+          <!-- Slide Content (Bullets / Cards) -->
+          <div id="pres-slide-content" class="flex-1 overflow-y-auto pr-1">
+            <!-- Injected by app.js -->
+          </div>
+
+          <!-- Slide Footer -->
+          <div
+            class="pt-2.5 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-mono shrink-0">
+            <span>Candidate: <strong class="text-slate-800" id="pres-footer-name">Sumit Singh</strong> (Roll No: PSOU/MSCS/2026/042)</span>
+            <span>JGND PSOU, Patiala</span>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Right: Spoken Speech Script Side Panel (Never covers the slide!) -->
+      <div id="pres-speech-sidepanel"
+        class="w-80 md:w-96 shrink-0 bg-amber-50/70 border border-amber-200 rounded-xl p-4 flex flex-col overflow-hidden shadow-xs">
+
+        <div
+          class="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-amber-900 pb-2 border-b border-amber-200 mb-2 shrink-0">
+          <svg class="w-4 h-4 text-amber-700" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd"
+              d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
+              clip-rule="evenodd"></path>
+          </svg>
+          <span>What to Say to Examiners (Speech Script)</span>
+        </div>
+
+        <div id="pres-slide-speech" class="flex-1 overflow-y-auto pr-1">
+          <!-- Spoken script injected here -->
+        </div>
+
+        <div class="pt-2 text-[10px] text-amber-800/80 border-t border-amber-200 text-center font-medium shrink-0">
+          ⏱️ Speak at a steady, confident pace. Emphasize bold technical terms.
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Bottom Controls & Progress Bar (Light Theme) -->
+    <div class="bg-white px-5 py-2.5 border-t border-slate-200 flex items-center justify-between shrink-0 shadow-xs">
+      <div class="flex items-center space-x-2">
+        <button id="pres-btn-prev"
+          class="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 transition">
+          ◀ Previous (←)
+        </button>
+        <button id="pres-btn-next"
+          class="px-4 py-1.5 bg-blue-900 hover:bg-blue-950 text-white rounded-lg text-xs font-bold shadow-sm transition">
+          Next Slide (→ / Space) ▶
+        </button>
+      </div>
+
+      <!-- Progress Track -->
+      <div class="w-56 sm:w-80 bg-slate-200 h-2 rounded-full overflow-hidden">
+        <div id="pres-slide-progress" class="bg-amber-500 h-full w-0 transition-all duration-300"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Floating Quick Dev Studio Button (Visible when Dev Mode is ON) -->
+  <button id="floating-dev-btn"
+    class="hidden no-print fixed bottom-5 left-5 z-40 bg-blue-900 hover:bg-blue-950 text-white px-4 py-2.5 rounded-full font-bold text-xs shadow-xl flex items-center space-x-2 border-2 border-amber-400 transition transform hover:scale-105"
+    title="Open Student Developer Studio">
+    <span class="text-base">🛠️</span>
+    <span>Dev Studio</span>
+    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+  </button>
+
+  <!-- Global App Toast Notification -->
+  <div id="app-toast"
+    class="hidden fixed bottom-5 right-5 z-50 text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-xl transition-all duration-300 flex items-center space-x-2">
+  </div>
+
+  <!-- Application Engine Scripts -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>

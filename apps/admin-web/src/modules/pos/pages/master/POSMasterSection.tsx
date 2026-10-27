@@ -4,6 +4,7 @@ import { CategoryListPage } from "./categories/CategoryListPage";
 import { CategoryFormDialog } from "./categories/CategoryFormDialog";
 import { MenuItemMasterPage } from "./menu-items/MenuItemMasterPage";
 import { MenuItemDialog } from "./menu-items/MenuItemDialog";
+import { POSFavoritesConfigPage } from "./favorites/POSFavoritesConfigPage";
 import { TableListPage } from "./tables/TableListPage";
 import { TableFormDialog } from "./tables/TableFormDialog";
 import { WaiterListPage } from "./waiters/WaiterListPage";
@@ -53,12 +54,13 @@ export const POSMasterSection: React.FC<POSMasterSectionProps> = ({
   const currentPath = routerState?.location?.pathname || "/pos/master/categories";
 
   // Determine active view strictly from sidebar URL path - Categories is #1 Architectural Master
+  const isFavorites = currentPath.includes("/favorites");
   const isMenuItems = currentPath.includes("/menu-items");
   const isTables = currentPath.includes("/tables");
   const isWaiters = currentPath.includes("/waiters");
   const isPayments = currentPath.includes("/payment-modes");
   const isStations = currentPath.includes("/kitchen-stations");
-  const isCategories = currentPath.includes("/categories") || (!isMenuItems && !isTables && !isWaiters && !isPayments && !isStations);
+  const isCategories = currentPath.includes("/categories") || (!isFavorites && !isMenuItems && !isTables && !isWaiters && !isPayments && !isStations);
 
   // Modals state
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
@@ -89,6 +91,10 @@ export const POSMasterSection: React.FC<POSMasterSectionProps> = ({
           onDelete={onDeleteCategory}
           onCreateCategory={onCreateCategory}
           isLoading={isLoading}
+        />
+      ) : isFavorites ? (
+        <POSFavoritesConfigPage
+          menuItems={menuItems}
         />
       ) : isTables ? (
         <TableListPage

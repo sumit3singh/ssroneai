@@ -1,0 +1,341 @@
+/* SSR ONE AI - M.Sc. Computer Science Academic Portal Stylesheet (Light Premium Theme) */
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&display=swap');
+
+:root {
+  --primary-navy: #0F1E36;
+  --primary-blue: #1E3A8A;
+  --accent-gold: #C58B3A;
+  --accent-amber: #D97706;
+  --accent-crimson: #991B1B;
+  --text-main: #1E293B;
+  --text-muted: #64748B;
+  --bg-main: #F8FAFC;
+  --bg-card: #FFFFFF;
+  --border-color: #E2E8F0;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  color: var(--text-main);
+  background-color: var(--bg-main);
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+}
+
+html {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+}
+
+h1, h2, h3, h4, .font-heading {
+  font-family: 'Outfit', sans-serif;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* Academic Document Typography */
+.academic-doc {
+  font-family: 'Merriweather', serif;
+  font-size: 15px;
+  line-height: 1.85;
+  color: #1A202C;
+}
+
+.academic-doc h1 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--primary-navy);
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 2px solid #E2E8F0;
+  padding-bottom: 0.5rem;
+  page-break-after: avoid;
+}
+
+.academic-doc h2 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  color: #1E3A8A;
+  margin-top: 1.75rem;
+  margin-bottom: 0.6rem;
+  border-bottom: 1px solid #E2E8F0;
+  padding-bottom: 0.35rem;
+  page-break-after: avoid;
+}
+
+.academic-doc h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: #334155;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  page-break-after: avoid;
+}
+
+.academic-doc p {
+  margin-bottom: 1rem;
+  text-align: justify;
+}
+
+.academic-doc ul, .academic-doc ol {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+
+.academic-doc li {
+  margin-bottom: 0.4rem;
+}
+
+/* Tables & Responsive Wrapper */
+.academic-table-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 1.5rem 0;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  background: #FFFFFF;
+}
+
+.academic-doc table {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: collapse;
+  font-family: 'Inter', sans-serif;
+  font-size: 13.5px;
+  background: #FFFFFF;
+  border-radius: 6px;
+  page-break-inside: avoid;
+}
+
+.academic-doc th {
+  background-color: #1E3A8A;
+  color: #FFFFFF;
+  font-weight: 600;
+  text-align: left;
+  padding: 10px 14px;
+  border: 1px solid #1E293B;
+  white-space: nowrap;
+}
+
+.academic-doc td {
+  padding: 9px 14px;
+  border: 1px solid #E2E8F0;
+  vertical-align: top;
+}
+
+.academic-doc tr:nth-child(even) td {
+  background-color: #F8FAFC;
+}
+
+/* Code Blocks */
+.academic-doc pre {
+  background-color: #F8FAFC;
+  color: #1E293B;
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  font-family: 'Fira Code', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 1.25rem 0;
+  border: 1px solid #CBD5E1;
+  page-break-inside: avoid;
+  white-space: pre;
+}
+
+.academic-doc code {
+  font-family: 'Fira Code', monospace;
+  font-size: 13px;
+  background-color: #FEF3C7;
+  color: #92400E;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #FDE68A;
+}
+
+.academic-doc pre code {
+  background-color: transparent;
+  color: inherit;
+  padding: 0;
+  border: none;
+}
+
+.academic-doc blockquote {
+  border-left: 4px solid var(--accent-gold);
+  background-color: #FFFDF9;
+  padding: 0.75rem 1.25rem;
+  margin: 1.25rem 0;
+  color: #475569;
+  font-style: italic;
+  border-radius: 0 6px 6px 0;
+}
+
+/* Light Theme Presentation Theater */
+#presentation-modal {
+  background-color: #F1F5F9; /* Clean light slate background */
+  color: #0F172A;
+}
+
+.slide-canvas-card {
+  background: #FFFFFF;
+  border: 2px solid #E2E8F0;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  border-radius: 16px;
+}
+
+/* Responsive Presentation Layout to fit 100% on any screen */
+.pres-container-fit {
+  height: 100vh;
+  max-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pres-body-grid {
+  flex: 1 1 0%;
+  min-height: 0;
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  overflow: hidden;
+}
+
+/* Print Stylesheet */
+@media print {
+  @page {
+    margin: 15mm 15mm 15mm 15mm;
+    size: A4 portrait;
+  }
+
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .no-print, header, aside, #presentation-modal, #glossary-modal, #profile-modal {
+    display: none !important;
+  }
+
+  #main-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .academic-doc {
+    font-size: 11pt !important;
+    line-height: 1.6 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .academic-doc h1 {
+    font-size: 18pt !important;
+    page-break-after: avoid !important;
+  }
+
+  .academic-doc h2 {
+    font-size: 14pt !important;
+    page-break-after: avoid !important;
+  }
+
+  .academic-doc table {
+    page-break-inside: avoid !important;
+    border: 1px solid #333 !important;
+    width: 100% !important;
+    min-width: 100% !important;
+  }
+
+  .academic-table-wrapper {
+    border: none !important;
+    overflow: visible !important;
+    margin: 1rem 0 !important;
+  }
+
+  .academic-doc th {
+    background-color: #EEE !important;
+    color: #000 !important;
+  }
+
+  .academic-doc td {
+    border: 1px solid #CCC !important;
+  }
+}
+
+/* 🛠️ Student Developer Studio Styles (Light Theme) */
+.dev-tab-btn {
+  padding: 0.6rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+  color: #64748B;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dev-tab-btn:hover {
+  color: #0F1E36;
+  background-color: #F8FAFC;
+}
+
+.dev-tab-btn.active {
+  color: #1E3A8A;
+  border-bottom-color: #1E3A8A;
+  background-color: #EFF6FF;
+}
+
+.dev-code-editor {
+  font-family: 'Fira Code', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  tab-size: 2;
+  white-space: pre-wrap;
+  resize: vertical;
+}
+
+.dev-badge-pulse {
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-ring {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Floating Quick Action Button */
+#floating-dev-btn {
+  box-shadow: 0 10px 25px -3px rgba(15, 30, 54, 0.15), 0 4px 6px -2px rgba(15, 30, 54, 0.05);
+}
+

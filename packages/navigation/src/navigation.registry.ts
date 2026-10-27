@@ -21,6 +21,7 @@ export const moduleNavigationRegistry: Record<string, ModuleNavConfig> = {
                 items: [
                     { id: "pos-master-cats", label: "Menu Categories", path: "/pos/master/categories", iconName: "Folder" },
                     { id: "pos-master-items", label: "Menu Items & Variants", path: "/pos/master/menu-items", iconName: "Utensils" },
+                    { id: "pos-master-favs", label: "Top 12 Favorites", path: "/pos/master/favorites", iconName: "Star" },
                     { id: "pos-master-tables", label: "Dining Tables & Floor Plan", path: "/pos/master/tables", iconName: "LayoutGrid" },
                     { id: "pos-master-waiters", label: "Waiters & Staff", path: "/pos/master/waiters", iconName: "Users" },
                     { id: "pos-master-pm", label: "Payment Modes", path: "/pos/master/payment-modes", iconName: "CreditCard" },

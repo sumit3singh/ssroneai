@@ -165,6 +165,16 @@ const posMasterMenuItemsRoute = createRoute({
   ),
 });
 
+const posMasterFavoritesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pos/master/favorites",
+  component: () => (
+    <ProtectedRoute>
+      <POSPage />
+    </ProtectedRoute>
+  ),
+});
+
 const posMasterCategoriesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/pos/master/categories",
@@ -1879,6 +1889,7 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   posRoute,
   posMasterMenuItemsRoute,
+  posMasterFavoritesRoute,
   posMasterCategoriesRoute,
   posMasterTablesRoute,
   posMasterWaitersRoute,
