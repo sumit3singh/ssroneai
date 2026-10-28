@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
 import { useTenantAppConfig } from "@/hooks/useTenantAppConfig";
 import { checkStoreOperatingStatus, checkMenuItemAvailability } from "@/lib/storeOperatingStatus";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import type { MenuItem } from "@/data/mockMenu";
 import type { CartItemVariant, CartItemAddon } from "@/stores/cartStore";
 import BranchSwitchDialog from "@/components/BranchSwitchDialog";
