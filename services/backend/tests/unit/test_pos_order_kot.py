@@ -39,6 +39,9 @@ class DummyResult:
     def scalar_one(self):
         return self.items[0]
 
+    def first(self):
+        return self.items[0] if self.items else None
+
 
 @pytest.mark.asyncio
 async def test_list_dining_tables():
@@ -275,3 +278,82 @@ async def test_get_printable_bill():
     assert "THE ssrone CAFE" in res["thermal_text"]
     assert "Farmhouse Loaded Pizza" in res["thermal_text"]
     assert res["grand_total"] == 294.00
+
+
+@pytest.mark.asyncio
+async def test_order_update_soft_void_preserves_audit():
+    """Verify that removing an item during order update marks it as is_voided=True and does NOT hard-delete it."""
+    from src.modules.orders.router import create_order, OrderCreateSchema, OrderItemCreateSchema
+    mock_user = SimpleNamespace(tenant_id=1, id=10)
+    mock_db = AsyncMock()
+
+    # Existing order has Item 1 (Rajma Rice) and Item 2 (Cold Coffee)
+    mock_item_rajma = SimpleNamespace(
+        id=8630, product_id=220, product_name="Punjabi Rajma + Rice", variant_name="", quantity=Decimal("1"), unit_price=Decimal("120.00"), discount_amount=Decimal("0"), line_total=Decimal("120.00"), is_voided=False, void_reason=None
+    )
+    mock_item_coffee = SimpleNamespace(
+        id=8632, product_id=108, product_name="Cold Coffee", variant_name="", quantity=Decimal("1"), unit_price=Decimal("80.00"), discount_amount=Decimal("0"), line_total=Decimal("80.00"), is_voided=False, void_reason=None
+    )
+
+    mock_existing_order = SimpleNamespace(
+        id=3652,
+        tenant_id=1,
+        branch_id=1,
+        order_number="271026-61",
+        daily_order_number=61,
+        order_type="dine_in",
+        status="kot_sent",
+        payment_status="unpaid",
+        subtotal=Decimal("200.00"),
+        discount_amount=Decimal("0.00"),
+        taxable_amount=Decimal("200.00"),
+        cgst_amount=Decimal("5.00"),
+        sgst_amount=Decimal("5.00"),
+        total_tax=Decimal("10.00"),
+        grand_total=Decimal("210.00"),
+        amount_paid=Decimal("0.00"),
+        balance_due=Decimal("210.00"),
+        items=[mock_item_rajma, mock_item_coffee],
+        metadata_payload={},
+        customer_id=None,
+        table_id=7,
+        waiter_id=None,
+        token_number="61",
+        notes=None,
+        is_deleted=False,
+        created_at=datetime.now(timezone.utc),
+        confirmed_at=None,
+    )
+
+    # DB returns existing order
+    mock_db.execute.return_value = DummyResult([mock_existing_order])
+
+    # Incoming payload replaces Cold Coffee with Kitkat Shake (id 114)
+    body = OrderCreateSchema(
+        order_id=3652,
+        order_number="271026-61",
+        is_update=True,
+        branch_id=1,
+        table_id=7,
+        status="kot_sent",
+        items=[
+            OrderItemCreateSchema(product_id=220, product_name="Punjabi Rajma + Rice", quantity=Decimal("1"), unit_price=Decimal("120.00")),
+            OrderItemCreateSchema(product_id=114, product_name="Kitkat Shake", quantity=Decimal("1"), unit_price=Decimal("90.00")),
+        ]
+    )
+
+    resp = await create_order(body=body, current_user=mock_user, db=mock_db)
+
+    # 1. Verify db.delete was NEVER called on Cold Coffee (No hard delete!)
+    mock_db.delete.assert_not_called()
+
+    # 2. Verify Cold Coffee was soft-voided with audit reason and timestamp
+    assert mock_item_coffee.is_voided is True
+    assert mock_item_coffee.is_active is False
+    assert mock_item_coffee.voided_at is not None
+    assert mock_item_coffee.voided_by == 10
+    assert "order modification" in mock_item_coffee.void_reason.lower()
+
+    # 3. Verify Rajma Rice was kept active
+    assert mock_item_rajma.is_voided is False
+

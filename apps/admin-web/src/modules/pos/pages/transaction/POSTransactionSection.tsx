@@ -1113,6 +1113,21 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
   const handleRemoveCartItem = (cartId: string) => {
     const itemToRemove = cartItems.find((c) => c.cart_id === cartId);
     if (!itemToRemove) return;
+
+    if (recalledOrderNumber) {
+      const key = itemToRemove.fingerprint_key || `${itemToRemove.item_id}-${itemToRemove.variant_name || ""}`;
+      const sentQty = baselineOrderItemsRef.current ? (baselineOrderItemsRef.current[key] || 0) : 0;
+      if (sentQty > 0) {
+        const dishName = itemToRemove.name || (itemToRemove as any).item_name || "Dish Item";
+        const confirmed = typeof window !== "undefined" && window.confirm
+          ? window.confirm(
+              `⚠️ Attention: "${dishName}" was already dispatched to Kitchen (KOT printed).\n\nRemoving this item will generate and print a CANCELLATION KOT ticket for the kitchen station.\n\nAre you sure you want to remove this item?`
+            )
+          : true;
+        if (!confirmed) return;
+      }
+    }
+
     const removedIndex = cartItems.findIndex((c) => c.cart_id === cartId);
     setCartItems((prev) => prev.filter((c) => c.cart_id !== cartId));
 
@@ -1506,12 +1521,15 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
         }
       }
 
-      if (!rawItems || rawItems.length === 0) {
-        toast.error("No items found in this order.");
+      // Exclude voided items from active cart so they are not treated as active billable lines
+      const activeRawItems = rawItems.filter((it: any) => !it.is_voided);
+
+      if (!activeRawItems || activeRawItems.length === 0) {
+        toast.error("No active items found in this order.");
         return;
       }
 
-      const formattedCart: POSCartItem[] = rawItems.map((item: any, idx: number) => {
+      const formattedCart: POSCartItem[] = activeRawItems.map((item: any, idx: number) => {
         const rawItemId = item.item_id || item.product_id || item.menu_item_id;
         const itemName = item.name || item.product_name || item.item_name || item.menu_item_name || item.title || "Dish Item";
         const matchedMenuItem = menuItems.find(
@@ -1716,24 +1734,74 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     const cartBackup = [...cartItems];
 
     // 2. Dispatch Station-Wise Thermal KOT Print Jobs (Instant Auto-Print, Zero Extra Clicks)
-    // Determine delta items if order is being updated (recalledOrderNumber)
+    // Determine delta items (new/increased) and cancelled items (voided/reduced) if order is being updated
     const deltaItemsToPrint: POSCartItem[] = [];
+    const cancelledItemsToPrint: { item: POSCartItem; cancelledQty: number }[] = [];
+
     if (isUpdate) {
       const baseline = baselineOrderItemsRef.current || {};
-      const consumedBaseline: Record<string, number> = { ...baseline };
+      const currentCartMap: Record<string, number> = {};
+      cartBackup.forEach((it) => {
+        const key = it.fingerprint_key || `${it.item_id}-${it.variant_name || ""}`;
+        currentCartMap[key] = (currentCartMap[key] || 0) + it.quantity;
+      });
 
+      // 1. Detect newly added items or increased quantity
       cartBackup.forEach((item) => {
         const key = item.fingerprint_key || `${item.item_id}-${item.variant_name || ""}`;
-        const prevQty = consumedBaseline[key] || 0;
+        const prevQty = baseline[key] || 0;
         if (item.quantity > prevQty) {
-          const deltaQty = item.quantity - prevQty;
           deltaItemsToPrint.push({
             ...item,
-            quantity: deltaQty,
+            quantity: item.quantity - prevQty,
           });
-          consumedBaseline[key] = item.quantity;
-        } else {
-          consumedBaseline[key] = prevQty - item.quantity;
+        }
+      });
+
+      // 2. Detect removed items or decreased quantity (VOID / CANCELLATION SLIPS)
+      const existingOrd = recalledOrderNumber
+        ? orders.find((o) => (recalledOrderId && String(o.id) === String(recalledOrderId)) || o.order_number === recalledOrderNumber)
+        : null;
+      const existingRawItems = (existingOrd?.items || (existingOrd as any)?.order_items || []) as any[];
+
+      existingRawItems.forEach((oldIt) => {
+        if (oldIt.is_voided) return;
+        const rawItemId = oldIt.item_id || oldIt.product_id || oldIt.menu_item_id;
+        const matchedMenuItem = menuItems.find(
+          (m) =>
+            (rawItemId && String(m.id) === String(rawItemId)) ||
+            m.name?.trim().toLowerCase() === (oldIt.product_name || oldIt.name || "").trim().toLowerCase()
+        );
+        const resolvedItemId = matchedMenuItem ? matchedMenuItem.id : (rawItemId || oldIt.id);
+        const varName = oldIt.variant_name || (oldIt.selected_variant ? oldIt.selected_variant.name : "");
+        const key = getCartFingerprint(
+          resolvedItemId,
+          oldIt.selected_variant || (varName ? { name: varName } : null),
+          oldIt.addons || oldIt.selected_addons || []
+        );
+
+        const prevQty = baseline[key] !== undefined ? baseline[key] : Number(oldIt.quantity || 1);
+        const currentQty = currentCartMap[key] || 0;
+
+        if (currentQty < prevQty) {
+          const voidedCount = prevQty - currentQty;
+          cancelledItemsToPrint.push({
+            item: {
+              cart_id: `void-${Date.now()}-${resolvedItemId}`,
+              fingerprint_key: key,
+              item_id: resolvedItemId,
+              name: matchedMenuItem ? matchedMenuItem.name : (oldIt.product_name || oldIt.name || "Dish Item"),
+              variant_name: varName,
+              addons: oldIt.addons || oldIt.selected_addons || [],
+              unit_price: Number(oldIt.unit_price || 0),
+              packaging_charge: 0,
+              quantity: voidedCount,
+              selected_variant: oldIt.selected_variant,
+              is_veg: oldIt.is_veg,
+              kds_station: matchedMenuItem?.kds_station || oldIt.kds_station,
+            },
+            cancelledQty: voidedCount,
+          });
         }
       });
     } else {
@@ -1768,6 +1836,36 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
         addons: it.addons,
         notes: it.notes,
         is_veg: it.is_veg,
+      });
+    });
+
+    // Partition CANCELLED items by station so kitchen knows immediately not to prepare them
+    cancelledItemsToPrint.forEach(({ item, cancelledQty }) => {
+      const st = resolveItemKitchenStation(item);
+      const cancelKey = `${st.name}_VOID`;
+      if (!stationSlipsMap[cancelKey]) {
+        stationSlipsMap[cancelKey] = {
+          stationName: st.name,
+          stationCode: st.code,
+          printerName: st.printer,
+          orderNumber: assignedNum,
+          orderType: orderMode.toUpperCase(),
+          tableName: selectedTable?.table_number,
+          waiterName: selectedWaiter?.name,
+          kotType: "CANCELLED",
+          timestamp: new Date().toLocaleString(),
+          items: [],
+        };
+      }
+      stationSlipsMap[cancelKey].items.push({
+        cart_id: item.cart_id,
+        item_id: item.item_id,
+        name: item.name,
+        quantity: cancelledQty,
+        variant_name: item.variant_name,
+        addons: item.addons,
+        notes: "*** VOID: DO NOT PREPARE ***",
+        is_veg: item.is_veg,
       });
     });
 
@@ -1866,9 +1964,19 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     // 7. Instant success toast (< 0.1ms)
     const elapsed = (performance.now() - startTime).toFixed(1);
     const displayNum = optimisticDailyOrderNumber ? String(optimisticDailyOrderNumber) : assignedNum;
+    const hasCancelled = cancelledItemsToPrint.length > 0;
+    const hasAdded = deltaItemsToPrint.length > 0;
+    const summaryAction = hasAdded && hasCancelled
+      ? `${deltaItemsToPrint.length} item(s) sent, ${cancelledItemsToPrint.length} cancelled`
+      : hasAdded
+      ? `${deltaItemsToPrint.length} item(s) sent`
+      : hasCancelled
+      ? `${cancelledItemsToPrint.length} item(s) cancelled`
+      : "saved";
+
     toast.success(
       orderNum
-        ? `⚡ Order ${displayNum} updated in ${elapsed}ms & ${generatedSlips.length > 0 ? "KOT dispatched!" : "saved!"}`
+        ? `⚡ Order ${displayNum} updated in ${elapsed}ms (${summaryAction})`
         : `⚡ KOT ${displayNum} sent to KDS & ${generatedSlips.length} Kitchen Station(s) in ${elapsed}ms!`
     );
 

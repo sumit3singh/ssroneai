@@ -26,7 +26,7 @@ export interface StationKOTSlip {
   orderType: string;
   tableName?: string;
   waiterName?: string;
-  kotType: "NEW" | "UPDATE";
+  kotType: "NEW" | "UPDATE" | "CANCELLED";
   kotSeq?: number;
   timestamp: string;
   items: StationKOTItem[];
@@ -116,6 +116,8 @@ export const ThermalKOTPrintableArea: React.FC<ThermalKOTPrintableAreaProps> = (
               {slip.stationName}
             </div>
 
+
+
             {/* 2. Table Name & Order No on One Line */}
             <div
               style={{
@@ -149,7 +151,7 @@ export const ThermalKOTPrintableArea: React.FC<ThermalKOTPrintableAreaProps> = (
                 paddingBottom: "2px",
               }}
             >
-              ITEMS
+              {slip.kotType === "CANCELLED" ? "CANCELLED ITEMS" : "ITEMS"}
             </div>
             <div style={{ fontSize: "12px", lineHeight: "1.3" }}>
               {slip.items.map((it, itemIdx) => {
@@ -246,7 +248,9 @@ export async function printKOTSlipsDirectly(slips: StationKOTSlip[]) {
           TIME: ${slip.timestamp}
         </div>
         <div style="border-bottom: 1px dashed #000000; margin-bottom: 4px;"></div>
-        <div style="font-size: 11.5px; font-weight: 900; text-transform: uppercase; border-bottom: 1px solid #000000; padding-bottom: 2px; margin-bottom: 4px;">ITEMS</div>
+        <div style="font-size: 11.5px; font-weight: 900; text-transform: uppercase; border-bottom: 1px solid #000000; padding-bottom: 2px; margin-bottom: 4px;">
+          ${slip.kotType === "CANCELLED" ? "CANCELLED ITEMS" : "ITEMS"}
+        </div>
         <div style="font-size: 12.5px; line-height: 1.35;">
           ${itemsHtml}
         </div>

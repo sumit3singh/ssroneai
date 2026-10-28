@@ -95,6 +95,7 @@ export const ItemSalesReport: React.FC<ItemSalesReportProps> = ({
       if ((o.status || "").toLowerCase() === "cancelled") return;
 
       (o.items || []).forEach((i: any) => {
+        if (i.is_voided) return;
         const name = i.product_name || i.name || i.item_name || "Dish Item";
         const id = i.item_id || i.product_id;
         const catalogItem =

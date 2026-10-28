@@ -35,7 +35,7 @@ const getLocalDateString = (dateVal: any): string => {
 interface POSOrdersListPageProps {
   orders?: POSOrder[];
   onRefresh?: () => void;
-  onOptimisticOrderSettle?: (orderNumber: string, tableId?: number | string) => void;
+  onOptimisticOrderSettle?: (orderNumber: string, tableId?: number | string, customStatus?: "completed" | "cancelled") => void;
   isFullScreenPOS?: boolean;
   onToggleFullScreen?: () => void;
   customers?: any[];
@@ -300,7 +300,7 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
         orderType: selectedOrderForSettle.order_mode?.toUpperCase() || selectedOrderForSettle.order_type || "DINE_IN",
         tableName: selectedOrderForSettle.table_name,
         waiterName: selectedOrderForSettle.waiter_name,
-        items: selectedOrderForSettle.items || [],
+        items: (selectedOrderForSettle.items || []).filter((item: any) => !item.is_voided),
         subtotal: selectedOrderForSettle.subtotal || 0,
         packagingChargeTotal: selectedOrderForSettle.packaging_charge || 0,
         taxAmount: selectedOrderForSettle.tax_amount || 0,
@@ -323,17 +323,29 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
 
   const handleCancelOrder = async (id: number | string, num: string) => {
     if (!window.confirm(`Are you sure you want to void/cancel Order ${num}? Orders are never deleted to maintain audit integrity.`)) return;
-    try {
-      const ordToCancel = orders.find(o => String(o.id) === String(id) || o.order_number === num);
-      onOptimisticOrderSettle?.(num, ordToCancel?.table_id);
 
-      const targetId = id && !String(id).startsWith("local-") ? id : num;
+    const ordToCancel = orders.find(o => String(o.id) === String(id) || o.order_number === num);
+    const targetTableId = ordToCancel?.table_id;
+
+    // 1. Ultra-Fast Zero-Wait Optimistic UI Mutation (< 0.1ms instant): immediately update row and table floor
+    setLoadedServerOrders((prev) =>
+      prev.map((o) =>
+        String(o.id) === String(id) || o.order_number === num
+          ? { ...o, status: "cancelled", is_held: false }
+          : o
+      )
+    );
+    onOptimisticOrderSettle?.(num, targetTableId, "cancelled");
+    toast.success(`⚡ Order ${num} cancelled immediately (Soft Void)`);
+
+    // 2. Fire-and-forget background server synchronization
+    const targetId = id && !String(id).startsWith("local-") ? id : num;
+    try {
       await api.patch(`/orders/${targetId}/status?status=cancelled`);
-      toast.success(`Order ${num} marked as Cancelled (Soft Void)`);
-      fetchOrders();
       onRefresh?.();
     } catch (err) {
-      toast.error("Failed to cancel order");
+      console.error("Failed to sync order cancellation to server", err);
+      toast.error("Network sync issue: Order cancellation pending server confirmation");
     }
   };
 
@@ -699,8 +711,13 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
                       </td>
                       <td className="py-2.5 px-3 max-w-xs">
                         <div className="flex flex-wrap gap-1">
-                          {ord.items && ord.items.length > 0 ? (
-                            ord.items.map((item: any, i: number) => {
+                          {(() => {
+                            const allItems = ord.items || [];
+                            if (allItems.length === 0) {
+                              return <span className="text-muted-foreground italic text-[11px]">No items recorded</span>;
+                            }
+                            return allItems.map((item: any, i: number) => {
+                              const isVoided = Boolean(item.is_voided);
                               const itemAddons = item.addons || item.selected_addons || item.addon_options || [];
                               const addonStr = Array.isArray(itemAddons)
                                 ? itemAddons.map((a: any) => (typeof a === "string" ? a : (a?.name || a?.title || a?.addon_name || a?.label || ""))).filter(Boolean).join(", ")
@@ -708,33 +725,50 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
                               return (
                                 <span
                                   key={i}
-                                  className="inline-flex items-center gap-1 bg-muted text-foreground px-1.5 py-0.2 rounded text-[11px] font-medium border border-border"
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[11px] font-medium border transition-colors ${
+                                    isVoided
+                                      ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30"
+                                      : "bg-muted text-foreground border-border"
+                                  }`}
+                                  title={isVoided ? `Cancelled by Customer: ${item.void_reason || "Removed from order"}` : undefined}
                                 >
-                                  <span>{item.name || item.product_name || item.item_name || "Item"}</span>
+                                  {isVoided && <span className="not-italic text-[10px] text-rose-600 dark:text-rose-400 font-bold">❌</span>}
+                                  <span className={isVoided ? "line-through text-rose-600 dark:text-rose-400 font-bold" : ""}>
+                                    {item.name || item.product_name || item.item_name || "Item"}
+                                  </span>
                                   {item.variant_name && (
-                                    <span className="text-[9px] font-mono text-primary bg-primary/10 px-1 rounded-xs font-bold">
+                                    <span className={`text-[9px] font-mono px-1 rounded-xs font-bold ${
+                                      isVoided
+                                        ? "line-through bg-rose-500/20 text-rose-700 dark:text-rose-300"
+                                        : "text-primary bg-primary/10"
+                                    }`}>
                                       [{item.variant_name}]
                                     </span>
                                   )}
                                   {addonStr && (
-                                    <span className="text-[9px] text-amber-600 dark:text-amber-400 font-mono font-bold">
+                                    <span className={`text-[9px] font-mono font-bold ${
+                                      isVoided ? "line-through text-rose-500/80" : "text-amber-600 dark:text-amber-400"
+                                    }`}>
                                       +{addonStr}
                                     </span>
                                   )}
-                                  {(item.notes || item.preparation_notes || item.special_instructions) && (
+                                  {(item.notes || item.preparation_notes || item.special_instructions) && !isVoided && (
                                     <span className="text-[9px] font-mono font-black text-slate-900 dark:text-white bg-slate-200 dark:bg-slate-800 px-1.5 py-0.2 rounded-xs border border-slate-300 dark:border-slate-700 uppercase">
                                       📝 {item.notes || item.preparation_notes || item.special_instructions}
                                     </span>
                                   )}
-                                  <span className="font-mono text-muted-foreground font-bold">
+                                  <span className={`font-mono font-bold ${isVoided ? "line-through text-rose-600 dark:text-rose-400" : "text-muted-foreground"}`}>
                                     ×{item.quantity}
                                   </span>
+                                  {isVoided && (
+                                    <span className="text-[8.5px] uppercase font-mono font-extrabold px-1 py-0.2 rounded bg-rose-600 text-white leading-none">
+                                      VOID
+                                    </span>
+                                  )}
                                 </span>
                               );
-                            })
-                          ) : (
-                            <span className="text-muted-foreground italic text-[11px]">No item details</span>
-                          )}
+                            });
+                          })()}
                         </div>
                       </td>
                       <td className="py-2.5 px-3 text-muted-foreground">
@@ -795,7 +829,7 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
                                 customerName: renderSafeString(ordCust?.name || ord.customer_name),
                                 customerPhone: renderSafeString(ordCust?.phone || ord.customer_phone),
                                 customerAddress: renderSafeString(ordCust?.address || ord.customer_address),
-                                items: ord.items || [],
+                                items: (ord.items || []).filter((item: any) => !item.is_voided),
                                 subtotal: ord.subtotal || 0,
                                 packagingChargeTotal: ord.packaging_charge || 0,
                                 taxAmount: ord.tax_amount || 0,

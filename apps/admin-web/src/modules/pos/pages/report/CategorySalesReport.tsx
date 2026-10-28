@@ -80,6 +80,7 @@ export const CategorySalesReport: React.FC<CategorySalesReportProps> = ({
       if ((o.status || "").toLowerCase() === "cancelled") return;
 
       (o.items || []).forEach((i: any) => {
+        if (i.is_voided) return;
         const itemName = i.product_name || i.name || i.item_name || "Dish Item";
         const itemId = i.item_id || i.product_id;
         let catName =

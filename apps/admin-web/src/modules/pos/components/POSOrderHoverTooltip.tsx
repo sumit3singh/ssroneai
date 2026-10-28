@@ -38,7 +38,7 @@ export const POSOrderHoverTooltip: React.FC<POSOrderHoverTooltipProps> = ({ orde
   const tblName = renderSafeString(order.table_name);
   const wtrName = renderSafeString(order.waiter_name);
 
-  const items = order?.items || [];
+  const items = (order?.items || []).filter((it: any) => !it.is_voided);
   const safeNum = (val: any) => {
     const n = parseFloat(String(val));
     return isNaN(n) ? 0 : n;

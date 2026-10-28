@@ -89,7 +89,7 @@ export const OnlineOrderApprovalModal: React.FC<OnlineOrderApprovalModalProps> =
             customerName: order.customer_name || "Guest Customer",
             customerPhone: order.customer_phone || "",
             customerAddress: order.delivery_address || "",
-            items: order.items || [],
+            items: (order.items || []).filter((it: any) => !it.is_voided),
             subtotal: Number(order.subtotal || 0),
             packagingChargeTotal: Number(order.packaging_charge || 0),
             taxAmount: Number(order.tax_amount || order.total_tax || 0),
@@ -145,7 +145,7 @@ export const OnlineOrderApprovalModal: React.FC<OnlineOrderApprovalModalProps> =
   const startModify = (order: any) => {
     setModifyingOrder(order);
     setModifiedItems(
-      (order.items || []).map((it: any) => ({
+      (order.items || []).filter((it: any) => !it.is_voided).map((it: any) => ({
         id: it.id,
         item_id: it.product_id || it.id,
         name: it.product_name || it.name || "Item",
@@ -328,10 +328,10 @@ export const OnlineOrderApprovalModal: React.FC<OnlineOrderApprovalModalProps> =
                   {/* Order Items Table */}
                   <div className="space-y-1">
                     <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">
-                      Ordered Dishes ({(order.items || []).length} items)
+                      Ordered Dishes ({(order.items || []).filter((it: any) => !it.is_voided).length} items)
                     </span>
                     <div className="divide-y divide-border/40 border border-border/60 rounded-lg overflow-hidden text-xs">
-                      {(order.items || []).map((it: any, idx: number) => (
+                      {(order.items || []).filter((it: any) => !it.is_voided).map((it: any, idx: number) => (
                         <div key={idx} className="p-2 flex items-center justify-between bg-card">
                           <div className="min-w-0 flex-1 pr-2">
                             <span className="font-bold text-foreground">

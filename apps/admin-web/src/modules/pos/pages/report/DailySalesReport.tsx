@@ -625,14 +625,21 @@ export const DailySalesReport: React.FC<DailySalesReportProps> = ({
                 return (
                   <tr
                     key={o.id}
-                    className={`hover:bg-muted/40 transition-colors ${
-                      isCancelled ? "opacity-60 bg-muted/20" : ""
+                    className={`transition-colors ${
+                      isCancelled
+                        ? "bg-rose-50/70 dark:bg-rose-950/25 border-l-4 border-l-rose-500 hover:bg-rose-100/60 dark:hover:bg-rose-950/35"
+                        : "hover:bg-muted/40"
                     }`}
                   >
                     <td className="py-2.5 px-3 font-mono font-semibold text-foreground">
                       <POSOrderHoverTooltip order={o}>
-                        <span className="text-primary hover:underline cursor-pointer">
+                        <span className={`${isCancelled ? "text-rose-600 dark:text-rose-400 font-bold" : "text-primary hover:underline"} cursor-pointer inline-flex items-center gap-1.5`}>
                           #{o.order_number}
+                          {isCancelled && (
+                            <span className="text-[9px] font-mono uppercase bg-rose-600 text-white font-extrabold px-1.5 py-0.2 rounded tracking-wide shadow-2xs">
+                              CANCELLED
+                            </span>
+                          )}
                         </span>
                       </POSOrderHoverTooltip>
                     </td>
@@ -643,7 +650,11 @@ export const DailySalesReport: React.FC<DailySalesReportProps> = ({
                       })}
                     </td>
                     <td className="py-2.5 px-3">
-                      <span className="bg-muted text-muted-foreground border border-border text-[10px] font-mono px-1.5 py-0.5 rounded uppercase">
+                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded uppercase border ${
+                        isCancelled
+                          ? "bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800"
+                          : "bg-muted text-muted-foreground border-border"
+                      }`}>
                         {o.order_type || o.order_mode || "DINE_IN"}
                       </span>
                     </td>
@@ -653,9 +664,11 @@ export const DailySalesReport: React.FC<DailySalesReportProps> = ({
                         {o.waiter_name ? `Staff: ${o.waiter_name}` : "Counter"}
                       </div>
                     </td>
-                    <td className="py-2.5 px-3 max-w-[180px] truncate text-muted-foreground">
-                      {(o.items || []).map((i) => `${i.name} (x${i.quantity})`).join(", ") ||
-                        "No items recorded"}
+                    <td className="py-2.5 px-3 max-w-[180px] truncate">
+                      <span className={isCancelled ? "line-through text-rose-600/80 dark:text-rose-400/80 text-[11px]" : "text-muted-foreground text-[11px]"}>
+                        {(o.items || []).map((i) => `${i.name} (x${i.quantity})`).join(", ") ||
+                          "No items recorded"}
+                      </span>
                     </td>
                     <td className="py-2.5 px-3 font-mono font-medium text-foreground">
                       <span className="bg-muted px-1.5 py-0.5 rounded text-[10px] border border-border">
@@ -687,8 +700,15 @@ export const DailySalesReport: React.FC<DailySalesReportProps> = ({
                     <td className="py-2.5 px-3 text-right font-mono text-muted-foreground">
                       ₹{getOrderTax(o).toFixed(2)}
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono font-bold text-foreground">
-                      ₹{getOrderNet(o).toFixed(2)}
+                    <td className="py-2.5 px-3 text-right font-mono font-bold">
+                      {isCancelled ? (
+                        <div className="text-right">
+                          <span className="line-through text-rose-500/70 text-xs">₹{getOrderNet(o).toFixed(2)}</span>
+                          <span className="block text-[9px] uppercase font-bold text-rose-600 dark:text-rose-400">₹0.00 (Cancelled)</span>
+                        </div>
+                      ) : (
+                        <span className="text-foreground">₹{getOrderNet(o).toFixed(2)}</span>
+                      )}
                     </td>
                     <td className="py-2.5 px-3 text-center">
                       <button
@@ -762,22 +782,34 @@ export const DailySalesReport: React.FC<DailySalesReportProps> = ({
               <span className="text-[10px] uppercase font-bold text-muted-foreground block">
                 Ordered Dishes & Addons:
               </span>
-              {(selectedOrderForModal.items || []).map((item, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between text-xs py-1 border-b border-border/50"
-                >
-                  <div>
-                    <span className="font-medium text-foreground">{item.name}</span>
-                    <span className="text-[11px] text-muted-foreground ml-1.5">
-                      x{item.quantity} @ ₹{safeNum(item.unit_price).toFixed(2)}
+              {(selectedOrderForModal.items || []).map((item, idx) => {
+                const isItemVoided = Boolean(item.is_voided);
+                return (
+                  <div
+                    key={idx}
+                    className={`flex items-center justify-between text-xs py-1 border-b border-border/50 ${
+                      isItemVoided ? "opacity-75 bg-destructive/5 px-1 rounded" : ""
+                    }`}
+                  >
+                    <div>
+                      <span className={`font-medium ${isItemVoided ? "line-through text-destructive" : "text-foreground"}`}>
+                        {item.name}
+                      </span>
+                      {isItemVoided && (
+                        <span className="ml-1.5 text-[9px] font-mono uppercase bg-destructive/10 text-destructive border border-destructive/20 px-1 rounded font-bold no-underline inline-block">
+                          VOID
+                        </span>
+                      )}
+                      <span className="text-[11px] text-muted-foreground ml-1.5">
+                        x{item.quantity} @ ₹{safeNum(item.unit_price).toFixed(2)}
+                      </span>
+                    </div>
+                    <span className={`font-mono font-semibold ${isItemVoided ? "line-through text-destructive text-[11px]" : "text-foreground"}`}>
+                      {isItemVoided ? "₹0.00 (Void)" : `₹${(safeNum(item.unit_price) * safeNum(item.quantity)).toFixed(2)}`}
                     </span>
                   </div>
-                  <span className="font-mono font-semibold text-foreground">
-                    ₹{(safeNum(item.unit_price) * safeNum(item.quantity)).toFixed(2)}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Financial summary */}

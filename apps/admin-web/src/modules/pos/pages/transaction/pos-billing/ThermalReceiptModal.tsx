@@ -83,7 +83,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
       customerName: custName,
       customerPhone: custPhone || phoneInput,
       customerAddress: custAddress,
-      items: receiptData.items || [],
+      items: (receiptData.items || []).filter((it: any) => !it.is_voided),
       subtotal: receiptData.subtotal,
       packagingChargeTotal: receiptData.packagingChargeTotal,
       taxAmount: receiptData.taxAmount,
@@ -117,7 +117,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
       customerName: custName,
       customerPhone: custPhone || phoneInput,
       customerAddress: custAddress,
-      items: receiptData.items || [],
+      items: (receiptData.items || []).filter((it: any) => !it.is_voided),
       subtotal: receiptData.subtotal,
       packagingChargeTotal: receiptData.packagingChargeTotal,
       taxAmount: receiptData.taxAmount,
@@ -250,7 +250,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
               <span className="w-14 text-right">AMT</span>
             </div>
 
-            {(receiptData.items || []).map((it, idx) => {
+            {(receiptData.items || []).filter((it: any) => !it.is_voided).map((it, idx) => {
               const rawName = renderSafeString(it.name || (it as any).product_name || (it as any).item_name || "Item");
               const variantName = renderSafeString(it.variant_name);
               const addonsList = it.addons || (it as any).selected_addons || (it as any).addon_options || [];

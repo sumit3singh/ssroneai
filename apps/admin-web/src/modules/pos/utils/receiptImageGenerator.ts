@@ -31,7 +31,7 @@ export async function generateReceiptImageBlob(data: CustomerReceiptSlipData): P
   const paymentMethod = (data.paymentMethod || "CASH").toUpperCase();
   const waiterName = data.waiterName || "";
 
-  const items = data.items || [];
+  const items = (data.items || []).filter((it: any) => !it.is_voided);
   // Estimate height: header (~180) + meta (~120) + table header (~40) + items (~45 per item) + totals (~160) + footer (~80)
   const estimatedHeight = 580 + items.length * 48;
   canvas.width = width;

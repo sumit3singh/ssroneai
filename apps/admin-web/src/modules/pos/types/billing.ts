@@ -24,6 +24,10 @@ export interface POSCartItem {
   notes?: string;
   is_veg: boolean;
   kds_station?: string;
+  is_voided?: boolean;
+  void_reason?: string | null;
+  voided_at?: string | null;
+  voided_by?: number | null;
 }
 
 export interface POSOrder {

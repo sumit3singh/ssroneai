@@ -1078,8 +1078,12 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
             </div>
 
             <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1 scrollbar-thin">
-              {previewOrderModal.items && previewOrderModal.items.length > 0 ? (
-                previewOrderModal.items.map((item: any, i: number) => (
+              {(() => {
+                const activeItems = (previewOrderModal.items || []).filter((item: any) => !item.is_voided);
+                if (activeItems.length === 0) {
+                  return <p className="text-xs text-muted-foreground italic">No active items in order preview.</p>;
+                }
+                return activeItems.map((item: any, i: number) => (
                   <div key={i} className="flex items-center justify-between text-xs font-medium py-1 border-b border-border/40">
                     <div>
                       <p className="text-foreground text-xs font-semibold">{item.name || item.product_name || item.item_name || "Item"}</p>
@@ -1090,10 +1094,8 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
                       <p className="text-muted-foreground">₹{Number(item.unit_price || item.price || 0) * item.quantity}</p>
                     </div>
                   </div>
-                ))
-              ) : (
-                <p className="text-xs text-muted-foreground italic">No items listed in order preview.</p>
-              )}
+                ));
+              })()}
             </div>
 
             <div className="pt-2 border-t border-border flex items-center justify-between">

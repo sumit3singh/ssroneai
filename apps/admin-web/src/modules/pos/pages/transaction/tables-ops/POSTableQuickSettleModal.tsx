@@ -165,7 +165,7 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
       customerName: rawCustName || "Walk-in Guest",
       customerPhone: rawCustPhone,
       customerAddress: rawCustAddr,
-      items: order.items || [],
+      items: (order.items || []).filter((it: any) => !it.is_voided),
       subtotal: Number(order.subtotal || 0),
       packagingChargeTotal: Number(order.packaging_charge || 0),
       taxAmount: Number(order.tax_amount || 0),
@@ -352,20 +352,24 @@ export const POSTableQuickSettleModal: React.FC<POSTableQuickSettleModalProps> =
               <strong className="text-foreground text-sm">₹{originalNet.toLocaleString("en-IN")}</strong>
             </div>
 
-            {order.items && order.items.length > 0 && (
-              <div className="pt-1.5 border-t border-border/50 max-h-24 overflow-y-auto space-y-1 pr-1 scrollbar-thin">
-                {order.items.map((it: any, idx: number) => (
-                  <div key={idx} className="flex items-center justify-between text-[11px]">
-                    <span className="text-foreground truncate max-w-[70%]">
-                      {it.quantity}x {it.name || it.product_name || "Item"} {it.variant_name ? `(${it.variant_name})` : ""}
-                    </span>
-                    <span className="font-mono text-muted-foreground">
-                      ₹{Number(it.unit_price || it.price || 0) * Number(it.quantity || 1)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+            {(() => {
+              const activeOrderItems = (order.items || []).filter((it: any) => !it.is_voided);
+              if (!activeOrderItems.length) return null;
+              return (
+                <div className="pt-1.5 border-t border-border/50 max-h-24 overflow-y-auto space-y-1 pr-1 scrollbar-thin">
+                  {activeOrderItems.map((it: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between text-[11px]">
+                      <span className="text-foreground truncate max-w-[70%]">
+                        {it.quantity}x {it.name || it.product_name || "Item"} {it.variant_name ? `(${it.variant_name})` : ""}
+                      </span>
+                      <span className="font-mono text-muted-foreground">
+                        ₹{Number(it.unit_price || it.price || 0) * Number(it.quantity || 1)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Pre-Paid Online Banner OR Payment Method Selector */}

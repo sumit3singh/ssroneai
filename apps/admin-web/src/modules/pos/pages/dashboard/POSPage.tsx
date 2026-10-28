@@ -52,6 +52,10 @@ export const POSPage: React.FC = () => {
 
   // Settlement State Lock: Locks settled orders and their tables for 60s to prevent premature background server polls from reverting tables to occupied
   const settledOrdersLockRef = useRef<Map<string, { timestamp: number; tableId?: string | number }>>(new Map());
+  // In-Flight Order Update Lock: Locks newly updated orders for 45s to prevent premature background polls from wiping newly added items
+  const activeOrderUpdatesLockRef = useRef<Map<string, { timestamp: number; optimisticOrder: POSOrder }>>(new Map());
+  // Cooldown ref for window focus to prevent excessive DB hits on print dialog close
+  const lastFocusFetchTimeRef = useRef<number>(0);
   // Concurrency Lock: Prevents overlapping background polling requests from hammering the database
   const isFetchingRef = useRef(false);
 
@@ -154,13 +158,39 @@ export const POSPage: React.FC = () => {
             }
           }
 
+          // Prune stale update locks older than 45s
+          for (const [lockNum, updateData] of activeOrderUpdatesLockRef.current.entries()) {
+            if (lockNow - updateData.timestamp > 45_000) {
+              activeOrderUpdatesLockRef.current.delete(lockNum);
+            }
+          }
+
           for (const o of oList) {
             if (o && o.order_number) {
               const numStr = String(o.order_number);
               const lockData = settledOrdersLockRef.current.get(numStr) || (o.id ? settledOrdersLockRef.current.get(String(o.id)) : undefined);
+              const updateLock = activeOrderUpdatesLockRef.current.get(numStr) || (o.id ? activeOrderUpdatesLockRef.current.get(String(o.id)) : undefined);
+
               if (lockData && lockNow - lockData.timestamp <= 60_000) {
-                // Retain completed/paid status during lock window so premature background fetches cannot revert the table
-                orderMap.set(numStr, { ...o, status: "completed", payment_status: "paid" });
+                // Retain completed/paid or cancelled status during lock window so premature background fetches cannot revert the table
+                const isCancelledLock = (o.status || "").toLowerCase() === "cancelled";
+                orderMap.set(numStr, {
+                  ...o,
+                  status: isCancelledLock ? "cancelled" : "completed",
+                  payment_status: isCancelledLock ? o.payment_status : "paid",
+                });
+              } else if (updateLock && lockNow - updateLock.timestamp <= 45_000) {
+                // In-flight update safeguard: Server has caught up ONLY IF server order has at least as many active items
+                const serverItemsCount = (o.items || []).filter((it: any) => !it.is_voided).length;
+                const optItemsCount = (updateLock.optimisticOrder.items || []).filter((it: any) => !it.is_voided).length;
+                if (serverItemsCount >= optItemsCount) {
+                  activeOrderUpdatesLockRef.current.delete(numStr);
+                  if (o.id) activeOrderUpdatesLockRef.current.delete(String(o.id));
+                  orderMap.set(numStr, o);
+                } else {
+                  // Stale server snapshot! Retain optimistic order with all newly added items
+                  orderMap.set(numStr, updateLock.optimisticOrder);
+                }
               } else {
                 orderMap.set(numStr, o);
               }
@@ -235,10 +265,14 @@ export const POSPage: React.FC = () => {
       fetchPOSDomainData(true, false);
     }, 5000);
 
-    // Instant Sync with full catalog on Window/Tab Focus or Tab Visibility
+    // Instant Sync with tables and orders on Window/Tab Focus (throttled to 10s cooldown to save DB load and prevent print dialog spikes)
     const handleVisibilityOrFocus = () => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        fetchPOSDomainData(true, true);
+        const now = Date.now();
+        if (now - lastFocusFetchTimeRef.current >= 10_000) {
+          lastFocusFetchTimeRef.current = now;
+          fetchPOSDomainData(true, false);
+        }
       }
     };
     window.addEventListener("focus", handleVisibilityOrFocus);
@@ -519,8 +553,13 @@ export const POSPage: React.FC = () => {
     optimisticOrder: POSOrder,
     tableUpdate?: { tableId: number | string; status: POSTable["status"] }
   ) => {
+    const optNum = String(optimisticOrder.order_number);
+    activeOrderUpdatesLockRef.current.set(optNum, { timestamp: Date.now(), optimisticOrder });
+    if (optimisticOrder.id && !String(optimisticOrder.id).startsWith("local-")) {
+      activeOrderUpdatesLockRef.current.set(String(optimisticOrder.id), { timestamp: Date.now(), optimisticOrder });
+    }
+
     setOrders((prev) => {
-      const optNum = String(optimisticOrder.order_number);
       const optDisp = getDisplayOrderNumber(optimisticOrder);
       const optDaily = optimisticOrder.daily_order_number ? String(optimisticOrder.daily_order_number) : "";
 
@@ -553,11 +592,15 @@ export const POSPage: React.FC = () => {
     }
   };
 
-  const handleOptimisticOrderSettle = (orderNumber: string, tableId?: number | string) => {
+  const handleOptimisticOrderSettle = (
+    orderNumber: string,
+    tableId?: number | string,
+    customStatus: "completed" | "cancelled" = "completed"
+  ) => {
     const targetTableId = tableId !== undefined && tableId !== null ? String(tableId) : "";
     let updatedOrdersList: POSOrder[] = [];
 
-    // Register active settlement lock for this order and table
+    // Register active settlement/cancellation lock for this order and table
     settledOrdersLockRef.current.set(String(orderNumber), {
       timestamp: Date.now(),
       tableId: tableId !== undefined && tableId !== null ? tableId : undefined,
@@ -567,7 +610,14 @@ export const POSPage: React.FC = () => {
       const cleanNum = String(orderNumber).replace(/^#/, "").trim();
       updatedOrdersList = prev.map((o) => {
         const matchesNum = String(o.order_number) === cleanNum || String(o.id) === cleanNum;
-        return matchesNum ? { ...o, status: "completed", payment_status: "paid" } : o;
+        return matchesNum
+          ? {
+              ...o,
+              status: customStatus,
+              payment_status: customStatus === "cancelled" ? o.payment_status : "paid",
+              is_held: false,
+            }
+          : o;
       });
       try {
         sessionStorage.setItem("pos_cache_orders", JSON.stringify(updatedOrdersList));
@@ -646,6 +696,9 @@ export const POSPage: React.FC = () => {
           onOptimisticOrderSettle={handleOptimisticOrderSettle}
           onRefresh={(serverOrder) => {
             if (serverOrder && serverOrder.order_number) {
+              const sNum = String(serverOrder.order_number);
+              activeOrderUpdatesLockRef.current.delete(sNum);
+              if (serverOrder.id) activeOrderUpdatesLockRef.current.delete(String(serverOrder.id));
               setOrders((prev) => {
                 const sNum = String(serverOrder.order_number);
                 const sId = String(serverOrder.id);

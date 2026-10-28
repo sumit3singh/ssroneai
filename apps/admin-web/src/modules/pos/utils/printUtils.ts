@@ -243,7 +243,7 @@ export function printCustomerReceiptDirectly(data: CustomerReceiptSlipData): voi
   const custAddress = data.customerAddress || "";
   const paymentMethod = (data.paymentMethod || "CASH").toUpperCase();
 
-  const itemsHtml = (data.items || []).map((it) => {
+  const itemsHtml = (data.items || []).filter((it: any) => !it.is_voided).map((it) => {
     const rawName = it.name || it.product_name || it.item_name || "Item";
     const variantName = it.variant_name || "";
     const addonsList = it.addons || it.selected_addons || it.addon_options || [];

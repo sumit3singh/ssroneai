@@ -230,6 +230,7 @@ class OrderCreateSchema(BaseModel):
     payment_status: str | None = None
     amount_paid: Any = None
     balance_due: Any = None
+    void_reason: str | None = None
 
 
 
@@ -258,6 +259,8 @@ class OrderItemResponse(BaseModel):
     selected_addons: list[Any] = Field(default_factory=list)
     addons: list[Any] = Field(default_factory=list)
     variant_name: str | None = None
+    is_voided: bool = False
+    void_reason: str | None = None
 
     @model_validator(mode="after")
     def sync_addons_and_name(self):
@@ -805,7 +808,12 @@ async def create_order(
                     existing_items_map[key_id] = it
                 existing_items_map[key_name] = it
             else:
-                await db.delete(it)
+                # Soft-void instead of hard-delete to maintain database audit trail and prevent loss of sent items
+                it.is_voided = True
+                it.is_active = False
+                it.voided_at = datetime.now(timezone.utc)
+                it.voided_by = user_id
+                it.void_reason = getattr(body, "void_reason", None) or "Removed during order modification"
 
         # Upsert items
         for item_data in body.items:
@@ -1736,13 +1744,21 @@ async def modify_and_accept_online_order(
                 new_data = incoming_map[match_key]
                 new_qty = Decimal(str(new_data.get("quantity") or 1))
                 if new_qty <= 0:
-                    await db.delete(existing_it)
+                    existing_it.is_voided = True
+                    existing_it.is_active = False
+                    existing_it.voided_at = datetime.now(timezone.utc)
+                    existing_it.voided_by = user_id
+                    existing_it.void_reason = "Removed/reduced to 0 during order modification"
                 else:
                     existing_it.quantity = new_qty
                     existing_it.line_total = (new_qty * existing_it.unit_price).quantize(Decimal("0.01"))
                     calc_subtotal += existing_it.line_total
             else:
-                await db.delete(existing_it)
+                existing_it.is_voided = True
+                existing_it.is_active = False
+                existing_it.voided_at = datetime.now(timezone.utc)
+                existing_it.voided_by = user_id
+                existing_it.void_reason = "Removed during order modification"
 
         order.subtotal = calc_subtotal
         order.taxable_amount = calc_subtotal

@@ -30,14 +30,15 @@ export const VoidAuditReport: React.FC<VoidAuditReportProps> = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<"all" | "cancelled" | "discounted">("all");
 
-  // Filter cancelled or discounted orders
+  // Filter cancelled, discounted, or orders with voided items
   const auditOrders = useMemo(() => {
     return orders.filter((o) => {
       const isCancelled = (o.status || "").toLowerCase() === "cancelled";
       const hasDiscount = safeNum(o.discount_amount) > 0;
-      if (filterType === "cancelled") return isCancelled;
+      const hasVoidedItem = (o.items || []).some((i) => Boolean(i.is_voided));
+      if (filterType === "cancelled") return isCancelled || hasVoidedItem;
       if (filterType === "discounted") return hasDiscount;
-      return isCancelled || hasDiscount;
+      return isCancelled || hasDiscount || hasVoidedItem;
     });
   }, [orders, filterType]);
 
@@ -322,8 +323,13 @@ export const VoidAuditReport: React.FC<VoidAuditReportProps> = ({
                       </div>
                     </td>
                     <td className="py-2.5 px-3 max-w-[220px] truncate text-muted-foreground">
-                      {(o.items || []).map((i) => `${i.name} (x${i.quantity})`).join(", ") ||
-                        "No items recorded"}
+                      {(o.items || [])
+                        .map((i) =>
+                          i.is_voided
+                            ? `[VOID: ${i.name} x${i.quantity}]`
+                            : `${i.name} (x${i.quantity})`
+                        )
+                        .join(", ") || "No items recorded"}
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-600 dark:text-amber-400">
                       {hasDiscount ? `-₹${safeNum(o.discount_amount).toFixed(2)}` : "—"}
