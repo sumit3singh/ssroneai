@@ -421,18 +421,19 @@ async def generate_kots_for_order(order: Order, tenant_id: int, user_id: int, db
     stations_result = await db.execute(
         select(KitchenStation).where(
             KitchenStation.tenant_id == tenant_id,
-            KitchenStation.is_deleted == False
+            (KitchenStation.is_deleted == False) | (KitchenStation.is_deleted.is_(None))
         )
     )
-    stations = {s.code.lower(): s for s in stations_result.scalars().all()}
+    stations = {s.code.lower(): s for s in stations_result.scalars().all()} if stations_result else {}
     default_station = list(stations.values())[0] if stations else None
 
     items_stmt = select(OrderItem).where(
         OrderItem.order_id == order.id,
-        OrderItem.is_deleted == False
+        (OrderItem.is_deleted == False) | (OrderItem.is_deleted.is_(None)),
+        (OrderItem.is_voided == False) | (OrderItem.is_voided.is_(None)),
     )
     all_order_items = (await db.execute(items_stmt)).scalars().all()
-    pending_order_items = [it for it in all_order_items if it.kds_status == "pending"]
+    pending_order_items = [it for it in all_order_items if it.kds_status in ("pending", "draft", None)]
     if not pending_order_items:
         pending_order_items = all_order_items
 
@@ -456,34 +457,43 @@ async def generate_kots_for_order(order: Order, tenant_id: int, user_id: int, db
                         st_name = s.name
                         break
 
-            kot = KOT(
-                tenant_id=tenant_id,
-                branch_id=order.branch_id or 1,
-                order_id=order.id,
-                kot_number=kot_num,
-                station_id=st_id,
-                status="PENDING",
-                printed_at=now_utc,
-                created_by=user_id
-            )
-            db.add(kot)
-            await db.flush()
+            kot_obj = None
+            try:
+                kot = KOT(
+                    tenant_id=tenant_id,
+                    branch_id=order.branch_id or 1,
+                    order_id=order.id,
+                    kot_number=kot_num,
+                    station_id=st_id,
+                    status="PENDING",
+                    printed_at=now_utc,
+                    created_by=user_id
+                )
+                db.add(kot)
+                await db.flush()
+                kot_obj = kot
+            except Exception as kot_db_err:
+                logger.warning("KOT DB header insert skipped", error=str(kot_db_err))
 
             slip_items = []
             for it in st_items:
-                kot_item = KOTItem(
-                    tenant_id=tenant_id,
-                    branch_id=order.branch_id or 1,
-                    kot_id=kot.id,
-                    order_item_id=it.id,
-                    item_name=it.product_name or it.item_name or "Dish Item",
-                    quantity=it.quantity,
-                    status="PREPARING",
-                    notes=it.preparation_notes
-                )
-                db.add(kot_item)
+                if kot_obj:
+                    try:
+                        kot_item = KOTItem(
+                            tenant_id=tenant_id,
+                            branch_id=order.branch_id or 1,
+                            kot_id=kot_obj.id,
+                            order_item_id=it.id,
+                            item_name=it.product_name or it.item_name or "Dish Item",
+                            quantity=it.quantity,
+                            status="PREPARING",
+                            notes=it.preparation_notes or it.notes
+                        )
+                        db.add(kot_item)
+                    except Exception:
+                        pass
                 it.kds_status = "in_kitchen"
-                it.kot_id = kot.id
+                it.kot_id = getattr(kot_obj, "id", None)
                 it.kds_sent_at = now_utc
                 slip_items.append({
                     "name": it.product_name or it.item_name or "Dish Item",
@@ -508,9 +518,11 @@ async def generate_kots_for_order(order: Order, tenant_id: int, user_id: int, db
             generated_slips.append({
                 "kotNumber": kot_num,
                 "stationName": st_name,
+                "stationCode": getattr(stations.get(st_name.lower()), "code", None) if stations else None,
                 "orderNumber": order.order_number,
-                "orderType": order.order_type,
+                "orderType": (order.order_type or "TAKEAWAY").upper(),
                 "tableName": slip_table,
+                "kotType": "NEW",
                 "timestamp": now_utc.strftime("%d/%m/%Y, %I:%M %p"),
                 "items": slip_items,
             })
@@ -1090,29 +1102,21 @@ async def create_order(
             await refresh_res
 
         # For online food app / customer web orders:
-        # Takeaway & Delivery orders enter pending_acceptance awaiting staff approval.
-        # Dine-In table orders auto-generate KOT tickets immediately.
+        # All orders (dine-in with table QR, takeaway, delivery) from customer_web
+        # enter pending_acceptance so staff reviews & accepts from Food App Orders button!
         if (order.source_channel or "").lower() in ("customer_web", "food_app", "online"):
-            is_takeaway_or_delivery = (order.order_type or "").lower() in ("takeaway", "delivery")
-            if is_takeaway_or_delivery:
-                order.status = "pending_acceptance"
-                log = OrderStatusLog(
-                    tenant_id=tenant_id,
-                    order_id=order.id,
-                    old_status="draft",
-                    new_status="pending_acceptance",
-                    changed_by=user_id,
-                    notes=f"Online {order.order_type.upper()} order awaiting cafe staff confirmation"
-                )
-                db.add(log)
-                await db.commit()
-                logger.info("Online takeaway/delivery order queued for staff acceptance", order_number=order.order_number)
-            else:
-                try:
-                    await generate_kots_for_order(order, tenant_id=tenant_id, user_id=user_id, db=db)
-                    logger.info("Auto-generated KOT tickets for Online Dine-In order", order_number=order.order_number)
-                except Exception as auto_kot_err:
-                    logger.warning("Auto KOT generation failed for online order", error=str(auto_kot_err))
+            order.status = "pending_acceptance"
+            log = OrderStatusLog(
+                tenant_id=tenant_id,
+                order_id=order.id,
+                old_status="draft",
+                new_status="pending_acceptance",
+                changed_by=user_id,
+                notes=f"Online {order.order_type.upper()} order awaiting cafe staff confirmation"
+            )
+            db.add(log)
+            await db.commit()
+            logger.info("Online order queued for staff acceptance", order_number=order.order_number, order_type=order.order_type)
     except Exception as commit_err:
         rollback_res = db.rollback()
         if inspect.isawaitable(rollback_res):
@@ -1640,6 +1644,38 @@ async def accept_online_order(
         logger.warning("KOT generation failed during online order acceptance", error=str(kot_err))
         slips = []
 
+    # If slips is empty (e.g. no stations in DB), build fallback slips from order items so printer ALWAYS receives KOT!
+    if not slips and order.items:
+        non_void_items = [it for it in order.items if not getattr(it, "is_voided", False)]
+        if non_void_items:
+            now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y, %I:%M %p")
+            raw_tbl = getattr(order, "table_name", None) or (f"Table {order.table_id}" if order.table_id else None)
+            ord_type_lower = str(order.order_type or "").lower()
+            if not raw_tbl or "food" in str(raw_tbl).lower() or "app" in str(raw_tbl).lower():
+                slip_table = "Takeaway ★" if ("take" in ord_type_lower or "pickup" in ord_type_lower) else ("Delivery ★" if "deliv" in ord_type_lower else "Table")
+            else:
+                slip_table = str(raw_tbl).replace("Table Table", "Table").strip()
+
+            slips = [{
+                "kotNumber": f"KOT-{order.order_number}",
+                "stationName": "Kitchen",
+                "orderNumber": order.order_number,
+                "orderType": (order.order_type or "TAKEAWAY").upper(),
+                "tableName": slip_table,
+                "kotType": "NEW",
+                "timestamp": now_str,
+                "items": [
+                    {
+                        "name": it.product_name or it.item_name or "Dish Item",
+                        "quantity": int(it.quantity or 1),
+                        "variant_name": it.variant_name,
+                        "notes": it.preparation_notes or it.notes,
+                        "addons": it.selected_addons or [],
+                    }
+                    for it in non_void_items
+                ]
+            }]
+
     order.status = OrderStatus.KOT_SENT.value if hasattr(OrderStatus.KOT_SENT, "value") else "kot_sent"
     await db.commit()
 
@@ -1769,7 +1805,43 @@ async def modify_and_accept_online_order(
         order.notes = body["notes"]
 
     await db.flush()
-    slips = await generate_kots_for_order(order, tenant_id=tenant_id, user_id=user_id, db=db)
+    try:
+        slips = await generate_kots_for_order(order, tenant_id=tenant_id, user_id=user_id, db=db)
+    except Exception as kot_err:
+        logger.warning("KOT generation failed during online order modify & acceptance", error=str(kot_err))
+        slips = []
+
+    if not slips and order.items:
+        non_void_items = [it for it in order.items if not getattr(it, "is_voided", False)]
+        if non_void_items:
+            now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y, %I:%M %p")
+            raw_tbl = getattr(order, "table_name", None) or (f"Table {order.table_id}" if order.table_id else None)
+            ord_type_lower = str(order.order_type or "").lower()
+            if not raw_tbl or "food" in str(raw_tbl).lower() or "app" in str(raw_tbl).lower():
+                slip_table = "Takeaway ★" if ("take" in ord_type_lower or "pickup" in ord_type_lower) else ("Delivery ★" if "deliv" in ord_type_lower else "Table")
+            else:
+                slip_table = str(raw_tbl).replace("Table Table", "Table").strip()
+
+            slips = [{
+                "kotNumber": f"KOT-{order.order_number}",
+                "stationName": "Kitchen",
+                "orderNumber": order.order_number,
+                "orderType": (order.order_type or "TAKEAWAY").upper(),
+                "tableName": slip_table,
+                "kotType": "UPDATE",
+                "timestamp": now_str,
+                "items": [
+                    {
+                        "name": it.product_name or it.item_name or "Dish Item",
+                        "quantity": int(it.quantity or 1),
+                        "variant_name": it.variant_name,
+                        "notes": it.preparation_notes or it.notes,
+                        "addons": it.selected_addons or [],
+                    }
+                    for it in non_void_items
+                ]
+            }]
+
     order.status = OrderStatus.KOT_SENT.value if hasattr(OrderStatus.KOT_SENT, "value") else "kot_sent"
     await db.commit()
     await db.refresh(order)

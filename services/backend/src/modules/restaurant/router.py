@@ -798,6 +798,7 @@ from src.modules.restaurant.schemas import (
     CategoryResponseSchema,
     MenuItemCreateSchema,
     MenuItemResponseSchema,
+    MenuItemOnlineAvailabilitySchema,
     MenuTagCreate,
     MenuTagResponse,
     MenuVariantGroupCreate,
@@ -985,6 +986,9 @@ def _build_menu_item_response(item: MenuItem) -> dict:
         "is_veg": bool(item_dict.get("is_veg")) if item_dict.get("is_veg") is not None else True,
         "is_popular": bool(item_dict.get("is_popular")) if item_dict.get("is_popular") is not None else False,
         "is_available": bool(item_dict.get("is_available")) if item_dict.get("is_available") is not None else True,
+        "is_available_online": bool(getattr(item, "is_available_online", True)),
+        "online_start_time": getattr(item, "online_start_time", None),
+        "online_end_time": getattr(item, "online_end_time", None),
         "gst_percent": float(item_dict.get("gst_percent") or item_dict.get("tax_rate") or 5.0),
         "packaging_charge": float(item_dict.get("packaging_charge") or 0.0),
         "sort_order": int(item_dict.get("sort_order") or 1),
@@ -1556,6 +1560,12 @@ async def update_menu_item(
         item.is_veg = body.is_veg
         item.is_popular = body.is_popular
         item.is_available = body.is_available
+        if hasattr(body, "is_available_online") and body.is_available_online is not None:
+            item.is_available_online = body.is_available_online
+        if hasattr(body, "online_start_time"):
+            item.online_start_time = body.online_start_time
+        if hasattr(body, "online_end_time"):
+            item.online_end_time = body.online_end_time
         item.sort_order = body.sort_order
         item.branch_id = body.branch_id
         item.updated_by = user_id
@@ -1644,6 +1654,92 @@ async def update_menu_item(
         raise HTTPException(status_code=404, detail="Updated menu item not found")
 
     return MenuItemResponseSchema.model_validate(_build_menu_item_response(refreshed_item))
+
+
+@router.patch("/menu-items/{item_id}/online-availability", response_model=MenuItemResponseSchema)
+async def update_menu_item_online_availability(
+    item_id: int,
+    body: MenuItemOnlineAvailabilitySchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> MenuItemResponseSchema:
+    """Toggle or set time-window availability specifically for the Customer Food Ordering App."""
+    stmt = select(MenuItem).where(
+        MenuItem.id == item_id,
+        (MenuItem.is_deleted == False) | (MenuItem.is_deleted.is_(None))
+    )
+    res = await db.execute(stmt)
+    item = res.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+
+    item.is_available_online = body.is_available_online
+    item.online_start_time = body.online_start_time
+    item.online_end_time = body.online_end_time
+    item.updated_by = current_user.id
+
+    # Sync to column directly via raw SQL if user already applied ALTER TABLE migration
+    try:
+        from sqlalchemy import text
+        await db.execute(
+            text("""
+                UPDATE menu_items 
+                SET is_available_online = :avail,
+                    online_start_time = :start_t,
+                    online_end_time = :end_t
+                WHERE id = :id
+            """),
+            {
+                "avail": body.is_available_online,
+                "start_t": body.online_start_time,
+                "end_t": body.online_end_time,
+                "id": item.id,
+            }
+        )
+    except Exception:
+        pass
+
+    await db.commit()
+    await db.refresh(item)
+    return MenuItemResponseSchema.model_validate(_build_menu_item_response(item))
+
+
+@router.patch("/menu-items/batch-online-availability")
+async def batch_update_online_availability(
+    body: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Batch update online availability for multiple menu items."""
+    updates = body.get("updates", [])
+    if not isinstance(updates, list) or len(updates) == 0:
+        return {"success": True, "updated_count": 0}
+
+    item_ids = [u.get("id") or u.get("item_id") for u in updates if (u.get("id") or u.get("item_id"))]
+    if not item_ids:
+        return {"success": True, "updated_count": 0}
+
+    stmt = select(MenuItem).where(
+        MenuItem.id.in_(item_ids),
+        (MenuItem.is_deleted == False) | (MenuItem.is_deleted.is_(None))
+    )
+    items = (await db.execute(stmt)).scalars().all()
+    items_map = {it.id: it for it in items}
+
+    for u in updates:
+        it_id = u.get("id") or u.get("item_id")
+        if it_id in items_map:
+            target = items_map[it_id]
+            if "is_available_online" in u or "isAvailableOnline" in u:
+                target.is_available_online = bool(u.get("is_available_online", u.get("isAvailableOnline")))
+            if "online_start_time" in u or "onlineStartTime" in u:
+                target.online_start_time = u.get("online_start_time", u.get("onlineStartTime"))
+            if "online_end_time" in u or "onlineEndTime" in u:
+                target.online_end_time = u.get("online_end_time", u.get("onlineEndTime"))
+            target.updated_by = current_user.id
+
+    await db.commit()
+    return {"success": True, "updated_count": len(items)}
 
 
 @router.delete("/menu-items/{item_id}")

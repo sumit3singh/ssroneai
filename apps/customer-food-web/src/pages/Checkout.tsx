@@ -42,7 +42,7 @@ import ChangeOrderModeDialog from "@/components/ChangeOrderModeDialog";
 import AddressSelectDialog from "@/components/AddressSelectDialog";
 import TableCameraScannerModal from "@/components/TableCameraScannerModal";
 import useTenantAppConfig from "@/hooks/useTenantAppConfig";
-import { checkStoreOperatingStatus } from "@/lib/storeOperatingStatus";
+import { checkStoreOperatingStatus, checkMenuItemAvailability } from "@/lib/storeOperatingStatus";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -577,7 +577,7 @@ export const Checkout = () => {
               </span>
             </div>
             <p className="text-[11px] text-muted-foreground font-semibold">
-              {pendingOnlineOrder.itemsCount} items · Total: ₹{pendingOnlineOrder.grandTotal} · {orderMode === "takeaway" ? "Takeaway" : "Home Delivery"}
+              {pendingOnlineOrder.itemsCount} items · Total: ₹{pendingOnlineOrder.grandTotal} · {orderMode === "takeaway" ? "Takeaway" : (orderMode === "delivery" ? "Home Delivery" : `Dine-In (Table ${tableNumber || "1"})`)}
             </p>
           </div>
 
@@ -826,6 +826,20 @@ export const Checkout = () => {
     const paymentId = paymentDetails?.paymentId;
     const paymentStatus = paymentDetails?.paymentStatus || (selectedPayMethod === "cash" ? "unpaid" : "paid");
 
+    // Guard against any items that became unavailable or outside their scheduled time window
+    for (const ci of items) {
+      const avail = checkMenuItemAvailability(ci.menuItem.id, ci.menuItem.name, undefined, ci.menuItem);
+      if (!avail.isAvailable || (ci.menuItem as any).isAvailable === false) {
+        toast({
+          title: "Dish Unavailable for Ordering",
+          description: `"${ci.menuItem.name}" is currently not available (${avail.reason || "outside service hours"}). Please remove it from your cart to proceed.`,
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     try {
       const fallbackName = effectiveName || user?.name || (actualOrderType === "dine-in" ? `Table ${tableNumber || "1"} Guest` : "Counter Guest");
       const fallbackPhone = (effectivePhone || user?.phone || "").trim() || "9876543210";
@@ -894,37 +908,26 @@ export const Checkout = () => {
           ? `/t/${tenantSlug || "baithak-cafe"}/b/${branchCode || "101"}/table/${tableNumber || "1"}/status/${orderIdStr}`
           : `/t/${tenantSlug || "baithak-cafe"}/b/${branchCode || "101"}/status/${orderIdStr}`;
 
-      // 1. Mount Order screen (Direct confirmation for Dine-in; Pending Cafe Approval for Takeaway & Delivery)
-      if (actualOrderType === "dine-in") {
-        setConfirmedOrder({
-          orderId: orderIdStr,
-          orderNumber: orderNum,
-          estimatedTime: response.estimatedTime || 15,
-          targetStatusUrl,
-          itemsCount: items.length,
-          grandTotal,
-          paymentMethod: selectedPayMethod,
-          tableNumber: tableNumber || "1",
-        });
-      } else {
-        const pendingData = {
-          orderId: orderIdStr,
-          orderNumber: orderNum,
-          itemsCount: items.length,
-          grandTotal,
-          targetStatusUrl,
-          paymentMethod: selectedPayMethod,
-          deliveryAddress: orderMode === "delivery" ? deliveryAddress : undefined,
-          initialItems: [...items],
-          status: "pending" as const,
-          createdAt: Date.now(),
-        };
-        setPendingOnlineOrder(pendingData);
-        setApprovalStatus("pending");
-        try {
-          sessionStorage.setItem("ssrone_pending_online_order", JSON.stringify(pendingData));
-        } catch {}
-      }
+      // 1. Mount Order screen: ALL online food app orders (dine-in, takeaway, delivery) enter pending cafe confirmation!
+      const pendingData = {
+        orderId: orderIdStr,
+        orderNumber: orderNum,
+        itemsCount: items.length,
+        grandTotal,
+        targetStatusUrl,
+        paymentMethod: selectedPayMethod,
+        orderType: actualOrderType,
+        tableNumber: actualOrderType === "dine-in" ? (tableNumber || "1") : undefined,
+        deliveryAddress: orderMode === "delivery" ? deliveryAddress : undefined,
+        initialItems: [...items],
+        status: "pending" as const,
+        createdAt: Date.now(),
+      };
+      setPendingOnlineOrder(pendingData);
+      setApprovalStatus("pending");
+      try {
+        sessionStorage.setItem("ssrone_pending_online_order", JSON.stringify(pendingData));
+      } catch {}
 
       // 2. Clear cart items and notes immediately
       clearCart();

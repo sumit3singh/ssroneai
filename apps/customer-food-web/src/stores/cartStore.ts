@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { MenuItem, VariantOption, AddonOption } from "@/data/mockMenu";
 import { getVariantDisplayPrice } from "@/data/mockMenu";
+import { checkMenuItemAvailability } from "@/lib/storeOperatingStatus";
 
 export interface CartItemVariant {
   groupId: string;
@@ -95,6 +96,10 @@ export const useCartStore = create<CartStore>()(
       },
 
       addItem: (menuItem, variants = [], addons = []) => {
+        const avail = checkMenuItemAvailability(menuItem.id, menuItem.name, undefined, menuItem);
+        if (!avail.isAvailable || (menuItem as any).isAvailable === false) {
+          return;
+        }
         const cartItemId = `${menuItem.id}-${variants.map((v) => v.option.id).join(",")}-${addons.map((a) => a.option.id).join(",")}`;
         set((state) => {
           const existing = state.items.find((i) => i.id === cartItemId);
@@ -125,14 +130,23 @@ export const useCartStore = create<CartStore>()(
         set((state) => ({ items: state.items.filter((i) => i.id !== cartItemId) })),
 
       updateQuantity: (cartItemId, quantity) =>
-        set((state) => ({
-          items:
-            quantity <= 0
-              ? state.items.filter((i) => i.id !== cartItemId)
-              : state.items.map((i) =>
-                  i.id === cartItemId ? { ...i, quantity } : i
-                ),
-        })),
+        set((state) => {
+          const item = state.items.find((i) => i.id === cartItemId);
+          if (item && quantity > item.quantity) {
+            const avail = checkMenuItemAvailability(item.menuItem.id, item.menuItem.name, undefined, item.menuItem);
+            if (!avail.isAvailable || (item.menuItem as any).isAvailable === false) {
+              return state;
+            }
+          }
+          return {
+            items:
+              quantity <= 0
+                ? state.items.filter((i) => i.id !== cartItemId)
+                : state.items.map((i) =>
+                    i.id === cartItemId ? { ...i, quantity } : i
+                  ),
+          };
+        }),
 
       updateNotes: (cartItemId, notes) =>
         set((state) => ({

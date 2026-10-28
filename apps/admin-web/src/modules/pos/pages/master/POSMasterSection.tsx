@@ -11,6 +11,7 @@ import { WaiterListPage } from "./waiters/WaiterListPage";
 import { WaiterFormDialog } from "./waiters/WaiterFormDialog";
 import { PaymentModeListPage } from "./payment-modes/PaymentModeListPage";
 import { KitchenStationListPage } from "./kitchen-stations/KitchenStationListPage";
+import { FoodAppMenuCustomizationPage } from "./food-app-menu/FoodAppMenuCustomizationPage";
 import { POSCategory, POSMenuItem, POSTable, POSWaiter } from "../../types";
 
 interface POSMasterSectionProps {
@@ -56,11 +57,12 @@ export const POSMasterSection: React.FC<POSMasterSectionProps> = ({
   // Determine active view strictly from sidebar URL path - Categories is #1 Architectural Master
   const isFavorites = currentPath.includes("/favorites");
   const isMenuItems = currentPath.includes("/menu-items");
+  const isFoodAppMenu = currentPath.includes("/food-app-menu") || currentPath.includes("/online-menu");
   const isTables = currentPath.includes("/tables");
   const isWaiters = currentPath.includes("/waiters");
   const isPayments = currentPath.includes("/payment-modes");
   const isStations = currentPath.includes("/kitchen-stations");
-  const isCategories = currentPath.includes("/categories") || (!isFavorites && !isMenuItems && !isTables && !isWaiters && !isPayments && !isStations);
+  const isCategories = currentPath.includes("/categories") || (!isFavorites && !isMenuItems && !isFoodAppMenu && !isTables && !isWaiters && !isPayments && !isStations);
 
   // Modals state
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
@@ -119,6 +121,8 @@ export const POSMasterSection: React.FC<POSMasterSectionProps> = ({
         <PaymentModeListPage />
       ) : isStations ? (
         <KitchenStationListPage />
+      ) : isFoodAppMenu ? (
+        <FoodAppMenuCustomizationPage />
       ) : (
         /* Default Menu Items Master Page */
         <MenuItemMasterPage

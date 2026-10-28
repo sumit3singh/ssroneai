@@ -127,6 +127,48 @@ class MenuItem(BigIntTenantBaseModel):
     def gst_percent(self, val: float):
         self.tax_rate = float(val) if val is not None else 5.0
 
+    @property
+    def is_available_online(self) -> bool:
+        if isinstance(self.nutrition, dict) and "is_available_online" in self.nutrition:
+            return bool(self.nutrition["is_available_online"])
+        return True
+
+    @is_available_online.setter
+    def is_available_online(self, val: bool):
+        if not isinstance(self.nutrition, dict):
+            self.nutrition = {}
+        else:
+            self.nutrition = dict(self.nutrition)
+        self.nutrition["is_available_online"] = bool(val)
+
+    @property
+    def online_start_time(self) -> str | None:
+        if isinstance(self.nutrition, dict):
+            return self.nutrition.get("online_start_time")
+        return None
+
+    @online_start_time.setter
+    def online_start_time(self, val: str | None):
+        if not isinstance(self.nutrition, dict):
+            self.nutrition = {}
+        else:
+            self.nutrition = dict(self.nutrition)
+        self.nutrition["online_start_time"] = val.strip() if val else None
+
+    @property
+    def online_end_time(self) -> str | None:
+        if isinstance(self.nutrition, dict):
+            return self.nutrition.get("online_end_time")
+        return None
+
+    @online_end_time.setter
+    def online_end_time(self, val: str | None):
+        if not isinstance(self.nutrition, dict):
+            self.nutrition = {}
+        else:
+            self.nutrition = dict(self.nutrition)
+        self.nutrition["online_end_time"] = val.strip() if val else None
+
     # Relationships
     category: Mapped[MenuCategory] = relationship("MenuCategory", back_populates="items")
     variant_groups_rel: Mapped[list["MenuVariantGroup"]] = relationship(

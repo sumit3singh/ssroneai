@@ -221,6 +221,9 @@ class MenuItemCreateSchema(BaseModel):
     is_veg: bool = True
     is_popular: bool = False
     is_available: bool = True
+    is_available_online: bool = True
+    online_start_time: str | None = None
+    online_end_time: str | None = None
     gst_percent: float = 5.0
     packaging_charge: float = 0.0
     sort_order: int = 1
@@ -258,6 +261,12 @@ class MenuItemCreateSchema(BaseModel):
                 data["is_popular"] = data["isPopular"]
             if "isAvailable" in data and "is_available" not in data:
                 data["is_available"] = data["isAvailable"]
+            if "isAvailableOnline" in data and "is_available_online" not in data:
+                data["is_available_online"] = data["isAvailableOnline"]
+            if "onlineStartTime" in data and "online_start_time" not in data:
+                data["online_start_time"] = data["onlineStartTime"]
+            if "onlineEndTime" in data and "online_end_time" not in data:
+                data["online_end_time"] = data["onlineEndTime"]
             if "gstPercent" in data and "gst_percent" not in data:
                 data["gst_percent"] = data["gstPercent"]
             if "sortOrder" in data and "sort_order" not in data:
@@ -271,6 +280,12 @@ class MenuItemCreateSchema(BaseModel):
             if "companyId" in data and "company_id" not in data:
                 data["company_id"] = data["companyId"]
         return data
+
+
+class MenuItemOnlineAvailabilitySchema(BaseModel):
+    is_available_online: bool = True
+    online_start_time: str | None = None
+    online_end_time: str | None = None
 
 
 class MenuItemResponseSchema(BaseModel):
@@ -291,6 +306,9 @@ class MenuItemResponseSchema(BaseModel):
     is_veg: bool = True
     is_popular: bool = False
     is_available: bool = True
+    is_available_online: bool = True
+    online_start_time: str | None = None
+    online_end_time: str | None = None
     gst_percent: float = 5.0
     packaging_charge: float = 0.0
     sort_order: int = 1

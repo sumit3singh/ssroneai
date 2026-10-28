@@ -40,7 +40,7 @@ export const FoodTypeBadge: React.FC<{ isNonVeg: boolean; className?: string }> 
 const MenuItemCardComponent: React.FC<MenuItemCardProps> = ({ item, categoryName, onAdd }) => {
   const { toast } = useToast();
   const { itemAvailabilityRules } = useTenantAppConfig();
-  const availability = checkMenuItemAvailability(item.id, item.name, itemAvailabilityRules);
+  const availability = checkMenuItemAvailability(item.id, item.name, itemAvailabilityRules, item);
   const isAvailable = availability.isAvailable && item.isAvailable !== false;
 
   const updateQuantity = useCartStore((s) => s.updateQuantity);
@@ -102,6 +102,14 @@ const MenuItemCardComponent: React.FC<MenuItemCardProps> = ({ item, categoryName
   const handleIncrement = (e: React.MouseEvent) => {
     e.stopPropagation();
     triggerHaptic();
+    if (!isAvailable) {
+      toast({
+        title: "Item Unavailable",
+        description: availability.reason || "This item is currently not available.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (hasVariants) {
       onAdd(item, e);
     } else {
@@ -133,6 +141,14 @@ const MenuItemCardComponent: React.FC<MenuItemCardProps> = ({ item, categoryName
   const handleAddClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     triggerHaptic();
+    if (!isAvailable) {
+      toast({
+        title: "Item Unavailable",
+        description: availability.reason || "This item is currently not available.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (hasVariants) {
       onAdd(item, e);
     } else {
@@ -183,7 +199,12 @@ const MenuItemCardComponent: React.FC<MenuItemCardProps> = ({ item, categoryName
           )}
           {!isAvailable && (
             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold text-rose-700 bg-rose-50 border border-rose-200 shrink-0 mt-0.5">
-              {availability.reason || "Not Available"}
+              {availability.badgeText || availability.reason || "Not Available"}
+            </span>
+          )}
+          {isAvailable && availability.isTimed && availability.badgeText && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold text-amber-800 bg-amber-50 border border-amber-300 shrink-0 mt-0.5">
+              ⏰ {availability.badgeText}
             </span>
           )}
         </div>

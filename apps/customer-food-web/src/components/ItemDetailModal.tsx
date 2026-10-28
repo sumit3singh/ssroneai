@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { FoodTypeBadge } from "@/components/MenuItemCard";
 import { getDishPhoto } from "@/lib/foodImageHelper";
 import OptimizedImage from "@/components/OptimizedImage";
+import useTenantAppConfig from "@/hooks/useTenantAppConfig";
+import { checkMenuItemAvailability } from "@/lib/storeOperatingStatus";
 
 interface ItemDetailModalProps {
   item: MenuItem | null;
@@ -26,6 +28,10 @@ export const ItemDetailModal = ({ item, onClose, onAddToCart }: ItemDetailModalP
   const [selectedAddons, setSelectedAddons] = useState<Record<string, AddonOption[]>>({});
   const [qty, setQty] = useState<number>(1);
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  const { itemAvailabilityRules } = useTenantAppConfig();
+  const availability = item ? checkMenuItemAvailability(item.id, item.name, itemAvailabilityRules, item) : { isAvailable: true };
+  const isAvailable = availability.isAvailable && item?.isAvailable !== false;
 
   // Close on Escape key
   useEffect(() => {
@@ -347,12 +353,18 @@ export const ItemDetailModal = ({ item, onClose, onAddToCart }: ItemDetailModalP
             </div>
 
             <motion.button
-              whileTap={{ scale: 0.97 }}
-              onClick={handleAdd}
-              className="flex-1 h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-extrabold rounded-full text-xs sm:text-sm shadow-md flex items-center justify-between px-4 cursor-pointer transition-all active:scale-95"
+              whileTap={isAvailable ? { scale: 0.97 } : undefined}
+              onClick={isAvailable ? handleAdd : undefined}
+              disabled={!isAvailable}
+              className={cn(
+                "flex-1 h-11 font-extrabold rounded-full text-xs sm:text-sm shadow-md flex items-center justify-between px-4 transition-all",
+                isAvailable
+                  ? "bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer active:scale-95"
+                  : "bg-muted text-muted-foreground cursor-not-allowed opacity-80"
+              )}
             >
-              <span>Add to Order</span>
-              <span className="font-black text-sm">₹{total}</span>
+              <span>{isAvailable ? "Add to Order" : (availability.badgeText || "Currently Unavailable")}</span>
+              <span className="font-black text-sm">{isAvailable ? `₹${total}` : ""}</span>
             </motion.button>
           </div>
         </motion.div>

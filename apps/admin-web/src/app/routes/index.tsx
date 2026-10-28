@@ -225,6 +225,26 @@ const posMasterKitchenStationsRoute = createRoute({
   ),
 });
 
+const posMasterFoodAppMenuRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pos/master/food-app-menu",
+  component: () => (
+    <ProtectedRoute>
+      <POSPage />
+    </ProtectedRoute>
+  ),
+});
+
+const posMasterOnlineMenuRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pos/master/online-menu",
+  component: () => (
+    <ProtectedRoute>
+      <POSPage />
+    </ProtectedRoute>
+  ),
+});
+
 const posTransactionBillingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/pos/transaction/billing",
@@ -1895,6 +1915,8 @@ const routeTree = rootRoute.addChildren([
   posMasterWaitersRoute,
   posMasterPaymentModesRoute,
   posMasterKitchenStationsRoute,
+  posMasterFoodAppMenuRoute,
+  posMasterOnlineMenuRoute,
   posTransactionBillingRoute,
   posTransactionKDSRoute,
   posTransactionOrdersRoute,

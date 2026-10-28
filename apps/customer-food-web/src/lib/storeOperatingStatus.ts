@@ -42,12 +42,24 @@ export function parseTimeToMinutes(timeStr?: string): number | null {
 }
 
 /**
- * Gets current minutes from midnight in Indian Standard Time (IST / UTC+5:30) or local browser time
+ * Gets current minutes from midnight in Indian Standard Time (IST / UTC+5:30)
  */
 export function getCurrentMinutesInIST(): number {
-  const now = new Date();
-  // Browser time in local hours & minutes
-  return now.getHours() * 60 + now.getMinutes();
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Kolkata",
+      hour: "numeric",
+      minute: "numeric",
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(new Date());
+    const h = parseInt(parts.find((p) => p.type === "hour")?.value || "0", 10);
+    const m = parseInt(parts.find((p) => p.type === "minute")?.value || "0", 10);
+    return h * 60 + m;
+  } catch {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  }
 }
 
 /**
@@ -126,13 +138,64 @@ export function formatTimeDisplay(timeStr?: string): string {
 export function checkMenuItemAvailability(
   itemId: string | number,
   itemName: string,
-  rules?: Record<string, ItemAvailabilityRule>
+  rules?: Record<string, ItemAvailabilityRule>,
+  itemObj?: any
 ): {
   isAvailable: boolean;
   badgeText?: string;
   reason?: string;
   isTimed?: boolean;
 } {
+  // 1. Direct item property check from backend MenuItem
+  if (itemObj) {
+    const isAvailOnline = itemObj.is_available_online ?? itemObj.isAvailableOnline ?? itemObj.nutrition?.is_available_online;
+    if (isAvailOnline === false) {
+      return {
+        isAvailable: false,
+        badgeText: "Unavailable on Food App",
+        reason: "This item is currently unavailable for online orders.",
+      };
+    }
+
+    const startTime = itemObj.online_start_time || itemObj.onlineStartTime || itemObj.nutrition?.online_start_time;
+    const endTime = itemObj.online_end_time || itemObj.onlineEndTime || itemObj.nutrition?.online_end_time;
+    if (startTime && endTime) {
+      const fromMins = parseTimeToMinutes(startTime);
+      const toMins = parseTimeToMinutes(endTime);
+      const currentMins = getCurrentMinutesInIST();
+
+      if (fromMins !== null && toMins !== null) {
+        const fromFormatted = formatTimeDisplay(startTime);
+        const toFormatted = formatTimeDisplay(endTime);
+        const timeWindowLabel = `${fromFormatted} – ${toFormatted}`;
+
+        let isWithin = false;
+        if (fromMins <= toMins) {
+          isWithin = currentMins >= fromMins && currentMins <= toMins;
+        } else {
+          // Cross-midnight window (e.g. 20:00 to 02:00)
+          isWithin = currentMins >= fromMins || currentMins <= toMins;
+        }
+
+        if (!isWithin) {
+          return {
+            isAvailable: false,
+            isTimed: true,
+            badgeText: `Available ${timeWindowLabel}`,
+            reason: `This dish is freshly prepared and served only from ${timeWindowLabel}.`,
+          };
+        } else {
+          return {
+            isAvailable: true,
+            badgeText: `Available ${timeWindowLabel}`,
+            isTimed: true,
+          };
+        }
+      }
+    }
+  }
+
+  // 2. Rules lookup fallback
   if (!rules) return { isAvailable: true };
 
   const rule =

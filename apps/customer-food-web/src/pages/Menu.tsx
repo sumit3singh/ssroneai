@@ -28,7 +28,8 @@ import { getCategoryPhoto } from "@/lib/foodImageHelper";
 import { cn } from "@/lib/utils";
 import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
 import { useTenantAppConfig } from "@/hooks/useTenantAppConfig";
-import { checkStoreOperatingStatus } from "@/lib/storeOperatingStatus";
+import { checkStoreOperatingStatus, checkMenuItemAvailability } from "@/lib/storeOperatingStatus";
+import { useToast } from "@/components/ui/use-toast";
 import type { MenuItem } from "@/data/mockMenu";
 import type { CartItemVariant, CartItemAddon } from "@/stores/cartStore";
 import BranchSwitchDialog from "@/components/BranchSwitchDialog";
@@ -39,6 +40,7 @@ import { useAuthStore } from "@ssrone/auth";
 
 export const MenuPage = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { tenantSlug, branchCode, tableNumber, branches, switchBranch } = useTenantBranchContext();
   const { orderMode } = useAuthStore();
   const { branding, hiddenItems, operatingHours } = useTenantAppConfig();
@@ -224,16 +226,34 @@ export const MenuPage = () => {
   };
 
   const handleAddItem = useCallback((item: MenuItem, e?: React.MouseEvent) => {
+    const avail = checkMenuItemAvailability(item.id, item.name, undefined, item);
+    if (!avail.isAvailable || (item as any).isAvailable === false) {
+      toast({
+        title: "Item Unavailable",
+        description: avail.reason || "This dish is currently not available for online orders.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (item.variantGroups?.length || item.addonGroups?.length) {
       setSelectedItem(item);
     } else {
       addItem(item);
     }
-  }, [addItem]);
+  }, [addItem, toast]);
 
   const handleAddToCart = useCallback((item: MenuItem, variants?: CartItemVariant[], addons?: CartItemAddon[]) => {
+    const avail = checkMenuItemAvailability(item.id, item.name, undefined, item);
+    if (!avail.isAvailable || (item as any).isAvailable === false) {
+      toast({
+        title: "Item Unavailable",
+        description: avail.reason || "This dish is currently not available for online orders.",
+        variant: "destructive",
+      });
+      return;
+    }
     addItem(item, variants, addons);
-  }, [addItem]);
+  }, [addItem, toast]);
 
   const homePath = `/t/${tenantSlug}/b/${branchCode}${tableNumber ? `/table/${tableNumber}` : ""}`;
 

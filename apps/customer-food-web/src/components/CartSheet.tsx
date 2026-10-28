@@ -11,7 +11,7 @@ import ChangeOrderModeDialog from "@/components/ChangeOrderModeDialog";
 import AddressSelectDialog from "@/components/AddressSelectDialog";
 import TableCameraScannerModal from "@/components/TableCameraScannerModal";
 import useTenantAppConfig from "@/hooks/useTenantAppConfig";
-import { checkStoreOperatingStatus } from "@/lib/storeOperatingStatus";
+import { checkStoreOperatingStatus, checkMenuItemAvailability } from "@/lib/storeOperatingStatus";
 import { cn } from "@/lib/utils";
 
 interface CartSheetProps {
@@ -28,6 +28,11 @@ export const CartSheet = ({ isOpen, onClose }: CartSheetProps) => {
   const storeStatus = checkStoreOperatingStatus(operatingHours);
   const minDelivery = deliverySettings?.minOrderValue || 0;
   const isDeliveryUnderMin = orderMode === "delivery" && getTotal() < minDelivery;
+
+  const unavailableCartItem = items.find((ci) => {
+    const avail = checkMenuItemAvailability(ci.menuItem.id, ci.menuItem.name, undefined, ci.menuItem);
+    return !avail.isAvailable || (ci.menuItem as any).isAvailable === false;
+  });
   const [openNoteId, setOpenNoteId] = useState<string | null>(null);
 
   // Dining Mode Switcher state
@@ -307,6 +312,21 @@ export const CartSheet = ({ isOpen, onClose }: CartSheetProps) => {
                   </div>
                 )}
 
+                {unavailableCartItem && (
+                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs font-semibold flex items-center justify-between gap-2">
+                    <span className="leading-snug">
+                      "{unavailableCartItem.menuItem.name}" is only served during its designated hours.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeItem(unavailableCartItem.id)}
+                      className="text-amber-800 hover:text-amber-950 underline font-bold text-[11px] shrink-0 cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between pt-2 border-t border-border">
                   <div>
                     <span className="text-[11px] text-muted-foreground uppercase font-bold tracking-wider block">To Pay</span>
@@ -314,10 +334,10 @@ export const CartSheet = ({ isOpen, onClose }: CartSheetProps) => {
                   </div>
 
                   <motion.button
-                    whileTap={{ scale: (!storeStatus.isOpen || isDeliveryUnderMin) ? 1 : 0.97 }}
-                    disabled={!storeStatus.isOpen || isDeliveryUnderMin}
+                    whileTap={{ scale: (!storeStatus.isOpen || isDeliveryUnderMin || Boolean(unavailableCartItem)) ? 1 : 0.97 }}
+                    disabled={!storeStatus.isOpen || isDeliveryUnderMin || Boolean(unavailableCartItem)}
                     onClick={() => {
-                      if (!storeStatus.isOpen || isDeliveryUnderMin) return;
+                      if (!storeStatus.isOpen || isDeliveryUnderMin || unavailableCartItem) return;
                       onClose();
                       if (tenantSlug && branchCode) {
                         navigate(
@@ -335,7 +355,7 @@ export const CartSheet = ({ isOpen, onClose }: CartSheetProps) => {
                     }}
                     className={cn(
                       "flex-1 max-w-[220px] h-12 font-extrabold rounded-full text-sm shadow-md flex items-center justify-center gap-2 transition-all",
-                      (!storeStatus.isOpen || isDeliveryUnderMin)
+                      (!storeStatus.isOpen || isDeliveryUnderMin || Boolean(unavailableCartItem))
                         ? "bg-muted text-muted-foreground cursor-not-allowed shadow-none"
                         : "bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer"
                     )}
