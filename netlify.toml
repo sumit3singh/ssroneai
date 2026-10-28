@@ -8,6 +8,7 @@
 [build.environment]
   NODE_VERSION = "20"
   PNPM_FLAGS = "--no-frozen-lockfile"
+  VITE_API_URL = "https://ssrone-backend.onrender.com/api/v1"
 
 # Fallback rewrite for client-side SPA routing (TanStack Router / React Router)
 [[redirects]]

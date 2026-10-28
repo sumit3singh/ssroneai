@@ -35,7 +35,7 @@ const resolveDynamicBaseUrl = (): string => {
       window.location.hostname.endsWith(".onrender.com") ||
       window.location.hostname.endsWith(".ssrit.online"))
   ) {
-    if (!normalizedEnv || normalizedEnv.includes("localhost") || normalizedEnv.includes("127.0.0.1")) {
+    if (!normalizedEnv || normalizedEnv.includes("localhost") || normalizedEnv.includes("127.0.0.1") || normalizedEnv.includes("railway.app")) {
       return "https://ssrone-backend.onrender.com/api/v1";
     }
   }

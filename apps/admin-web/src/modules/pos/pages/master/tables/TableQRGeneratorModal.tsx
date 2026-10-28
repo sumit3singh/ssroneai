@@ -31,7 +31,10 @@ function getDefaultCustomerWebUrl(tenantSlug: string): string {
         if (host.startsWith("admin-web-")) {
           return `https://${host.replace("admin-web-", "customer-food-")}`;
         }
-        return "https://customer-food-web-production.up.railway.app";
+        return "https://baithakfood.netlify.app";
+      }
+      if (host.endsWith(".netlify.app")) {
+        return window.location.origin;
       }
       // If hosted on custom subdomain, e.g. pos.company.com -> food.company.com
       if (host.startsWith("pos.") || host.startsWith("admin.")) {
@@ -42,12 +45,12 @@ function getDefaultCustomerWebUrl(tenantSlug: string): string {
       if (host === "localhost" || host === "127.0.0.1") {
         return `${window.location.protocol}//${host}:3002`;
       }
-      return "https://customer-food-web-production.up.railway.app";
+      return "https://baithakfood.netlify.app";
     } catch {
-      return "https://customer-food-web-production.up.railway.app";
+      return "https://baithakfood.netlify.app";
     }
   }
-  return "https://customer-food-web-production.up.railway.app";
+  return "https://baithakfood.netlify.app";
 }
 
 function exportPdfViaIframe(contentHtml: string) {
@@ -386,7 +389,7 @@ export const TableQRGeneratorModal: React.FC<TableQRGeneratorModalProps> = ({
                 type="text"
                 value={customerWebBaseUrl}
                 onChange={(e) => handleUpdateUrl(e.target.value)}
-                placeholder="https://customer-food-web-production.up.railway.app"
+                placeholder="https://baithakfood.netlify.app"
                 className="flex-1 px-3 py-1.5 rounded-md bg-muted/50 border border-border text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <button
