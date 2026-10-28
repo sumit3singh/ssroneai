@@ -187,7 +187,7 @@ export function checkMenuItemAvailability(
         } else {
           return {
             isAvailable: true,
-            badgeText: `Available ${timeWindowLabel}`,
+            badgeText: "",
             isTimed: true,
           };
         }

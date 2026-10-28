@@ -8,7 +8,6 @@ import {
   ChevronLeft,
   User,
   Clock,
-  MessageSquare,
 } from "lucide-react";
 import { useAuthStore, setAuth } from "@ssrone/auth";
 import { useI18n } from "@/stores/i18nStore";
@@ -24,6 +23,27 @@ import { useTenantAppConfig } from "@/hooks/useTenantAppConfig";
 import { useCartStore } from "@/stores/cartStore";
 import CustomerProfileModal from "@/components/CustomerProfileModal";
 import { cn } from "@/lib/utils";
+
+export const sanitizeIndianPhoneNumber = (input: string): string => {
+  if (!input) return "";
+  let digits = input.replace(/\D/g, "");
+
+  // If mobile autofill or paste includes 91 country code for a number (e.g. +91 8059075260 -> 918059075260)
+  if (digits.startsWith("91") && digits.length > 10) {
+    digits = digits.slice(2);
+  }
+
+  // Strip leading zeroes (smart app: prevents typing 0 as first digit, prevents 08059075260 losing last digit)
+  digits = digits.replace(/^0+/, "");
+
+  // If user entered 091... or +91 080...
+  if (digits.startsWith("91") && digits.length > 10) {
+    digits = digits.slice(2);
+    digits = digits.replace(/^0+/, "");
+  }
+
+  return digits.slice(0, 10);
+};
 
 interface CustomerAuthGuardProps {
   children: React.ReactNode;
@@ -51,7 +71,7 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({
 
   const [step, setStep] = useState<"phone" | "otp" | "name">("phone");
   const [phone, setPhone] = useState("");
-  const [channel, setChannel] = useState<"whatsapp" | "sms">("whatsapp");
+  const [channel, setChannel] = useState<"whatsapp" | "sms">("sms");
   const [name, setName] = useState("");
   const [otp, setOtp] = useState(["", "", "", ""]);
   const [devCodeHint, setDevCodeHint] = useState<string>("1234");
@@ -123,7 +143,7 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({
     const targetChannel = overrideChannel || channel;
     if (overrideChannel) setChannel(overrideChannel);
 
-    const cleanDigits = phone.replace(/\D/g, "");
+    const cleanDigits = sanitizeIndianPhoneNumber(phone);
     if (cleanDigits.length < 10) {
       setError("Please enter a valid 10-digit mobile number");
       return;
@@ -140,9 +160,6 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({
       if (
         !name.trim() &&
         check.exists &&
-
-
-
         check.name &&
         !check.name.startsWith("Customer ") &&
         check.name !== "Guest Customer"
@@ -159,7 +176,7 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({
         setResendTimer(28);
       }
     } catch {
-      setError(`Failed to send ${targetChannel.toUpperCase()} verification code. Please retry.`);
+      setError(`Failed to send verification code. Please retry.`);
     } finally {
       setVerifying(false);
     }
@@ -212,7 +229,7 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({
     setVerifying(true);
 
     try {
-      const cleanDigits = phone.replace(/\D/g, "");
+      const cleanDigits = sanitizeIndianPhoneNumber(phone);
       const validName =
         name && !name.startsWith("Customer ") && name !== "Guest Customer"
           ? name.trim()
@@ -385,23 +402,12 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({
                     placeholder="Mobile Number"
                     value={phone}
                     onChange={(e) => {
-                      setPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
+                      const cleaned = sanitizeIndianPhoneNumber(e.target.value);
+                      setPhone(cleaned);
                       if (error) setError("");
                     }}
                     className="w-full bg-transparent text-sm font-bold text-[#2D241E] placeholder:text-[#A8A29E] focus:outline-none tracking-wider py-1"
                     autoFocus
-                  />
-                </div>
-
-                {/* Name Input */}
-                <div className="relative flex items-center bg-[#FAF8F5] rounded-2xl border border-[#E8E3DC] focus-within:border-[#9E6B38] focus-within:ring-2 focus-within:ring-[#9E6B38]/15 transition px-3 py-1.5">
-                  <User className="w-4 h-4 text-[#7A746B] mr-2 shrink-0 select-none" />
-                  <input
-                    type="text"
-                    placeholder="Your Name (e.g. Test)"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-transparent text-sm font-semibold text-[#2D241E] placeholder:text-[#A8A29E] focus:outline-none py-1"
                   />
                 </div>
 
@@ -416,10 +422,10 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({
                   </motion.div>
                 )}
 
-                {/* Continue Button */}
+                {/* Send Code Button */}
                 <button
                   type="button"
-                  onClick={() => handleSendOtp()}
+                  onClick={() => handleSendOtp("sms")}
                   disabled={verifying || phone.length < 10}
                   className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-[#9E6B38] to-[#8C5E35] text-white hover:brightness-105 font-bold text-sm shadow-[0_4px_14px_rgba(158,107,56,0.3)] transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
                 >
@@ -430,21 +436,10 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({
                     </>
                   ) : (
                     <>
-                      <span>Continue</span>
+                      <span>Send Code</span>
                       <ArrowRight className="w-4 h-4 stroke-[2.5]" />
                     </>
                   )}
-                </button>
-
-                {/* WhatsApp Alternative */}
-                <button
-                  type="button"
-                  onClick={() => handleSendOtp("whatsapp")}
-                  disabled={verifying}
-                  className="w-full py-2.5 px-3 rounded-2xl bg-[#25D366]/10 hover:bg-[#25D366]/20 border border-[#25D366]/30 text-[#128C7E] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs active:scale-95"
-                >
-                  <MessageSquare className="w-4 h-4 text-[#25D366] shrink-0" />
-                  <span>Continue with WhatsApp</span>
                 </button>
 
                 {/* Safe & Secure note */}

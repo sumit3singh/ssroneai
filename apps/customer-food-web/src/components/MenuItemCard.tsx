@@ -202,11 +202,6 @@ const MenuItemCardComponent: React.FC<MenuItemCardProps> = ({ item, categoryName
               {availability.badgeText || availability.reason || "Not Available"}
             </span>
           )}
-          {isAvailable && availability.isTimed && availability.badgeText && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold text-amber-800 bg-amber-50 border border-amber-300 shrink-0 mt-0.5">
-              ⏰ {availability.badgeText}
-            </span>
-          )}
         </div>
 
         {/* Row 2: Price */}

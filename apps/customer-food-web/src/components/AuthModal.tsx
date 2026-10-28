@@ -6,6 +6,7 @@ import { useI18n } from "@/stores/i18nStore";
 import { sendOtp, verifyOtp, updateCustomerProfile } from "@ssrone/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
+import { sanitizeIndianPhoneNumber } from "./CustomerAuthGuard";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -54,7 +55,7 @@ export const AuthModal = ({
     }
     setError("");
     try {
-      const cleanDigits = phone.replace(/\D/g, "");
+      const cleanDigits = sanitizeIndianPhoneNumber(phone);
       const result = await sendOtp(cleanDigits, "sms", tenantSlug);
       if (result.success) {
         setOtpSent(true);
@@ -85,7 +86,7 @@ export const AuthModal = ({
     setError("");
     setVerifying(true);
     try {
-      const cleanDigits = phone.replace(/\D/g, "");
+      const cleanDigits = sanitizeIndianPhoneNumber(phone);
       const validName = name.trim() && !name.startsWith("Customer ") ? name.trim() : undefined;
       const result = await verifyOtp(cleanDigits, otp, tenantSlug, validName, branchCode);
       if (result.success) {
@@ -186,25 +187,9 @@ export const AuthModal = ({
                       type="tel"
                       placeholder="9876543210"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      onChange={(e) => setPhone(sanitizeIndianPhoneNumber(e.target.value))}
                       className="w-full pl-16 pr-3.5 py-2.5 rounded-xl bg-[#F8F6F2] border border-[#E8E3DC] text-sm font-semibold text-[#2D241E] placeholder:text-[#A8A29E] focus:outline-none focus:border-[#9E6B38] focus:ring-2 focus:ring-[#9E6B38]/20 transition"
                       autoFocus
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-[#7A746B] uppercase tracking-wider block mb-1">
-                    Your Name (Optional)
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7A746B]" />
-                    <input
-                      type="text"
-                      placeholder="e.g. Rahul Sharma"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-[#F8F6F2] border border-[#E8E3DC] text-sm font-semibold text-[#2D241E] placeholder:text-[#A8A29E] focus:outline-none focus:border-[#9E6B38] focus:ring-2 focus:ring-[#9E6B38]/20 transition"
                     />
                   </div>
                 </div>
