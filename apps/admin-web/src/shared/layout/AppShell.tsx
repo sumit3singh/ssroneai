@@ -311,8 +311,11 @@ export function AppShell({ children }: AppShellProps) {
   }, []);
 
   const isHomePage = currentPath === "/";
-  // Detect Owner Pocket Hub routes to provide a minimal UI on mobile
+  // On Owner Pocket Hub, render pure standalone view without ERP header, sidebar, or footer
   const isOwnerPage = currentPath.startsWith("/owner");
+  if (isOwnerPage) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden select-none">
