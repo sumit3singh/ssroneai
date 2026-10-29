@@ -25,7 +25,6 @@ import {
   modifyAndAcceptOnlineOrder,
 } from "@ssrone/api-client";
 import { printKOTSlipsDirectly, StationKOTSlip } from "./ThermalKOTPrintableArea";
-import { printCustomerReceiptDirectly } from "../utils/printUtils";
 
 interface OnlineOrderApprovalModalProps {
   isOpen: boolean;
@@ -98,30 +97,8 @@ export const OnlineOrderApprovalModal: React.FC<OnlineOrderApprovalModalProps> =
       }
     }
 
-    try {
-      printCustomerReceiptDirectly({
-        orderNumber: String(order.order_number),
-        orderType: ordType,
-        tableName: String(tblName),
-        customerName: order.customer_name || order.metadata_payload?.customer_name,
-        customerPhone: order.customer_phone || order.metadata_payload?.customer_phone,
-        customerAddress: order.delivery_address || order.customer_address,
-        items: order.items || [],
-        subtotal: Number(order.subtotal || 0),
-        packagingChargeTotal: Number(order.packaging_charge || 0),
-        taxAmount: Number(order.total_tax || 0),
-        discountAmount: Number(order.discount_amount || 0),
-        netAmount: Number(order.grand_total || order.subtotal || 0),
-        paymentMethod: order.payment_method || "CASH",
-        timestamp: new Date().toLocaleString(),
-      });
-      toast.info("Customer Receipt sent to printer 🖨️");
-    } catch (rcptErr) {
-      console.warn("Customer receipt print trigger error:", rcptErr);
-    }
-
     toast.success(`⚡ Order #${order.order_number} Accepted! 🎉`, {
-      description: "Printing KOT & Receipt. Moving order to active kitchen orders.",
+      description: "Kitchen KOT sent to printer. Moving order to active kitchen orders.",
     });
 
     // 3. Optimistic Modal Update (No 15-second waiting!)
@@ -539,7 +516,7 @@ export const OnlineOrderApprovalModal: React.FC<OnlineOrderApprovalModalProps> =
                         ) : (
                           <CheckCircle size={14} className="mr-1" />
                         )}
-                        <span>Accept & Print (Receipt + KOT) 🖨️</span>
+                        <span>Accept & Print KOT 🖨️</span>
                       </Button>
                     </div>
                   )}

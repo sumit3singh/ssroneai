@@ -7,6 +7,7 @@ import {
   createRoute,
   createRouter,
   Outlet,
+  Navigate,
 } from "@tanstack/react-router";
 
 import { ProtectedRoute } from "@/app/routes/ProtectedRoute";
@@ -73,6 +74,12 @@ const indexRoute = createRoute({
       <ConnectedAppsLauncher />
     </ProtectedRoute>
   ),
+});
+
+const indexHtmlRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/index.html",
+  component: () => <Navigate to="/" replace />,
 });
 
 const platformRoute = createRoute({
@@ -2117,6 +2124,7 @@ const routeTree = rootRoute.addChildren([
   ownerRoute,
   ownerOrdersRoute,
   ownerReportsRoute,
+  indexHtmlRoute,
 ]);
 
 export const router = createRouter({

@@ -168,8 +168,15 @@ export const OwnerPocketDashboardPage: React.FC = () => {
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const initialFetchDoneRef = useRef<boolean>(false);
 
-  // PWA Install Prompt Listener
+  // PWA Install Prompt Listener & Dedicated Owner Hub Manifest Binding
   useEffect(() => {
+    // Dynamically point PWA manifest to dedicated Owner Hub configuration
+    const manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null;
+    const previousManifest = manifestLink?.getAttribute("href") || "/manifest.webmanifest";
+    if (manifestLink) {
+      manifestLink.setAttribute("href", "/owner-manifest.webmanifest");
+    }
+
     const handleBeforeInstall = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -185,6 +192,9 @@ export const OwnerPocketDashboardPage: React.FC = () => {
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+      if (manifestLink && previousManifest) {
+        manifestLink.setAttribute("href", previousManifest);
+      }
     };
   }, []);
 

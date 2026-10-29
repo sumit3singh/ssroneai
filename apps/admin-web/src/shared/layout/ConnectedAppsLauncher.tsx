@@ -13,6 +13,15 @@ export const ConnectedAppsLauncher: React.FC = () => {
 
   const erpModules = [
     {
+      id: "owner-hub",
+      name: "Owner Pocket Hub (Live)",
+      path: "/owner",
+      icon: Smartphone,
+      iconStyle: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 group-hover:bg-amber-600 group-hover:text-white group-hover:border-amber-600",
+      cardHover: "hover:border-amber-500/40 hover:shadow-amber-500/5",
+      textHover: "group-hover:text-amber-600 dark:group-hover:text-amber-400",
+    },
+    {
       id: "pos",
       name: "POS & Restaurant",
       path: "/pos",

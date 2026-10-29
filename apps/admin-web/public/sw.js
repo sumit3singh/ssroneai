@@ -1,9 +1,11 @@
-// SSR One AI - Enterprise POS Service Worker (Offline Kiosk Cache)
-const CACHE_NAME = "ssrone-pos-v1";
+// SSR One AI - Enterprise POS Service Worker (Offline Kiosk & Owner Hub Cache)
+const CACHE_NAME = "ssrone-pos-v2";
 const STATIC_ASSETS = [
   "/",
+  "/owner",
   "/favicon.svg",
-  "/manifest.webmanifest"
+  "/manifest.webmanifest",
+  "/owner-manifest.webmanifest"
 ];
 
 self.addEventListener("install", (event) => {
