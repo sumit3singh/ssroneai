@@ -214,7 +214,11 @@ export const ThermalKOTPrintableArea: React.FC<ThermalKOTPrintableAreaProps> = (
 export async function printKOTSlipsDirectly(slips: StationKOTSlip[]) {
   if (!slips || slips.length === 0) return;
 
-  const slipsHtml = slips.map((slip) => {
+  // Filter out any CANCELLED slips - ERP requirement: Do not waste thermal paper on cancelled items
+  const validSlips = slips.filter((s) => s.kotType !== "CANCELLED");
+  if (validSlips.length === 0) return;
+
+  const slipsHtml = validSlips.map((slip) => {
     const displayTable = formatKOTTableDisplay(slip.tableName, slip.orderType);
     const displayOrderNum = getDisplayOrderNumber({ order_number: slip.orderNumber }) || slip.orderNumber;
     const totalQty = slip.items.reduce((sum, it) => sum + (it.quantity || 1), 0);

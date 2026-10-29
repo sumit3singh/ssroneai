@@ -1860,35 +1860,8 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       });
     });
 
-    // Partition CANCELLED items by station so kitchen knows immediately not to prepare them
-    cancelledItemsToPrint.forEach(({ item, cancelledQty }) => {
-      const st = resolveItemKitchenStation(item);
-      const cancelKey = `${st.name}_VOID`;
-      if (!stationSlipsMap[cancelKey]) {
-        stationSlipsMap[cancelKey] = {
-          stationName: st.name,
-          stationCode: st.code,
-          printerName: st.printer,
-          orderNumber: assignedNum,
-          orderType: orderMode.toUpperCase(),
-          tableName: selectedTable?.table_number,
-          waiterName: selectedWaiter?.name,
-          kotType: "CANCELLED",
-          timestamp: new Date().toLocaleString(),
-          items: [],
-        };
-      }
-      stationSlipsMap[cancelKey].items.push({
-        cart_id: item.cart_id,
-        item_id: item.item_id,
-        name: item.name,
-        quantity: cancelledQty,
-        variant_name: item.variant_name,
-        addons: item.addons,
-        notes: "*** VOID: DO NOT PREPARE ***",
-        is_veg: item.is_veg,
-      });
-    });
+    // NOTE: Per ERP requirement, cancelled/deleted menu items are NOT printed to kitchen thermal slips.
+    // They are updated in DB, order total, and KDS silently without wasting physical thermal paper.
 
     const generatedSlips = Object.values(stationSlipsMap);
 
