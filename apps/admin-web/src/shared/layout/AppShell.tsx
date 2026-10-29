@@ -311,6 +311,8 @@ export function AppShell({ children }: AppShellProps) {
   }, []);
 
   const isHomePage = currentPath === "/";
+  // Detect Owner Pocket Hub routes to provide a minimal UI on mobile
+  const isOwnerPage = currentPath.startsWith("/owner");
 
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden select-none">
@@ -633,15 +635,18 @@ export function AppShell({ children }: AppShellProps) {
         ) : (
           <div className="flex flex-1 min-h-0 overflow-hidden">
             {/* Metadata-Driven Sidebar (Only inside module workspaces) */}
-            <Sidebar
-              currentPath={currentPath}
-              isCollapsed={!sidebarOpen}
-              onToggleCollapse={() => setSidebarOpen((v) => !v)}
-              onToggleCompanyModal={() => setBranchDropdownOpen((v) => !v)}
-              userName={userName}
-              userRole={user?.is_superadmin ? "Super Administrator" : "Platform User"}
-              onLogout={logout}
-            />
+            {/* Render sidebar only when not on Owner Pocket Hub */}
+            {!isOwnerPage && (
+              <Sidebar
+                currentPath={currentPath}
+                isCollapsed={!sidebarOpen}
+                onToggleCollapse={() => setSidebarOpen((v) => !v)}
+                onToggleCompanyModal={() => setBranchDropdownOpen((v) => !v)}
+                userName={userName}
+                userRole={user?.is_superadmin ? "Super Administrator" : "Platform User"}
+                onLogout={logout}
+              />
+            )}
 
             <main className="flex-1 overflow-y-auto p-4 bg-background">
               {children}
