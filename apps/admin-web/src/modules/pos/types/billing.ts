@@ -51,6 +51,7 @@ export interface POSOrder {
   items: POSCartItem[];
   subtotal: number;
   packaging_charge?: number;
+  delivery_charge?: number;
   tax_amount: number;
   discount_amount: number;
   net_amount: number;

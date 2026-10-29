@@ -54,6 +54,7 @@ export interface CustomerReceiptPayload {
   }>;
   subtotal: number;
   packagingChargeTotal?: number;
+  deliveryChargeTotal?: number;
   taxAmount: number;
   discountAmount: number;
   netAmount: number;
@@ -518,6 +519,12 @@ export const POSPrintPortal: React.FC<POSPrintPortalProps> = ({
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span>Packaging:</span>
                 <span>₹{receiptData.packagingChargeTotal}</span>
+              </div>
+            )}
+            {Number(receiptData.deliveryChargeTotal || 0) > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Delivery:</span>
+                <span>₹{receiptData.deliveryChargeTotal}</span>
               </div>
             )}
             {Number(receiptData.discountAmount || 0) > 0 && (

@@ -407,8 +407,13 @@ export const OnlineOrderApprovalModal: React.FC<OnlineOrderApprovalModalProps> =
 
                   {/* Total & Payment Method */}
                   <div className="flex items-center justify-between text-xs pt-1">
-                    <span className="text-muted-foreground">
-                      Payment Mode: <strong className="text-foreground uppercase">{order.payment_method || "Cash / COD"}</strong>
+                    <span className="text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                      <span>Payment Mode: <strong className="text-foreground uppercase">{order.payment_method || "Cash / COD"}</strong></span>
+                      {isDelivery && (
+                        <span className="px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-mono text-[10px] font-bold border border-indigo-500/20">
+                          Delivery: {Number((order as any).delivery_charge ?? (order as any).deliveryFee ?? 0) === 0 ? "FREE" : `₹${Number((order as any).delivery_charge ?? (order as any).deliveryFee)}`}
+                        </span>
+                      )}
                     </span>
                     <div className="text-right">
                       <span className="text-muted-foreground mr-2">Grand Total:</span>

@@ -25,6 +25,9 @@ interface POSCartPanelProps {
   setIsPackagingEnabled?: (enabled: boolean) => void;
   packagingChargeAmount?: number;
   setPackagingChargeAmount?: (amount: number) => void;
+  deliveryChargeTotal?: number;
+  deliveryChargeAmount?: number;
+  setDeliveryChargeAmount?: (amount: number) => void;
   discountAmount: number;
   setDiscountAmount: (discount: number) => void;
   applyGst?: boolean;
@@ -87,6 +90,9 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
   setIsPackagingEnabled,
   packagingChargeAmount = 0,
   setPackagingChargeAmount,
+  deliveryChargeTotal = 0,
+  deliveryChargeAmount,
+  setDeliveryChargeAmount,
   discountAmount,
   setDiscountAmount,
   applyGst = false,
@@ -976,6 +982,42 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
               </span>
             )}
           </div>
+
+          {/* TIERED DELIVERY CHARGE (DELIVERY ORDERS ONLY) */}
+          {orderMode === "delivery" && (
+            <div className="flex justify-between items-center text-xs py-1 px-1.5 rounded-md bg-sky-500/10 border border-sky-500/20 text-foreground">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Truck size={13} className="text-sky-600 dark:text-sky-400 shrink-0" />
+                <span className="text-sky-700 dark:text-sky-300 font-bold text-xs truncate">
+                  Delivery Charge
+                </span>
+                <span className="text-[9.5px] font-mono text-muted-foreground whitespace-nowrap">
+                  {subtotal > 300 ? "(Free >₹300)" : subtotal > 220 ? "(₹30 for ₹220-300)" : "(₹50 for ₹0-220)"}
+                </span>
+              </div>
+
+              {deliveryChargeTotal === 0 ? (
+                <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400 font-black">
+                  FREE (₹0)
+                </span>
+              ) : (
+                <div className="flex items-center gap-0.5">
+                  <span className="font-mono text-xs text-sky-600 dark:text-sky-400 font-black">+₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={deliveryChargeAmount !== undefined ? deliveryChargeAmount : deliveryChargeTotal}
+                    onChange={(e) => {
+                      const val = Math.max(0, parseFloat(e.target.value) || 0);
+                      setDeliveryChargeAmount?.(val);
+                    }}
+                    className="w-14 bg-background border border-sky-500/50 rounded-md px-1 py-0.5 text-right font-mono text-xs font-bold text-sky-700 dark:text-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-500 tabular-nums"
+                    title="Change delivery charge amount (₹)"
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* DUAL DISCOUNT ENGINE (% or ₹) */}
           <div className="flex justify-between items-center text-xs">

@@ -222,6 +222,8 @@ class OrderCreateSchema(BaseModel):
     source_channel: str = "pos"
     subtotal: Any = None
     packaging_charge: Any = None
+    delivery_charge: Any = None
+    deliveryFee: Any = None
     tax_amount: Any = None
     discount_amount: Any = Decimal("0")
     net_amount: Any = None
@@ -673,7 +675,9 @@ async def create_order(
     total_discount = Decimal(str(body.discount_amount)) if body.discount_amount is not None else Decimal("0")
 
     pkg_charge = Decimal(str(body.packaging_charge)) if body.packaging_charge is not None else Decimal("0")
-    taxable = max(Decimal("0"), subtotal + pkg_charge - total_discount)
+    del_val = body.delivery_charge if getattr(body, "delivery_charge", None) is not None else getattr(body, "deliveryFee", None)
+    del_charge = Decimal(str(del_val)) if del_val is not None else Decimal("0")
+    taxable = max(Decimal("0"), subtotal + pkg_charge + del_charge - total_discount)
 
     if body.tax_amount is not None:
         total_tax = Decimal(str(body.tax_amount))
@@ -765,6 +769,8 @@ async def create_order(
             existing_order.metadata_payload = {}
         if body.payment_method:
             existing_order.metadata_payload["payment_method"] = (body.payment_method or "CASH").upper()
+        existing_order.metadata_payload["packaging_charge"] = float(pkg_charge)
+        existing_order.metadata_payload["delivery_charge"] = float(del_charge)
         if target_status in ("completed", "paid"):
             pm_upper = (body.payment_method or "CASH").upper()
             if pm_upper == "CREDIT_ACCOUNT" or (balance_due > 0 and amount_paid == 0):
@@ -999,6 +1005,8 @@ async def create_order(
             "payment_method": (body.payment_method or "CASH").upper(),
             "customer_name": getattr(body, "customer_name", None),
             "customer_phone": getattr(body, "customer_phone", None),
+            "packaging_charge": float(pkg_charge),
+            "delivery_charge": float(del_charge),
         },
     )
     db.add(order)

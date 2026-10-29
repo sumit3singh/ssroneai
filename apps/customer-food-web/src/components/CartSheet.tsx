@@ -27,7 +27,8 @@ export const CartSheet = ({ isOpen, onClose }: CartSheetProps) => {
   const { taxSettings, operatingHours, deliverySettings } = useTenantAppConfig();
   const storeStatus = checkStoreOperatingStatus(operatingHours);
   const minDelivery = deliverySettings?.minOrderValue || 0;
-  const isDeliveryUnderMin = orderMode === "delivery" && getTotal() < minDelivery;
+  // Tiered delivery system allows all amounts >= 0
+  const isDeliveryUnderMin = false;
 
   const unavailableCartItem = items.find((ci) => {
     const avail = checkMenuItemAvailability(ci.menuItem.id, ci.menuItem.name, undefined, ci.menuItem);
@@ -44,7 +45,15 @@ export const CartSheet = ({ isOpen, onClose }: CartSheetProps) => {
   const shouldApplyGst = taxSettings?.applyGst ?? false;
   const gstRate = taxSettings?.gstRate ?? 5;
   const tax = shouldApplyGst ? Math.round(total * (gstRate / 100)) : 0;
-  const grandTotal = total + tax;
+
+  // Tiered Delivery Fee (Delivery Only):
+  // ₹0 - ₹220: ₹50
+  // ₹220 - ₹300: ₹30
+  // Above ₹300: FREE (₹0)
+  const deliveryFee = orderMode === "delivery"
+    ? (total > 300 ? 0 : total > 220 ? 30 : (total > 0 ? 50 : 0))
+    : 0;
+  const grandTotal = total + tax + deliveryFee;
 
   return (
     <AnimatePresence>
@@ -294,6 +303,25 @@ export const CartSheet = ({ isOpen, onClose }: CartSheetProps) => {
                     {shouldApplyGst ? `₹${tax}` : "₹0 (Tax Free)"}
                   </span>
                 </div>
+
+                {orderMode === "delivery" && (
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Delivery Fee</span>
+                    <span className={`font-bold ${deliveryFee === 0 ? "text-emerald-600 dark:text-emerald-400 font-mono" : "text-foreground"}`}>
+                      {deliveryFee === 0 ? "FREE" : `₹${deliveryFee}`}
+                    </span>
+                  </div>
+                )}
+
+                {orderMode === "delivery" && total > 0 && total <= 300 && (
+                  <div className="p-2 rounded-xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-900/40 text-[11px] font-semibold text-blue-800 dark:text-blue-300 flex items-center justify-between">
+                    <span>
+                      {total <= 220
+                        ? `Add ₹${221 - total} more for ₹30 delivery or ₹${301 - total} for FREE delivery`
+                        : `Add ₹${301 - total} more for FREE delivery`}
+                    </span>
+                  </div>
+                )}
 
                 {/* Operating status & min delivery warnings */}
                 {!storeStatus.isOpen && (

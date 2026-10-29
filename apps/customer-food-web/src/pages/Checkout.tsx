@@ -106,7 +106,8 @@ export const Checkout = () => {
 
   const total = getTotal();
   const minDelivery = deliverySettings?.minOrderValue || 0;
-  const isDeliveryUnderMin = orderMode === "delivery" && total < minDelivery;
+  // With tiered delivery rates active (0-220: ₹50, 220-300: ₹30, >300: Free), all amounts are deliverable
+  const isDeliveryUnderMin = false;
   const shouldApplyGst = taxSettings?.applyGst ?? false;
   const gstRate = taxSettings?.gstRate ?? 5;
   const tax = shouldApplyGst ? Math.round(total * (gstRate / 100)) : 0;
@@ -115,7 +116,13 @@ export const Checkout = () => {
   const isPackingChargeEnabled = charges?.enablePackingCharge ?? false;
   const packingCharge = (orderMode !== "dine-in" && isPackingChargeEnabled) ? (charges?.packingChargeAmount ?? 0) : 0;
 
-  const deliveryFee = orderMode === "delivery" ? (total >= 499 ? 0 : (charges?.enableDeliveryCharge ? charges?.deliveryChargeAmount : 40)) : 0;
+  // Tiered Delivery Fee (Delivery Only):
+  // ₹0 - ₹220: ₹50
+  // ₹220 - ₹300: ₹30
+  // Above ₹300: FREE (₹0)
+  const deliveryFee = orderMode === "delivery"
+    ? (total > 300 ? 0 : total > 220 ? 30 : (total > 0 ? 50 : 0))
+    : 0;
   const grandTotal = Math.max(0, total + tax + packingCharge + deliveryFee);
 
   const [placing, setPlacing] = useState(false);
@@ -880,6 +887,7 @@ export const Checkout = () => {
         taxAmount: tax,
         tax_amount: tax,
         deliveryFee,
+        delivery_charge: deliveryFee,
         discountAmount: 0,
         discount_amount: 0,
         total: grandTotal,

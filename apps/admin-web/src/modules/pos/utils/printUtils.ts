@@ -207,6 +207,7 @@ export interface CustomerReceiptSlipData {
   items: Array<any>;
   subtotal: number;
   packagingChargeTotal?: number;
+  deliveryChargeTotal?: number;
   taxAmount: number;
   discountAmount?: number;
   netAmount: number;
@@ -265,6 +266,15 @@ export function printCustomerReceiptDirectly(data: CustomerReceiptSlipData): voi
       <div style="display: flex; justify-content: space-between;">
         <span>Packaging:</span>
         <span style="font-weight: bold;">+${Number(data.packagingChargeTotal).toFixed(2)}</span>
+      </div>
+    `
+    : "";
+
+  const deliveryRow = (data.deliveryChargeTotal && data.deliveryChargeTotal > 0)
+    ? `
+      <div style="display: flex; justify-content: space-between;">
+        <span>Delivery:</span>
+        <span style="font-weight: bold;">+${Number(data.deliveryChargeTotal).toFixed(2)}</span>
       </div>
     `
     : "";
@@ -381,6 +391,7 @@ export function printCustomerReceiptDirectly(data: CustomerReceiptSlipData): voi
               <span style="font-weight: bold;">${Number(data.subtotal).toFixed(2)}</span>
             </div>
             ${packagingRow}
+            ${deliveryRow}
             ${discountRow}
             <div style="display: flex; justify-content: space-between;">
               <span>GST:</span>

@@ -224,6 +224,15 @@ export async function generateReceiptImageBlob(data: CustomerReceiptSlipData): P
     y += 20;
   }
 
+  // Delivery Charge (if applicable)
+  if (data.deliveryChargeTotal && data.deliveryChargeTotal > 0) {
+    ctx.textAlign = "left";
+    ctx.fillText("Delivery Charge:", width - padding - 220, y);
+    ctx.textAlign = "right";
+    ctx.fillText(`+${Number(data.deliveryChargeTotal).toFixed(2)}`, width - padding, y);
+    y += 20;
+  }
+
   // Discount (if applicable)
   if (data.discountAmount && data.discountAmount > 0) {
     ctx.textAlign = "left";

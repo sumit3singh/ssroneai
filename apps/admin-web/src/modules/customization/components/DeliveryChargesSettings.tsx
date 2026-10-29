@@ -134,9 +134,9 @@ export const DeliveryChargesSettings: React.FC<DeliveryChargesSettingsProps> = (
         <div className="p-3.5 rounded-xl border border-border bg-muted/20 space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-bold text-xs text-foreground">Flat Delivery Fee</p>
+              <p className="font-bold text-xs text-foreground">Delivery Rates & Slabs</p>
               <p className="text-[10px] text-muted-foreground">
-                Doorstep delivery fee charged on home and campus delivery orders.
+                Tiered delivery fee: ₹0 to ₹220 = ₹50, ₹220 to ₹300 = ₹30, above ₹300 = Free (₹0).
               </p>
             </div>
 

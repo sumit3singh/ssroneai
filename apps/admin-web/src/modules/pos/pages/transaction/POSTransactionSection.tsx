@@ -218,6 +218,11 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     }
   });
   const [customPackagingCharge, setCustomPackagingCharge] = useState<number | null>(null);
+  // Delivery Charge State (Delivery Orders Only):
+  // ₹0 - ₹220: ₹50
+  // ₹220 - ₹300: ₹30
+  // Above ₹300: FREE (₹0)
+  const [customDeliveryCharge, setCustomDeliveryCharge] = useState<number | null>(null);
   const [isFullScreenPOS, setIsFullScreenPOS] = useState<boolean>(() => {
     try {
       return typeof document !== "undefined"
@@ -1376,7 +1381,18 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     ? customPackagingCharge
     : autoPackagingCharge;
   const packagingChargeTotal = isPackagingEnabled ? Math.max(0, effectivePackagingAmount) : 0;
-  const taxableAmount = subtotal + packagingChargeTotal - discountAmount;
+
+  // Tiered Delivery Charge (Only for orderMode === "delivery")
+  // ₹0 - ₹220: ₹50
+  // ₹220 - ₹300: ₹30
+  // Above ₹300: FREE (₹0)
+  const autoDeliveryCharge = orderMode === "delivery"
+    ? (subtotal > 300 ? 0 : subtotal > 220 ? 30 : (subtotal > 0 ? 50 : 0))
+    : 0;
+  const effectiveDeliveryAmount = customDeliveryCharge !== null ? customDeliveryCharge : autoDeliveryCharge;
+  const deliveryChargeTotal = orderMode === "delivery" ? Math.max(0, effectiveDeliveryAmount) : 0;
+
+  const taxableAmount = subtotal + packagingChargeTotal + deliveryChargeTotal - discountAmount;
   
   // Optional GST (5%) — Default Unselected (₹0 unless checked by cashier)
   const taxAmount = applyGst ? Math.round(Math.max(0, taxableAmount) * 0.05) : 0;
@@ -1423,6 +1439,9 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     } else {
       setIsPackagingEnabled(false);
       setCustomPackagingCharge(null);
+    }
+    if (mode !== "delivery") {
+      setCustomDeliveryCharge(null);
     }
   };
 
@@ -1666,6 +1685,11 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       } else if (targetOrder.packaging_charge !== undefined) {
         setIsPackagingEnabled(false);
         setCustomPackagingCharge(0);
+      }
+      if (targetOrder.delivery_charge !== undefined) {
+        setCustomDeliveryCharge(Number(targetOrder.delivery_charge));
+      } else {
+        setCustomDeliveryCharge(null);
       }
 
       toast.success(`Order ${targetOrder.order_number} loaded into cart for editing!`);
@@ -1929,6 +1953,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       items: cartBackup,
       subtotal,
       packaging_charge: packagingChargeTotal,
+      delivery_charge: deliveryChargeTotal,
       tax_amount: taxAmount,
       discount_amount: discountAmount,
       net_amount: netAmount,
@@ -1953,6 +1978,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     isPendingOnlineApprovalRef.current = false;
     setDiscountAmount(0);
     setOrderNotes("");
+    setCustomDeliveryCharge(null);
 
     // 6. Virtual view transition immediately to Table Floor for all orders
     switchVirtualTab("tables");
@@ -1995,6 +2021,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       items: cartBackup,
       subtotal,
       packaging_charge: packagingChargeTotal,
+      delivery_charge: deliveryChargeTotal,
       tax_amount: taxAmount,
       discount_amount: discountAmount,
       net_amount: netAmount,
@@ -2069,6 +2096,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
       items: [...cartItems],
       subtotal,
       packaging_charge: packagingChargeTotal,
+      delivery_charge: deliveryChargeTotal,
       tax_amount: taxAmount,
       discount_amount: discountAmount,
       net_amount: netAmount,
@@ -2162,6 +2190,11 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
               setPackagingChargeAmount={(val) => {
                 setCustomPackagingCharge(val);
                 setIsPackagingEnabled(true);
+              }}
+              deliveryChargeTotal={deliveryChargeTotal}
+              deliveryChargeAmount={effectiveDeliveryAmount}
+              setDeliveryChargeAmount={(val) => {
+                setCustomDeliveryCharge(val);
               }}
               discountAmount={discountAmount}
               setDiscountAmount={setDiscountAmount}
