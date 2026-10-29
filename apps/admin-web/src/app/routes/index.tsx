@@ -46,6 +46,7 @@ const EnterpriseRoadmapPage = lazy(() => import("@/modules/settings").then(m => 
 const FinancePage = lazy(() => import("@/modules/finance").then(m => ({ default: m.FinancePage })));
 const FormBuilderPage = lazy(() => import("@/modules/forms").then(m => ({ default: m.FormBuilderPage })));
 const CustomizationStudioPage = lazy(() => import("@/modules/customization").then(m => ({ default: m.CustomizationStudioPage })));
+const OwnerPocketDashboardPage = lazy(() => import("@/modules/owner").then(m => ({ default: m.OwnerPocketDashboardPage })));
 
 
 // ─── Root Route ──────────────────────────────────────────────
@@ -1902,6 +1903,36 @@ const customizationDomainsRoute = createRoute({
   ),
 });
 
+const ownerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/owner",
+  component: () => (
+    <ProtectedRoute>
+      <OwnerPocketDashboardPage />
+    </ProtectedRoute>
+  ),
+});
+
+const ownerOrdersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/owner/orders",
+  component: () => (
+    <ProtectedRoute>
+      <OwnerPocketDashboardPage />
+    </ProtectedRoute>
+  ),
+});
+
+const ownerReportsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/owner/reports",
+  component: () => (
+    <ProtectedRoute>
+      <OwnerPocketDashboardPage />
+    </ProtectedRoute>
+  ),
+});
+
 // ─── Route Tree ──────────────────────────────────────────────
 
 const routeTree = rootRoute.addChildren([
@@ -2083,6 +2114,9 @@ const routeTree = rootRoute.addChildren([
   customizationDomainsRoute,
   hrWildcardRoute,
   posCustomerFacingDisplayRoute,
+  ownerRoute,
+  ownerOrdersRoute,
+  ownerReportsRoute,
 ]);
 
 export const router = createRouter({

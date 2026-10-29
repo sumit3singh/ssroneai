@@ -61,89 +61,87 @@ export const OnlineOrderApprovalModal: React.FC<OnlineOrderApprovalModalProps> =
   if (!isOpen) return null;
 
   const handleAccept = async (order: any) => {
+    // 0ms Optimistic Zero-Wait Flow:
+    // 1. Build KOT slips immediately from local order data
+    const activeItems = (order.items || []).filter((it: any) => !it.is_voided);
+    const ordType = String(order.order_type || order.order_mode || "TAKEAWAY").toUpperCase();
+    let tblName = order.table_name || order.table_number;
+    if (!tblName || String(tblName).toLowerCase().includes("food")) {
+      tblName = ordType.includes("DELIV") ? "Delivery ★" : ordType.includes("TAKE") ? "Takeaway ★" : "Table";
+    }
+
+    const slipsToPrint: StationKOTSlip[] = [{
+      stationName: "Kitchen",
+      orderNumber: String(order.order_number),
+      orderType: ordType,
+      tableName: String(tblName),
+      waiterName: order.waiter_name || "Food App Order",
+      kotType: "NEW",
+      timestamp: new Date().toLocaleString(),
+      items: activeItems.map((it: any) => ({
+        name: it.product_name || it.item_name || it.name || "Dish Item",
+        quantity: Number(it.quantity || 1),
+        variant_name: it.variant_name,
+        addons: it.addons || it.selected_addons || [],
+        notes: it.notes || it.preparation_notes,
+        is_veg: it.is_veg,
+      })),
+    }];
+
+    // 2. Instant Thermal Print Triggers (< 1ms)
+    if (slipsToPrint.length > 0) {
+      try {
+        await printKOTSlipsDirectly(slipsToPrint);
+        toast.info("Kitchen KOT slip sent to printer 🖨️");
+      } catch (printErr) {
+        console.warn("KOT print trigger error:", printErr);
+      }
+    }
+
+    try {
+      printCustomerReceiptDirectly({
+        orderNumber: String(order.order_number),
+        orderType: ordType,
+        tableName: String(tblName),
+        customerName: order.customer_name || order.metadata_payload?.customer_name,
+        customerPhone: order.customer_phone || order.metadata_payload?.customer_phone,
+        customerAddress: order.delivery_address || order.customer_address,
+        items: order.items || [],
+        subtotal: Number(order.subtotal || 0),
+        packagingChargeTotal: Number(order.packaging_charge || 0),
+        taxAmount: Number(order.total_tax || 0),
+        discountAmount: Number(order.discount_amount || 0),
+        netAmount: Number(order.grand_total || order.subtotal || 0),
+        paymentMethod: order.payment_method || "CASH",
+        timestamp: new Date().toLocaleString(),
+      });
+      toast.info("Customer Receipt sent to printer 🖨️");
+    } catch (rcptErr) {
+      console.warn("Customer receipt print trigger error:", rcptErr);
+    }
+
+    toast.success(`⚡ Order #${order.order_number} Accepted! 🎉`, {
+      description: "Printing KOT & Receipt. Moving order to active kitchen orders.",
+    });
+
+    // 3. Optimistic Modal Update (No 15-second waiting!)
     setProcessingId(order.id);
+    if (pendingOrders.length <= 1) {
+      onClose();
+    }
+    onRefresh();
+
+    // 4. Background Server State Transition
     try {
       const res = await acceptOnlineOrder(order.id);
-      if (res?.success) {
-        toast.success(`Order #${order.order_number} Accepted! 🎉`, {
-          description: "Sent to kitchen and moved to active orders.",
-        });
-
-        // 1. Automatically trigger thermal KOT printing for kitchen stations
-        let slipsToPrint: StationKOTSlip[] = [];
-        if (res?.generated_slips && Array.isArray(res.generated_slips) && res.generated_slips.length > 0) {
-          slipsToPrint = res.generated_slips.map((s: any) => ({
-            stationName: s.stationName || "Kitchen",
-            stationCode: s.stationCode,
-            printerName: s.printerName,
-            orderNumber: String(s.orderNumber || order.order_number),
-            orderType: String(s.orderType || order.order_type || "TAKEAWAY").toUpperCase(),
-            tableName: s.tableName || order.table_name || "Table",
-            waiterName: s.waiterName || order.waiter_name || "Food App Order",
-            kotType: (s.kotType as any) || "NEW",
-            timestamp: s.timestamp || new Date().toLocaleString(),
-            items: (s.items || []).map((it: any) => ({
-              name: it.name || it.item_name || "Dish Item",
-              quantity: Number(it.quantity || 1),
-              variant_name: it.variant_name,
-              addons: it.addons,
-              notes: it.notes,
-              is_veg: it.is_veg,
-            })),
-          }));
-        }
-
-        // Fail-safe client fallback if backend slips were empty:
-        if (slipsToPrint.length === 0 && order.items && order.items.length > 0) {
-          const activeItems = (order.items || []).filter((it: any) => !it.is_voided);
-          if (activeItems.length > 0) {
-            const ordType = String(order.order_type || order.order_mode || "TAKEAWAY").toUpperCase();
-            let tblName = order.table_name || order.table_number;
-            if (!tblName || String(tblName).toLowerCase().includes("food")) {
-              tblName = ordType.includes("DELIV") ? "Delivery ★" : ordType.includes("TAKE") ? "Takeaway ★" : "Table";
-            }
-            slipsToPrint = [{
-              stationName: "Kitchen",
-              orderNumber: String(order.order_number),
-              orderType: ordType,
-              tableName: String(tblName),
-              waiterName: order.waiter_name || "Food App Order",
-              kotType: "NEW",
-              timestamp: new Date().toLocaleString(),
-              items: activeItems.map((it: any) => ({
-                name: it.product_name || it.item_name || it.name || "Dish Item",
-                quantity: Number(it.quantity || 1),
-                variant_name: it.variant_name,
-                addons: it.addons || it.selected_addons || [],
-                notes: it.notes || it.preparation_notes,
-                is_veg: it.is_veg,
-              })),
-            }];
-          }
-        }
-
-        if (slipsToPrint.length > 0) {
-          try {
-            await printKOTSlipsDirectly(slipsToPrint);
-            toast.info("Kitchen KOT slip sent to printer 🖨️");
-          } catch (printErr) {
-            console.warn("KOT print trigger error:", printErr);
-          }
-        }
-
-        onRefresh();
-        if (pendingOrders.length <= 1) {
-          onClose();
-        }
-      } else {
-        toast.error("Could not accept order", {
-          description: res?.message || "Please try again",
+      if (!res?.success) {
+        toast.error("Could not complete order sync on server", {
+          description: res?.message || "Please check connection",
         });
       }
+      onRefresh();
     } catch (err: any) {
-      toast.error("Failed to accept order", {
-        description: err?.response?.data?.detail || err?.message || "Please try again",
-      });
+      console.warn("Background accept error:", err);
     } finally {
       setProcessingId(null);
     }

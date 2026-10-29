@@ -293,6 +293,8 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
   const [kitchenStations, setKitchenStations] = useState<any[]>([]);
   const [activeKOTSlips, setActiveKOTSlips] = useState<StationKOTSlip[]>([]);
   const baselineOrderItemsRef = useRef<Record<string, number>>({});
+  const isPendingOnlineApprovalRef = useRef(false);
+  const [isPendingOnlineApproval, setIsPendingOnlineApproval] = useState(false);
 
   const loadKitchenStations = async () => {
     try {
@@ -1582,13 +1584,28 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
         setRecalledOrderNumber(targetOrder.order_number);
       }
 
-      // Snapshot the baseline quantities for delta-item tracking on updated orders
-      const baselineMap: Record<string, number> = {};
-      formattedCart.forEach((it) => {
-        const key = it.fingerprint_key || `${it.item_id}-${it.variant_name || ""}`;
-        baselineMap[key] = (baselineMap[key] || 0) + it.quantity;
-      });
-      baselineOrderItemsRef.current = baselineMap;
+      // STRICT GUARD: Only incoming food app orders awaiting cafe acceptance require full initial KOT.
+      // Standard in-store POS orders ALWAYS preserve delta printing (newly added items only).
+      const isPending =
+        Boolean((targetOrder as any)?.is_pending_online_approval) ||
+        String(targetOrder.status || "").toLowerCase() === "pending_acceptance";
+
+      setIsPendingOnlineApproval(isPending);
+      isPendingOnlineApprovalRef.current = isPending;
+
+      if (isPending) {
+        // Online order undergoing first-time confirmation & kitchen dispatch:
+        // Baseline MUST be empty so ALL items (original items + added items) print on the KOT!
+        baselineOrderItemsRef.current = {};
+      } else {
+        // Snapshot the baseline quantities for delta-item tracking on updated orders
+        const baselineMap: Record<string, number> = {};
+        formattedCart.forEach((it) => {
+          const key = it.fingerprint_key || `${it.item_id}-${it.variant_name || ""}`;
+          baselineMap[key] = (baselineMap[key] || 0) + it.quantity;
+        });
+        baselineOrderItemsRef.current = baselineMap;
+      }
 
       // Capture source channel and delivery address to preserve star mark and mode permanently
       recalledOrderSourceChannelRef.current = targetOrder.source_channel || (targetOrder as any)?.order_source || null;
@@ -1676,6 +1693,8 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     setIsPackagingEnabled(orderMode !== "dine_in");
     setCustomPackagingCharge(null);
     baselineOrderItemsRef.current = {};
+    setIsPendingOnlineApproval(false);
+    isPendingOnlineApprovalRef.current = false;
     setActiveKOTSlips([]);
     try {
       if (typeof window !== "undefined" && "BroadcastChannel" in window) {
@@ -1717,6 +1736,8 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
 
     // 1. Generate client-side token & local order number & UUIDv4 idempotency key (< 0.1ms)
     const idempotencyKey = generateIdempotencyKey();
+    const isPendingApprovalOrder = Boolean(isPendingOnlineApprovalRef.current);
+    const isPrintUpdate = Boolean(recalledOrderNumber) && !isPendingApprovalOrder;
     const isUpdate = Boolean(recalledOrderNumber);
     const orderNum = recalledOrderNumber || undefined;
     const assignedNum = orderNum || generateLocalOrderNumber(activeBranchId, orderMode);
@@ -1738,7 +1759,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     const deltaItemsToPrint: POSCartItem[] = [];
     const cancelledItemsToPrint: { item: POSCartItem; cancelledQty: number }[] = [];
 
-    if (isUpdate) {
+    if (isPrintUpdate) {
       const baseline = baselineOrderItemsRef.current || {};
       const currentCartMap: Record<string, number> = {};
       cartBackup.forEach((it) => {
@@ -1822,7 +1843,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
           orderType: orderMode.toUpperCase(),
           tableName: selectedTable?.table_number,
           waiterName: selectedWaiter?.name,
-          kotType: isUpdate ? "UPDATE" : "NEW",
+          kotType: isPrintUpdate ? "UPDATE" : "NEW",
           timestamp: new Date().toLocaleString(),
           items: [],
         };
@@ -1890,7 +1911,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
           timestamp: slip.timestamp,
         });
       });
-    } else if (isUpdate) {
+    } else if (isPrintUpdate) {
       toast.info(`ℹ️ Order ${assignedNum} updated. No new items to print for kitchen.`);
       switchVirtualTab("tables");
     }
@@ -1955,6 +1976,8 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
     setRecalledOrderNumber(null);
     recalledOrderSourceChannelRef.current = null;
     recalledOrderDeliveryAddressRef.current = null;
+    setIsPendingOnlineApproval(false);
+    isPendingOnlineApprovalRef.current = false;
     setDiscountAmount(0);
     setOrderNotes("");
 
@@ -2154,6 +2177,7 @@ export const POSTransactionSection: React.FC<POSTransactionSectionProps> = ({
           <div className={`lg:col-span-1 flex flex-col h-full min-h-0 max-h-full overflow-hidden ${activeMobileTab === "cart" ? "flex" : "hidden lg:flex"}`}>
             <POSCartPanel
               orderNumber={recalledOrderNumber || ""}
+              isPendingOnlineApproval={isPendingOnlineApproval}
               cartItems={cartItems}
               allMenuItems={menuItems}
               subtotal={subtotal}

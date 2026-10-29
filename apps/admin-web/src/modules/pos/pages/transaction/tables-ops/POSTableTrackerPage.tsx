@@ -141,14 +141,15 @@ export const POSTableTrackerPage: React.FC<POSTableTrackerPageProps> = ({
   const handleModifyPendingOrderInPOS = React.useCallback(
     (order: any) => {
       const mode = (order.order_mode || order.order_type || "takeaway").toLowerCase();
+      const pendingOrderData = { ...order, is_pending_online_approval: true };
       try {
         localStorage.removeItem("selected_pos_table_id");
         localStorage.setItem("selected_pos_order_mode", mode);
-        localStorage.setItem("edit_pos_order", JSON.stringify(order));
+        localStorage.setItem("edit_pos_order", JSON.stringify(pendingOrderData));
       } catch {}
 
       if (onRecallOrderToCart) {
-        onRecallOrderToCart(order);
+        onRecallOrderToCart(pendingOrderData);
       } else {
         goToView("billing");
       }

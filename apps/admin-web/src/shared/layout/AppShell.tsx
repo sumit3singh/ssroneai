@@ -7,7 +7,7 @@ import { useRouterState, Link, useNavigate } from "@tanstack/react-router";
 import {
   Bell, Search, LogOut, User, Building2, Menu,
   Sun, Moon, ChevronDown, Check, Shield, X, Receipt, HelpCircle, LayoutGrid,
-  Sparkles
+  Sparkles, Smartphone
 } from "lucide-react";
 import { useAuthStore } from "@ssrone/auth";
 import { api } from "@ssrone/api-client";

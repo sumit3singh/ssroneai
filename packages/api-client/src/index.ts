@@ -613,6 +613,40 @@ export const cancelOnlineOrderByCustomer = async (orderId: string | number, reas
   return await api.post(`/orders/${orderId}/customer-cancel`, { reason });
 };
 
+export const fetchActiveOrdersFeed = async (branchId?: number | string): Promise<{ active_orders: any[]; total: number }> => {
+  const query = branchId ? { branch_id: Number(branchId) } : undefined;
+  return await api.get("/orders/active-orders", query);
+};
+
+export const updateOrderStatus = async (
+  orderId: string | number,
+  status: string,
+  extraParams?: {
+    payment_status?: string;
+    amount_paid?: number;
+    discount_amount?: number;
+    balance_due?: number;
+    customer_id?: number;
+    payment_method?: string;
+  }
+): Promise<any> => {
+  const query = { status, ...(extraParams || {}) };
+  return await api.patch(`/orders/${orderId}/status`, undefined, { params: query });
+};
+
+export const fetchDailyAnalyticsReport = async (
+  branchId?: number | string,
+  startDate?: string,
+  endDate?: string
+): Promise<any> => {
+  const params: any = {};
+  if (branchId) params.branch_id = Number(branchId);
+  if (startDate) params.start_date = startDate;
+  if (endDate) params.end_date = endDate;
+  return await api.get("/orders/reports/analytics", params);
+};
+
+
 export interface SavedAddress {
   id?: string | number;
   customer_id?: number;

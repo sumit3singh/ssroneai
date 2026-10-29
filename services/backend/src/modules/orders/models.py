@@ -13,6 +13,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.database.models import TenantBaseModel, BaseModel
+import src.modules.hrms.models  # noqa: F401
 
 
 class OrderStatus(StrEnum):
@@ -168,6 +169,14 @@ class OrderItem(TenantBaseModel):
     @property
     def name(self) -> str:
         return self.item_name or self.product_name or "Item"
+
+    @property
+    def notes(self) -> str | None:
+        return self.preparation_notes
+
+    @notes.setter
+    def notes(self, value: str | None) -> None:
+        self.preparation_notes = value
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     mrp: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     discount_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)

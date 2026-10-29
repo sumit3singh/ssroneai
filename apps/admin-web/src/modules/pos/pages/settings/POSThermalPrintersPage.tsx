@@ -11,10 +11,11 @@ import {
   Wifi,
   Sparkles,
   ArrowRight,
+  Smartphone,
 } from "lucide-react";
 import { Button, Input, PageHeader, PageContainer } from "@ssrone/ui";
 import { toast } from "sonner";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, Link } from "@tanstack/react-router";
 import { api } from "@ssrone/api-client";
 import { usePOSPrinterStore } from "../../store/printer.store";
 import { POSPrintPortal, CustomerReceiptPayload, StationKOTSlip } from "../../components/POSPrintPortal";
@@ -161,6 +162,14 @@ export const POSThermalPrintersPage: React.FC = () => {
         badge="Hardware Routing"
         actions={
           <div className="flex items-center gap-2">
+            <Link
+              to="/owner"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-emerald-600/30 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 font-bold text-xs transition-all shadow-2xs"
+              title="Launch Mobile Owner Pocket Hub"
+            >
+              <Smartphone size={14} />
+              <span>Owner Pocket Hub (PWA)</span>
+            </Link>
             <Button
               type="button"
               variant="outline"
@@ -181,6 +190,36 @@ export const POSThermalPrintersPage: React.FC = () => {
           </div>
         }
       />
+
+      {/* Mobile Owner Pocket Hub & PWA Launcher Banner */}
+      <div className="mb-6 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <Smartphone size={20} className="text-emerald-400" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-sm text-foreground">
+                Mobile Owner Pocket Hub (PWA Ready)
+              </h3>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 uppercase">
+                Active
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Live notifications & audio chimes for Food App orders (Dine-In QR, Takeaway & Delivery), 1-tap KOT accept/decline, and executive revenue reports. Designed to be saved as a mobile PWA app.
+            </p>
+          </div>
+        </div>
+
+        <Link
+          to="/owner"
+          className="self-start sm:self-auto px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs flex items-center gap-2 transition-all shrink-0 cursor-pointer"
+        >
+          <span>Launch Owner Hub</span>
+          <ArrowRight size={14} />
+        </Link>
+      </div>
 
       {/* Main Settings Grid */}
       <form onSubmit={handleSave} className="space-y-6">

@@ -15,6 +15,7 @@ export type OrderMode = "dine_in" | "takeaway" | "delivery";
 
 interface POSCartPanelProps {
   orderNumber?: string;
+  isPendingOnlineApproval?: boolean;
   cartItems: POSCartItem[];
   allMenuItems?: POSMenuItem[];
   subtotal: number;
@@ -76,6 +77,7 @@ interface POSCartPanelProps {
 
 export const POSCartPanel: React.FC<POSCartPanelProps> = ({
   orderNumber,
+  isPendingOnlineApproval = false,
   cartItems,
   allMenuItems = [],
   subtotal,
@@ -1116,16 +1118,18 @@ export const POSCartPanel: React.FC<POSCartPanelProps> = ({
             onClick={onPlaceOrderKOT}
             disabled={isSubmitting || cartItems.length === 0}
             className={`h-10 px-1 font-extrabold text-[11px] sm:text-xs rounded-md flex items-center justify-center gap-1 cursor-pointer transition-all touch-manipulation active:scale-95 whitespace-nowrap ${
-              orderNumber
+              isPendingOnlineApproval
+                ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                : orderNumber
                 ? "bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
                 : "bg-primary hover:bg-primary/90 text-primary-foreground"
             }`}
-            title="Send or Update KOT to Kitchen (F2)"
+            title={isPendingOnlineApproval ? "Confirm Online Order & Print Full KOT (F2)" : "Send or Update KOT to Kitchen (F2)"}
           >
             <span className="px-1.5 py-0.5 rounded bg-black/30 border border-white/20 font-mono text-[9px] font-extrabold text-white shrink-0 shadow-2xs">
               F2
             </span>
-            <span>{orderNumber ? "KOT UPDATE" : "Send KOT"}</span>
+            <span>{isPendingOnlineApproval ? "CONFIRM & KOT" : (orderNumber ? "KOT UPDATE" : "Send KOT")}</span>
             <ChevronRight size={12} className="hidden sm:inline-block" />
           </Button>
 

@@ -415,7 +415,7 @@ async def get_pos_grid_projection(
     return {"active_orders": projection, "total": len(projection)}
 
 
-async def generate_kots_for_order(order: Order, tenant_id: int, user_id: int, db: AsyncSession) -> list[dict]:
+async def generate_kots_for_order(order: Order, tenant_id: int, user_id: int, db: AsyncSession, auto_commit: bool = True) -> list[dict]:
     """Generates KOT records and items for an order and returns thermal printable slip payloads."""
     now_utc = datetime.now(timezone.utc)
     stations_result = await db.execute(
@@ -427,12 +427,16 @@ async def generate_kots_for_order(order: Order, tenant_id: int, user_id: int, db
     stations = {s.code.lower(): s for s in stations_result.scalars().all()} if stations_result else {}
     default_station = list(stations.values())[0] if stations else None
 
-    items_stmt = select(OrderItem).where(
-        OrderItem.order_id == order.id,
-        (OrderItem.is_deleted == False) | (OrderItem.is_deleted.is_(None)),
-        (OrderItem.is_voided == False) | (OrderItem.is_voided.is_(None)),
-    )
-    all_order_items = (await db.execute(items_stmt)).scalars().all()
+    # Ultra-fast reuse: If order.items is already loaded, reuse directly to avoid redundant SQL round-trip
+    if hasattr(order, "items") and order.items:
+        all_order_items = [it for it in order.items if not getattr(it, "is_deleted", False) and not getattr(it, "is_voided", False)]
+    else:
+        items_stmt = select(OrderItem).where(
+            OrderItem.order_id == order.id,
+            (OrderItem.is_deleted == False) | (OrderItem.is_deleted.is_(None)),
+            (OrderItem.is_voided == False) | (OrderItem.is_voided.is_(None)),
+        )
+        all_order_items = (await db.execute(items_stmt)).scalars().all()
     pending_order_items = [it for it in all_order_items if it.kds_status in ("pending", "draft", None)]
     if not pending_order_items:
         pending_order_items = all_order_items
@@ -487,7 +491,7 @@ async def generate_kots_for_order(order: Order, tenant_id: int, user_id: int, db
                             item_name=it.product_name or it.item_name or "Dish Item",
                             quantity=it.quantity,
                             status="PREPARING",
-                            notes=it.preparation_notes or it.notes
+                            notes=getattr(it, "preparation_notes", None) or getattr(it, "notes", None)
                         )
                         db.add(kot_item)
                     except Exception:
@@ -499,7 +503,7 @@ async def generate_kots_for_order(order: Order, tenant_id: int, user_id: int, db
                     "name": it.product_name or it.item_name or "Dish Item",
                     "quantity": int(it.quantity or 1),
                     "variant_name": it.variant_name,
-                    "notes": it.preparation_notes or it.notes,
+                    "notes": getattr(it, "preparation_notes", None) or getattr(it, "notes", None),
                     "addons": it.selected_addons or [],
                 })
 
@@ -541,7 +545,8 @@ async def generate_kots_for_order(order: Order, tenant_id: int, user_id: int, db
             db.add(log)
         except Exception:
             pass
-        await db.commit()
+        if auto_commit:
+            await db.commit()
     return generated_slips
 
 
@@ -1489,13 +1494,108 @@ async def get_customer_orders(
         return []
 
 
+@router.get("/active-orders")
+async def get_active_orders_feed(
+    branch_id: int | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Real-time active orders pipeline for POS, KDS, Owner Pocket Hub, and Notification Chimes."""
+    tenant_id = current_user.tenant_id
+    stmt = (
+        select(Order)
+        .options(selectinload(Order.items), selectinload(Order.payments))
+        .where(
+            Order.tenant_id == tenant_id,
+            (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
+            func.lower(Order.status) != "cancelled",
+        )
+        .order_by(Order.created_at.desc())
+        .limit(150)
+    )
+    if branch_id:
+        stmt = stmt.where(Order.branch_id == branch_id)
+
+    res = await db.execute(stmt)
+    orders = res.scalars().all()
+
+    cust_ids = [o.customer_id for o in orders if o.customer_id]
+    cust_map = {}
+    if cust_ids:
+        c_res = await db.execute(select(Customer).where(Customer.id.in_(cust_ids)))
+        for c in c_res.scalars().all():
+            cust_map[c.id] = c
+
+    tbl_ids = [o.table_id for o in orders if o.table_id]
+    tbl_map = {}
+    if tbl_ids:
+        t_res = await db.execute(select(DiningTable).where(DiningTable.id.in_(tbl_ids)))
+        for t in t_res.scalars().all():
+            tbl_map[t.id] = t.name or t.table_number
+
+    output = []
+    for o in orders:
+        c_obj = cust_map.get(o.customer_id) if o.customer_id else None
+        cust_name = c_obj.name if c_obj else ((o.metadata_payload.get("customer_name") if isinstance(o.metadata_payload, dict) else None) or "Guest")
+        cust_phone = c_obj.phone if c_obj else ((o.metadata_payload.get("customer_phone") if isinstance(o.metadata_payload, dict) else None) or "")
+        address_str = ""
+        if (o.order_type or "").lower() == "delivery":
+            address_str = o.special_instructions or (c_obj.address.get("fullAddress") if c_obj and isinstance(c_obj.address, dict) else "") or ""
+
+        tbl_name = tbl_map.get(o.table_id) or ((o.metadata_payload.get("table_name") if isinstance(o.metadata_payload, dict) else None)) or (f"Table {o.table_id}" if o.table_id else "")
+
+        output.append({
+            "id": o.id,
+            "order_number": o.order_number,
+            "daily_order_number": o.daily_order_number,
+            "token_number": o.token_number,
+            "order_type": o.order_type or "dine_in",
+            "source_channel": o.source_channel or "pos",
+            "status": o.status,
+            "created_at": o.created_at.isoformat() if o.created_at else None,
+            "customer_id": o.customer_id,
+            "customer_name": cust_name,
+            "customer_phone": cust_phone,
+            "table_id": o.table_id,
+            "table_name": tbl_name,
+            "delivery_address": address_str,
+            "subtotal": float(o.subtotal or 0),
+            "discount_amount": float(o.discount_amount or 0),
+            "tax_amount": float(o.total_tax or 0),
+            "grand_total": float(o.grand_total or 0),
+            "net_amount": float(o.grand_total or 0),
+            "amount_paid": float(o.amount_paid or 0),
+            "balance_due": float(o.balance_due or 0),
+            "payment_status": o.payment_status or "unpaid",
+            "payment_method": (o.metadata_payload.get("payment_method") if isinstance(o.metadata_payload, dict) else "CASH") or "CASH",
+            "notes": o.notes or "",
+            "special_instructions": o.special_instructions or "",
+            "items": [
+                {
+                    "id": it.id,
+                    "product_id": it.product_id or it.menu_item_id,
+                    "name": it.product_name or it.item_name or "Dish Item",
+                    "quantity": int(it.quantity or 1),
+                    "unit_price": float(it.unit_price or 0),
+                    "line_total": float(it.line_total or 0),
+                    "variant_name": it.variant_name or "",
+                    "addons": it.selected_addons or [],
+                    "notes": getattr(it, "preparation_notes", None) or getattr(it, "notes", None) or "",
+                }
+                for it in (o.items or [])
+            ]
+        })
+
+    return {"active_orders": output, "total": len(output)}
+
+
 @router.get("/online/pending")
 async def get_pending_online_orders(
     branch_id: int | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """Get all pending online orders awaiting staff acceptance (Takeaway & Delivery)."""
+    """Get all pending online orders awaiting staff acceptance (Takeaway, Delivery & Dine-In QR)."""
     tenant_id = current_user.tenant_id
     stmt = (
         select(Order)
@@ -1520,6 +1620,13 @@ async def get_pending_online_orders(
         for c in c_res.scalars().all():
             cust_map[c.id] = c
 
+    tbl_ids = [o.table_id for o in orders if o.table_id]
+    tbl_map = {}
+    if tbl_ids:
+        t_res = await db.execute(select(DiningTable).where(DiningTable.id.in_(tbl_ids)))
+        for t in t_res.scalars().all():
+            tbl_map[t.id] = t.name or t.table_number
+
     output = []
     for o in orders:
         c_obj = cust_map.get(o.customer_id) if o.customer_id else None
@@ -1530,9 +1637,15 @@ async def get_pending_online_orders(
         if (o.order_type or "").lower() == "delivery":
             address_str = o.special_instructions or (c_obj.address.get("fullAddress") if c_obj and isinstance(c_obj.address, dict) else "") or ""
 
+        tbl_name = tbl_map.get(o.table_id) or ((o.metadata_payload.get("table_name") if isinstance(o.metadata_payload, dict) else None)) or (f"Table {o.table_id}" if o.table_id else "")
+
         output.append({
             "id": o.id,
             "order_number": o.order_number,
+            "daily_order_number": o.daily_order_number,
+            "token_number": o.token_number,
+            "table_id": o.table_id,
+            "table_name": tbl_name,
             "order_type": o.order_type or "takeaway",
             "source_channel": o.source_channel or "customer_web",
             "status": o.status,
@@ -1639,7 +1752,7 @@ async def accept_online_order(
         raise HTTPException(status_code=404, detail="Order not found")
 
     try:
-        slips = await generate_kots_for_order(order, tenant_id=tenant_id, user_id=user_id, db=db)
+        slips = await generate_kots_for_order(order, tenant_id=tenant_id, user_id=user_id, db=db, auto_commit=False)
     except Exception as kot_err:
         logger.warning("KOT generation failed during online order acceptance", error=str(kot_err))
         slips = []
@@ -1669,7 +1782,7 @@ async def accept_online_order(
                         "name": it.product_name or it.item_name or "Dish Item",
                         "quantity": int(it.quantity or 1),
                         "variant_name": it.variant_name,
-                        "notes": it.preparation_notes or it.notes,
+                        "notes": getattr(it, "preparation_notes", None) or getattr(it, "notes", None),
                         "addons": it.selected_addons or [],
                     }
                     for it in non_void_items
@@ -1677,16 +1790,13 @@ async def accept_online_order(
             }]
 
     order.status = OrderStatus.KOT_SENT.value if hasattr(OrderStatus.KOT_SENT, "value") else "kot_sent"
+    order.kot_sent_at = datetime.now(timezone.utc)
     await db.commit()
-
-    # Re-fetch order eagerly with selectinload to prevent expired relation DetachedInstanceError
-    stmt_reload = select(Order).options(selectinload(Order.items)).where(Order.id == order.id)
-    reloaded_order = (await db.execute(stmt_reload)).scalar_one_or_none() or order
 
     return {
         "success": True,
         "message": f"Order #{order.order_number} confirmed and accepted!",
-        "order": OrderResponse.model_validate(reloaded_order),
+        "order": OrderResponse.model_validate(order),
         "generated_slips": slips,
     }
 
@@ -1835,7 +1945,7 @@ async def modify_and_accept_online_order(
                         "name": it.product_name or it.item_name or "Dish Item",
                         "quantity": int(it.quantity or 1),
                         "variant_name": it.variant_name,
-                        "notes": it.preparation_notes or it.notes,
+                        "notes": getattr(it, "preparation_notes", None) or getattr(it, "notes", None),
                         "addons": it.selected_addons or [],
                     }
                     for it in non_void_items
@@ -1844,12 +1954,15 @@ async def modify_and_accept_online_order(
 
     order.status = OrderStatus.KOT_SENT.value if hasattr(OrderStatus.KOT_SENT, "value") else "kot_sent"
     await db.commit()
-    await db.refresh(order)
+
+    # Re-fetch order eagerly with selectinload to prevent expired relation DetachedInstanceError
+    stmt_reload = select(Order).options(selectinload(Order.items)).where(Order.id == order.id)
+    reloaded_order = (await db.execute(stmt_reload)).scalar_one_or_none() or order
 
     return {
         "success": True,
         "message": f"Order #{order.order_number} modified and accepted!",
-        "order": OrderResponse.model_validate(order),
+        "order": OrderResponse.model_validate(reloaded_order),
         "generated_slips": slips,
     }
 
