@@ -16,7 +16,9 @@ import {
   Bell, Volume2, VolumeX, Store, UtensilsCrossed, ShoppingBag,
   Truck, ArrowUpRight, TrendingUp, IndianRupee, Layers,
   RefreshCw, ChefHat, Sparkles, Filter, Phone, MessageSquare, MapPin,
-  Clock, Printer, CheckCircle2, AlertCircle, Smartphone, Eye, Receipt
+  Clock, Printer, CheckCircle2, AlertCircle, Smartphone, Eye, Receipt,
+  Share2, Copy, Download, Calendar, DollarSign, CreditCard, QrCode, Check,
+  X, AlertTriangle, ShieldCheck, ChevronRight
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@ssrone/auth";
@@ -26,6 +28,36 @@ import {
   fetchDailyAnalyticsReport
 } from "@ssrone/api-client";
 import { printCustomerReceiptDirectly } from "../pos/utils/printUtils";
+
+export type AnalyticsRange = "today" | "yesterday" | "week" | "month";
+
+const getDateRangeBounds = (range: AnalyticsRange) => {
+  const now = new Date();
+  const formatYMD = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  if (range === "yesterday") {
+    const y = new Date(now);
+    y.setDate(y.getDate() - 1);
+    const yStr = formatYMD(y);
+    return { from: yStr, to: yStr, label: "Yesterday" };
+  }
+  if (range === "week") {
+    const w = new Date(now);
+    w.setDate(w.getDate() - 6);
+    return { from: formatYMD(w), to: formatYMD(now), label: "Last 7 Days" };
+  }
+  if (range === "month") {
+    const m = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { from: formatYMD(m), to: formatYMD(now), label: "This Month" };
+  }
+  const todayStr = formatYMD(now);
+  return { from: todayStr, to: todayStr, label: "Today" };
+};
 
 // Luxury Executive Web Audio API Chime Synth
 const playExecutiveOrderChime = () => {
@@ -89,6 +121,13 @@ export const OwnerPocketDashboardPage: React.FC = () => {
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [analyticsDateRange, setAnalyticsDateRange] = useState<AnalyticsRange>("today");
+
+  // Mobile PWA App State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isPwaInstalled, setIsPwaInstalled] = useState<boolean>(false);
+  const [showInstallGuideModal, setShowInstallGuideModal] = useState<boolean>(false);
+  const [isCopiedLink, setIsCopiedLink] = useState<boolean>(false);
 
   // Data Feeds (Today Only)
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
@@ -102,6 +141,9 @@ export const OwnerPocketDashboardPage: React.FC = () => {
     total_paid: 0,
     total_due: 0,
     avg_order_value: 0,
+    payment_breakdown: { cash: 0, upi: 0, card: 0, credit_account: 0 },
+    cancelled_orders: 0,
+    cancelled_lost_revenue: 0,
   });
 
   // Sound & Live Sync
@@ -117,6 +159,26 @@ export const OwnerPocketDashboardPage: React.FC = () => {
   // Sound Tracking for Incoming Food App Orders
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const initialFetchDoneRef = useRef<boolean>(false);
+
+  // PWA Install Prompt Listener
+  useEffect(() => {
+    const handleBeforeInstall = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+
+    if (
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as any).standalone
+    ) {
+      setIsPwaInstalled(true);
+    }
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+    };
+  }, []);
 
   const toggleSound = () => {
     const next = !soundEnabled;
@@ -135,20 +197,50 @@ export const OwnerPocketDashboardPage: React.FC = () => {
     toast.success("Playing test chime alert 🔔");
   };
 
-  // Primary Data Fetcher (Filtered strictly for TODAY)
-  const loadDashboardData = useCallback(async (isSilent = false) => {
+  const copyMobileLink = () => {
+    const url = `${window.location.origin}/owner`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        setIsCopiedLink(true);
+        setTimeout(() => setIsCopiedLink(false), 2500);
+        toast.success("Owner Hub Mobile Link copied to clipboard!");
+      }).catch(() => {
+        toast.info(`Mobile Link: ${url}`);
+      });
+    } else {
+      toast.info(`Mobile Link: ${url}`);
+    }
+  };
+
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") {
+        setIsPwaInstalled(true);
+        toast.success("Owner Hub App installed to your device!");
+      }
+      setDeferredPrompt(null);
+    } else {
+      setShowInstallGuideModal(true);
+    }
+  };
+
+  // Primary Data Fetcher (Filtered strictly for TODAY with range bounds for reports)
+  const loadDashboardData = useCallback(async (isSilent = false, targetRange = analyticsDateRange) => {
     if (!isSilent) setIsRefreshing(true);
     try {
+      const bounds = getDateRangeBounds(targetRange);
       const [feedRes, pendingRes, analyticsRes] = await Promise.all([
         fetchActiveOrdersFeed(branchId).catch(() => ({ active_orders: [], total: 0 })),
         fetchPendingOnlineOrders(branchId).catch(() => ({ pending_orders: [], total: 0 })),
-        fetchDailyAnalyticsReport(branchId).catch(() => null),
+        fetchDailyAnalyticsReport(branchId, bounds.from, bounds.to).catch(() => null),
       ]);
 
       const liveActive = Array.isArray(feedRes?.active_orders) ? feedRes.active_orders : [];
       const livePending = Array.isArray(pendingRes?.pending_orders) ? pendingRes.pending_orders : [];
 
-      // STRICT FILTER: Only Today's Orders
+      // STRICT FILTER: Only Today's Orders for real-time live operational list
       const todayActive = liveActive.filter((o: any) => isTodayDate(o.created_at));
       const todayPending = livePending.filter((o: any) => isTodayDate(o.created_at));
 
@@ -191,7 +283,12 @@ export const OwnerPocketDashboardPage: React.FC = () => {
     } finally {
       if (!isSilent) setIsRefreshing(false);
     }
-  }, [branchId, soundEnabled]);
+  }, [branchId, soundEnabled, analyticsDateRange]);
+
+  const handleRangeChange = (newRange: AnalyticsRange) => {
+    setAnalyticsDateRange(newRange);
+    loadDashboardData(false, newRange);
+  };
 
   // Polling every 4 seconds for instant real-time visibility
   useEffect(() => {
@@ -335,6 +432,217 @@ export const OwnerPocketDashboardPage: React.FC = () => {
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 5);
   }, [allTodayOrders]);
+
+  // Robust Multi-Layer Effective Sales Aggregator
+  // Seamlessly merges backend database aggregation with local optimistic aggregates
+  const effectiveSales = useMemo(() => {
+    const backendHasData =
+      (dailyAnalytics?.total_orders && dailyAnalytics.total_orders > 0) ||
+      (dailyAnalytics?.total_net && Number(dailyAnalytics.total_net) > 0);
+
+    // Calculate local fallback aggregates from allTodayOrders (for non-cancelled orders)
+    let localTotalOrders = 0;
+    let localTotalNet = 0;
+    let localTotalSubtotal = 0;
+    let localTotalTax = 0;
+    let localTotalDiscount = 0;
+    let localTotalPaid = 0;
+    let localTotalDue = 0;
+    let localCash = 0;
+    let localUpi = 0;
+    let localCard = 0;
+    let localCredit = 0;
+    let localCancelledCount = 0;
+    let localCancelledLost = 0;
+
+    allTodayOrders.forEach((o) => {
+      const s = String(o.status || "").toLowerCase();
+      const gTotal = Number(o.grand_total || o.net_amount || 0);
+      const sTotal = Number(o.subtotal || gTotal);
+      const tTax = Number(o.total_tax || o.tax_amount || 0);
+      const dDiscount = Number(o.discount_amount || 0);
+      const aPaid = Number(o.amount_paid || (s === "completed" || s === "paid" ? gTotal : 0));
+      const bDue = Number(o.balance_due || Math.max(0, gTotal - aPaid));
+
+      if (s === "cancelled") {
+        localCancelledCount++;
+        localCancelledLost += gTotal;
+        return;
+      }
+
+      localTotalOrders++;
+      localTotalNet += gTotal;
+      localTotalSubtotal += sTotal;
+      localTotalTax += tTax;
+      localTotalDiscount += dDiscount;
+      localTotalPaid += aPaid;
+      localTotalDue += bDue;
+
+      const pMode = String(o.payment_method || o.payment_mode || "").toLowerCase();
+      if (pMode.includes("cash")) {
+        localCash += aPaid;
+      } else if (
+        pMode.includes("upi") ||
+        pMode.includes("online") ||
+        pMode.includes("qr") ||
+        pMode.includes("gpay") ||
+        pMode.includes("phonepe") ||
+        pMode.includes("paytm")
+      ) {
+        localUpi += aPaid;
+      } else if (pMode.includes("card")) {
+        localCard += aPaid;
+      } else if (pMode.includes("credit") || pMode.includes("udhar") || pMode.includes("due")) {
+        localCredit += aPaid;
+      } else {
+        if (aPaid > 0) localUpi += aPaid;
+      }
+    });
+
+    const avgLocal = localTotalOrders > 0 ? Math.round(localTotalNet / localTotalOrders) : 0;
+
+    if (backendHasData) {
+      const bNet = Number(dailyAnalytics.total_net) || 0;
+      const bOrders = Number(dailyAnalytics.total_orders) || 0;
+      return {
+        total_orders: bOrders > 0 ? bOrders : localTotalOrders,
+        total_net: bNet > 0 ? bNet : localTotalNet,
+        total_subtotal: Number(dailyAnalytics.total_subtotal) || (bNet > 0 ? bNet : localTotalSubtotal),
+        total_tax: Number(dailyAnalytics.total_tax) || localTotalTax,
+        total_discount: Number(dailyAnalytics.total_discount) || localTotalDiscount,
+        total_paid: Number(dailyAnalytics.total_paid) || (bNet > 0 ? bNet : localTotalPaid),
+        total_due: Number(dailyAnalytics.total_due) || localTotalDue,
+        avg_order_value: Number(dailyAnalytics.avg_order_value) || (bOrders > 0 ? Math.round(bNet / bOrders) : avgLocal),
+        payment_breakdown: {
+          cash: Number(dailyAnalytics.payment_breakdown?.cash || 0) || (analyticsDateRange === "today" ? localCash : 0),
+          upi: Number(dailyAnalytics.payment_breakdown?.upi || 0) || (analyticsDateRange === "today" ? localUpi : 0),
+          card: Number(dailyAnalytics.payment_breakdown?.card || 0) || (analyticsDateRange === "today" ? localCard : 0),
+          credit_account: Number(dailyAnalytics.payment_breakdown?.credit_account || 0) || (analyticsDateRange === "today" ? localCredit : 0),
+        },
+        cancelled_orders: dailyAnalytics.cancelled_orders ?? localCancelledCount,
+        cancelled_lost_revenue: dailyAnalytics.cancelled_lost_revenue ?? localCancelledLost,
+      };
+    }
+
+    // Default fallback to local aggregates (guarantees non-zero when today has orders)
+    return {
+      total_orders: localTotalOrders,
+      total_net: localTotalNet,
+      total_subtotal: localTotalSubtotal,
+      total_tax: localTotalTax,
+      total_discount: localTotalDiscount,
+      total_paid: localTotalPaid,
+      total_due: localTotalDue,
+      avg_order_value: avgLocal,
+      payment_breakdown: {
+        cash: localCash,
+        upi: localUpi,
+        card: localCard,
+        credit_account: localCredit,
+      },
+      cancelled_orders: localCancelledCount,
+      cancelled_lost_revenue: localCancelledLost,
+    };
+  }, [dailyAnalytics, allTodayOrders, analyticsDateRange]);
+
+  // Hourly Order & Sales velocity distribution
+  const hourlyVelocity = useMemo(() => {
+    const hours: { [key: number]: number } = {};
+    for (let h = 8; h <= 23; h++) hours[h] = 0;
+    allTodayOrders.forEach((o) => {
+      if (String(o.status || "").toLowerCase() === "cancelled") return;
+      if (!o.created_at) return;
+      try {
+        const d = new Date(o.created_at);
+        const h = d.getHours();
+        if (hours[h] !== undefined) {
+          hours[h] += Number(o.grand_total || o.net_amount || 0);
+        }
+      } catch {}
+    });
+    return hours;
+  }, [allTodayOrders]);
+
+  const handleShareReportWhatsApp = () => {
+    const bounds = getDateRangeBounds(analyticsDateRange);
+    const text = `📊 *${branchName} — Executive Sales Report*
+📅 *Period:* ${bounds.label} (${bounds.from}${bounds.from !== bounds.to ? ` to ${bounds.to}` : ""})
+━━━━━━━━━━━━━━━━━━
+💰 *Net Billed Sales:* ${formatCurrency(effectiveSales.total_net)}
+📦 *Total Orders:* ${effectiveSales.total_orders}
+🎯 *Avg Ticket Size:* ${formatCurrency(effectiveSales.avg_order_value)}
+
+💳 *Payment Breakdown:*
+  • 💵 Cash: ${formatCurrency(effectiveSales.payment_breakdown.cash)}
+  • 📱 UPI / Online: ${formatCurrency(effectiveSales.payment_breakdown.upi)}
+  • 💳 Card: ${formatCurrency(effectiveSales.payment_breakdown.card)}
+  • 📒 Due / Udhar: ${formatCurrency(effectiveSales.payment_breakdown.credit_account || effectiveSales.total_due)}
+
+🚫 *Cancellations / Void:* ${effectiveSales.cancelled_orders} orders (${formatCurrency(effectiveSales.cancelled_lost_revenue)} lost)
+━━━━━━━━━━━━━━━━━━
+Generated via SSR One AI Owner Pocket Hub
+🔗 https://baithak.ssrit.online/owner`;
+
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank");
+  };
+
+  const printExecutiveReportStatement = () => {
+    const bounds = getDateRangeBounds(analyticsDateRange);
+    const printWindow = window.open("", "_blank", "width=400,height=600");
+    if (!printWindow) {
+      toast.error("Please allow popups to print executive statement");
+      return;
+    }
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sales Statement - ${branchName}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; padding: 15px; font-size: 13px; line-height: 1.4; color: #000; margin: 0; }
+    .center { text-align: center; }
+    .bold { font-weight: bold; }
+    .divider { border-bottom: 1px dashed #666; margin: 8px 0; }
+    .row { display: flex; justify-content: space-between; margin: 4px 0; }
+    .header { font-size: 16px; font-weight: bold; }
+    .sub { font-size: 11px; color: #555; }
+  </style>
+</head>
+<body>
+  <div class="center header">${branchName}</div>
+  <div class="center sub">EXECUTIVE SALES STATEMENT</div>
+  <div class="center sub">Period: ${bounds.label} (${bounds.from}${bounds.from !== bounds.to ? " to " + bounds.to : ""})</div>
+  <div class="divider"></div>
+  <div class="row"><span>Total Orders:</span><span class="bold">${effectiveSales.total_orders}</span></div>
+  <div class="row"><span>Gross Subtotal:</span><span>${formatCurrency(effectiveSales.total_subtotal)}</span></div>
+  <div class="row"><span>Total Tax (GST):</span><span>${formatCurrency(effectiveSales.total_tax)}</span></div>
+  <div class="row"><span>Discounts:</span><span>-${formatCurrency(effectiveSales.total_discount)}</span></div>
+  <div class="divider"></div>
+  <div class="row bold" style="font-size: 14px;"><span>NET BILLED SALES:</span><span>${formatCurrency(effectiveSales.total_net)}</span></div>
+  <div class="divider"></div>
+  <div class="bold" style="margin-top: 6px;">PAYMENT SUMMARY</div>
+  <div class="row"><span>• Cash:</span><span>${formatCurrency(effectiveSales.payment_breakdown.cash)}</span></div>
+  <div class="row"><span>• UPI / Online:</span><span>${formatCurrency(effectiveSales.payment_breakdown.upi)}</span></div>
+  <div class="row"><span>• Card POS:</span><span>${formatCurrency(effectiveSales.payment_breakdown.card)}</span></div>
+  <div class="row"><span>• Credit / Udhar:</span><span>${formatCurrency(effectiveSales.payment_breakdown.credit_account || effectiveSales.total_due)}</span></div>
+  <div class="divider"></div>
+  <div class="row"><span>Total Collected:</span><span class="bold">${formatCurrency(effectiveSales.total_paid)}</span></div>
+  <div class="row"><span>Balance Due:</span><span>${formatCurrency(effectiveSales.total_due)}</span></div>
+  <div class="row"><span>Void / Cancelled:</span><span>${effectiveSales.cancelled_orders} (${formatCurrency(effectiveSales.cancelled_lost_revenue)})</span></div>
+  <div class="divider"></div>
+  <div class="center sub" style="margin-top: 10px;">SSR ONE AI — OWNER POCKET HUB</div>
+  <div class="center sub">${new Date().toLocaleString("en-IN")}</div>
+  <script>
+    window.onload = function() { window.print(); };
+  </script>
+</body>
+</html>
+    `;
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
 
   const getTimeElapsed = (createdStr?: string) => {
     if (!createdStr) return "Just now";
@@ -483,6 +791,47 @@ export const OwnerPocketDashboardPage: React.FC = () => {
 
       {/* ─── MAIN CONTENT ─── */}
       <main className="max-w-5xl w-full mx-auto px-3 sm:px-4 py-4 flex-1 flex flex-col gap-4">
+        {/* ─── MOBILE PWA APP BAR / QUICK LINK ─── */}
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-3 sm:p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 border border-slate-800">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <Smartphone className="text-emerald-400" size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-white tracking-tight">
+                  Owner Pocket Hub (Mobile PWA)
+                </h2>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  Mobile Ready
+                </span>
+              </div>
+              <p className="text-xs text-slate-300">
+                Run directly on phone • 1-Tap "Add to Home Screen" • Instant live sales
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button
+              onClick={copyMobileLink}
+              className="flex-1 sm:flex-none px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              title="Copy Mobile Link"
+            >
+              {isCopiedLink ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+              <span>{isCopiedLink ? "Link Copied!" : "Copy Mobile Link"}</span>
+            </button>
+
+            <button
+              onClick={handleInstallApp}
+              className="flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer"
+            >
+              <Download size={14} />
+              <span>{isPwaInstalled ? "App Installed" : "Add to Home Screen"}</span>
+            </button>
+          </div>
+        </div>
+
         {/* TOP LEVEL NAVIGATION (Segmented Control) */}
         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
@@ -512,15 +861,15 @@ export const OwnerPocketDashboardPage: React.FC = () => {
               }`}
             >
               <TrendingUp size={14} className={activeTab === "analytics" ? "text-indigo-600" : ""} />
-              <span>Today's Sales & Reports</span>
+              <span>Sales & Reports</span>
             </button>
           </div>
 
           {/* Today's Sales Pill */}
           <div className="hidden sm:flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs text-xs">
             <span className="text-slate-500 font-medium">Today's Net Sales:</span>
-            <span className="font-extrabold text-slate-900 font-mono text-sm">
-              {formatCurrency(dailyAnalytics.total_net || 0)}
+            <span className="font-extrabold text-emerald-700 font-mono text-sm">
+              {formatCurrency(effectiveSales.total_net || 0)}
             </span>
           </div>
         </div>
@@ -831,22 +1180,70 @@ export const OwnerPocketDashboardPage: React.FC = () => {
         )}
 
         {/* ───────────────────────────────────────────────────────────── */}
-        {/* TAB 2: TODAY'S SALES & EXECUTIVE REPORTS */}
+        {/* TAB 2: ADVANCED EXECUTIVE SALES & AUDIT REPORTS */}
         {/* ───────────────────────────────────────────────────────────── */}
         {activeTab === "analytics" && (
           <div className="space-y-4">
-            {/* Top KPI Cards Grid */}
+            {/* Period Filter Toolbar & Executive Action Buttons */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+              {/* Date Range Selector Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                {(
+                  [
+                    { id: "today", label: "Today" },
+                    { id: "yesterday", label: "Yesterday" },
+                    { id: "week", label: "Last 7 Days" },
+                    { id: "month", label: "This Month" },
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleRangeChange(tab.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                      analyticsDateRange === tab.id
+                        ? "bg-slate-900 text-white shadow-xs"
+                        : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Action Buttons: WhatsApp Share & Print Statement */}
+              <div className="flex items-center gap-2 justify-end">
+                <button
+                  onClick={handleShareReportWhatsApp}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                  title="Share Report on WhatsApp"
+                >
+                  <Share2 size={13} />
+                  <span>Share on WhatsApp</span>
+                </button>
+
+                <button
+                  onClick={printExecutiveReportStatement}
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 border border-slate-200 transition-all cursor-pointer"
+                  title="Print Sales Summary"
+                >
+                  <Printer size={13} />
+                  <span className="hidden sm:inline">Print Summary</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Top 4 Hero KPI Cards Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {/* Today's Net Revenue */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+              {/* Net Billed Sales */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs relative overflow-hidden">
                 <div className="flex items-center justify-between text-slate-500 text-xs mb-1 font-medium">
-                  <span>Today's Net Sales</span>
+                  <span>Net Billed Sales</span>
                   <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700">
                     <IndianRupee size={15} />
                   </div>
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono tracking-tight">
-                  {formatCurrency(dailyAnalytics.total_net || 0)}
+                  {formatCurrency(effectiveSales.total_net || 0)}
                 </div>
                 <div className="mt-2 text-[11px] text-emerald-700 flex items-center gap-1 font-medium">
                   <TrendingUp size={12} />
@@ -857,16 +1254,16 @@ export const OwnerPocketDashboardPage: React.FC = () => {
               {/* Total Orders Today */}
               <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
                 <div className="flex items-center justify-between text-slate-500 text-xs mb-1 font-medium">
-                  <span>Total Orders Today</span>
+                  <span>Total Orders</span>
                   <div className="p-1.5 rounded-lg bg-blue-50 text-blue-700">
                     <ShoppingBag size={15} />
                   </div>
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono tracking-tight">
-                  {dailyAnalytics.total_orders || allTodayOrders.length}
+                  {effectiveSales.total_orders || allTodayOrders.length}
                 </div>
-                <div className="mt-2 text-[11px] text-slate-500">
-                  Dine-In, Takeaway & Delivery
+                <div className="mt-2 text-[11px] text-slate-500 truncate">
+                  {channelMetrics.dineInCount} Dine-In • {channelMetrics.takeawayCount} Takeaway
                 </div>
               </div>
 
@@ -879,7 +1276,7 @@ export const OwnerPocketDashboardPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono tracking-tight">
-                  {formatCurrency(dailyAnalytics.avg_order_value || 0)}
+                  {formatCurrency(effectiveSales.avg_order_value || 0)}
                 </div>
                 <div className="mt-2 text-[11px] text-purple-700 font-medium">
                   Per customer order
@@ -895,21 +1292,219 @@ export const OwnerPocketDashboardPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono tracking-tight">
-                  {formatCurrency(dailyAnalytics.total_paid || 0)}
+                  {formatCurrency(effectiveSales.total_paid || 0)}
                 </div>
                 <div className="mt-2 text-[11px] text-slate-500">
-                  Due: <span className="text-rose-600 font-mono font-bold">{formatCurrency(dailyAnalytics.total_due || 0)}</span>
+                  {effectiveSales.total_due > 0 ? (
+                    <span>Due: <strong className="text-rose-600 font-mono">{formatCurrency(effectiveSales.total_due)}</strong></span>
+                  ) : (
+                    <span className="text-emerald-700 font-medium">All Payments Cleared</span>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Middle Section: Channel Breakdown + Top Selling Dishes Today */}
+            {/* Financial Ledger & Payment Mode Split Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Detailed Financial Ledger */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <Receipt size={15} className="text-indigo-600" />
+                    Financial Breakdown Statement
+                  </h3>
+                  <div className="space-y-2.5 text-xs">
+                    <div className="flex items-center justify-between text-slate-600 pb-1.5 border-b border-slate-100">
+                      <span>Gross Subtotal (Food & Drinks)</span>
+                      <span className="font-mono font-semibold text-slate-800">
+                        {formatCurrency(effectiveSales.total_subtotal)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-slate-600 pb-1.5 border-b border-slate-100">
+                      <span>GST & Taxes Collected</span>
+                      <span className="font-mono font-semibold text-emerald-700">
+                        + {formatCurrency(effectiveSales.total_tax)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-slate-600 pb-1.5 border-b border-slate-100">
+                      <span>Discounts Allowed</span>
+                      <span className="font-mono font-semibold text-rose-600">
+                        - {formatCurrency(effectiveSales.total_discount)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-slate-900 font-bold pt-1 text-sm">
+                      <span>Net Billed Sales</span>
+                      <span className="font-mono font-extrabold text-emerald-800">
+                        {formatCurrency(effectiveSales.total_net)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-slate-600 pt-1">
+                      <span>Total Realized (Paid)</span>
+                      <span className="font-mono font-semibold text-slate-900">
+                        {formatCurrency(effectiveSales.total_paid)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-slate-600">
+                      <span>Outstanding Balance (Due)</span>
+                      <span className={`font-mono font-bold ${effectiveSales.total_due > 0 ? "text-rose-600" : "text-emerald-700"}`}>
+                        {formatCurrency(effectiveSales.total_due)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                  <span>Period: {getDateRangeBounds(analyticsDateRange).label}</span>
+                  <span className="font-mono">Audit Verified</span>
+                </div>
+              </div>
+
+              {/* Payment Mode Collections Breakdown */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+                <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                  <CreditCard size={15} className="text-emerald-600" />
+                  Payment Methods Breakdown
+                </h3>
+                {(() => {
+                  const totalColl = effectiveSales.total_paid || effectiveSales.total_net || 1;
+                  const cashAmt = effectiveSales.payment_breakdown.cash || 0;
+                  const upiAmt = effectiveSales.payment_breakdown.upi || 0;
+                  const cardAmt = effectiveSales.payment_breakdown.card || 0;
+                  const creditAmt = effectiveSales.payment_breakdown.credit_account || effectiveSales.total_due || 0;
+
+                  const cashPct = Math.min(100, Math.round((cashAmt / totalColl) * 100));
+                  const upiPct = Math.min(100, Math.round((upiAmt / totalColl) * 100));
+                  const cardPct = Math.min(100, Math.round((cardAmt / totalColl) * 100));
+                  const creditPct = Math.min(100, Math.round((creditAmt / totalColl) * 100));
+
+                  return (
+                    <div className="space-y-3.5 text-xs">
+                      {/* Cash */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1 font-medium">
+                          <span className="flex items-center gap-1.5 text-slate-700">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                            Cash
+                          </span>
+                          <span className="font-mono text-slate-800 font-bold">
+                            {formatCurrency(cashAmt)} ({cashPct}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="bg-emerald-500 h-full rounded-full transition-all"
+                            style={{ width: `${cashPct}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* UPI / Online */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1 font-medium">
+                          <span className="flex items-center gap-1.5 text-slate-700">
+                            <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                            UPI / Online / QR
+                          </span>
+                          <span className="font-mono text-slate-800 font-bold">
+                            {formatCurrency(upiAmt)} ({upiPct}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="bg-indigo-500 h-full rounded-full transition-all"
+                            style={{ width: `${upiPct}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Card POS */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1 font-medium">
+                          <span className="flex items-center gap-1.5 text-slate-700">
+                            <span className="w-2 h-2 rounded-full bg-purple-500" />
+                            Card / POS Machine
+                          </span>
+                          <span className="font-mono text-slate-800 font-bold">
+                            {formatCurrency(cardAmt)} ({cardPct}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="bg-purple-500 h-full rounded-full transition-all"
+                            style={{ width: `${cardPct}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Udhar / Due */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1 font-medium">
+                          <span className="flex items-center gap-1.5 text-slate-700">
+                            <span className="w-2 h-2 rounded-full bg-amber-500" />
+                            Credit Account / Udhar
+                          </span>
+                          <span className="font-mono text-slate-800 font-bold">
+                            {formatCurrency(creditAmt)} ({creditPct}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="bg-amber-500 h-full rounded-full transition-all"
+                            style={{ width: `${creditPct}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Cancellations & Loss Prevention Audit Card */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="w-9 h-9 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 flex items-center justify-center shrink-0">
+                  <AlertTriangle size={18} />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                    Order Cancellations & Loss Audit
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Tracked in real time to prevent cashier theft, unrecorded food voids, and wastage.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
+                <div className="text-left sm:text-right">
+                  <span className="text-[11px] text-slate-500 block">Voided Orders</span>
+                  <span className="font-mono font-bold text-slate-900 text-sm">
+                    {effectiveSales.cancelled_orders}
+                  </span>
+                </div>
+
+                <div className="text-left sm:text-right">
+                  <span className="text-[11px] text-slate-500 block">Lost Billed Value</span>
+                  <span className="font-mono font-bold text-rose-600 text-sm">
+                    {formatCurrency(effectiveSales.cancelled_lost_revenue)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Middle Section: Channel Breakdown + Top Selling Dishes */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Channel Distribution */}
               <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
                 <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
                   <Filter size={15} className="text-slate-600" />
-                  Order Channel Volume Today
+                  Order Channel Volume
                 </h3>
                 <div className="space-y-3">
                   <div>
@@ -972,7 +1567,7 @@ export const OwnerPocketDashboardPage: React.FC = () => {
               <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
                 <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
                   <Sparkles size={15} className="text-amber-600" />
-                  Top Selling Dishes Today
+                  Top Selling Dishes
                 </h3>
                 {topSellingItems.length === 0 ? (
                   <p className="text-xs text-slate-500 py-6 text-center">
@@ -1104,6 +1699,73 @@ export const OwnerPocketDashboardPage: React.FC = () => {
               >
                 <Printer size={13} />
                 <span>Print Receipt</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── PWA INSTALLATION GUIDE MODAL (iOS / Android) ─── */}
+      {showInstallGuideModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Smartphone className="text-emerald-600" size={18} />
+                <h3 className="text-sm font-bold text-slate-900">
+                  Install Owner Hub on Phone
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowInstallGuideModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-sm font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600">
+              Install SSR One Owner Pocket Hub directly to your mobile home screen:
+            </p>
+
+            {/* iOS Safari Steps */}
+            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+              <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                <span>🍎 iPhone / iPad (Safari)</span>
+              </div>
+              <ol className="list-decimal list-inside space-y-1 text-slate-600 pl-1 text-[11px]">
+                <li>Tap the <strong>Share</strong> button (box with arrow up) at the bottom.</li>
+                <li>Scroll down and tap <strong>"Add to Home Screen"</strong>.</li>
+                <li>Tap <strong>"Add"</strong> in the top right.</li>
+              </ol>
+            </div>
+
+            {/* Android Chrome Steps */}
+            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+              <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                <span>🤖 Android (Chrome)</span>
+              </div>
+              <ol className="list-decimal list-inside space-y-1 text-slate-600 pl-1 text-[11px]">
+                <li>Tap the <strong>three dots (⋮)</strong> menu in the top-right.</li>
+                <li>Tap <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</li>
+                <li>Confirm <strong>"Install"</strong>.</li>
+              </ol>
+            </div>
+
+            <div className="pt-2 flex gap-2">
+              <button
+                onClick={copyMobileLink}
+                className="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Copy size={13} />
+                <span>{isCopiedLink ? "Copied!" : "Copy Link"}</span>
+              </button>
+
+              <button
+                onClick={() => setShowInstallGuideModal(false)}
+                className="flex-1 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs cursor-pointer"
+              >
+                Got It
               </button>
             </div>
           </div>

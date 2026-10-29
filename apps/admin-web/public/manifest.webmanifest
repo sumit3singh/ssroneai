@@ -1,12 +1,14 @@
 {
-  "name": "SSR One AI — Enterprise POS & Cloud Suite",
-  "short_name": "SSR One POS",
-  "description": "Ultra-fast Offline-First Restaurant POS and Enterprise Operating System",
-  "start_url": "/pos/transaction/billing",
+  "name": "SSR One AI — Enterprise POS & Owner Suite",
+  "short_name": "SSR One Hub",
+  "description": "Ultra-fast Restaurant POS, Live Observability and Mobile Owner Pocket Hub",
+  "id": "/",
+  "start_url": "/owner",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0B1914",
-  "theme_color": "#103B2B",
-  "orientation": "landscape-primary",
+  "background_color": "#F8FAFC",
+  "theme_color": "#0F172A",
+  "orientation": "any",
   "icons": [
     {
       "src": "/favicon.svg",
@@ -16,6 +18,12 @@
     }
   ],
   "shortcuts": [
+    {
+      "name": "Owner Pocket Hub",
+      "short_name": "Owner Hub",
+      "url": "/owner",
+      "icons": [{ "src": "/favicon.svg", "sizes": "192x192" }]
+    },
     {
       "name": "Quick Billing",
       "short_name": "Billing",
@@ -29,9 +37,9 @@
       "icons": [{ "src": "/favicon.svg", "sizes": "192x192" }]
     },
     {
-      "name": "Customer Display",
-      "short_name": "CFD",
-      "url": "/pos/cfd",
+      "name": "Live Orders List",
+      "short_name": "Live Orders",
+      "url": "/pos/transaction/orders",
       "icons": [{ "src": "/favicon.svg", "sizes": "192x192" }]
     }
   ]

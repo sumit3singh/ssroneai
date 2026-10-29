@@ -122,6 +122,11 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [isSettling, setIsSettling] = useState(false);
 
+  // In-App Cancellation Confirmation Modal (Prevents browser exiting HTML5 Fullscreen!)
+  const [orderToCancel, setOrderToCancel] = useState<POSOrder | null>(null);
+  const [cancelReason, setCancelReason] = useState<string>("Customer Changed Mind");
+  const [isCancellingOrder, setIsCancellingOrder] = useState<boolean>(false);
+
   const fetchOrders = async (overrideFrom?: string, overrideTo?: string) => {
     setIsLoading(true);
     try {
@@ -321,31 +326,44 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
     }
   };
 
-  const handleCancelOrder = async (id: number | string, num: string) => {
-    if (!window.confirm(`Are you sure you want to void/cancel Order ${num}? Orders are never deleted to maintain audit integrity.`)) return;
+  const handleCancelOrder = (ord: POSOrder) => {
+    setOrderToCancel(ord);
+    setCancelReason("Customer Changed Mind");
+  };
 
-    const ordToCancel = orders.find(o => String(o.id) === String(id) || o.order_number === num);
-    const targetTableId = ordToCancel?.table_id;
+  const confirmCancelOrder = async () => {
+    if (!orderToCancel) return;
+    const targetOrd = orderToCancel;
+    const num = String(targetOrd.order_number || "");
+    const targetTableId = targetOrd.table_id;
+    const targetId = num || targetOrd.id;
+
+    setIsCancellingOrder(true);
 
     // 1. Ultra-Fast Zero-Wait Optimistic UI Mutation (< 0.1ms instant): immediately update row and table floor
     setLoadedServerOrders((prev) =>
       prev.map((o) =>
-        String(o.id) === String(id) || o.order_number === num
+        String(o.id) === String(targetOrd.id) || o.order_number === num
           ? { ...o, status: "cancelled", is_held: false }
           : o
       )
     );
     onOptimisticOrderSettle?.(num, targetTableId, "cancelled");
-    toast.success(`⚡ Order ${num} cancelled immediately (Soft Void)`);
+    toast.success(`⚡ Order #${getDisplayOrderNumber(targetOrd)} cancelled immediately (Soft Void)`);
+    setOrderToCancel(null);
 
-    // 2. Fire-and-forget background server synchronization
-    const targetId = id && !String(id).startsWith("local-") ? id : num;
+    // 2. Fire-and-forget background server synchronization with exact order_number
     try {
-      await api.patch(`/orders/${targetId}/status?status=cancelled`);
+      await api.patch(
+        `/orders/${encodeURIComponent(String(targetId))}/status?status=cancelled&reason=${encodeURIComponent(cancelReason)}`
+      );
+      await fetchOrders();
       onRefresh?.();
     } catch (err) {
       console.error("Failed to sync order cancellation to server", err);
       toast.error("Network sync issue: Order cancellation pending server confirmation");
+    } finally {
+      setIsCancellingOrder(false);
     }
   };
 
@@ -849,7 +867,7 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
                           {/* Cancel / Void Order (Soft cancel - Orders are NEVER deleted) */}
                           {!isSettled && !isCancelled && (
                             <button
-                              onClick={() => handleCancelOrder(ord.id, ord.order_number)}
+                              onClick={() => handleCancelOrder(ord)}
                               className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted transition-colors cursor-pointer border-none bg-transparent"
                               title="Soft Void / Cancel Order (Audited)"
                             >
@@ -892,6 +910,113 @@ export const POSOrdersListPage: React.FC<POSOrdersListPageProps> = ({
         onClose={() => setIsReceiptModalOpen(false)}
         receiptData={receiptData}
       />
+
+      {/* ─── IN-APP CANCEL / VOID ORDER MODAL (PREVENTS FULLSCREEN EXIT) ─── */}
+      {orderToCancel && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-background border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-destructive/10 text-destructive flex items-center justify-center">
+                  <XCircle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">
+                    Void / Cancel Order #{getDisplayOrderNumber(orderToCancel)}
+                  </h3>
+                  <div className="text-[11px] text-muted-foreground font-mono">
+                    {orderToCancel.order_number}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setOrderToCancel(null)}
+                className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Order Summary Info Box */}
+            <div className="p-3.5 rounded-xl bg-muted/50 border border-border text-xs space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground font-medium">Table / Channel:</span>
+                <span className="font-bold text-foreground">
+                  {orderToCancel.table_name || (orderToCancel.table_id ? `Table ${orderToCancel.table_id}` : orderToCancel.order_mode || "Takeaway")}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground font-medium">Customer:</span>
+                <span className="font-semibold text-foreground">
+                  {orderToCancel.customer_name || "Walk-in Guest"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground font-medium">Dishes / Items:</span>
+                <span className="font-mono text-foreground font-semibold">
+                  {(orderToCancel.items || []).filter((it: any) => !it.is_voided).length} item(s)
+                </span>
+              </div>
+              <div className="flex justify-between items-center pt-1 border-t border-border/60">
+                <span className="text-muted-foreground font-bold">Total Bill:</span>
+                <span className="font-mono font-extrabold text-foreground text-sm">
+                  ₹{Number(orderToCancel.net_amount || orderToCancel.grand_total || 0).toLocaleString("en-IN")}
+                </span>
+              </div>
+            </div>
+
+            {/* Reason Selector */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">
+                Cancellation Reason:
+              </label>
+              <select
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                className="w-full text-xs p-2 rounded-lg bg-background border border-border text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
+              >
+                <option value="Customer Changed Mind">Customer Changed Mind</option>
+                <option value="Guest Left Without Eating">Guest Left Without Eating</option>
+                <option value="Duplicate Order Placed">Duplicate Order Placed</option>
+                <option value="Wrong Table Selection">Wrong Table Selection</option>
+                <option value="Kitchen Item Out of Stock">Kitchen Item Out of Stock</option>
+                <option value="Food Preparation Delayed">Food Preparation Delayed</option>
+                <option value="Cashier Punching Mistake">Cashier Punching Mistake</option>
+              </select>
+            </div>
+
+            {/* Audit Notice */}
+            <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-700 dark:text-amber-400">
+              🛡️ <strong>Audit Trail Guaranteed:</strong> Orders are never deleted. This void will be recorded under Void & Cancellation Audit with timestamp and cashier ID.
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setOrderToCancel(null)}
+                className="flex-1 text-xs cursor-pointer"
+              >
+                Keep Order
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                disabled={isCancellingOrder}
+                onClick={confirmCancelOrder}
+                className="flex-1 text-xs font-bold gap-1 cursor-pointer bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              >
+                {isCancellingOrder ? <RefreshCw size={12} className="animate-spin" /> : <XCircle size={13} />}
+                <span>Void / Cancel Order</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </PageContainer>
     </div>
   );

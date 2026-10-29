@@ -50,8 +50,8 @@ export const POSPage: React.FC = () => {
   const selectedBranch = useAuthStore((s: any) => s.selected_branch);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Settlement State Lock: Locks settled orders and their tables for 60s to prevent premature background server polls from reverting tables to occupied
-  const settledOrdersLockRef = useRef<Map<string, { timestamp: number; tableId?: string | number }>>(new Map());
+  // Settlement & Cancellation State Lock: Locks settled/cancelled orders and their tables for 60s to prevent premature background server polls from reverting status
+  const settledOrdersLockRef = useRef<Map<string, { timestamp: number; tableId?: string | number; customStatus?: "completed" | "cancelled" }>>(new Map());
   // In-Flight Order Update Lock: Locks newly updated orders for 45s to prevent premature background polls from wiping newly added items
   const activeOrderUpdatesLockRef = useRef<Map<string, { timestamp: number; optimisticOrder: POSOrder }>>(new Map());
   // Cooldown ref for window focus to prevent excessive DB hits on print dialog close
@@ -173,11 +173,11 @@ export const POSPage: React.FC = () => {
 
               if (lockData && lockNow - lockData.timestamp <= 60_000) {
                 // Retain completed/paid or cancelled status during lock window so premature background fetches cannot revert the table
-                const isCancelledLock = (o.status || "").toLowerCase() === "cancelled";
+                const isCancelledLock = lockData.customStatus === "cancelled" || (o.status || "").toLowerCase() === "cancelled";
                 orderMap.set(numStr, {
                   ...o,
                   status: isCancelledLock ? "cancelled" : "completed",
-                  payment_status: isCancelledLock ? o.payment_status : "paid",
+                  payment_status: isCancelledLock ? (o.payment_status || "unpaid") : "paid",
                 });
               } else if (updateLock && lockNow - updateLock.timestamp <= 45_000) {
                 // In-flight update safeguard: Server has caught up ONLY IF server order has at least as many active items
@@ -604,6 +604,7 @@ export const POSPage: React.FC = () => {
     settledOrdersLockRef.current.set(String(orderNumber), {
       timestamp: Date.now(),
       tableId: tableId !== undefined && tableId !== null ? tableId : undefined,
+      customStatus: customStatus,
     });
 
     setOrders((prev) => {

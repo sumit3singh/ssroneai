@@ -1361,6 +1361,13 @@ async def get_orders_analytics_report(
     tenant_id = current_user.tenant_id
     parsed_branch_id = _parse_int_id(branch_id)
 
+    from datetime import datetime, timezone, timedelta
+    ist_tz = timezone(timedelta(hours=5, minutes=30))
+    today_str = get_today_ist_date()
+
+    eff_start = start_date or today_str
+    eff_end = end_date or eff_start
+
     base_query = select(Order).where(
         Order.tenant_id == tenant_id,
         (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
@@ -1370,27 +1377,33 @@ async def get_orders_analytics_report(
     if parsed_branch_id:
         base_query = base_query.where(Order.branch_id == parsed_branch_id)
 
-    if start_date:
-        try:
-            dt_start = datetime.strptime(start_date, "%Y-%m-%d") if len(start_date) == 10 else datetime.fromisoformat(start_date.replace("Z", "+00:00"))
-            base_query = base_query.where(Order.created_at >= dt_start)
-        except Exception:
-            pass
+    dt_start = None
+    dt_end = None
+    try:
+        if len(eff_start) == 10:
+            dt_start = datetime.strptime(eff_start, "%Y-%m-%d").replace(hour=0, minute=0, second=0, tzinfo=ist_tz)
+        else:
+            dt_start = datetime.fromisoformat(eff_start.replace("Z", "+00:00"))
+        base_query = base_query.where(Order.created_at >= dt_start)
+    except Exception as ex:
+        logger.warning("Invalid start_date in get_orders_analytics_report", error=str(ex))
 
-    if end_date:
-        try:
-            dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59) if len(end_date) == 10 else datetime.fromisoformat(end_date.replace("Z", "+00:00"))
-            base_query = base_query.where(Order.created_at <= dt_end)
-        except Exception:
-            pass
+    try:
+        if len(eff_end) == 10:
+            dt_end = datetime.strptime(eff_end, "%Y-%m-%d").replace(hour=23, minute=59, second=59, tzinfo=ist_tz)
+        else:
+            dt_end = datetime.fromisoformat(eff_end.replace("Z", "+00:00"))
+        base_query = base_query.where(Order.created_at <= dt_end)
+    except Exception as ex:
+        logger.warning("Invalid end_date in get_orders_analytics_report", error=str(ex))
 
     subq = base_query.subquery()
 
     agg_stmt = select(
         func.count().label("total_orders"),
-        func.coalesce(func.sum(subq.c.net_amount), 0).label("total_net"),
+        func.coalesce(func.sum(subq.c.grand_total), 0).label("total_net"),
         func.coalesce(func.sum(subq.c.subtotal), 0).label("total_subtotal"),
-        func.coalesce(func.sum(subq.c.tax_amount), 0).label("total_tax"),
+        func.coalesce(func.sum(subq.c.total_tax), 0).label("total_tax"),
         func.coalesce(func.sum(subq.c.discount_amount), 0).label("total_discount"),
         func.coalesce(func.sum(subq.c.amount_paid), 0).label("total_paid"),
         func.coalesce(func.sum(subq.c.balance_due), 0).label("total_due"),
@@ -1406,7 +1419,76 @@ async def get_orders_analytics_report(
     total_paid = float(res.total_paid) if res and res.total_paid else 0.0
     total_due = float(res.total_due) if res and res.total_due else 0.0
 
+    # Payment breakdown aggregation
+    payment_breakdown = {"cash": 0.0, "upi": 0.0, "card": 0.0, "credit_account": 0.0}
+    try:
+        pay_query = (
+            select(
+                func.upper(OrderPayment.payment_mode).label("mode"),
+                func.coalesce(func.sum(OrderPayment.amount), 0).label("amount")
+            )
+            .join(Order, Order.id == OrderPayment.order_id)
+            .where(
+                Order.tenant_id == tenant_id,
+                (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
+                func.lower(Order.status) != "cancelled",
+                func.upper(OrderPayment.status) == "SUCCESS"
+            )
+            .group_by(func.upper(OrderPayment.payment_mode))
+        )
+        if parsed_branch_id:
+            pay_query = pay_query.where(Order.branch_id == parsed_branch_id)
+        if dt_start:
+            pay_query = pay_query.where(Order.created_at >= dt_start)
+        if dt_end:
+            pay_query = pay_query.where(Order.created_at <= dt_end)
+
+        pay_res = await db.execute(pay_query)
+        for row in pay_res.all():
+            m_key = str(row.mode or "").lower()
+            if "cash" in m_key:
+                payment_breakdown["cash"] += float(row.amount or 0)
+            elif "upi" in m_key or "online" in m_key or "qr" in m_key:
+                payment_breakdown["upi"] += float(row.amount or 0)
+            elif "card" in m_key:
+                payment_breakdown["card"] += float(row.amount or 0)
+            elif "credit" in m_key or "udhar" in m_key or "debt" in m_key:
+                payment_breakdown["credit_account"] += float(row.amount or 0)
+    except Exception as pay_err:
+        logger.warning("Failed to aggregate payment breakdown in analytics report", error=str(pay_err))
+
+    # Cancelled orders and lost revenue aggregation
+    cancelled_orders_count = 0
+    cancelled_lost_revenue = 0.0
+    try:
+        c_query = (
+            select(
+                func.count(Order.id).label("c_count"),
+                func.coalesce(func.sum(Order.grand_total), 0).label("c_lost")
+            )
+            .where(
+                Order.tenant_id == tenant_id,
+                (Order.is_deleted == False) | (Order.is_deleted.is_(None)),
+                func.lower(Order.status) == "cancelled"
+            )
+        )
+        if parsed_branch_id:
+            c_query = c_query.where(Order.branch_id == parsed_branch_id)
+        if dt_start:
+            c_query = c_query.where(Order.created_at >= dt_start)
+        if dt_end:
+            c_query = c_query.where(Order.created_at <= dt_end)
+
+        c_res = (await db.execute(c_query)).one_or_none()
+        if c_res:
+            cancelled_orders_count = int(c_res.c_count or 0)
+            cancelled_lost_revenue = float(c_res.c_lost or 0.0)
+    except Exception as c_err:
+        logger.warning("Failed to aggregate cancellations in analytics report", error=str(c_err))
+
     return {
+        "start_date": eff_start,
+        "end_date": eff_end,
         "total_orders": total_orders,
         "total_net": total_net,
         "total_subtotal": total_subtotal,
@@ -1415,6 +1497,9 @@ async def get_orders_analytics_report(
         "total_paid": total_paid,
         "total_due": total_due,
         "avg_order_value": round(total_net / total_orders, 2) if total_orders > 0 else 0.0,
+        "payment_breakdown": payment_breakdown,
+        "cancelled_orders": cancelled_orders_count,
+        "cancelled_lost_revenue": cancelled_lost_revenue,
     }
 
 
@@ -2056,30 +2141,31 @@ async def update_order_status(
     order = None
     clean_id_str = str(order_id).strip().lstrip("#")
 
-    # 1. If numeric, lookup by primary key ID first (O(1) index lookup)
-    if clean_id_str.isdigit():
+    # 1. Match by exact order_number (e.g. "291026-47") or order_number suffix
+    stmt_num = stmt_base.where(
+        (Order.order_number == clean_id_str) |
+        (Order.order_number.like(f"%-{clean_id_str}"))
+    ).order_by(Order.id.desc())
+    order = (await db.execute(stmt_num)).scalars().first()
+
+    # 2. If not found and clean_id_str is numeric, check today's daily_order_number first
+    if not order and clean_id_str.isdigit():
         int_id = int(clean_id_str)
-        stmt_pk = stmt_base.where(Order.id == int_id)
-        order = (await db.execute(stmt_pk)).scalar_one_or_none()
-
-        # 2. If not found by PK, check if matches today's daily_order_number or order_number or suffix
-        if not order:
-            today_str = get_today_ist_date()
-            stmt_daily = stmt_base.where(
-                (Order.daily_order_number == int_id) | 
-                (Order.order_number == clean_id_str) | 
-                (Order.order_number.like(f"%-{int_id}")),
-                func.to_char(Order.created_at, 'YYYY-MM-DD') == today_str
-            ).order_by(Order.id.desc())
-            order = (await db.execute(stmt_daily)).scalars().first()
-
-    # 3. Fallback: match by string order_number or suffix
-    if not order:
-        stmt_num = stmt_base.where(
-            (Order.order_number == clean_id_str) |
-            (Order.order_number.like(f"%-{clean_id_str}"))
+        today_str = get_today_ist_date()
+        ist_tz = timezone(timedelta(hours=5, minutes=30))
+        today_start_dt = datetime.strptime(today_str, "%Y-%m-%d").replace(tzinfo=ist_tz)
+        stmt_daily = stmt_base.where(
+            (Order.daily_order_number == int_id) | 
+            (Order.order_number == f"{get_today_ddmmyy()}-{int_id}") |
+            (Order.order_number.like(f"%-{int_id}")),
+            Order.created_at >= today_start_dt
         ).order_by(Order.id.desc())
-        order = (await db.execute(stmt_num)).scalars().first()
+        order = (await db.execute(stmt_daily)).scalars().first()
+
+        # 3. Fallback: Lookup by primary key ID
+        if not order:
+            stmt_pk = stmt_base.where(Order.id == int_id)
+            order = (await db.execute(stmt_pk)).scalar_one_or_none()
 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
