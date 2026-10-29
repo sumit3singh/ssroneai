@@ -6,7 +6,7 @@ import { useI18n } from "@/stores/i18nStore";
 import { sendOtp, verifyOtp, updateCustomerProfile } from "@ssrone/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
-import { sanitizeIndianPhoneNumber } from "./CustomerAuthGuard";
+import { sanitizeIndianPhoneNumber } from "@/lib/phoneUtils";
 
 interface AuthModalProps {
   isOpen: boolean;

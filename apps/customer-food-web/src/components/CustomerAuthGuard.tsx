@@ -10,40 +10,27 @@ import {
   Clock,
 } from "lucide-react";
 import { useAuthStore, setAuth } from "@ssrone/auth";
-import { useI18n } from "@/stores/i18nStore";
 import {
   sendOtp,
   verifyOtp,
   checkCustomerPhone,
   updateCustomerProfile,
 } from "@ssrone/api-client";
-import { useToast } from "@/hooks/use-toast";
 import { useTenantBranchContext } from "@/hooks/useTenantBranchContext";
 import { useTenantAppConfig } from "@/hooks/useTenantAppConfig";
 import { useCartStore } from "@/stores/cartStore";
 import CustomerProfileModal from "@/components/CustomerProfileModal";
 import { cn } from "@/lib/utils";
+import { sanitizeIndianPhoneNumber } from "@/lib/phoneUtils";
 
-export const sanitizeIndianPhoneNumber = (input: string): string => {
-  if (!input) return "";
-  let digits = input.replace(/\D/g, "");
-
-  // If mobile autofill or paste includes 91 country code for a number (e.g. +91 8059075260 -> 918059075260)
-  if (digits.startsWith("91") && digits.length > 10) {
-    digits = digits.slice(2);
-  }
-
-  // Strip leading zeroes (smart app: prevents typing 0 as first digit, prevents 08059075260 losing last digit)
-  digits = digits.replace(/^0+/, "");
-
-  // If user entered 091... or +91 080...
-  if (digits.startsWith("91") && digits.length > 10) {
-    digits = digits.slice(2);
-    digits = digits.replace(/^0+/, "");
-  }
-
-  return digits.slice(0, 10);
-};
+interface TempCustomerUser {
+  id: string | number;
+  name: string;
+  phone: string;
+  token?: string;
+  loyaltyTier?: string;
+  loyaltyPoints?: number;
+}
 
 interface CustomerAuthGuardProps {
   children: React.ReactNode;
@@ -60,8 +47,6 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({
   const { tenantSlug, branchCode, tableNumber } = useTenantBranchContext();
   const { branding } = useTenantAppConfig();
   const setTableNumber = useCartStore((s) => s.setTableNumber);
-  const { t } = useI18n();
-  const { toast } = useToast();
 
   const storeTitle =
     branding.businessName ||
@@ -79,7 +64,7 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({
   const [error, setError] = useState("");
   const [resendTimer, setResendTimer] = useState(28);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [tempUserObj, setTempUserObj] = useState<any>(null);
+  const [tempUserObj, setTempUserObj] = useState<TempCustomerUser | null>(null);
 
   const otpInputRefs = [
     useRef<HTMLInputElement>(null),
@@ -125,7 +110,7 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({
   }
 
   // After login: If table is present, navigate directly to table menu!
-  const handlePostLoginFlow = (userObj: any) => {
+  const handlePostLoginFlow = (userObj: TempCustomerUser) => {
     setAuth({ user: userObj, access_token: userObj.token || "customer_guest_token" });
     setShowProfileModal(false);
 
@@ -266,11 +251,12 @@ export const CustomerAuthGuard: React.FC<CustomerAuthGuardProps> = ({
         handlePostLoginFlow(userObj);
         setLoyalty(result.user.loyaltyTier || "BRONZE", result.user.loyaltyPoints || 0);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errObj = err as { response?: { data?: { detail?: string } }; detail?: string; message?: string };
       const msg =
-        err?.response?.data?.detail ||
-        err?.detail ||
-        err?.message ||
+        errObj?.response?.data?.detail ||
+        errObj?.detail ||
+        errObj?.message ||
         "Invalid OTP code. Please enter the correct code.";
       setError(msg);
     } finally {
