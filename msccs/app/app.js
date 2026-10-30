@@ -467,6 +467,24 @@ function renderDocument(docKey) {
     }
   });
 
+  // Update mobile selector dropdown
+  const mobileDocSelector = document.getElementById("mobile-doc-selector");
+  if (mobileDocSelector && mobileDocSelector.value !== docKey) {
+    mobileDocSelector.value = docKey;
+  }
+
+  // Update active mobile drawer link
+  document.querySelectorAll(".mobile-drawer-item").forEach((el) => {
+    if (el.getAttribute("data-key") === docKey) {
+      el.classList.add("bg-blue-100/80", "text-blue-950", "font-bold", "border-blue-300");
+      el.classList.remove("text-slate-700", "hover:bg-slate-100");
+    } else {
+      el.classList.remove("bg-blue-100/80", "text-blue-950", "font-bold", "border-blue-300");
+      el.classList.add("text-slate-700", "hover:bg-slate-100");
+    }
+  });
+
+
   // Check if slide deck
   const isSlideDeck = !!docData.parsed_slides;
   if (pptxBtn) pptxBtn.style.display = isSlideDeck ? "inline-flex" : "none";
@@ -2055,4 +2073,95 @@ function setupEventListeners() {
     profileModal.classList.add("hidden");
     showToast("Profile details updated across all documents!", "success");
   });
+
+  // =========================================================================
+  // 📱 MOBILE RESPONSIVENESS & TOUCH GESTURES
+  // =========================================================================
+
+  // 1. Mobile Quick Document Dropdown Selector
+  const mobileDocSelector = document.getElementById("mobile-doc-selector");
+  mobileDocSelector?.addEventListener("change", (e) => {
+    const key = e.target.value;
+    if (key) renderDocument(key);
+  });
+
+  // 2. Mobile Off-Canvas Navigation Drawer
+  const mobileDrawer = document.getElementById("mobile-nav-drawer");
+  const mobileBackdrop = document.getElementById("mobile-nav-backdrop");
+
+  const openMobileDrawer = () => {
+    mobileBackdrop?.classList.remove("hidden");
+    mobileDrawer?.classList.remove("-translate-x-full");
+    document.body.style.overflow = "hidden";
+  };
+
+  const closeMobileDrawer = () => {
+    mobileDrawer?.classList.add("-translate-x-full");
+    mobileBackdrop?.classList.add("hidden");
+    document.body.style.overflow = "";
+  };
+
+  document.getElementById("btn-open-mobile-drawer")?.addEventListener("click", openMobileDrawer);
+  document.getElementById("btn-close-mobile-drawer")?.addEventListener("click", closeMobileDrawer);
+  mobileBackdrop?.addEventListener("click", closeMobileDrawer);
+
+  // Mobile Drawer Document Links
+  document.querySelectorAll(".mobile-drawer-item").forEach((item) => {
+    item.addEventListener("click", (e) => {
+      e.preventDefault();
+      const key = item.getAttribute("data-key");
+      if (key) {
+        renderDocument(key);
+        closeMobileDrawer();
+      }
+    });
+  });
+
+  // Quick buttons in mobile drawer
+  document.getElementById("drawer-btn-master-pdf")?.addEventListener("click", () => {
+    closeMobileDrawer();
+    downloadMasterPDF();
+  });
+  document.getElementById("drawer-btn-glossary")?.addEventListener("click", () => {
+    closeMobileDrawer();
+    const glossaryModal = document.getElementById("glossary-modal");
+    if (glossaryModal) glossaryModal.classList.remove("hidden");
+  });
+
+  // 3. Mobile Presentation Mode Tabs (Slide Canvas vs Spoken Speech Notes)
+  const tabSlideBtn = document.getElementById("pres-tab-slide");
+  const tabSpeechBtn = document.getElementById("pres-tab-speech");
+  const speechPanel = document.getElementById("pres-speech-sidepanel");
+
+  tabSlideBtn?.addEventListener("click", () => {
+    if (tabSlideBtn) tabSlideBtn.className = "flex-1 py-1.5 rounded-md bg-white text-blue-950 shadow-xs font-bold";
+    if (tabSpeechBtn) tabSpeechBtn.className = "flex-1 py-1.5 rounded-md text-slate-600";
+    if (speechPanel) speechPanel.classList.add("hidden");
+  });
+
+  tabSpeechBtn?.addEventListener("click", () => {
+    if (tabSpeechBtn) tabSpeechBtn.className = "flex-1 py-1.5 rounded-md bg-white text-blue-950 shadow-xs font-bold";
+    if (tabSlideBtn) tabSlideBtn.className = "flex-1 py-1.5 rounded-md text-slate-600";
+    if (speechPanel) {
+      speechPanel.classList.remove("hidden");
+    }
+  });
+
+  // 4. Mobile Touch Swipe Gestures for Slides
+  let touchStartX = 0;
+  let touchEndX = 0;
+  const presModal = document.getElementById("presentation-modal");
+  presModal?.addEventListener("touchstart", (e) => {
+    touchStartX = e.changedTouches[0].screenX;
+  }, { passive: true });
+
+  presModal?.addEventListener("touchend", (e) => {
+    touchEndX = e.changedTouches[0].screenX;
+    const diff = touchEndX - touchStartX;
+    if (Math.abs(diff) > 50) {
+      if (diff < 0) nextSlide(); // Swipe Left -> Next Slide
+      else prevSlide();          // Swipe Right -> Prev Slide
+    }
+  }, { passive: true });
 }
+

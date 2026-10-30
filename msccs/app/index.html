@@ -41,53 +41,60 @@
 
   <!-- Top Academic Navigation Bar (Clean Light Theme) -->
   <header class="no-print sticky top-0 z-40 bg-white text-slate-800 shadow-sm border-b border-slate-200">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5 flex items-center justify-between gap-2">
 
       <!-- Brand & University Details -->
-      <div class="flex items-center space-x-3">
+      <div class="flex items-center space-x-2 sm:space-x-3 min-w-0">
+        <!-- Mobile Drawer Hamburger Toggle (Visible on Mobile) -->
+        <button id="btn-open-mobile-drawer" class="md:hidden p-1.5 sm:p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition shrink-0" aria-label="Open Navigation Drawer" title="Open Deliverables Menu">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        </button>
+
         <div
-          class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center p-1 shadow-sm border border-amber-300">
-          <svg class="w-6 h-6 text-amber-700" viewBox="0 0 24 24" fill="currentColor">
+          class="w-9 h-9 sm:w-10 sm:h-10 bg-amber-50 rounded-xl flex items-center justify-center p-1 shadow-sm border border-amber-300 shrink-0">
+          <svg class="w-5 h-5 sm:w-6 sm:h-6 text-amber-700" viewBox="0 0 24 24" fill="currentColor">
             <path
               d="M12 2L1 7l11 5 9-4.09V17h2V7L12 2zM3.46 8.78L12 12.58l8.54-3.8V15c-.9 1.15-2.28 2.08-3.93 2.72-2.15.83-4.66.83-6.81 0-1.65-.64-3.03-1.57-3.93-2.72v-6.22z" />
           </svg>
         </div>
-        <div>
-          <h1 class="text-xs sm:text-sm font-bold tracking-wide uppercase text-blue-950 font-heading">Jagat Guru Nanak
-            Dev Punjab State Open University</h1>
-          <div class="text-[11px] text-slate-500 flex items-center space-x-2">
-            <span class="font-medium text-slate-700">M.Sc. (Computer Science) Semester-IV</span>
+        <div class="min-w-0">
+          <h1 class="text-xs sm:text-sm font-bold tracking-wide uppercase text-blue-950 font-heading truncate max-w-[170px] xs:max-w-[260px] sm:max-w-none">
+            <span class="sm:hidden">JGND PSOU, Patiala</span>
+            <span class="hidden sm:inline">Jagat Guru Nanak Dev Punjab State Open University</span>
+          </h1>
+          <div class="text-[10px] sm:text-[11px] text-slate-500 flex items-center space-x-1.5 sm:space-x-2 truncate">
+            <span class="font-medium text-slate-700">M.Sc. (CS) Sem-IV</span>
             <span class="text-amber-500">•</span>
             <span
-              class="bg-amber-100 text-amber-900 px-2 py-0.2 rounded font-semibold text-[10px] border border-amber-300">Final
-              Portfolio (250 Marks)</span>
+              class="bg-amber-100 text-amber-900 px-1.5 sm:px-2 py-0.2 rounded font-semibold text-[9px] sm:text-[10px] border border-amber-300">Final (250 M)</span>
           </div>
         </div>
       </div>
 
       <!-- Action Navigation Buttons (Master PDF, Hard Words, Dev Mode, Profile) -->
-      <div class="flex items-center space-x-2 sm:space-x-2.5">
+      <div class="flex items-center space-x-1.5 sm:space-x-2.5 shrink-0">
 
         <!-- 📕 Master PDF Button (All 11 Documents in 1 Consolidated File) -->
         <button id="btn-master-pdf"
-          class="px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow-sm"
+          class="px-2.5 sm:px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1 sm:space-x-1.5 shadow-sm"
           title="Download all 11 documents merged into one complete Master Academic Portfolio PDF">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-          <span class="hidden sm:inline">📕 Master PDF (All-in-One)</span>
-          <span class="sm:hidden">Master PDF</span>
+          <span class="hidden md:inline">📕 Master PDF (All-in-One)</span>
+          <span class="md:hidden">PDF</span>
         </button>
 
         <!-- 📖 Hard Words Meaning Button (कठिन शब्द सरल हिंदी अर्थ) -->
         <button id="btn-open-glossary"
-          class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-lg text-xs font-bold border border-amber-300 transition flex items-center space-x-1.5 shadow-sm">
+          class="px-2.5 sm:px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-lg text-xs font-bold border border-amber-300 transition flex items-center space-x-1 sm:space-x-1.5 shadow-sm"
+          title="Open Hindi-English Technical Terms Dictionary">
           <span class="text-sm">📖</span>
-          <span class="hidden md:inline">कठिन शब्दार्थ (Viva Glossary)</span>
-          <span class="md:hidden">Glossary</span>
+          <span class="hidden lg:inline">कठिन शब्दार्थ (Viva Glossary)</span>
+          <span class="lg:hidden hidden sm:inline">Glossary</span>
         </button>
 
         <!-- 🛠️ Developer Mode Toggle Button -->
         <button id="btn-toggle-dev"
-          class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 transition flex items-center space-x-1 shadow-sm"
+          class="hidden sm:flex px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 transition items-center space-x-1 shadow-sm"
           title="Toggle In-Browser Live Developer Edit Mode">
           <span>🛠️</span>
           <span class="hidden md:inline">Dev Mode</span>
@@ -100,13 +107,14 @@
         </div>
 
         <button id="btn-open-profile"
-          class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium border border-slate-300 transition flex items-center space-x-1 shadow-sm">
+          class="px-2 sm:px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium border border-slate-300 transition flex items-center space-x-1 shadow-sm"
+          title="Edit Candidate Details">
           <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
             </path>
           </svg>
-          <span class="hidden sm:inline">Edit Profile</span>
+          <span class="hidden sm:inline">Profile</span>
         </button>
 
       </div>
@@ -142,42 +150,171 @@
     </div>
   </div>
 
-  <!-- Document Action Floating Sub-Header (Screen Only) -->
-  <div class="no-print bg-white/95 backdrop-blur-sm border-b border-slate-200 sticky top-[57px] z-30 shadow-xs">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex flex-wrap items-center justify-between gap-2">
+  <!-- Mobile Slide-Over Navigation Drawer & Backdrop -->
+  <div id="mobile-nav-backdrop" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300"></div>
+  <aside id="mobile-nav-drawer" class="fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] bg-white shadow-2xl transform -translate-x-full transition-transform duration-300 ease-in-out flex flex-col no-print md:hidden">
+    <!-- Drawer Header -->
+    <div class="p-3.5 bg-blue-950 text-white flex items-center justify-between border-b border-blue-900">
+      <div class="flex items-center space-x-2">
+        <span class="text-xl">🎓</span>
+        <div>
+          <h3 class="text-xs font-bold tracking-wider uppercase text-amber-400">JGND PSOU Patiala</h3>
+          <p class="text-xs font-bold text-white">Academic Deliverables</p>
+          <p class="text-[10px] text-slate-300 font-mono">Sumit Singh • PSOU/MSCS/2026/042</p>
+        </div>
+      </div>
+      <button id="btn-close-mobile-drawer" class="p-1 rounded-lg bg-blue-900 hover:bg-blue-800 text-slate-200 transition" aria-label="Close Navigation">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+      </button>
+    </div>
 
-      <!-- Current Document Title Breadcrumb -->
+    <!-- Quick Buttons in Drawer -->
+    <div class="p-2.5 border-b border-slate-200 flex items-center gap-2 bg-slate-50">
+      <button id="drawer-btn-master-pdf" class="flex-1 py-1.5 px-2 bg-red-700 hover:bg-red-800 text-white rounded-lg text-xs font-bold shadow-xs text-center flex items-center justify-center space-x-1">
+        <span>📕 Master PDF</span>
+      </button>
+      <button id="drawer-btn-glossary" class="flex-1 py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold text-center flex items-center justify-center space-x-1">
+        <span>📖 Glossary</span>
+      </button>
+    </div>
+
+    <!-- Navigation Tree in Drawer -->
+    <div class="flex-1 overflow-y-auto p-3 space-y-3.5">
+      <!-- MSCS-4-03P: Major Project -->
       <div>
+        <div class="flex items-center justify-between px-2 py-1 bg-amber-50 rounded text-xs font-bold text-amber-950 border border-amber-200 mb-1.5">
+          <span>MSCS-4-03P: Major Project</span>
+          <span class="bg-amber-200 text-amber-900 text-[10px] px-1.5 py-0.2 rounded font-bold">200 Marks</span>
+        </div>
+        <nav class="space-y-0.5">
+          <a href="#" data-key="project_application" class="mobile-drawer-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-700 hover:bg-slate-100 transition">
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2 shrink-0"></span>
+            <span>1. Topic Approval Letter</span>
+          </a>
+          <a href="#" data-key="project_synopsis" class="mobile-drawer-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-700 hover:bg-slate-100 transition">
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2 shrink-0"></span>
+            <span>2. Project Synopsis (8-Part)</span>
+          </a>
+          <a href="#" data-key="project_thesis" class="mobile-drawer-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-700 hover:bg-slate-100 transition">
+            <span class="w-1.5 h-1.5 rounded-full bg-blue-600 mr-2 shrink-0"></span>
+            <span class="font-bold text-blue-950">3. Final Thesis (30-35 Pgs)</span>
+          </a>
+          <a href="#" data-key="project_slides" class="mobile-drawer-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-700 hover:bg-slate-100 transition">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-2 shrink-0"></span>
+            <span>4. Presentation Slides & Speech</span>
+          </a>
+          <a href="#" data-key="project_viva" class="mobile-drawer-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-700 hover:bg-slate-100 transition">
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2 shrink-0"></span>
+            <span>5. Viva Examiner Q&A Guide</span>
+          </a>
+          <a href="#" data-key="project_paper" class="mobile-drawer-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-700 hover:bg-slate-100 transition">
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2 shrink-0"></span>
+            <span>6. IEEE Research Paper</span>
+          </a>
+        </nav>
+      </div>
+
+      <!-- MSCS-4-04: Seminar -->
+      <div>
+        <div class="flex items-center justify-between px-2 py-1 bg-blue-50 rounded text-xs font-bold text-blue-950 border border-blue-200 mb-1.5">
+          <span>MSCS-4-04: Seminar</span>
+          <span class="bg-blue-200 text-blue-950 text-[10px] px-1.5 py-0.2 rounded font-bold">50 Marks</span>
+        </div>
+        <nav class="space-y-0.5">
+          <a href="#" data-key="seminar_application" class="mobile-drawer-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-700 hover:bg-slate-100 transition">
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2 shrink-0"></span>
+            <span>1. Seminar Approval Letter</span>
+          </a>
+          <a href="#" data-key="seminar_report" class="mobile-drawer-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-700 hover:bg-slate-100 transition">
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2 shrink-0"></span>
+            <span>2. Seminar Report (10-15 Pgs)</span>
+          </a>
+          <a href="#" data-key="seminar_slides" class="mobile-drawer-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-700 hover:bg-slate-100 transition">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-2 shrink-0"></span>
+            <span>3. Oral Slides & Speech</span>
+          </a>
+          <a href="#" data-key="seminar_viva" class="mobile-drawer-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-700 hover:bg-slate-100 transition">
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2 shrink-0"></span>
+            <span>4. Seminar Discussion Q&A</span>
+          </a>
+        </nav>
+      </div>
+
+      <!-- Master Index Link -->
+      <div class="pt-2 border-t border-slate-200">
+        <a href="#" data-key="master_index" class="mobile-drawer-item flex items-center px-2 py-1.5 rounded-md text-xs text-slate-700 hover:bg-slate-100 transition">
+          <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2 shrink-0"></span>
+          <span>Master Index & Guidelines</span>
+        </a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Document Action Floating Sub-Header (Screen Only) -->
+  <div class="no-print bg-white/95 backdrop-blur-sm border-b border-slate-200 sticky top-[49px] sm:top-[57px] z-30 shadow-xs">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+
+      <!-- Mobile Document Quick Selector Dropdown (Visible on Mobile) -->
+      <div class="block md:hidden w-full">
+        <div class="relative">
+          <select id="mobile-doc-selector" class="w-full appearance-none bg-slate-50 border border-slate-300 text-blue-950 text-xs font-bold rounded-lg py-2 pl-3 pr-8 shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-900">
+            <optgroup label="MSCS-4-03P: Major Project (200 Marks)">
+              <option value="project_thesis">3. Final Thesis Report (30-35 Pgs)</option>
+              <option value="project_synopsis">2. Project Synopsis (8-Part)</option>
+              <option value="project_slides">4. Presentation Slides & Speech</option>
+              <option value="project_viva">5. Viva Examiner Q&A Guide</option>
+              <option value="project_paper">6. IEEE Research Paper</option>
+              <option value="project_application">1. Topic Approval Letter</option>
+            </optgroup>
+            <optgroup label="MSCS-4-04: Seminar (50 Marks)">
+              <option value="seminar_report">2. Seminar Report (10-15 Pgs)</option>
+              <option value="seminar_slides">3. Oral Slides & Speech</option>
+              <option value="seminar_viva">4. Seminar Discussion Q&A</option>
+              <option value="seminar_application">1. Seminar Approval Letter</option>
+            </optgroup>
+            <optgroup label="Curriculum Alignment">
+              <option value="master_index">Master Index & Guidelines</option>
+            </optgroup>
+          </select>
+          <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-500">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Current Document Title Breadcrumb (Desktop) -->
+      <div class="hidden md:block">
         <h2 id="doc-header-title" class="text-sm font-bold text-blue-950 font-heading">Document Title</h2>
         <p id="doc-header-path" class="text-[11px] text-slate-500 font-mono">msccs/path/to/file.md</p>
       </div>
 
       <!-- Action Buttons -->
-      <div class="flex items-center space-x-2">
+      <div class="flex items-center flex-wrap gap-1.5 sm:gap-2">
         <!-- 1-Click PDF Download -->
         <button id="btn-download-pdf"
-          class="px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded-lg text-xs font-bold shadow-sm flex items-center space-x-1.5 transition">
+          class="px-2.5 sm:px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded-lg text-xs font-bold shadow-sm flex items-center space-x-1.5 transition">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
             </path>
           </svg>
-          <span>Download PDF</span>
+          <span>PDF</span>
         </button>
 
         <!-- 1-Click Direct PPTX Download (Active for Slide Decks) -->
         <button id="btn-download-pptx"
-          class="hidden px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-sm items-center space-x-1.5 transition">
+          class="hidden px-2.5 sm:px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-sm items-center space-x-1.5 transition">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
           </svg>
-          <span>Download PPTX (PowerPoint)</span>
+          <span class="hidden sm:inline">Download PPTX</span>
+          <span class="sm:hidden">PPTX</span>
         </button>
 
         <!-- Present Fullscreen Slides (Active for Slide Decks) -->
         <button id="btn-present-slides"
-          class="hidden px-3 py-1.5 bg-blue-900 hover:bg-blue-950 text-white rounded-lg text-xs font-bold shadow-sm items-center space-x-1.5 transition">
+          class="hidden px-2.5 sm:px-3 py-1.5 bg-blue-900 hover:bg-blue-950 text-white rounded-lg text-xs font-bold shadow-sm items-center space-x-1.5 transition">
           <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z">
@@ -185,7 +322,8 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
           </svg>
-          <span>Present Slides (Viva)</span>
+          <span class="hidden sm:inline">Present Slides</span>
+          <span class="sm:hidden">Present</span>
         </button>
 
         <!-- Print Document -->
@@ -204,10 +342,10 @@
   </div>
 
   <!-- Main Layout Grid -->
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex-1 flex flex-col md:flex-row gap-5 w-full min-w-0">
+  <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-5 flex-1 flex flex-col md:flex-row gap-4 sm:gap-5 w-full min-w-0">
 
-    <!-- Left Navigation Sidebar (Light, Clean) -->
-    <aside class="no-print w-full md:w-72 shrink-0">
+    <!-- Left Navigation Sidebar (Light, Clean - Hidden on Mobile, Shown on Tablet/Desktop) -->
+    <aside class="no-print hidden md:block w-72 shrink-0">
       <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-3.5 sticky top-[115px]">
 
         <h3 class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 px-2">Final Semester Deliverables
@@ -874,35 +1012,46 @@
     class="hidden fixed inset-0 z-50 bg-slate-100 flex flex-col h-screen max-h-screen overflow-hidden">
 
     <!-- Top Presentation Header (Light, Clean) -->
-    <div class="px-5 py-2.5 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-xs">
-      <div class="flex items-center space-x-2.5">
+    <div class="px-3 sm:px-5 py-2 sm:py-2.5 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-xs">
+      <div class="flex items-center space-x-2 sm:space-x-2.5">
         <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-        <span class="text-xs font-bold uppercase tracking-wider text-blue-950 font-heading">Viva Voce Presentation Theater</span>
+        <span class="text-xs font-bold uppercase tracking-wider text-blue-950 font-heading">
+          <span class="sm:hidden">Viva Theater</span>
+          <span class="hidden sm:inline">Viva Voce Presentation Theater</span>
+        </span>
         <span class="text-slate-300">|</span>
         <span id="pres-slide-counter"
           class="text-xs font-mono font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">Slide
           1 of 15</span>
       </div>
 
-      <div class="flex items-center space-x-2">
+      <div class="flex items-center space-x-1.5 sm:space-x-2">
         <button id="pres-btn-edit-slide"
-          class="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-md text-xs font-semibold border border-blue-300 flex items-center space-x-1 transition shadow-xs"
+          class="hidden sm:flex px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-md text-xs font-semibold border border-blue-300 items-center space-x-1 transition shadow-xs"
           title="Edit this slide in Developer Studio">
-          <span>✏️ Edit Slide</span>
+          <span>✏️ Edit</span>
         </button>
         <button id="btn-toggle-notes"
-          class="px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-md text-xs font-semibold border border-amber-300 flex items-center space-x-1 transition shadow-xs">
-          <span>🎤 Spoken Speech Script (Notes)</span>
+          class="hidden sm:flex px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-md text-xs font-semibold border border-amber-300 items-center space-x-1 transition shadow-xs">
+          <span>🎤 Notes</span>
         </button>
         <button id="pres-btn-close"
-          class="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md text-xs font-bold transition">
+          class="px-2.5 sm:px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md text-xs font-bold transition">
           Exit (Esc)
         </button>
       </div>
     </div>
 
-    <!-- Presentation Body Grid (Fits 100% inside screen, Side-by-Side View) -->
-    <div class="flex-1 min-h-0 flex overflow-hidden p-3 gap-3">
+    <!-- Mobile View Tabs: Slide Canvas vs Spoken Speech Notes (Visible on mobile only) -->
+    <div class="sm:hidden px-3 pt-2 bg-slate-100 shrink-0">
+      <div class="flex items-center w-full bg-slate-200 p-0.5 rounded-lg text-xs font-bold">
+        <button id="pres-tab-slide" class="flex-1 py-1.5 rounded-md bg-white text-blue-950 shadow-xs transition">🖥️ Slide View</button>
+        <button id="pres-tab-speech" class="flex-1 py-1.5 rounded-md text-slate-600 transition">🎤 Speech Script</button>
+      </div>
+    </div>
+
+    <!-- Presentation Body Grid (Fits 100% inside screen, Side-by-Side View on Desktop, Stacked on Mobile) -->
+    <div class="flex-1 min-h-0 flex flex-col sm:flex-row overflow-hidden p-2 sm:p-3 gap-2 sm:gap-3">
 
       <!-- Left: Slide Canvas (Always fully visible, auto-scales) -->
       <div class="flex-1 min-h-0 flex items-center justify-center overflow-hidden">

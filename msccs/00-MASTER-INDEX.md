@@ -36,7 +36,7 @@ e:/2026/ssr_one_ai/msccs/
 ├── 01-MAJOR-PROJECT-MSCS-4-03P/               # Course Code: MSCS-4-03P (200 Marks)
 │   ├── 01-TOPIC-APPROVAL-APPLICATION.md      # Formal Topic Application to Course Coordinator
 │   ├── 02-PROJECT-SYNOPSIS.md                 # University-Mandated 8-Part Synopsis (5-7 Pages)
-│   ├── 03-FINAL-PROJECT-REPORT-THESIS.md      # Complete 30-35 Page Final Project Report (7 Chapters)
+│   ├── 03-FINAL-PROJECT-REPORT-THESIS.md      # University-Mandated 9-Part Project Documentation (8 Chapters + Appendix)
 │   ├── 04-PRESENTATION-SLIDES.md              # 10-15 Min Viva Presentation Deck & Script
 │   ├── 05-VIVA-VOCE-DEFENSE-GUIDE.md          # Comprehensive External Examiner Q&A Guide
 │   └── 06-RESEARCH-PAPER-IEEE.md              # Academic Research Paper Draft (IEEE 2-Column Format)

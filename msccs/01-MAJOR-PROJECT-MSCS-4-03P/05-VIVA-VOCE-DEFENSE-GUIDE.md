@@ -7,7 +7,7 @@
 
 ---
 
-## 🎖️ Top 12 Tough Technical Questions & Architect's Model Answers
+## 🎖️ Top 15 Tough Technical Questions & Architect's Model Answers
 
 ### Question 1: "What is the single biggest architectural innovation in your project compared to commercial POS systems like Toast, Square, or Petpooja?"
 * **Architect's Defending Answer**:
@@ -107,3 +107,31 @@
 ### Question 12: "Did you follow a standard software engineering methodology during development?"
 * **Architect's Defending Answer**:
   > *"Yes, respected examiner. We followed the **Iterative Spiral / Agile Methodology**. We proceeded from mathematical formalization and database schema design, to Service-Repository pattern implementation, monorepo package encapsulation, and finally automated benchmarking with Locust and Playwright. Every major design decision was formalized in Architectural Decision Records (ADRs) within the project's governance repository."*
+
+---
+
+### Question 13: "How does your architecture map to Brewer's CAP Theorem and Abadi's PACELC Theorem?"
+* **Architect's Defending Answer**:
+  > *"Under Eric Brewer's CAP theorem, any distributed data store can satisfy at most two of Consistency ($C$), Availability ($A$), and Partition Tolerance ($P$). Because network partitions ($P$) are physical inevitabilities in commercial environments, our architecture deliberately chooses **$AP$ (Availability over Linearizability)** during active partitions.*  
+  > *Under Daniel Abadi's PACELC extension: If there is a Partition ($P$), how does the system trade off Availability ($A$) and Consistency ($C$); Else ($E$), how does the system trade off Latency ($L$) and Consistency ($C$)?*  
+  > *SSR ONE AI maps explicitly to **PA/EL**: During partitions, we prioritize Availability ($A$) by committing writes to client-side IndexedDB. In the normal connected state (Else), we prioritize Latency ($L$) by achieving sub-millisecond local UI interaction ($< 0.5\text{ms}$) while deferring server-side synchronization asynchronously."*
+
+---
+
+### Question 14: "If a cashier is offline for 2 hours and their JWT access token expires after 60 minutes, does the terminal lock them out during a dinner rush?"
+* **Architect's Defending Answer**:
+  > *"No, respected examiner. This is a critical edge case in distributed offline systems.*  
+  > *1. **Local Authentication Continuity**: When a cashier logs in, the client securely stores the signed JWT and cryptographic session claims in an encrypted IndexedDB vault (`auth_tokens`).*  
+  > *2. **Grace-Period Offline Authorization**: The client-side security guard verifies the digital signature locally. If the clock exceeds the token's `exp` claim while the device is in an active offline state (`navigator.onLine === false`), the system transitions to an **Offline Grace Period Mode**, allowing continuous cashier billing.*  
+  > *3. **Re-Authentication on Reconnection**: When connectivity returns, the background sync worker uses the stored long-lived HTTP-only Refresh Token to negotiate a fresh JWT before draining the buffered order queue to the server. The cashier's billing flow is never interrupted."*
+
+---
+
+### Question 15: "How do you execute Alembic schema migrations on tables that have active Row-Level Security without causing table-lock deadlocks?"
+* **Architect's Defending Answer**:
+  > *"Executing DDL (`ALTER TABLE`) on tables with active RLS can cause severe exclusive table locks (`AccessExclusiveLock`) that block all incoming cashier transactions.*  
+  > *We solve this through our **Zero-Downtime Migration Standard** (governed by ADR-0007):*  
+  > *1. Schema migrations are executed during maintenance windows via Alembic using `BYPASSRLS` superuser connections, preventing policy evaluation overhead during DDL.*  
+  > *2. Column additions are always defined with `nullable=True` or `DEFAULT` values without rewriting whole tables.*  
+  > *3. Heavy index creations are always executed using PostgreSQL's `CREATE INDEX CONCURRENTLY`, acquiring only `ShareUpdateExclusiveLock` so read and write transactions continue without latency spikes."*
+
