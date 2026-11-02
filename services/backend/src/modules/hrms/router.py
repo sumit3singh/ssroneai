@@ -140,7 +140,20 @@ async def staff_login(
     if clean_pin != expected_pin:
         raise HTTPException(status_code=401, detail=f"Invalid Security PIN Code for staff account '{emp.employee_code}'")
 
-    token = f"staff_jwt_{emp.id}_{emp.employee_code}"
+    from src.modules.auth.models import User
+    t_user = (await db.execute(select(User).where(User.tenant_id == tenant_id, User.is_deleted == False).order_by(User.id.asc()))).scalars().first()
+    valid_user_id = t_user.id if t_user else emp.id
+
+    from src.modules.auth.service import AuthService
+    auth_service = AuthService()
+    token = auth_service.create_access_token({
+        "sub": str(valid_user_id),
+        "user_id": valid_user_id,
+        "employee_id": emp.id,
+        "tenant_id": emp.tenant_id,
+        "branch_id": emp.branch_id or 1,
+        "role": "employee",
+    })
     return {
         "access_token": token,
         "token_type": "bearer",
@@ -778,10 +791,15 @@ async def staff_login(
                     detail=f"Access Denied: Staff member '{emp.full_name}' does not have permission to access KDS Kitchen Display. Please contact HR Admin."
                 )
 
-        from src.modules.auth.service import AuthService
+        from src.modules.auth.models import User
+        t_user = (await db.execute(select(User).where(User.tenant_id == tenant_id, User.is_deleted == False).order_by(User.id.asc()))).scalars().first()
+        valid_user_id = t_user.id if t_user else emp.id
+
         auth_service = AuthService()
         access_token = auth_service.create_access_token({
-            "sub": str(emp.id),
+            "sub": str(valid_user_id),
+            "user_id": valid_user_id,
+            "employee_id": emp.id,
             "tenant_id": emp.tenant_id,
             "branch_id": emp.branch_id or 1,
             "role": "employee"

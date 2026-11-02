@@ -105,7 +105,7 @@ export const StaffLoginModal: React.FC<StaffLoginModalProps> = ({
       localStorage.setItem("active_branch_name", branchName);
 
       setIsLoading(false);
-      onLoginSuccess(authPayload.user);
+      onLoginSuccess(authPayload);
     } catch (err: any) {
       console.error("Login verification rejected by PostgreSQL:", err);
       const detailMsg = err?.response?.data?.detail || err?.message || "Invalid Staff ID or Security PIN! Authentication rejected by PostgreSQL.";

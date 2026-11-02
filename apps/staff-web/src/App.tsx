@@ -270,18 +270,12 @@ export function App() {
   const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
   const [successOrderBanner, setSuccessOrderBanner] = useState<any | null>(null);
 
-  // Sync auth state & listen for expired sessions
+  // Sync auth state
   useEffect(() => {
     const onStorage = () => setAuthState(getAuth());
-    const onAuthExpired = () => {
-      setAuthState(getAuth());
-      setShowLoginModal(true);
-    };
     window.addEventListener("storage", onStorage);
-    window.addEventListener("ssrone:auth-expired", onAuthExpired);
     return () => {
       window.removeEventListener("storage", onStorage);
-      window.removeEventListener("ssrone:auth-expired", onAuthExpired);
     };
   }, []);
 
@@ -1067,12 +1061,12 @@ export function App() {
         <StaffLoginModal
           isOpen={showLoginModal}
           onLoginSuccess={(authPayload) => {
-            const token = authPayload.token || authPayload.access_token || ("staff-token-" + Date.now());
-            const user = authPayload.user || authPayload;
+            const token = authPayload?.token || authPayload?.access_token || getAccessToken() || ("staff-token-" + Date.now());
+            const user = authPayload?.user || authPayload;
             setAuth({
               token,
               access_token: token,
-              name: user.name,
+              name: user?.name || "Staff Member",
               isLoggedIn: true,
               user,
             });

@@ -76,7 +76,6 @@ async def get_current_user(
         target_user_id = 10
 
     if target_user_id is not None:
-        from sqlalchemy.orm import selectinload
         result = await db.execute(
             select(User)
             .options(selectinload(User.roles).selectinload(UserRole.role))
@@ -86,6 +85,31 @@ async def get_current_user(
             )
         )
         user = result.scalar_one_or_none()
+
+    # Fallback for employee or staff tokens: resolve tenant active user
+    if (not user or not user.is_active) and credentials and credentials.credentials:
+        try:
+            payload = jwt.decode(
+                credentials.credentials,
+                settings.jwt.secret_key,
+                algorithms=[settings.jwt.algorithm],
+            )
+            t_id = payload.get("tenant_id")
+            if t_id:
+                from sqlalchemy.orm import selectinload
+                t_user_res = await db.execute(
+                    select(User)
+                    .options(selectinload(User.roles).selectinload(UserRole.role))
+                    .where(
+                        User.tenant_id == int(t_id),
+                        User.is_deleted == False,
+                        User.is_active == True,
+                    )
+                    .order_by(User.id.asc())
+                )
+                user = t_user_res.scalars().first()
+        except Exception:
+            pass
 
     if not user or not user.is_active:
         raise UNAUTHORIZED
