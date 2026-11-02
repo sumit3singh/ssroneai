@@ -445,11 +445,36 @@ async def generate_kots_for_order(order: Order, tenant_id: int, user_id: int, db
 
     generated_slips = []
     if pending_order_items:
+        menu_ids = [it.menu_item_id or it.product_id for it in pending_order_items if (it.menu_item_id or it.product_id)]
+        menu_station_map = {}
+        if menu_ids:
+            try:
+                from src.modules.restaurant.models import MenuItem
+                m_res = await db.execute(select(MenuItem.id, MenuItem.kds_station).where(MenuItem.id.in_(menu_ids)))
+                menu_station_map = {row[0]: row[1] for row in m_res.all() if row[1]}
+            except Exception:
+                pass
+
         items_by_station: dict[int | None, list[OrderItem]] = {}
         for it in pending_order_items:
             st_id = default_station.id if default_station else None
-            if it.course and it.course.lower() in stations:
+            # 1. Match from MenuItem.kds_station
+            kds_target = menu_station_map.get(it.menu_item_id or it.product_id)
+            if kds_target:
+                for s in stations.values():
+                    if s.name.lower() == kds_target.lower() or s.code.lower() == kds_target.lower():
+                        st_id = s.id
+                        break
+            elif it.course and it.course.lower() in stations:
                 st_id = stations[it.course.lower()].id
+            else:
+                # 2. Heuristic beverage/drink matching
+                it_name_lower = (it.product_name or it.item_name or "").lower()
+                if any(kw in it_name_lower for kw in ("coffee", "tea", "shake", "mojito", "beverage", "juice", "soda", "cold drink", "crispello", "water", "lassi")):
+                    for s in stations.values():
+                        if any(bkw in s.name.lower() for bkw in ("bev", "bar", "drink", "coffee", "cafe")):
+                            st_id = s.id
+                            break
             items_by_station.setdefault(st_id, []).append(it)
 
         kot_counter = 1
@@ -1866,25 +1891,36 @@ async def accept_online_order(
             else:
                 slip_table = str(raw_tbl).replace("Table Table", "Table").strip()
 
-            slips = [{
-                "kotNumber": f"KOT-{order.order_number}",
-                "stationName": "Kitchen",
-                "orderNumber": order.order_number,
-                "orderType": (order.order_type or "TAKEAWAY").upper(),
-                "tableName": slip_table,
-                "kotType": "NEW",
-                "timestamp": now_str,
-                "items": [
-                    {
-                        "name": it.product_name or it.item_name or "Dish Item",
-                        "quantity": int(it.quantity or 1),
-                        "variant_name": it.variant_name,
-                        "notes": getattr(it, "preparation_notes", None) or getattr(it, "notes", None),
-                        "addons": it.selected_addons or [],
-                    }
-                    for it in non_void_items
-                ]
-            }]
+            station_map: dict[str, list] = {}
+            for it in non_void_items:
+                st_name = "Kitchen"
+                it_name_lower = (it.product_name or it.item_name or "").lower()
+                if any(kw in it_name_lower for kw in ("coffee", "tea", "shake", "mojito", "beverage", "juice", "soda", "cold drink", "crispello", "water", "lassi")):
+                    st_name = "Beverages"
+                station_map.setdefault(st_name, []).append(it)
+
+            slips = [
+                {
+                    "kotNumber": f"KOT-{order.order_number}-{st_name}",
+                    "stationName": st_name,
+                    "orderNumber": order.order_number,
+                    "orderType": (order.order_type or "TAKEAWAY").upper(),
+                    "tableName": slip_table,
+                    "kotType": "NEW",
+                    "timestamp": now_str,
+                    "items": [
+                        {
+                            "name": it.product_name or it.item_name or "Dish Item",
+                            "quantity": int(it.quantity or 1),
+                            "variant_name": it.variant_name,
+                            "notes": getattr(it, "preparation_notes", None) or getattr(it, "notes", None),
+                            "addons": it.selected_addons or [],
+                        }
+                        for it in st_items
+                    ]
+                }
+                for st_name, st_items in station_map.items()
+            ]
 
     order.status = OrderStatus.KOT_SENT.value if hasattr(OrderStatus.KOT_SENT, "value") else "kot_sent"
     order.kot_sent_at = datetime.now(timezone.utc)

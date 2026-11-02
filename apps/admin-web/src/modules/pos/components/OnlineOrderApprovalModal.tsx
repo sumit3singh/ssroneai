@@ -23,6 +23,7 @@ import {
   acceptOnlineOrder,
   rejectOnlineOrder,
   modifyAndAcceptOnlineOrder,
+  api,
 } from "@ssrone/api-client";
 import { printKOTSlipsDirectly, StationKOTSlip } from "./ThermalKOTPrintableArea";
 
@@ -50,6 +51,126 @@ export const OnlineOrderApprovalModal: React.FC<OnlineOrderApprovalModalProps> =
   const [modifiedItems, setModifiedItems] = useState<any[]>([]);
   const [modificationNotes, setModificationNotes] = useState<string>("");
 
+  // KOT Station Routing Metadata (Matching ERP POS)
+  const [kitchenStations, setKitchenStations] = useState<any[]>([]);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    const fetchRoutingData = async () => {
+      try {
+        const [stRes, menuRes, catRes] = await Promise.all([
+          api.get<any[]>("/restaurant/kitchen-stations").catch(() => []),
+          api.get<any[]>("/restaurant/menu-items").catch(() => []),
+          api.get<any[]>("/menu/categories").catch(() => []),
+        ]);
+        if (!isMounted) return;
+        if (Array.isArray(stRes)) setKitchenStations(stRes);
+        if (Array.isArray(menuRes)) setMenuItems(menuRes);
+        else if (menuRes && Array.isArray((menuRes as any).items)) setMenuItems((menuRes as any).items);
+        if (Array.isArray(catRes)) setCategories(catRes);
+        else if (catRes && Array.isArray((catRes as any).items)) setCategories((catRes as any).items);
+      } catch (e) {
+        console.warn("Could not load KOT station routing meta:", e);
+      }
+    };
+    fetchRoutingData();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const resolveItemKitchenStation = (
+    item: any
+  ): { name: string; code?: string; printer?: string } => {
+    // 1. Direct item kds_station
+    const rawStation = (item.kds_station || item.stationName || item.station_name || "")?.trim();
+    if (rawStation) {
+      const matched = kitchenStations.find(
+        (s) => s.name?.toLowerCase() === rawStation.toLowerCase() || s.code?.toLowerCase() === rawStation.toLowerCase()
+      );
+      if (matched) return { name: matched.name, code: matched.code, printer: matched.printer_name };
+      return { name: rawStation };
+    }
+
+    // 2. Lookup in menu items
+    const rawName = (item.product_name || item.item_name || item.name || "").trim().toLowerCase();
+    const menuItem = menuItems.find(
+      (m) =>
+        (item.item_id && String(m.id) === String(item.item_id)) ||
+        (item.menu_item_id && String(m.id) === String(item.menu_item_id)) ||
+        (item.product_id && String(m.id) === String(item.product_id)) ||
+        (m.name && m.name.trim().toLowerCase() === rawName)
+    );
+
+    if (menuItem?.kds_station?.trim()) {
+      const rawKds = menuItem.kds_station.trim();
+      const matched = kitchenStations.find(
+        (s) => s.name?.toLowerCase() === rawKds.toLowerCase() || s.code?.toLowerCase() === rawKds.toLowerCase()
+      );
+      if (matched) return { name: matched.name, code: matched.code, printer: matched.printer_name };
+      return { name: rawKds };
+    }
+
+    // 3. Lookup category
+    const catId = menuItem?.category_id || item.category_id;
+    const catName = menuItem?.category_name || item.category_name || item.category;
+    const cat = categories.find(
+      (c) => (catId && String(c.id) === String(catId)) || (catName && c.name?.toLowerCase() === String(catName).toLowerCase())
+    );
+
+    if (cat || catName) {
+      const targetCatName = cat?.name || catName;
+      const matchedCat = kitchenStations.find(
+        (s) =>
+          s.name?.toLowerCase() === targetCatName?.toLowerCase() ||
+          s.code?.toLowerCase() === targetCatName?.toLowerCase() ||
+          (Array.isArray(s.categories) &&
+            s.categories.some(
+              (sc: any) =>
+                (cat && String(sc) === String(cat.id)) ||
+                String(sc).toLowerCase() === targetCatName?.toLowerCase()
+            ))
+      );
+      if (matchedCat) return { name: matchedCat.name, code: matchedCat.code, printer: matchedCat.printer_name };
+    }
+
+    // 4. Heuristic beverage station detection if station exists
+    const beverageStation = kitchenStations.find(
+      (s) =>
+        s.name?.toLowerCase().includes("bev") ||
+        s.name?.toLowerCase().includes("bar") ||
+        s.name?.toLowerCase().includes("drink") ||
+        s.name?.toLowerCase().includes("coffee") ||
+        s.name?.toLowerCase().includes("cafe")
+    );
+    if (
+      beverageStation &&
+      (rawName.includes("coffee") ||
+        rawName.includes("tea") ||
+        rawName.includes("shake") ||
+        rawName.includes("mojito") ||
+        rawName.includes("beverage") ||
+        rawName.includes("juice") ||
+        rawName.includes("soda") ||
+        rawName.includes("cold drink") ||
+        rawName.includes("water") ||
+        rawName.includes("crispello") ||
+        rawName.includes("lassi"))
+    ) {
+      return { name: beverageStation.name, code: beverageStation.code, printer: beverageStation.printer_name };
+    }
+
+    // 5. Default station
+    const defaultStation = kitchenStations.find((s) => s.is_active !== false) || kitchenStations[0];
+    return {
+      name: defaultStation?.name || cat?.name || menuItem?.category_name || "Kitchen",
+      code: defaultStation?.code,
+      printer: defaultStation?.printer_name,
+    };
+  };
+
   React.useEffect(() => {
     if (!isOpen) return;
     onRefresh();
@@ -69,23 +190,35 @@ export const OnlineOrderApprovalModal: React.FC<OnlineOrderApprovalModalProps> =
       tblName = ordType.includes("DELIV") ? "Delivery ★" : ordType.includes("TAKE") ? "Takeaway ★" : "Table";
     }
 
-    const slipsToPrint: StationKOTSlip[] = [{
-      stationName: "Kitchen",
-      orderNumber: String(order.order_number),
-      orderType: ordType,
-      tableName: String(tblName),
-      waiterName: order.waiter_name || "Food App Order",
-      kotType: "NEW",
-      timestamp: new Date().toLocaleString(),
-      items: activeItems.map((it: any) => ({
+    // Partition active items by mapped kitchen station (Matching ERP POS 1:1)
+    const stationSlipsMap: Record<string, StationKOTSlip> = {};
+    activeItems.forEach((it: any) => {
+      const st = resolveItemKitchenStation(it);
+      if (!stationSlipsMap[st.name]) {
+        stationSlipsMap[st.name] = {
+          stationName: st.name,
+          stationCode: st.code,
+          printerName: st.printer,
+          orderNumber: String(order.order_number),
+          orderType: ordType,
+          tableName: String(tblName),
+          waiterName: order.waiter_name || (ordType.includes("DELIV") ? "Delivery Order" : ordType.includes("TAKE") ? "Takeaway Order" : "QR Table Order"),
+          kotType: "NEW",
+          timestamp: new Date().toLocaleString(),
+          items: [],
+        };
+      }
+      stationSlipsMap[st.name].items.push({
         name: it.product_name || it.item_name || it.name || "Dish Item",
         quantity: Number(it.quantity || 1),
         variant_name: it.variant_name,
         addons: it.addons || it.selected_addons || [],
         notes: it.notes || it.preparation_notes,
         is_veg: it.is_veg,
-      })),
-    }];
+      });
+    });
+
+    const slipsToPrint: StationKOTSlip[] = Object.values(stationSlipsMap);
 
     // 2. Instant Thermal Print Triggers (< 1ms)
     if (slipsToPrint.length > 0) {
@@ -209,22 +342,32 @@ export const OnlineOrderApprovalModal: React.FC<OnlineOrderApprovalModalProps> =
         if (!tblName || String(tblName).toLowerCase().includes("food")) {
           tblName = ordType.includes("DELIV") ? "Delivery ★" : ordType.includes("TAKE") ? "Takeaway ★" : "Table";
         }
-        slipsToPrint = [{
-          stationName: "Kitchen",
-          orderNumber: String(modifyingOrder.order_number),
-          orderType: ordType,
-          tableName: String(tblName),
-          waiterName: modifyingOrder.waiter_name || "Food App Order",
-          kotType: "UPDATE",
-          timestamp: new Date().toLocaleString(),
-          items: activeItems.map((it: any) => ({
-            name: it.name || "Dish Item",
+        const stationSlipsMap: Record<string, StationKOTSlip> = {};
+        activeItems.forEach((it: any) => {
+          const st = resolveItemKitchenStation(it);
+          if (!stationSlipsMap[st.name]) {
+            stationSlipsMap[st.name] = {
+              stationName: st.name,
+              stationCode: st.code,
+              printerName: st.printer,
+              orderNumber: String(modifyingOrder.order_number),
+              orderType: ordType,
+              tableName: String(tblName),
+              waiterName: modifyingOrder.waiter_name || "Food App Order",
+              kotType: "UPDATE",
+              timestamp: new Date().toLocaleString(),
+              items: [],
+            };
+          }
+          stationSlipsMap[st.name].items.push({
+            name: it.name || it.product_name || "Dish Item",
             quantity: Number(it.quantity || 1),
             variant_name: it.variant_name,
-            addons: [],
-            notes: "Modified by Staff",
-          })),
-        }];
+            addons: it.addons || [],
+            notes: it.notes || "Modified by Staff",
+          });
+        });
+        slipsToPrint = Object.values(stationSlipsMap);
       }
 
       if (slipsToPrint.length > 0) {

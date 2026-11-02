@@ -126,6 +126,7 @@ export const Checkout = () => {
   const grandTotal = Math.max(0, total + tax + packingCharge + deliveryFee);
 
   const [placing, setPlacing] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [alternatePhone, setAlternatePhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"razorpay" | "cash">(() =>
     enableRazorpay ? "razorpay" : "cash"
@@ -985,11 +986,17 @@ export const Checkout = () => {
       toast.error("Order Placement Failed", {
         description: err?.response?.data?.detail || err?.message || "Could not place your order. Please try again.",
       });
+      isSubmittingRef.current = false;
       setPlacing(false);
     }
   };
 
   const handlePlaceOrder = async () => {
+    // 0. STRICT SINGLE-FLIGHT LOCK: Prevent duplicate double-clicks / multi-clicks
+    if (isSubmittingRef.current || placing) {
+      return;
+    }
+
     if (!storeStatus.isOpen) {
       toast({
         title: "The Baithak Cafe is Currently Closed",
@@ -1025,11 +1032,14 @@ export const Checkout = () => {
       setTableNumber("1");
     }
 
+    // Immediately acquire lock synchronously & update visual state
+    isSubmittingRef.current = true;
     setPlacing(true);
 
     if (paymentMethod === "razorpay") {
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded || typeof window.Razorpay === "undefined") {
+        isSubmittingRef.current = false;
         setPlacing(false);
         toast({
           title: "Payment Gateway Unavailable",
@@ -1119,6 +1129,7 @@ export const Checkout = () => {
         },
         modal: {
           ondismiss: () => {
+            isSubmittingRef.current = false;
             setPlacing(false);
             toast({
               title: "Payment Window Closed",
@@ -1135,6 +1146,7 @@ export const Checkout = () => {
       try {
         const rzp = new window.Razorpay(rzpOptions);
         rzp.on("payment.failed", (err: any) => {
+          isSubmittingRef.current = false;
           setPlacing(false);
           toast({
             title: "Payment Failed",
@@ -1144,6 +1156,7 @@ export const Checkout = () => {
         });
         rzp.open();
       } catch (e) {
+        isSubmittingRef.current = false;
         setPlacing(false);
         toast({
           title: "Gateway Error",
@@ -1466,14 +1479,22 @@ export const Checkout = () => {
 
           <button
             type="button"
-            disabled={placing || !storeStatus.isOpen || isDeliveryUnderMin}
+            disabled={
+              placing ||
+              isSubmittingRef.current ||
+              items.length === 0 ||
+              !storeStatus.isOpen ||
+              isDeliveryUnderMin
+            }
             onClick={handlePlaceOrder}
-            className="flex-1 max-w-xs h-12 bg-gradient-to-r from-[#9E6B38] via-[#B45309] to-[#8C5E35] text-white hover:brightness-105 font-black text-xs sm:text-sm rounded-full shadow-md shadow-amber-900/20 flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+            className={`flex-1 max-w-xs h-12 bg-gradient-to-r from-[#9E6B38] via-[#B45309] to-[#8C5E35] text-white hover:brightness-105 font-black text-xs sm:text-sm rounded-full shadow-md shadow-amber-900/20 flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer ${
+              placing ? "pointer-events-none opacity-60 cursor-not-allowed" : ""
+            }`}
           >
             {placing ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Processing Order...</span>
+                <span>Placing Order, Please Wait...</span>
               </>
             ) : !storeStatus.isOpen ? (
               <span>Cafe Closed (Hours: {storeStatus.scheduleSummary})</span>
