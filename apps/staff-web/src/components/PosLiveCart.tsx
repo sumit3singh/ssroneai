@@ -21,6 +21,7 @@ import {
   ChevronDown,
   X,
   ChevronRight,
+  ChevronLeft,
   CheckCircle2,
   AlertTriangle
 } from "lucide-react";

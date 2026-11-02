@@ -270,11 +270,19 @@ export function App() {
   const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
   const [successOrderBanner, setSuccessOrderBanner] = useState<any | null>(null);
 
-  // Sync auth state
+  // Sync auth state & listen for expired sessions
   useEffect(() => {
     const onStorage = () => setAuthState(getAuth());
+    const onAuthExpired = () => {
+      setAuthState(getAuth());
+      setShowLoginModal(true);
+    };
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener("ssrone:auth-expired", onAuthExpired);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("ssrone:auth-expired", onAuthExpired);
+    };
   }, []);
 
   // Fetch live tables, menu items, and running orders from backend
@@ -1058,15 +1066,19 @@ export function App() {
       {showLoginModal && (
         <StaffLoginModal
           isOpen={showLoginModal}
-          onLoginSuccess={(userData) => {
+          onLoginSuccess={(authPayload) => {
+            const token = authPayload.token || authPayload.access_token || ("staff-token-" + Date.now());
+            const user = authPayload.user || authPayload;
             setAuth({
-              token: "staff-token-" + Date.now(),
-              name: userData.name,
+              token,
+              access_token: token,
+              name: user.name,
               isLoggedIn: true,
-              user: userData,
+              user,
             });
             setAuthState(getAuth());
             setShowLoginModal(false);
+            void loadData();
           }}
         />
       )}
