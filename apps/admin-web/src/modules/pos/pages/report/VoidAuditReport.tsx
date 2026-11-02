@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   AlertTriangle,
   Printer,
@@ -8,20 +8,17 @@ import {
   FileX,
   Tag,
   ShieldAlert,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button, Input } from "@ssrone/ui";
 import { POSOrder } from "../../types";
+import { isCancelledOrder, isVoidedItem, safeNum, getOrderNet } from "./reportUtils";
 
 interface VoidAuditReportProps {
   orders: POSOrder[];
   dateLabel?: string;
 }
-
-const safeNum = (val: any): number => {
-  if (val === null || val === undefined) return 0;
-  const num = typeof val === "number" ? val : parseFloat(String(val));
-  return isNaN(num) ? 0 : num;
-};
 
 export const VoidAuditReport: React.FC<VoidAuditReportProps> = ({
   orders,
@@ -29,13 +26,15 @@ export const VoidAuditReport: React.FC<VoidAuditReportProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<"all" | "cancelled" | "discounted">("all");
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const pageSize = 50;
 
   // Filter cancelled, discounted, or orders with voided items
   const auditOrders = useMemo(() => {
     return orders.filter((o) => {
-      const isCancelled = (o.status || "").toLowerCase() === "cancelled";
+      const isCancelled = isCancelledOrder(o);
       const hasDiscount = safeNum(o.discount_amount) > 0;
-      const hasVoidedItem = (o.items || []).some((i) => Boolean(i.is_voided));
+      const hasVoidedItem = (o.items || []).some((i) => isVoidedItem(i));
       if (filterType === "cancelled") return isCancelled || hasVoidedItem;
       if (filterType === "discounted") return hasDiscount;
       return isCancelled || hasDiscount || hasVoidedItem;
@@ -54,15 +53,25 @@ export const VoidAuditReport: React.FC<VoidAuditReportProps> = ({
     );
   }, [auditOrders, searchTerm]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterType, orders]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedOrders = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredOrders.slice(start, start + pageSize);
+  }, [filteredOrders, safeCurrentPage, pageSize]);
+
   // Key KPI Metrics
   const stats = useMemo(() => {
-    const cancelledList = orders.filter(
-      (o) => (o.status || "").toLowerCase() === "cancelled"
-    );
+    const cancelledList = orders.filter((o) => isCancelledOrder(o));
     const discountedList = orders.filter((o) => safeNum(o.discount_amount) > 0);
 
     const lostRevenue = cancelledList.reduce(
-      (s, o) => s + safeNum(o.net_amount || o.subtotal || 0),
+      (s, o) => s + getOrderNet(o),
       0
     );
     const totalDiscounts = discountedList.reduce(
@@ -299,7 +308,7 @@ export const VoidAuditReport: React.FC<VoidAuditReportProps> = ({
                 </td>
               </tr>
             ) : (
-              filteredOrders.map((o) => {
+              paginatedOrders.map((o) => {
                 const isCancelled = (o.status || "").toLowerCase() === "cancelled";
                 const hasDiscount = safeNum(o.discount_amount) > 0;
                 return (
@@ -354,6 +363,34 @@ export const VoidAuditReport: React.FC<VoidAuditReportProps> = ({
             )}
           </tbody>
         </table>
+
+        {/* Audit Log Pagination Bar */}
+        {filteredOrders.length > pageSize && (
+          <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted/20 text-xs">
+            <span className="text-muted-foreground text-[11px]">
+              Showing <span className="font-mono font-bold text-foreground">{(safeCurrentPage - 1) * pageSize + 1}–{Math.min(safeCurrentPage * pageSize, filteredOrders.length)}</span> of <span className="font-mono font-bold text-foreground">{filteredOrders.length}</span> audit records
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={safeCurrentPage === 1}
+                className="px-2 py-1 rounded border border-border bg-background hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer text-xs flex items-center gap-1"
+              >
+                <ChevronLeft size={13} /> Prev
+              </button>
+              <span className="font-mono text-xs px-2 text-foreground font-semibold">
+                Page {safeCurrentPage} of {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safeCurrentPage === totalPages}
+                className="px-2 py-1 rounded border border-border bg-background hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer text-xs flex items-center gap-1"
+              >
+                Next <ChevronRight size={13} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

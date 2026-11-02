@@ -21,6 +21,7 @@ export const posRoutes = {
   },
   reports: {
     root: "/pos/reports",
+    salesDashboard: "/pos/reports/sales-dashboard",
     dailySales: "/pos/reports/daily-sales",
     itemSales: "/pos/reports/item-sales",
     categorySales: "/pos/reports/categories",

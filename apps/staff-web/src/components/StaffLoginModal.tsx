@@ -115,18 +115,18 @@ export const StaffLoginModal: React.FC<StaffLoginModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200 select-none">
+      <div className="bg-[#F8F6F0] border border-[#E8E4DA] rounded-[32px] p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6">
         {/* Top Header */}
         <div className="text-center space-y-2">
-          <div className="w-14 h-14 rounded-2xl bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 flex items-center justify-center mx-auto shadow-sm">
+          <div className="w-14 h-14 rounded-2xl bg-[#0B3B2C] text-[#E5A93C] border border-[#144F3C] flex items-center justify-center mx-auto shadow-md shadow-[#0B3B2C]/20">
             <ShieldCheck size={28} />
           </div>
           <div>
-            <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-wider">
+            <h2 className="text-lg font-black text-slate-900 uppercase tracking-wider">
               {requiredAccess === "kds_web" ? "Kitchen KDS Station Access" : "Staff Terminal Authentication"}
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+            <p className="text-xs text-slate-500 font-semibold mt-0.5">
               PostgreSQL Multi-Tenant Security Isolation
             </p>
           </div>
@@ -134,16 +134,16 @@ export const StaffLoginModal: React.FC<StaffLoginModalProps> = ({
 
         <form onSubmit={handleLoginSubmit} className="space-y-4">
           {errorMsg && (
-            <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-2 animate-in zoom-in-95">
-              <AlertCircle size={18} className="shrink-0 text-rose-500" />
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-300 text-rose-700 text-xs font-bold flex items-center gap-2 animate-in zoom-in-95">
+              <AlertCircle size={18} className="shrink-0 text-rose-600" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {/* 1. Workspace Slug / Tenant */}
           <div className="space-y-1.5">
-            <label className="text-xs font-mono font-bold uppercase text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-              <Building size={13} className="text-indigo-600 dark:text-indigo-400" />
+            <label className="text-xs font-mono font-bold uppercase text-slate-500 flex items-center gap-1.5">
+              <Building size={13} className="text-[#0B3B2C]" />
               1. Workspace Slug / Tenant:
             </label>
             <input
@@ -151,14 +151,14 @@ export const StaffLoginModal: React.FC<StaffLoginModalProps> = ({
               value={tenantSlug}
               onChange={(e) => setTenantSlug(e.target.value)}
               placeholder="e.g. baithak-cafe"
-              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 text-xs text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+              className="w-full bg-white border border-[#E8E4DA] rounded-2xl p-3.5 text-xs text-slate-900 font-bold outline-none focus:ring-2 focus:ring-[#0B3B2C] font-mono"
             />
           </div>
 
           {/* 2. Staff ID / Code */}
           <div className="space-y-1.5">
-            <label className="text-xs font-mono font-bold uppercase text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-              <UserCheck size={13} className="text-indigo-600 dark:text-indigo-400" />
+            <label className="text-xs font-mono font-bold uppercase text-slate-500 flex items-center gap-1.5">
+              <UserCheck size={13} className="text-[#0B3B2C]" />
               2. Staff ID / Code:
             </label>
             <input
@@ -166,14 +166,14 @@ export const StaffLoginModal: React.FC<StaffLoginModalProps> = ({
               value={staffCode}
               onChange={(e) => setStaffCode(e.target.value)}
               placeholder="e.g. EMP-1001 or EMP-1003"
-              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 text-xs text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+              className="w-full bg-white border border-[#E8E4DA] rounded-2xl p-3.5 text-xs text-slate-900 font-bold outline-none focus:ring-2 focus:ring-[#0B3B2C] font-mono"
             />
           </div>
 
           {/* 3. Security PIN / Password */}
           <div className="space-y-1.5">
-            <label className="text-xs font-mono font-bold uppercase text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-              <KeyRound size={13} className="text-indigo-600 dark:text-indigo-400" />
+            <label className="text-xs font-mono font-bold uppercase text-slate-500 flex items-center gap-1.5">
+              <KeyRound size={13} className="text-[#0B3B2C]" />
               3. Security PIN / Password (Default: 1234):
             </label>
             <input
@@ -182,7 +182,7 @@ export const StaffLoginModal: React.FC<StaffLoginModalProps> = ({
               value={pinCode}
               onChange={(e) => setPinCode(e.target.value)}
               placeholder="Enter 4-digit PIN..."
-              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 text-center text-base tracking-[0.3em] font-mono font-black text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full bg-white border border-[#E8E4DA] rounded-2xl p-3.5 text-center text-base tracking-[0.3em] font-mono font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B3B2C]"
             />
           </div>
 
@@ -190,10 +190,10 @@ export const StaffLoginModal: React.FC<StaffLoginModalProps> = ({
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 cursor-pointer transition-all disabled:opacity-50 mt-2"
+            className="w-full bg-[#0B3B2C] hover:bg-[#072E22] text-white font-black text-xs uppercase tracking-wider py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-[#0B3B2C]/20 cursor-pointer transition-all disabled:opacity-50 mt-2 active:scale-95"
           >
             <span>{isLoading ? "Authenticating with Database..." : "Sign In & Launch Terminal"}</span>
-            <ArrowRight size={16} />
+            <ArrowRight size={16} className="text-[#E5A93C]" />
           </button>
         </form>
       </div>

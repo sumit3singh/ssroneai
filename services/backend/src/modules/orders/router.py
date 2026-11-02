@@ -1250,8 +1250,9 @@ async def list_orders(
 
     if start_date:
         try:
+            ist_tz = timezone(timedelta(hours=5, minutes=30))
             if len(start_date) == 10:
-                dt_start = datetime.strptime(start_date, "%Y-%m-%d")
+                dt_start = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=ist_tz)
             else:
                 dt_start = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
             base_query = base_query.where(Order.created_at >= dt_start)
@@ -1259,8 +1260,9 @@ async def list_orders(
             logger.warning("Invalid start_date in list_orders", start_date=start_date, error=str(ex))
     if end_date:
         try:
+            ist_tz = timezone(timedelta(hours=5, minutes=30))
             if len(end_date) == 10:
-                dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+                dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59, tzinfo=ist_tz)
             else:
                 dt_end = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
             base_query = base_query.where(Order.created_at <= dt_end)
@@ -1278,16 +1280,18 @@ async def list_orders(
     else:
         fetch_query = fetch_query.order_by(Order.created_at.desc(), Order.id.desc())
 
-    # Paginate only if not requesting unlimited/infinity records
+    # Paginate only if not requesting unlimited/infinity records (safeguard with max 10000 for unlimited)
     if not unlimited and page_size > 0:
         fetch_query = fetch_query.offset((page - 1) * page_size).limit(page_size)
+    elif unlimited or page_size == -1:
+        fetch_query = fetch_query.limit(10000)
     result = await db.execute(fetch_query)
     orders = result.scalars().all()
 
-    # Fetch dining tables map for table_name resolution (targeted by active page orders)
+    # Fetch dining tables map for table_name resolution (targeted by active page orders with deduplicated IDs)
     tables_map = {}
     try:
-        tbl_ids = [o.table_id for o in orders if o.table_id]
+        tbl_ids = list(set([o.table_id for o in orders if o.table_id]))
         if tbl_ids:
             tbl_res = await db.execute(select(DiningTable.id, DiningTable.table_number).where(DiningTable.id.in_(tbl_ids)))
             for tid, tnum in tbl_res.all():
@@ -1295,11 +1299,11 @@ async def list_orders(
     except Exception as tbl_err:
         logger.warning("Failed to fetch dining tables map in list_orders", error=str(tbl_err))
 
-    # Fetch customers map for customer details resolution
+    # Fetch customers map for customer details resolution (deduplicated IDs)
     customers_map = {}
     try:
         from src.modules.crm.models import Customer
-        cust_ids = [o.customer_id for o in orders if o.customer_id]
+        cust_ids = list(set([o.customer_id for o in orders if o.customer_id]))
         if cust_ids:
             cust_res = await db.execute(select(Customer).where(Customer.id.in_(cust_ids)))
             for c in cust_res.scalars().all():
@@ -1307,11 +1311,11 @@ async def list_orders(
     except Exception as cust_err:
         logger.warning("Failed to fetch customers map in list_orders", error=str(cust_err))
 
-    # Fetch menu items map for kds_station resolution
+    # Fetch menu items map for kds_station resolution (deduplicated IDs)
     menu_station_map = {}
     try:
         from src.modules.restaurant.models import MenuItem
-        m_item_ids = [it.menu_item_id or it.product_id for o in orders for it in o.items if (it.menu_item_id or it.product_id)]
+        m_item_ids = list(set([it.menu_item_id or it.product_id for o in orders for it in o.items if (it.menu_item_id or it.product_id)]))
         if m_item_ids:
             m_q = await db.execute(select(MenuItem.id, MenuItem.kds_station).where(MenuItem.id.in_(m_item_ids)))
             for m_id, m_st in m_q.all():

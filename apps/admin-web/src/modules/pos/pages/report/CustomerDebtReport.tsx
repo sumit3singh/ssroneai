@@ -13,6 +13,8 @@ import {
   Receipt,
   CheckCircle2,
   Wallet,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@ssrone/ui";
 import { api } from "@ssrone/api-client";
@@ -20,18 +22,13 @@ import { POSOrder } from "../../types";
 import { CustomerDebtRegisterModal } from "../../components/CustomerDebtRegisterModal";
 import { renderSafeString } from "../../utils/renderSafeString";
 import { getDisplayOrderNumber } from "../../utils/order-sequence";
+import { isCancelledOrder, safeNum } from "./reportUtils";
 
 interface CustomerDebtReportProps {
   orders: POSOrder[];
   dateLabel?: string;
   onRefresh?: () => void;
 }
-
-const safeNum = (val: any): number => {
-  if (val === null || val === undefined) return 0;
-  const num = typeof val === "number" ? val : parseFloat(String(val));
-  return isNaN(num) ? 0 : num;
-};
 
 export const CustomerDebtReport: React.FC<CustomerDebtReportProps> = ({
   orders,
@@ -63,9 +60,10 @@ export const CustomerDebtReport: React.FC<CustomerDebtReportProps> = ({
     fetchDebtsSummary();
   }, []);
 
-  // Filter orders that have debt (balance_due > 0, status is unpaid/partial, or method is CREDIT_ACCOUNT)
+  // Filter orders that have debt (Strictly excluding cancelled/voided orders)
   const debtOrders = useMemo(() => {
     return orders.filter((o: any) => {
+      if (isCancelledOrder(o)) return false;
       const bDue = safeNum(o.balance_due);
       const isCredit = (o.payment_method || "").toUpperCase() === "CREDIT_ACCOUNT";
       const isUnpaidOrPartial =
@@ -86,6 +84,22 @@ export const CustomerDebtReport: React.FC<CustomerDebtReportProps> = ({
         o.table_name?.toLowerCase().includes(term)
     );
   }, [debtOrders, searchTerm]);
+
+  // Pagination for Bills Tab
+  const [billsPage, setBillsPage] = useState<number>(1);
+  const billsPageSize = 50;
+
+  useEffect(() => {
+    setBillsPage(1);
+  }, [searchTerm, orders]);
+
+  const totalBillsPages = Math.max(1, Math.ceil(filteredDebtOrders.length / billsPageSize));
+  const safeBillsPage = Math.min(billsPage, totalBillsPages);
+
+  const paginatedDebtOrders = useMemo(() => {
+    const start = (safeBillsPage - 1) * billsPageSize;
+    return filteredDebtOrders.slice(start, start + billsPageSize);
+  }, [filteredDebtOrders, safeBillsPage, billsPageSize]);
 
   // Debtors list from backend summary or fallback from in-memory orders
   const debtorsList = useMemo(() => {
@@ -456,7 +470,7 @@ export const CustomerDebtReport: React.FC<CustomerDebtReportProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredDebtOrders.map((o: any) => {
+                paginatedDebtOrders.map((o: any) => {
                   const gTotal = safeNum(o.net_amount ?? o.grand_total ?? 0);
                   const aPaid = safeNum(o.amount_paid ?? 0);
                   const bDue = safeNum(o.balance_due ?? (o.payment_status === "unpaid" ? gTotal : 0));
@@ -503,6 +517,34 @@ export const CustomerDebtReport: React.FC<CustomerDebtReportProps> = ({
               )}
             </tbody>
           </table>
+
+          {/* Bills Pagination Bar */}
+          {filteredDebtOrders.length > billsPageSize && (
+            <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted/20 text-xs">
+              <span className="text-muted-foreground text-[11px]">
+                Showing <span className="font-mono font-bold text-foreground">{(safeBillsPage - 1) * billsPageSize + 1}–{Math.min(safeBillsPage * billsPageSize, filteredDebtOrders.length)}</span> of <span className="font-mono font-bold text-foreground">{filteredDebtOrders.length}</span> invoices
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setBillsPage((p) => Math.max(1, p - 1))}
+                  disabled={safeBillsPage === 1}
+                  className="px-2 py-1 rounded border border-border bg-background hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer text-xs flex items-center gap-1"
+                >
+                  <ChevronLeft size={13} /> Prev
+                </button>
+                <span className="font-mono text-xs px-2 text-foreground font-semibold">
+                  Page {safeBillsPage} of {totalBillsPages}
+                </span>
+                <button
+                  onClick={() => setBillsPage((p) => Math.min(totalBillsPages, p + 1))}
+                  disabled={safeBillsPage === totalBillsPages}
+                  className="px-2 py-1 rounded border border-border bg-background hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer text-xs flex items-center gap-1"
+                >
+                  Next <ChevronRight size={13} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

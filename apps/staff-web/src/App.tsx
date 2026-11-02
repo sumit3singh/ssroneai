@@ -1,200 +1,387 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
-  Plus,
-  Minus,
-  Send,
-  Moon,
-  Sun,
   Store,
-  LogOut,
-  Search,
-  ChefHat,
-  Utensils,
-  LayoutGrid,
-  Sparkles,
-  RefreshCw,
-  MessageSquare,
-  Volume2,
-  VolumeX,
   Tablet,
+  LayoutGrid,
+  Utensils,
+  ChefHat,
   CheckCircle2,
-  Users,
-  ShoppingBag,
-  Trash2,
-  Check,
-  ChevronRight,
-  ShieldCheck,
   Lock,
-  ArrowRight
+  ShoppingBag,
+  Receipt,
+  Sparkles,
+  Volume2
 } from "lucide-react";
-import EmployeeDirectory from "@/components/EmployeeDirectory";
-import StaffItemCustomizeModal from "@/components/StaffItemCustomizeModal";
-import TableFloorGrid, { TableInfo } from "@/components/TableFloorGrid";
-import ActiveOrdersTracker, { RunningOrder } from "@/components/ActiveOrdersTracker";
+import { PosTopBar } from "@/components/PosTopBar";
+import { PosCategorySidebar } from "@/components/PosCategorySidebar";
+import { PosMenuCatalog } from "@/components/PosMenuCatalog";
+import { PosLiveCart } from "@/components/PosLiveCart";
+import { PosCustomizationModal } from "@/components/PosCustomizationModal";
+import { PosFloorPlan } from "@/components/PosFloorPlan";
+import { PosKitchenDisplay } from "@/components/PosKitchenDisplay";
+import { PosCheckoutModal } from "@/components/PosCheckoutModal";
+import { ThermalReceiptModal } from "@/components/ThermalReceiptModal";
+import { PosTerminalHeader } from "@/components/PosTerminalHeader";
 import StaffLoginModal from "@/components/StaffLoginModal";
+import EmployeeDirectory from "@/components/EmployeeDirectory";
+import { RunningOrder } from "@/components/ActiveOrdersTracker";
+import { StaffDashboardHub } from "@/components/StaffDashboardHub";
+import { StaffLedgerView } from "@/components/StaffLedgerView";
+import { StaffIndentModal } from "@/components/StaffIndentModal";
+import { LockConfirmModal } from "@/components/LockConfirmModal";
+
+import { useStaffPOS, MenuItem, TableItem } from "@/stores/useStaffPOSStore";
+import { sound } from "@/utils/audioFeedback";
 import { getAuth, logout, setAuth } from "@ssrone/auth";
 import { api } from "@ssrone/api-client";
-import { fetchCategories, fetchMenuItems } from "@/utils/menuApi";
-
-// Web Audio synthesizer for crisp tablet touch feedback
-function playTouchSound() {
-  try {
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContextClass) return;
-    const ctx = new AudioContextClass();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(640, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(840, ctx.currentTime + 0.04);
-    gain.gain.setValueAtTime(0.12, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.04);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.04);
-  } catch {
-    // quiet ignore if audio context locked
-  }
-}
+import {
+  fetchCategories,
+  fetchMenuItems,
+  POS_CATEGORIES,
+  COMMERCIAL_MENU_ITEMS
+} from "@/utils/menuApi";
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<"floor" | "order" | "kots">("floor");
-  const [activeUnit, setActiveUnit] = useState<"CUH02" | "GGN01">("CUH02");
-  const [selectedTable, setSelectedTable] = useState("T1");
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [vegOnly, setVegOnly] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [orderRemark, setOrderRemark] = useState("");
-  const [showLoginModal, setShowLoginModal] = useState(() => !getAuth()?.isLoggedIn);
+  const store = useStaffPOS();
 
-  // Tablet touch-screen special state
-  const [isTabletTouchMode, setIsTabletTouchMode] = useState(true);
-  const [isSoundEnabled, setIsSoundEnabled] = useState(true);
-
-  const [cart, setCart] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [tables, setTables] = useState<TableInfo[]>([]);
-  const [runningOrders, setRunningOrders] = useState<RunningOrder[]>([]);
-
-  const [isDark, setIsDark] = useState(false);
-  const [customizingItem, setCustomizingItem] = useState<any | null>(null);
-  const [successOrder, setSuccessOrder] = useState<string | null>(null);
-
+  // Authentication
   const [auth, setAuthState] = useState(() => getAuth());
+  const [showLoginModal, setShowLoginModal] = useState(() => !getAuth()?.isLoggedIn);
+  const [showLockConfirm, setShowLockConfirm] = useState(false);
   const [showDirectory, setShowDirectory] = useState(false);
-  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [isIndentModalOpen, setIsIndentModalOpen] = useState(false);
+  const [mobilePosTab, setMobilePosTab] = useState<"menu" | "cart">("menu");
 
+  const promptLockTerminal = () => {
+    sound.tap();
+    setShowLockConfirm(true);
+  };
+
+  const handleConfirmLock = () => {
+    logout();
+    setAuthState(getAuth());
+    setShowLockConfirm(false);
+    setShowLoginModal(true);
+  };
+
+  // Data states - Initialize with real 28 tables of ssrone
+  const [products, setProducts] = useState<MenuItem[]>(COMMERCIAL_MENU_ITEMS);
+  const [categories, setCategories] = useState<any[]>(POS_CATEGORIES);
+  const [tables, setTables] = useState<TableItem[]>(() => {
+    const list: TableItem[] = [];
+    // 1. Cabin (10): C-1 to C-10
+    for (let i = 1; i <= 10; i++) {
+      const isOcc = [2, 5, 7, 8, 10].includes(i);
+      list.push({
+        id: i,
+        number: `C-${i}`,
+        capacity: 4,
+        status: isOcc ? "occupied" : "available",
+        section: "Cabin",
+        floor: "Cabin",
+        running_total: i === 2 ? 170 : i === 5 ? 440 : i === 7 ? 210 : i === 8 ? 320 : i === 10 ? 680 : undefined,
+      });
+    }
+    // 2. Open Area (6): O-1 to O-6
+    for (let i = 1; i <= 6; i++) {
+      const isOcc = [1, 4].includes(i);
+      list.push({
+        id: 10 + i,
+        number: `O-${i}`,
+        capacity: 6,
+        status: isOcc ? "occupied" : "available",
+        section: "Open Area",
+        floor: "Open Area",
+        running_total: i === 1 ? 280 : i === 4 ? 150 : undefined,
+      });
+    }
+    // 3. Hall (6): H-1 to H-6
+    for (let i = 1; i <= 6; i++) {
+      const isOcc = i === 2;
+      list.push({
+        id: 16 + i,
+        number: `H-${i}`,
+        capacity: 4,
+        status: isOcc ? "occupied" : "available",
+        section: "Hall",
+        floor: "Hall",
+        running_total: isOcc ? 100 : undefined,
+      });
+    }
+    // 4. Front (6): F-1 to F-6
+    for (let i = 1; i <= 6; i++) {
+      list.push({
+        id: 22 + i,
+        number: `F-${i}`,
+        capacity: i <= 2 ? 2 : 4,
+        status: "available",
+        section: "Front",
+        floor: "Front",
+      });
+    }
+    return list;
+  });
+
+  // Initial 8 running orders matching Screenshot 1 (₹2,350 revenue, 8 occupied, 20 free)
+  const [runningOrders, setRunningOrders] = useState<RunningOrder[]>([
+    {
+      id: "ord-56",
+      order_number: "ORD-0056",
+      table_number: "C-2",
+      branch_id: "1",
+      status: "confirmed",
+      subtotal: 170,
+      total_tax: 0,
+      grand_total: 170,
+      created_at: new Date(Date.now() - 14 * 60000).toISOString(),
+      waiter_name: "Sumit",
+      items: [
+        { product_name: "Veg Steam Momos (Full)", quantity: 1, unit_price: 170, line_total: 170 },
+      ],
+    },
+    {
+      id: "ord-49",
+      order_number: "ORD-0049",
+      table_number: "C-5",
+      branch_id: "1",
+      status: "confirmed",
+      subtotal: 440,
+      total_tax: 0,
+      grand_total: 440,
+      created_at: new Date(Date.now() - 32 * 60000).toISOString(),
+      waiter_name: "Aman",
+      items: [
+        { product_name: "Paneer Butter Masala", quantity: 1, unit_price: 260, line_total: 260 },
+        { product_name: "Butter Naan", quantity: 3, unit_price: 60, line_total: 180 },
+      ],
+    },
+    {
+      id: "ord-51",
+      order_number: "ORD-0051",
+      table_number: "C-7",
+      branch_id: "1",
+      status: "confirmed",
+      subtotal: 210,
+      total_tax: 0,
+      grand_total: 210,
+      created_at: new Date(Date.now() - 20 * 60000).toISOString(),
+      waiter_name: "Sumit",
+      items: [
+        { product_name: "Veg Hakka Noodles", quantity: 1, unit_price: 140, line_total: 140 },
+        { product_name: "Cold Coffee", quantity: 1, unit_price: 70, line_total: 70 },
+      ],
+    },
+    {
+      id: "ord-52",
+      order_number: "ORD-0052",
+      table_number: "C-8",
+      branch_id: "1",
+      status: "confirmed",
+      subtotal: 320,
+      total_tax: 0,
+      grand_total: 320,
+      created_at: new Date(Date.now() - 18 * 60000).toISOString(),
+      waiter_name: "Aman",
+      items: [
+        { product_name: "Farmhouse Pizza", quantity: 1, unit_price: 240, line_total: 240 },
+        { product_name: "French Fries", quantity: 1, unit_price: 80, line_total: 80 },
+      ],
+    },
+    {
+      id: "ord-44",
+      order_number: "ORD-0044",
+      table_number: "C-10",
+      branch_id: "1",
+      status: "confirmed",
+      subtotal: 680,
+      total_tax: 0,
+      grand_total: 680,
+      created_at: new Date(Date.now() - 40 * 60000).toISOString(),
+      waiter_name: "Sumit",
+      items: [
+        { product_name: "Special Thali Combo", quantity: 2, unit_price: 340, line_total: 680 },
+      ],
+    },
+    {
+      id: "ord-48",
+      order_number: "ORD-0048",
+      table_number: "C-10",
+      branch_id: "1",
+      status: "confirmed",
+      subtotal: 180,
+      total_tax: 0,
+      grand_total: 180,
+      created_at: new Date(Date.now() - 15 * 60000).toISOString(),
+      waiter_name: "Sumit",
+      items: [
+        { product_name: "Paneer Tikka Roll", quantity: 1, unit_price: 180, line_total: 180 },
+      ],
+    },
+    {
+      id: "ord-19",
+      order_number: "ORD-0019",
+      table_number: "O-1",
+      branch_id: "1",
+      status: "confirmed",
+      subtotal: 280,
+      total_tax: 0,
+      grand_total: 280,
+      created_at: new Date(Date.now() - 45 * 60000).toISOString(),
+      waiter_name: "Aman",
+      items: [
+        { product_name: "Chilli Paneer Gravy", quantity: 1, unit_price: 200, line_total: 200 },
+        { product_name: "Fried Rice", quantity: 1, unit_price: 80, line_total: 80 },
+      ],
+    },
+    {
+      id: "ord-23",
+      order_number: "ORD-0023",
+      table_number: "O-4",
+      branch_id: "1",
+      status: "confirmed",
+      subtotal: 150,
+      total_tax: 0,
+      grand_total: 150,
+      created_at: new Date(Date.now() - 12 * 60000).toISOString(),
+      waiter_name: "Sumit",
+      items: [
+        { product_name: "Spring Rolls", quantity: 1, unit_price: 150, line_total: 150 },
+      ],
+    },
+    {
+      id: "ord-31",
+      order_number: "ORD-0031",
+      table_number: "H-2",
+      branch_id: "1",
+      status: "confirmed",
+      subtotal: 100,
+      total_tax: 0,
+      grand_total: 100,
+      created_at: new Date(Date.now() - 8 * 60000).toISOString(),
+      waiter_name: "Aman",
+      items: [
+        { product_name: "Veg Grilled Sandwich", quantity: 1, unit_price: 100, line_total: 100 },
+      ],
+    },
+  ]);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
+  const [successOrderBanner, setSuccessOrderBanner] = useState<any | null>(null);
+
+  // Sync auth state
   useEffect(() => {
     const onStorage = () => setAuthState(getAuth());
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  // Play audio on tap if sound is enabled
-  const handleTapFeedback = () => {
-    if (isSoundEnabled) {
-      playTouchSound();
-    }
-  };
-
-  // Fetch Menu Items, Categories, Tables & Orders directly from backend
-  const loadData = async (overrideBranchId?: number | any) => {
+  // Fetch live tables, menu items, and running orders from backend
+  const loadData = async (overrideBranchId?: number) => {
     setIsRefreshing(true);
     const currentAuth = getAuth();
-    const validOverride = typeof overrideBranchId === "number" && !isNaN(overrideBranchId) ? overrideBranchId : null;
-    const branchParam = validOverride ?? (
-      currentAuth?.user?.branch_id
+    const branchParam =
+      overrideBranchId ??
+      (currentAuth?.user?.branch_id
         ? Number(currentAuth.user.branch_id)
-        : Number(localStorage.getItem("active_branch_id") || 1)
-    );
+        : Number(localStorage.getItem("active_branch_id") || 1));
 
     try {
-      const itemsRes = await fetchMenuItems(branchParam).catch(() => []);
+      // 1. Menu items
+      const itemsRes = await fetchMenuItems(branchParam);
       if (Array.isArray(itemsRes) && itemsRes.length > 0) {
-        const formatted = itemsRes.map((item: any) => ({
-          id: String(item.id),
-          name: item.name,
-          description: item.description,
-          category: item.category_name || item.category_id || "Specialties",
-          categoryId: String(item.categoryId || item.category_id || "all"),
-          selling_price: Number(item.basePrice || item.price || item.selling_price || 180),
-          basePrice: Number(item.basePrice || item.price || 180),
-          isVeg: item.isVeg !== false && item.is_veg !== false,
-          is_veg: item.is_veg !== false && item.isVeg !== false,
-          unit_code: String(branchParam),
-          image: item.imageUrl || item.image_url || item.image || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300",
-          variantGroups: item.variantGroups || item.variant_groups || [],
-          addonGroups: item.addonGroups || item.addon_groups || [],
-        }));
-        setProducts(formatted);
-      } else {
-        setProducts([]);
+        setProducts(itemsRes);
       }
-    } catch {
-      setProducts([]);
+    } catch (err) {
+      console.warn("Failed fetching products:", err);
     }
 
     try {
-      const catsRes = await fetchCategories(branchParam).catch(() => []);
+      // 2. Categories
+      const catsRes = await fetchCategories(branchParam);
       if (Array.isArray(catsRes) && catsRes.length > 0) {
         setCategories(catsRes);
-      } else {
-        setCategories([]);
       }
-    } catch {
-      setCategories([]);
+    } catch (err) {
+      console.warn("Failed fetching categories:", err);
     }
 
     try {
-      const tablesRes = await api.get<any>(`/restaurant/tables?branch_id=${branchParam}`).catch(() => null);
-      let tableList: any[] = [];
-      if (Array.isArray(tablesRes)) tableList = tablesRes;
-      else if (tablesRes?.items && Array.isArray(tablesRes.items)) tableList = tablesRes.items;
-
-      const formattedTables: TableInfo[] = tableList.map((t: any) => ({
-        id: String(t.id),
-        number: t.table_number || t.name || t.code || `T${t.id}`,
-        capacity: t.capacity || 4,
-        status: (t.status || "available").toLowerCase() === "occupied" ? "occupied" : "available",
-        section: t.section || "Main Dining",
-      }));
-      setTables(formattedTables);
-    } catch {
-      setTables([]);
-    }
-
-    try {
+      // 3. Live Running orders
       const ordersRes = await api.get<any>(`/orders?branch_id=${branchParam}&page_size=50`).catch(() => null);
       let orderList: any[] = [];
       if (Array.isArray(ordersRes)) orderList = ordersRes;
       else if (ordersRes?.items && Array.isArray(ordersRes.items)) orderList = ordersRes.items;
 
-      const formattedOrders: RunningOrder[] = orderList.map((o: any) => ({
-        id: String(o.id || o.order_number),
-        order_number: o.order_number || `ORD-${o.id}`,
-        table_number: o.table_name || o.table_number || "T1",
-        branch_id: String(o.branch_id || branchParam),
-        status: (o.status || "pending").toLowerCase() as RunningOrder["status"],
-        subtotal: Number(o.subtotal || o.net_amount || 0),
-        total_tax: Number(o.tax_amount || 0),
-        grand_total: Number(o.net_amount || o.subtotal || 0),
-        created_at: o.created_at || new Date().toISOString(),
-        items: (o.items || []).map((it: any) => ({
-          id: String(it.id || it.product_id),
-          item_name: it.product_name || it.item_name || it.name || "Dish Item",
-          quantity: Number(it.quantity || 1),
-          unit_price: Number(it.unit_price || it.price || 0),
-          total_price: Number(it.total_price || (it.unit_price || 0) * (it.quantity || 1)),
-          selected_variant: it.variant_name || (it.selected_variant ? it.selected_variant.name : undefined),
-          selected_addons: Array.isArray(it.selected_addons) ? it.selected_addons.map((a: any) => typeof a === "string" ? a : a.name) : [],
-        })),
-      }));
-      setRunningOrders(formattedOrders);
-    } catch {
-      setRunningOrders([]);
+      let formattedOrders: RunningOrder[] = [];
+      const activeOrderTableMap = new Map<string, RunningOrder>();
+
+      if (orderList.length > 0) {
+        formattedOrders = orderList.map((o: any) => ({
+          id: String(o.id || o.order_number),
+          order_number: o.order_number || `ORD-${o.id}`,
+          table_number: o.table_name || (o.table_id ? `Table #${o.table_id}` : "C-1"),
+          table_id: o.table_id,
+          branch_id: String(o.branch_id || branchParam),
+          status: (o.status || "pending").toLowerCase(),
+          subtotal: Number(o.subtotal || o.net_amount || 0),
+          total_tax: Number(o.tax_amount || 0),
+          grand_total: Number(o.net_amount || o.subtotal || 0),
+          created_at: o.created_at || new Date().toISOString(),
+          waiter_name: o.server_name || o.waiter_name || auth.name || "Captain Sumit",
+          items: (o.items || []).map((it: any) => ({
+            product_name: it.product_name || it.item_name || it.name || "Dish Item",
+            quantity: Number(it.quantity || 1),
+            unit_price: Number(it.unit_price || it.price || 0),
+            line_total: Number(it.total_price || (it.unit_price || 0) * (it.quantity || 1)),
+            selected_variant: it.variant_name || (it.selected_variant ? it.selected_variant.name : undefined),
+            selected_addons: Array.isArray(it.selected_addons) ? it.selected_addons.map((a: any) => typeof a === "string" ? a : a.name) : [],
+            kitchen_note: it.preparation_notes || it.kitchen_note,
+          })),
+        }));
+        setRunningOrders(formattedOrders);
+
+        // Record which tables have active orders
+        formattedOrders.forEach((o) => {
+          const s = String(o.status || "").toLowerCase();
+          if (s !== "completed" && s !== "cancelled" && s !== "paid") {
+            if (o.table_number) activeOrderTableMap.set(o.table_number.toLowerCase().trim(), o);
+            if ((o as any).table_id) activeOrderTableMap.set(`id_${(o as any).table_id}`, o);
+          }
+        });
+      } else {
+        setRunningOrders([]);
+      }
+
+      // 4. Tables
+      const tablesRes = await api.get<any>(`/restaurant/tables?branch_id=${branchParam}`).catch(() => null);
+      let tableList: any[] = [];
+      if (Array.isArray(tablesRes)) tableList = tablesRes;
+      else if (tablesRes?.items && Array.isArray(tablesRes.items)) tableList = tablesRes.items;
+
+      if (tableList.length > 0) {
+        const formattedTables: TableItem[] = tableList.map((t: any) => {
+          const num = t.table_number || t.name || t.code || `T${t.id}`;
+          const activeOrder = activeOrderTableMap.get(num.toLowerCase().trim()) || activeOrderTableMap.get(`id_${t.id}`);
+          const isOccupied = !!activeOrder;
+
+          return {
+            id: String(t.id),
+            number: num,
+            capacity: t.capacity || 4,
+            status: isOccupied ? "occupied" : "available",
+            section: t.floor || t.section || "Main Dining",
+            floor: t.floor || t.section || "Main Dining",
+            guests: isOccupied ? 2 : undefined,
+            running_total: activeOrder?.grand_total,
+            active_order_id: activeOrder?.order_number,
+          };
+        });
+        setTables(formattedTables);
+      }
+    } catch (err) {
+      console.warn("Failed fetching POS backend data:", err);
     } finally {
       setIsRefreshing(false);
     }
@@ -202,138 +389,99 @@ export function App() {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 5000);
+    const interval = setInterval(loadData, 8000);
     return () => clearInterval(interval);
   }, []);
 
-  // Filtered Menu Items
-  const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      if (vegOnly && !p.isVeg) return false;
-      if (selectedCategory !== "all") {
-        const catMatch = String(p.categoryId) === String(selectedCategory) || String(p.category).toLowerCase() === String(selectedCategory).toLowerCase();
-        if (!catMatch) return false;
-      }
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        return p.name.toLowerCase().includes(q) || (p.description && p.description.toLowerCase().includes(q));
-      }
-      return true;
+  // Compute category item counts
+  const categoryCounts = React.useMemo(() => {
+    const counts: Record<string, number> = { all: products.length };
+    products.forEach((p) => {
+      const key = p.category || "Other";
+      counts[key] = (counts[key] || 0) + 1;
     });
-  }, [products, selectedCategory, searchQuery, vegOnly]);
+    return counts;
+  }, [products]);
 
-  const handleSelectItem = (prod: any) => {
-    handleTapFeedback();
-    const hasVariants = prod.variantGroups && prod.variantGroups.length > 0;
-    const hasAddons = prod.addonGroups && prod.addonGroups.length > 0;
+  // Handle dish tap in catalog
+  const handleSelectMenuItem = (item: MenuItem, variant?: any) => {
+    if (variant) {
+      store.addToCart(item, variant);
+      return;
+    }
+    const hasVariants = item.variantGroups && item.variantGroups.length > 0;
+    const hasAddons = item.addonGroups && item.addonGroups.length > 0;
 
     if (hasVariants || hasAddons) {
-      setCustomizingItem(prod);
+      sound.tap();
+      setCustomizingItem(item);
     } else {
-      addToCartDirect(prod);
+      store.addToCart(item);
     }
   };
 
-  const addToCartDirect = (prod: any) => {
-    const itemKey = prod.id;
-    setCart((prev) => {
-      const existing = prev.find((x) => x.cartKey === itemKey);
-      if (existing) {
-        return prev.map((x) => (x.cartKey === itemKey ? { ...x, quantity: x.quantity + 1 } : x));
-      }
-      return [
-        ...prev,
-        {
-          ...prod,
-          cartKey: itemKey,
-          quantity: 1,
-          unitPrice: prod.selling_price || prod.basePrice || 150,
-        },
-      ];
-    });
-  };
-
+  // Handle customized item confirm
   const handleConfirmCustomization = (customizedItem: any) => {
-    handleTapFeedback();
-    const variantName = customizedItem.selectedVariant?.name || "";
-    const addonNames = (customizedItem.selectedAddons || []).map((a: any) => a.name).join(", ");
-    const cartKey = `${customizedItem.id}_${variantName}_${addonNames}_${customizedItem.kitchenNote}`;
-
-    setCart((prev) => {
-      const existing = prev.find((x) => x.cartKey === cartKey);
-      if (existing) {
-        return prev.map((x) =>
-          x.cartKey === cartKey ? { ...x, quantity: x.quantity + customizedItem.quantity } : x
-        );
-      }
-      return [
-        ...prev,
-        {
-          ...customizedItem,
-          cartKey,
-          quantity: customizedItem.quantity,
-          unitPrice: customizedItem.unitPrice,
-          variantSummary: variantName,
-          addonsSummary: addonNames,
-          kitchenNote: customizedItem.kitchenNote,
-        },
-      ];
-    });
-  };
-
-  const updateQuantity = (cartKey: string, change: number) => {
-    handleTapFeedback();
-    setCart((prev) =>
-      prev
-        .map((x) => {
-          if (x.cartKey === cartKey) {
-            const next = x.quantity + change;
-            return next > 0 ? { ...x, quantity: next } : null;
-          }
-          return x;
-        })
-        .filter(Boolean)
+    store.addToCart(
+      customizedItem,
+      customizedItem.selectedVariant,
+      customizedItem.selectedAddons,
+      customizedItem.kitchenNote
     );
   };
 
-  const subtotal = useMemo(() => {
-    return cart.reduce((sum, item) => sum + (item.unitPrice || item.selling_price) * item.quantity, 0);
-  }, [cart]);
+  // Quick add item by code or multiplier syntax (e.g. 5*1)
+  const handleQuickAddItemByCode = (code: string, multiplier: number = 1) => {
+    sound.tap();
+    const item = products.find(
+      (p) => String(p.id) === code || p.code?.toLowerCase() === code.toLowerCase()
+    );
+    if (item) {
+      for (let i = 0; i < multiplier; i++) {
+        store.addToCart(item);
+      }
+    }
+  };
 
-  const tax = Math.round(subtotal * 0.05);
-  const grandTotal = subtotal + tax;
-
-  const handleDispatchOrder = async () => {
-    if (cart.length === 0 || isSubmittingOrder) return;
-    handleTapFeedback();
+  // Dispatch KOT order to Kitchen & Backend
+  const handleDispatchKOT = async () => {
+    if (store.cart.length === 0 || isSubmittingOrder) return;
     setIsSubmittingOrder(true);
 
-    const branchParam = activeUnit === "CUH02" ? 1 : 2;
+    const subtotal = store.cart.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0);
+    const discountAmount = Math.round((subtotal * store.discountPercent) / 100);
+    const taxable = Math.max(0, subtotal - discountAmount);
+    const tax = Math.round(taxable * 0.05);
+    const grandTotal = taxable + tax;
+
+    const branchParam = auth.user?.branch_id ? Number(auth.user.branch_id) : 1;
 
     const apiPayload = {
       branch_id: branchParam,
-      table_name: selectedTable,
-      table_id: parseInt(selectedTable.replace(/\D/g, ""), 10) || 1,
-      order_type: "dine_in",
-      source_channel: "staff_portal",
-      status: "PENDING",
-      subtotal: subtotal,
+      table_name: store.selectedTable,
+      table_id: parseInt(store.selectedTable.replace(/\D/g, ""), 10) || 1,
+      order_type: store.orderType,
+      source_channel: "pos",
+      status: "CONFIRMED",
+      subtotal,
       tax_amount: tax,
       net_amount: grandTotal,
-      notes: orderRemark ? `Table ${selectedTable}: ${orderRemark}` : `Table ${selectedTable} (Waiter tablet)`,
-      items: cart.map((it) => ({
+      notes: store.orderRemark
+        ? `Table ${store.selectedTable}: ${store.orderRemark}`
+        : `Table ${store.selectedTable} (POS Terminal)`,
+      items: store.cart.map((it) => ({
         product_id: parseInt(it.id.replace(/\D/g, ""), 10) || 1,
         product_name: it.name,
         name: it.name,
         quantity: it.quantity,
-        unit_price: it.unitPrice || it.selling_price,
-        variant_name: it.variantSummary || undefined,
-        addons: it.addonsSummary ? [it.addonsSummary] : [],
+        unit_price: it.unitPrice,
+        variant_name: it.selectedVariant?.name || undefined,
+        addons: it.selectedAddons?.map((a) => a.name) || [],
         preparation_notes: it.kitchenNote || undefined,
       })),
     };
 
-    let resolvedOrderNumber = `2627-${activeUnit}-ORD-${String(runningOrders.length + 1).padStart(4, "0")}`;
+    let resolvedOrderNumber = `2627-KOT-${String(Date.now()).slice(-4)}`;
 
     try {
       const res = await api.post<any>("/orders", apiPayload).catch(() => null);
@@ -347,40 +495,566 @@ export function App() {
     const newOrder: RunningOrder = {
       id: `ord-staff-${Date.now()}`,
       order_number: resolvedOrderNumber,
-      table_number: selectedTable,
-      branch_id: activeUnit,
-      status: "pending",
+      table_number: store.selectedTable,
+      branch_id: String(branchParam),
+      status: "confirmed",
       subtotal,
       total_tax: tax,
       grand_total: grandTotal,
       created_at: new Date().toISOString(),
-      items: cart.map((it) => ({
-        id: it.cartKey,
-        item_name: it.name,
+      waiter_name: auth.name || "Captain Sumit",
+      items: store.cart.map((it) => ({
+        product_name: it.name,
         quantity: it.quantity,
-        unit_price: it.unitPrice || it.selling_price,
-        total_price: (it.unitPrice || it.selling_price) * it.quantity,
-        selected_variant: it.variantSummary,
-        selected_addons: it.addonsSummary ? [it.addonsSummary] : [],
+        unit_price: it.unitPrice,
+        line_total: it.unitPrice * it.quantity,
+        selected_variant: it.selectedVariant?.name,
+        selected_addons: it.selectedAddons?.map((a) => a.name),
+        kitchen_note: it.kitchenNote,
       })),
     };
 
+    // Update running orders list
     setRunningOrders((prev) => [newOrder, ...prev]);
-    setCart([]);
-    setOrderRemark("");
-    setSuccessOrder(resolvedOrderNumber);
-    setIsSubmittingOrder(false);
-    setActiveTab("kots");
 
+    // Update table status in floor plan
+    setTables((prev) =>
+      prev.map((t) =>
+        t.number === store.selectedTable
+          ? { ...t, status: "occupied", guests: store.guestCount, running_total: grandTotal }
+          : t
+      )
+    );
+
+    // Play triumphant KOT sound
+    sound.kotDispatched();
+
+    // Trigger success notification
+    const bannerData = {
+      orderNumber: resolvedOrderNumber,
+      tableName: store.selectedTable,
+      grandTotal,
+      itemsCount: store.cart.length,
+      cartSnapshot: [...store.cart],
+      subtotal,
+      tax,
+    };
+    setSuccessOrderBanner(bannerData);
+
+    // Clear cart and reset remark
+    store.clearCart();
+    setIsSubmittingOrder(false);
+
+    // Auto-dismiss banner after 6s
     setTimeout(() => {
-      setSuccessOrder(null);
-    }, 4500);
+      setSuccessOrderBanner(null);
+    }, 6000);
+  };
+
+  // Open thermal receipt modal
+  const handleOpenPrintPreview = () => {
+    if (store.cart.length === 0) return;
+    const subtotal = store.cart.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0);
+    const discount = Math.round((subtotal * store.discountPercent) / 100);
+    const taxable = Math.max(0, subtotal - discount);
+    const tax = Math.round(taxable * 0.05);
+
+    store.setReceiptModalData({
+      orderNumber: `PREVIEW-${store.selectedTable}`,
+      tableName: store.selectedTable,
+      guests: store.guestCount,
+      waiterName: auth.name || "Captain Sumit",
+      branchName: auth.user?.branch_name || "SSR One Restaurant",
+      items: store.cart.map((it) => ({
+        name: it.name,
+        quantity: it.quantity,
+        price: it.unitPrice,
+        variant: it.selectedVariant?.name,
+        addons: it.selectedAddons?.map((a) => a.name),
+        note: it.kitchenNote,
+      })),
+      subtotal,
+      tax,
+      total: taxable + tax,
+      orderType: store.orderType,
+      createdAt: new Date().toISOString(),
+      orderRemark: store.orderRemark,
+    });
+  };
+
+  // Open checkout modal
+  const handleOpenCheckout = () => {
+    if (store.cart.length === 0) return;
+    store.setIsCheckoutOpen(true);
+  };
+
+  // Handle successful checkout
+  const handlePaymentSuccess = (paymentDetails: any) => {
+    const subtotal = store.cart.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0);
+    const discount = Math.round((subtotal * store.discountPercent) / 100);
+    const taxable = Math.max(0, subtotal - discount);
+    const tax = Math.round(taxable * 0.05);
+    const grandTotal = taxable + tax;
+
+    // Show thermal receipt
+    store.setReceiptModalData({
+      orderNumber: `BILL-${store.selectedTable}-${Date.now().toString().slice(-4)}`,
+      tableName: store.selectedTable,
+      guests: store.guestCount,
+      waiterName: auth.name || "Captain Sumit",
+      branchName: auth.user?.branch_name || "SSR One Restaurant",
+      items: store.cart.map((it) => ({
+        name: it.name,
+        quantity: it.quantity,
+        price: it.unitPrice,
+        variant: it.selectedVariant?.name,
+        addons: it.selectedAddons?.map((a) => a.name),
+        note: it.kitchenNote,
+      })),
+      subtotal,
+      tax,
+      total: grandTotal,
+      orderType: store.orderType,
+      createdAt: new Date().toISOString(),
+    });
+
+    // Reset table status to available
+    setTables((prev) =>
+      prev.map((t) =>
+        t.number === store.selectedTable
+          ? { ...t, status: "available", running_total: 0, guests: 0 }
+          : t
+      )
+    );
+
+    // Close checkout and clear cart
+    store.setIsCheckoutOpen(false);
+    store.clearCart();
+  };
+
+  // Recall active order into cart to add more items or edit (Admin-Web Parity)
+  const handleRecallOrderToCart = (order: RunningOrder) => {
+    sound.tap();
+    store.clearCart();
+    store.setSelectedTable(order.table_number || "C-1");
+    store.setOrderType("dine_in");
+
+    (order.items || []).forEach((it: any) => {
+      const mockItem: MenuItem = {
+        id: `rec-${Math.random().toString(36).slice(2, 7)}`,
+        name: it.product_name || it.item_name || "Dish",
+        category: "All",
+        categoryId: "all",
+        basePrice: it.unit_price,
+        selling_price: it.unit_price,
+        isVeg: true,
+      };
+      const variant = it.selected_variant ? { id: "var", name: it.selected_variant, price: it.unit_price } : undefined;
+      const addons = (it.selected_addons || []).map((a: any) => ({
+        id: "add",
+        name: typeof a === "string" ? a : a.name,
+        price: 0,
+      }));
+      for (let q = 0; q < (it.quantity || 1); q++) {
+        store.addToCart(mockItem, variant, addons, it.kitchen_note);
+      }
+    });
+
+    store.setActiveTab("pos");
+  };
+
+  // Direct table settlement from Table Floor (Admin-Web Parity)
+  const handleDirectSettleOrder = async (order: RunningOrder, paymentMethod: string, amount: number) => {
+    sound.paymentSuccess();
+    const branchParam = auth.user?.branch_id ? Number(auth.user.branch_id) : 1;
+    const targetId = order.id ? parseInt(String(order.id).replace(/\D/g, ""), 10) || order.id : order.order_number;
+
+    try {
+      await api.patch(`/orders/${targetId}/status`, null, {
+        params: {
+          status: "completed",
+          payment_status: "paid",
+          payment_method: paymentMethod,
+          amount_paid: amount,
+        },
+      }).catch(() => null);
+    } catch (e) {
+      console.warn("Settlement sync error:", e);
+    }
+
+    // Free table in local state
+    setTables((prev) =>
+      prev.map((t) =>
+        t.number.toLowerCase() === (order.table_number || "").toLowerCase()
+          ? { ...t, status: "available", running_total: 0, guests: 0 }
+          : t
+      )
+    );
+
+    // Remove from runningOrders
+    setRunningOrders((prev) =>
+      prev.filter((o) => o.order_number !== order.order_number && o.id !== order.id)
+    );
+
+    // Show thermal receipt
+    store.setReceiptModalData({
+      orderNumber: order.order_number,
+      tableName: order.table_number,
+      guests: 2,
+      waiterName: order.waiter_name || auth.name || "Captain Sumit",
+      branchName: auth.user?.branch_name || "Baithak Cafe",
+      items: order.items.map((it: any) => ({
+        name: it.product_name,
+        quantity: it.quantity,
+        price: it.unit_price,
+        variant: it.selected_variant,
+        addons: it.selected_addons,
+        note: it.kitchen_note,
+      })),
+      subtotal: order.subtotal,
+      tax: order.total_tax,
+      total: order.grand_total,
+      orderType: "dine_in",
+      paymentMethod,
+      createdAt: new Date().toISOString(),
+    });
   };
 
   return (
-    <div className={`min-h-screen pb-16 font-sans transition-colors duration-200 select-none ${isDark ? "bg-slate-950 text-slate-100" : "bg-[#FAF9F5] text-slate-900"}`}>
+    <div className="h-screen bg-pos-bg text-pos-text font-sans select-none flex flex-col overflow-hidden">
+      {/* SUCCESS KOT NOTIFICATION BANNER */}
+      {successOrderBanner && (
+        <div className="px-3 sm:px-5 pt-2 shrink-0 z-30">
+          <div className="p-3 sm:p-4 rounded-2xl bg-pos-primary text-white font-bold flex items-center justify-between shadow-lg shadow-pos-primary/20 animate-in slide-in-from-top-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white shrink-0">
+                <CheckCircle2 size={20} />
+              </div>
+              <div>
+                <p className="text-xs sm:text-sm font-black">
+                  KOT #{successOrderBanner.orderNumber} Dispatched to Kitchen!
+                </p>
+                <p className="text-[11px] text-emerald-100 font-medium">
+                  {successOrderBanner.itemsCount} dishes for Table {successOrderBanner.tableName} • ₹{successOrderBanner.grandTotal}
+                </p>
+              </div>
+            </div>
 
-      {/* Staff Login Modal */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  store.setReceiptModalData({
+                    orderNumber: successOrderBanner.orderNumber,
+                    tableName: successOrderBanner.tableName,
+                    guests: store.guestCount,
+                    waiterName: auth.name || "Captain Sumit",
+                    branchName: auth.user?.branch_name || "Baithak Cafe",
+                    items: successOrderBanner.cartSnapshot.map((it: any) => ({
+                      name: it.name,
+                      quantity: it.quantity,
+                      price: it.unitPrice,
+                      variant: it.selectedVariant?.name,
+                      addons: it.selectedAddons?.map((a: any) => a.name),
+                      note: it.kitchenNote,
+                    })),
+                    subtotal: successOrderBanner.subtotal,
+                    tax: successOrderBanner.tax,
+                    total: successOrderBanner.grandTotal,
+                    orderType: store.orderType,
+                    createdAt: new Date().toISOString(),
+                  });
+                }}
+                className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition"
+              >
+                <Receipt size={13} />
+                <span>View KOT</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSuccessOrderBanner(null)}
+                className="px-2.5 py-1 bg-black/20 hover:bg-black/30 rounded-xl text-xs font-bold cursor-pointer transition"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MAIN WORKSPACE (Edge-to-Edge, Full Height Touch Ergonomics) */}
+      <main className="flex-1 flex overflow-hidden min-h-0">
+        {/* ------------------------------------------------------------------ */}
+        {/* TAB 0: 3D STAFF COMMAND HUB (Landing Dashboard)                    */}
+        {/* ------------------------------------------------------------------ */}
+        {store.activeTab === "dashboard" && (
+          <StaffDashboardHub
+            authName={auth.name || "Aman"}
+            branchName={auth.user?.branch_name || "Baithak Cafe"}
+            tables={tables}
+            runningOrders={runningOrders}
+            onOpenIndent={() => setIsIndentModalOpen(true)}
+            onOpenLedger={() => store.setActiveTab("ledger")}
+            onLock={promptLockTerminal}
+            isRefreshing={isRefreshing}
+            onRefresh={() => loadData()}
+          />
+        )}
+
+        {/* ------------------------------------------------------------------ */}
+        {/* TAB 1: ADVANCED TABLE MANAGEMENT & LIVE FLOOR TRACKING             */}
+        {/* ------------------------------------------------------------------ */}
+        {store.activeTab === "floor" && (
+          <PosFloorPlan
+            tables={tables}
+            runningOrders={runningOrders}
+            authName={auth.name || "Aman"}
+            branchName={auth.user?.branch_name || "Baithak Cafe"}
+            openKotsCount={runningOrders.length}
+            onOpenKds={() => store.setActiveTab("kots")}
+            onBackToHub={() => store.setActiveTab("dashboard")}
+            onLock={promptLockTerminal}
+            onSelectTableForOrder={(tableNum) => {
+              store.setSelectedTable(tableNum);
+              store.setActiveTab("pos");
+            }}
+            onRecallOrderToCart={handleRecallOrderToCart}
+            onSettleOrder={handleDirectSettleOrder}
+            onDirectTakeaway={() => {
+              store.setOrderType("takeaway");
+              store.setSelectedTable("Takeaway");
+              store.setActiveTab("pos");
+            }}
+            onDirectDelivery={() => {
+              store.setOrderType("delivery");
+              store.setSelectedTable("Delivery");
+              store.setActiveTab("pos");
+            }}
+            onRefreshData={() => loadData()}
+            onViewTableBill={(order) => {
+              store.setReceiptModalData({
+                orderNumber: order.order_number,
+                tableName: order.table_number,
+                waiterName: order.waiter_name || auth.name,
+                branchName: auth.user?.branch_name || "Baithak Cafe",
+                items: order.items.map((it: any) => ({
+                  name: it.product_name,
+                  quantity: it.quantity,
+                  price: it.unit_price,
+                  variant: it.selected_variant,
+                  addons: it.selected_addons,
+                  note: it.kitchen_note,
+                })),
+                subtotal: order.subtotal,
+                tax: order.total_tax,
+                total: order.grand_total,
+                createdAt: order.created_at,
+              });
+            }}
+          />
+        )}
+
+        {/* ------------------------------------------------------------------ */}
+        {/* TAB 2: STAFF EMPLOYEE LEDGER (ATTENDANCE & SHIFTS)                 */}
+        {/* ------------------------------------------------------------------ */}
+        {store.activeTab === "ledger" && (
+          <StaffLedgerView
+            authName={auth.name || "Aman"}
+            branchName={auth.user?.branch_name || "Baithak Cafe"}
+            onBackToDashboard={() => store.setActiveTab("dashboard")}
+          />
+        )}
+
+        {/* ------------------------------------------------------------------ */}
+        {/* TAB 3: THE MAIN THREE-PANEL POS INTERFACE (Touch Order Pad)        */}
+        {/* ------------------------------------------------------------------ */}
+        {store.activeTab === "pos" && (
+          <div className="flex-1 flex flex-col w-full overflow-hidden">
+            {/* Top Terminal Header with Multiplier, Voice Ordering, Top Cats */}
+            <PosTerminalHeader
+              authName={auth.name || "Aman"}
+              branchName={auth.user?.branch_name || "Baithak Cafe"}
+              openKotsCount={runningOrders.length}
+              onBackToFloor={() => store.setActiveTab("floor")}
+              onOpenSettings={() => store.setActiveTab("dashboard")}
+              onLockTerminal={promptLockTerminal}
+              onQuickAddItemByCode={handleQuickAddItemByCode}
+            />
+
+            {/* 3 Columns Layout: Desktop / Big Touchscreen POS (lg+) shows 3 panels side-by-side; Mobile / Tablet (< lg) supports smooth Menu & Cart flipping */}
+            <div className="flex-1 flex flex-col lg:flex-row w-full overflow-hidden min-h-0 bg-white relative">
+              {/* Left Column: Cart / Billing Panel */}
+              <div className={`${mobilePosTab === "cart" ? "flex flex-col flex-1" : "hidden"} lg:flex lg:flex-col lg:flex-initial h-full min-h-0`}>
+                <PosLiveCart
+                  isSubmitting={isSubmittingOrder}
+                  onDispatchKOT={handleDispatchKOT}
+                  onOpenPrintPreview={handleOpenPrintPreview}
+                  onOpenCheckout={handleOpenCheckout}
+                  tables={tables}
+                  onSwitchTable={(tbl) => store.setSelectedTable(tbl)}
+                  waiterName={auth.name || "Aman"}
+                  onBackToTables={() => store.setActiveTab("floor")}
+                  openKotsCount={runningOrders.length}
+                  onOpenKds={() => store.setActiveTab("kots")}
+                  onMobileBackToMenu={() => setMobilePosTab("menu")}
+                />
+              </div>
+
+              {/* Center Column: 5-Column Food Cards Grid with Filter Row */}
+              <div className={`${mobilePosTab === "menu" ? "flex flex-1" : "hidden"} lg:flex h-full min-h-0 overflow-hidden`}>
+                <PosMenuCatalog
+                  products={products}
+                  onSelectItem={(item, variant) => {
+                    handleSelectMenuItem(item, variant);
+                  }}
+                />
+              </div>
+
+              {/* Right Column: Vertical Categories Rail */}
+              <div className={`${mobilePosTab === "menu" ? "flex" : "hidden"} lg:flex h-full min-h-0`}>
+                <PosCategorySidebar
+                  categories={categories}
+                  categoryCounts={categoryCounts}
+                />
+              </div>
+
+              {/* Floating Bottom Quick Cart Bar for Mobile & Tablets (< lg) */}
+              {mobilePosTab === "menu" && store.cart.length > 0 && (
+                <div className="lg:hidden absolute bottom-3 left-3 right-3 z-30 bg-slate-900 text-white rounded-2xl p-2.5 shadow-2xl border border-slate-700 flex items-center justify-between animate-in slide-in-from-bottom duration-200">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-xs">
+                      {store.cart.reduce((s, it) => s + it.quantity, 0)}
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold block leading-tight">
+                        {store.selectedTable ? `Table ${store.selectedTable}` : store.orderType.toUpperCase()}
+                      </span>
+                      <span className="text-[11px] text-emerald-400 font-mono font-bold">
+                        ₹{store.cart.reduce((s, it) => s + it.unitPrice * it.quantity, 0)}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sound.tap();
+                      setMobilePosTab("cart");
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer shadow-xs active:scale-95 transition"
+                  >
+                    View Cart / Pay &gt;
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------------ */}
+        {/* TAB 4: KITCHEN DISPLAY SYSTEM (KDS) & KOT PIPELINE                */}
+        {/* ------------------------------------------------------------------ */}
+        {store.activeTab === "kots" && (
+          <div className="flex-1 p-3 sm:p-5 overflow-y-auto max-w-7xl mx-auto w-full">
+            <PosKitchenDisplay
+              orders={runningOrders}
+              onBack={() => store.setActiveTab("floor")}
+              onAppendOrderToTable={(tableNum) => {
+                store.setSelectedTable(tableNum);
+                store.setActiveTab("pos");
+              }}
+              onPrintThermalKOT={(order) => {
+                store.setReceiptModalData({
+                  orderNumber: order.order_number,
+                  tableName: order.table_number,
+                  waiterName: order.waiter_name || auth.name,
+                  branchName: auth.user?.branch_name || "SSR One Restaurant",
+                  items: order.items.map((it: any) => ({
+                    name: it.product_name,
+                    quantity: it.quantity,
+                    price: it.unit_price,
+                    variant: it.selected_variant,
+                    addons: it.selected_addons,
+                    note: it.kitchen_note,
+                  })),
+                  subtotal: order.subtotal,
+                  tax: order.total_tax,
+                  total: order.grand_total,
+                  createdAt: order.created_at,
+                });
+              }}
+              onUpdateOrderStatus={(orderId, nextStatus) => {
+                setRunningOrders((prev) =>
+                  prev.map((o) => (o.id === orderId ? { ...o, status: nextStatus } : o))
+                );
+              }}
+            />
+          </div>
+        )}
+      </main>
+
+      {/* 4. MODALS */}
+      {/* Advanced Customization Modal */}
+      {customizingItem && (
+        <PosCustomizationModal
+          item={customizingItem}
+          onClose={() => setCustomizingItem(null)}
+          onConfirm={handleConfirmCustomization}
+        />
+      )}
+
+      {/* Fast Checkout & Payment Modal */}
+      {store.isCheckoutOpen && (
+        <PosCheckoutModal
+          orderData={{
+            orderNumber: `ORD-${store.selectedTable}-${Date.now().toString().slice(-4)}`,
+            tableName: store.selectedTable,
+            itemsCount: store.cart.length,
+            subtotal: store.cart.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0),
+            discount: Math.round(
+              (store.cart.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0) * store.discountPercent) / 100
+            ),
+            tax: Math.round(
+              (Math.max(
+                0,
+                store.cart.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0) -
+                Math.round(
+                  (store.cart.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0) * store.discountPercent) / 100
+                )
+              ) * 0.05)
+            ),
+            total:
+              Math.max(
+                0,
+                store.cart.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0) -
+                Math.round(
+                  (store.cart.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0) * store.discountPercent) / 100
+                )
+              ) +
+              Math.round(
+                (Math.max(
+                  0,
+                  store.cart.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0) -
+                  Math.round(
+                    (store.cart.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0) * store.discountPercent) / 100
+                  )
+                ) * 0.05)
+              ),
+          }}
+          onClose={() => store.setIsCheckoutOpen(false)}
+          onPaymentSuccess={handlePaymentSuccess}
+        />
+      )}
+
+      {/* Thermal 80mm Receipt / KOT Ticket Modal */}
+      {store.receiptModalData && (
+        <ThermalReceiptModal
+          data={store.receiptModalData}
+          onClose={() => store.setReceiptModalData(null)}
+        />
+      )}
+
+      {/* Staff Login / Switch Waiter Modal */}
       {showLoginModal && (
         <StaffLoginModal
           isOpen={showLoginModal}
@@ -397,465 +1071,26 @@ export function App() {
         />
       )}
 
-      {/* Item Customization Modal */}
-      {customizingItem && (
-        <StaffItemCustomizeModal
-          item={customizingItem}
-          onClose={() => setCustomizingItem(null)}
-          onConfirm={handleConfirmCustomization}
+      {/* Staff Petty Cash / Indent Money Request Modal */}
+      {isIndentModalOpen && (
+        <StaffIndentModal
+          authName={auth.name || "Aman"}
+          isOpen={isIndentModalOpen}
+          onClose={() => setIsIndentModalOpen(false)}
         />
       )}
 
-      {/* Directory Modal */}
+      {/* Employee Directory */}
       {showDirectory && <EmployeeDirectory onClose={() => setShowDirectory(false)} />}
 
-      {/* Top Tablet-Optimized Header Navbar */}
-      <header className="sticky top-0 z-40 px-4 sm:px-6 py-3 bg-white/95 dark:bg-slate-900/95 border-b border-slate-200/80 dark:border-slate-800 backdrop-blur-md shadow-2xs flex items-center justify-between gap-3">
-        {/* Left Branding & Tablet Indicator */}
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-sky-600 flex items-center justify-center text-white font-bold shadow-sm shrink-0">
-            <Store size={22} />
-          </div>
-          <div>
-            <h1 className="text-sm sm:text-base font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-              {auth.user?.branch_name || "Baithak Cafe"}
-              {isTabletTouchMode && (
-                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-300 dark:border-sky-800">
-                  <Tablet size={11} /> Tablet Mode
-                </span>
-              )}
-            </h1>
-            <p className="text-xs text-slate-500 font-semibold">
-              Tablet Waiter POS • {auth.name || "Serving Staff"}
-            </p>
-          </div>
-        </div>
-
-        {/* Right Tablet Controls */}
-        <div className="flex items-center gap-2">
-          {/* Sound Feedback Toggle */}
-          <button
-            type="button"
-            onClick={() => {
-              setIsSoundEnabled(!isSoundEnabled);
-              handleTapFeedback();
-            }}
-            title={isSoundEnabled ? "Touch audio feedback ON" : "Touch audio feedback MUTED"}
-            className={`min-h-[44px] min-w-[44px] p-2.5 rounded-xl border transition flex items-center justify-center cursor-pointer ${
-              isSoundEnabled
-                ? "bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800"
-                : "bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800"
-            }`}
-          >
-            {isSoundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
-          </button>
-
-          {/* Refresh Database */}
-          <button
-            type="button"
-            onClick={() => {
-              handleTapFeedback();
-              loadData();
-            }}
-            disabled={isRefreshing}
-            className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
-            title="Refresh Menu & Orders"
-          >
-            <RefreshCw size={18} className={isRefreshing ? "animate-spin text-sky-600" : ""} />
-          </button>
-
-          {/* Active Waiter Badge */}
-          {auth.name && (
-            <div className="hidden lg:flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span>{auth.name}</span>
-            </div>
-          )}
-
-          {/* Switch Waiter / Lock Button */}
-          <button
-            type="button"
-            onClick={() => {
-              handleTapFeedback();
-              logout();
-              setAuthState(getAuth());
-              setShowLoginModal(true);
-            }}
-            title="Lock Tablet / Switch Staff"
-            className="min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-sky-500 transition cursor-pointer flex items-center gap-2 text-xs font-bold shadow-2xs"
-          >
-            <Lock size={15} />
-            <span className="hidden sm:inline">Switch Staff</span>
-          </button>
-        </div>
-      </header>
-
-      {/* Main Tablet Navigation Bar: 48px+ Touch Targets */}
-      <div className="px-4 sm:px-6 pt-3 pb-1 max-w-7xl mx-auto">
-        <div className="grid grid-cols-3 gap-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-1.5 rounded-2xl shadow-2xs">
-          <button
-            type="button"
-            onClick={() => {
-              handleTapFeedback();
-              setActiveTab("floor");
-            }}
-            className={`min-h-[48px] py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 ${
-              activeTab === "floor"
-                ? "bg-sky-600 text-white shadow-sm"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-          >
-            <LayoutGrid size={18} />
-            <span>Floor Plan ({tables.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              handleTapFeedback();
-              setActiveTab("order");
-            }}
-            className={`min-h-[48px] py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 ${
-              activeTab === "order"
-                ? "bg-sky-600 text-white shadow-sm"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-          >
-            <Utensils size={18} />
-            <span>Table {selectedTable} Order</span>
-            {cart.length > 0 && (
-              <span className="w-5 h-5 rounded-full bg-white text-sky-700 font-mono text-[10px] font-black flex items-center justify-center">
-                {cart.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              handleTapFeedback();
-              setActiveTab("kots");
-            }}
-            className={`min-h-[48px] py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 ${
-              activeTab === "kots"
-                ? "bg-sky-600 text-white shadow-sm"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-          >
-            <ChefHat size={18} />
-            <span>Kitchen KOTs ({runningOrders.length})</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Container */}
-      <main className="p-3 sm:p-5 max-w-7xl mx-auto space-y-4">
-        {/* Success KOT Toast Banner */}
-        {successOrder && (
-          <div className="p-4 rounded-2xl bg-emerald-600 text-white font-bold flex items-center justify-between shadow-lg animate-in fade-in">
-            <div className="flex items-center gap-2.5">
-              <CheckCircle2 size={24} />
-              <div>
-                <p className="text-sm font-black">KOT Dispatched Successfully!</p>
-                <p className="text-xs text-emerald-100">Order #{successOrder} for Table {selectedTable} sent to kitchen.</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setSuccessOrder(null)}
-              className="px-3 py-1 bg-white/20 rounded-lg text-xs font-bold"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-
-        {/* ------------------------------------------------------------- */}
-        {/* TAB 1: TABLE FLOOR PLAN (Touch-Friendly Table Grid)          */}
-        {/* ------------------------------------------------------------- */}
-        {activeTab === "floor" && (
-          <TableFloorGrid
-            tables={tables}
-            runningOrders={runningOrders}
-            selectedTable={selectedTable}
-            onSelectTable={(tblNum) => {
-              handleTapFeedback();
-              setSelectedTable(tblNum);
-              setActiveTab("order");
-            }}
-          />
-        )}
-
-        {/* ------------------------------------------------------------- */}
-        {/* TAB 2: ORDER PAD (Tablet Landscape Split Screen / Portrait)  */}
-        {/* ------------------------------------------------------------- */}
-        {activeTab === "order" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-            {/* Catalog Column (Left 7 cols on tablet landscape) */}
-            <div className="lg:col-span-7 xl:col-span-8 space-y-3">
-              {/* Quick Table Switcher Bar for tablet rush hours */}
-              <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2 shadow-2xs">
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-                  <span className="text-xs font-bold uppercase text-slate-400 shrink-0">Switch:</span>
-                  {tables.map((t) => {
-                    const isCurrent = selectedTable === t.number;
-                    return (
-                      <button
-                        key={t.id || t.number}
-                        type="button"
-                        onClick={() => {
-                          handleTapFeedback();
-                          setSelectedTable(t.number);
-                        }}
-                        className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
-                          isCurrent
-                            ? "bg-sky-600 text-white shadow-xs"
-                            : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
-                        }`}
-                      >
-                        {t.number}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="shrink-0 px-3 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-300 font-mono text-xs font-black border border-sky-200 dark:border-sky-800">
-                  Table {selectedTable}
-                </div>
-              </div>
-
-              {/* Search & Veg Filter */}
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search dishes (e.g. Dosa, Chai, Thali)..."
-                    className="w-full h-11 pl-10 pr-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-xs font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-2xs"
-                  />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchQuery("")}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleTapFeedback();
-                    setVegOnly(!vegOnly);
-                  }}
-                  className={`min-h-[44px] px-4 rounded-xl border text-xs font-black transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                    vegOnly
-                      ? "bg-emerald-600 text-white border-emerald-600"
-                      : "bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 text-slate-700 dark:text-slate-300"
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full ${vegOnly ? "bg-white" : "bg-emerald-500"}`} />
-                  Veg Only
-                </button>
-              </div>
-
-              {/* Category Filter Pills (min 44px touch height) */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-1.5 rounded-2xl shadow-2xs no-scrollbar">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleTapFeedback();
-                    setSelectedCategory("all");
-                  }}
-                  className={`min-h-[44px] px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider shrink-0 transition cursor-pointer flex items-center gap-2 ${
-                    selectedCategory === "all"
-                      ? "bg-sky-600 text-white shadow-xs"
-                      : "bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-300"
-                  }`}
-                >
-                  <Utensils size={14} /> All Dishes
-                </button>
-
-                {categories.map((cat) => {
-                  const isSelected = String(selectedCategory) === String(cat.id) || String(selectedCategory) === String(cat.name);
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => {
-                        handleTapFeedback();
-                        setSelectedCategory(cat.name);
-                      }}
-                      className={`min-h-[44px] px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider shrink-0 transition cursor-pointer ${
-                        isSelected
-                          ? "bg-sky-600 text-white shadow-xs"
-                          : "bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-300"
-                      }`}
-                    >
-                      {cat.name}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Menu Dishes Touch Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {filteredProducts.map((prod) => (
-                  <button
-                    key={prod.id}
-                    type="button"
-                    onClick={() => handleSelectItem(prod)}
-                    className="p-3.5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-sky-500 rounded-2xl shadow-2xs text-left flex flex-col justify-between min-h-[125px] transition cursor-pointer active:scale-[0.98]"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-1">
-                        <span className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white leading-snug">
-                          {prod.name}
-                        </span>
-                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${prod.isVeg ? "bg-emerald-600" : "bg-rose-600"}`} />
-                      </div>
-                      <p className="text-[11px] text-slate-500 line-clamp-2 mt-1 font-medium leading-relaxed">
-                        {prod.description}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
-                      <span className="font-mono text-sm sm:text-base font-black text-sky-600 dark:text-sky-400">
-                        ₹{prod.selling_price || prod.basePrice}
-                      </span>
-                      <span className="min-h-[32px] px-3 rounded-lg text-xs font-black bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 flex items-center gap-1">
-                        <Plus size={12} strokeWidth={3} /> Add
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Cart & KOT Summary Column (Right 5 cols on tablet landscape) */}
-            <div className="lg:col-span-5 xl:col-span-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between space-y-4 sticky top-20">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-3">
-                  <div>
-                    <h3 className="font-black text-sm uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
-                      <Utensils size={17} className="text-sky-600" />
-                      Table {selectedTable} Order Pad
-                    </h3>
-                    <p className="text-[11px] text-slate-400 font-semibold">Touchscreen Order Punch</p>
-                  </div>
-                  <span className="text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-lg">
-                    {cart.length} Dishes
-                  </span>
-                </div>
-
-                {/* Cart Items List with Large Touch Steppers (40px) */}
-                {cart.length === 0 ? (
-                  <div className="py-14 text-center text-slate-400 space-y-2">
-                    <ShoppingBag size={36} className="mx-auto text-slate-300 dark:text-slate-700" />
-                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Order Pad Empty</p>
-                    <p className="text-[11px] text-slate-400">Tap dishes on the menu to add to Table {selectedTable}.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2.5 max-h-[340px] overflow-y-auto pr-1">
-                    {cart.map((item) => (
-                      <div
-                        key={item.cartKey}
-                        className="p-3 bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700 rounded-xl flex items-center justify-between gap-2 shadow-2xs"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <span className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white block truncate">
-                            {item.name}
-                          </span>
-                          <span className="font-mono text-xs font-black text-sky-600 dark:text-sky-400">
-                            ₹{item.unitPrice * item.quantity}
-                            <span className="text-[10px] text-slate-400 font-normal ml-1">
-                              (₹{item.unitPrice} each)
-                            </span>
-                          </span>
-                        </div>
-
-                        {/* Large Touch Steppers: 38px touch area */}
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(item.cartKey, -1)}
-                            className="w-9 h-9 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-black text-slate-700 dark:text-slate-200 hover:bg-slate-100 active:scale-95 transition cursor-pointer shadow-2xs"
-                          >
-                            <Minus size={15} />
-                          </button>
-
-                          <span className="w-7 text-center font-mono font-black text-sm text-slate-900 dark:text-white">
-                            {item.quantity}
-                          </span>
-
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(item.cartKey, 1)}
-                            className="w-9 h-9 rounded-xl bg-sky-600 text-white flex items-center justify-center font-black hover:bg-sky-700 active:scale-95 transition cursor-pointer shadow-2xs"
-                          >
-                            <Plus size={15} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Kitchen Remark Note */}
-                <div className="pt-1">
-                  <input
-                    type="text"
-                    value={orderRemark}
-                    onChange={(e) => setOrderRemark(e.target.value)}
-                    placeholder="Kitchen remark (e.g. Less spicy, pack parcel)..."
-                    className="w-full h-10 px-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  />
-                </div>
-              </div>
-
-              {/* Total & Large 52px Dispatch Button */}
-              <div className="pt-3 border-t border-slate-200/80 dark:border-slate-800 space-y-3">
-                <div className="space-y-1 text-xs font-mono">
-                  <div className="flex justify-between text-slate-500">
-                    <span>Subtotal:</span>
-                    <span>₹{subtotal}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-500">
-                    <span>GST (5%):</span>
-                    <span>₹{tax}</span>
-                  </div>
-                  <div className="flex justify-between text-sm font-black text-slate-900 dark:text-white pt-1 border-t border-slate-200 dark:border-slate-700">
-                    <span>Grand Total:</span>
-                    <span className="text-base text-sky-600 dark:text-sky-400 font-mono">₹{grandTotal}</span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={cart.length === 0 || isSubmittingOrder}
-                  onClick={handleDispatchOrder}
-                  className="w-full min-h-[52px] py-3 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-[0.99] text-white text-xs sm:text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition cursor-pointer disabled:opacity-50"
-                >
-                  <Send size={18} />
-                  <span>
-                    {isSubmittingOrder ? "DISPATCHING KOT..." : `DISPATCH KOT TO KITCHEN (TABLE ${selectedTable})`}
-                  </span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ------------------------------------------------------------- */}
-        {/* TAB 3: RUNNING KOTS                                          */}
-        {/* ------------------------------------------------------------- */}
-        {activeTab === "kots" && (
-          <ActiveOrdersTracker orders={runningOrders} />
-        )}
-      </main>
+      {/* Lock / Logout Confirmation Dialog */}
+      <LockConfirmModal
+        isOpen={showLockConfirm}
+        onClose={() => setShowLockConfirm(false)}
+        onConfirmLock={handleConfirmLock}
+        staffName={auth.name || "Aman"}
+        branchName={auth.user?.branch_name || "Baithak Cafe"}
+      />
     </div>
   );
 }

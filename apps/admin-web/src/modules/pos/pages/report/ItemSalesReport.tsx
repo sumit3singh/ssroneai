@@ -21,6 +21,7 @@ import {
   Cell,
 } from "recharts";
 import { POSOrder, POSCategory, POSMenuItem } from "../../types";
+import { isCancelledOrder, isVoidedItem, safeNum } from "./reportUtils";
 
 interface ItemSalesReportProps {
   orders: POSOrder[];
@@ -28,12 +29,6 @@ interface ItemSalesReportProps {
   menuItems?: POSMenuItem[];
   dateLabel?: string;
 }
-
-const safeNum = (val: any): number => {
-  if (val === null || val === undefined) return 0;
-  const num = typeof val === "number" ? val : parseFloat(String(val));
-  return isNaN(num) ? 0 : num;
-};
 
 const CHART_COLORS = [
   "#3B82F6",
@@ -92,10 +87,10 @@ export const ItemSalesReport: React.FC<ItemSalesReportProps> = ({
     let grandTotalQty = 0;
 
     orders.forEach((o) => {
-      if ((o.status || "").toLowerCase() === "cancelled") return;
+      if (isCancelledOrder(o)) return;
 
       (o.items || []).forEach((i: any) => {
-        if (i.is_voided) return;
+        if (isVoidedItem(i)) return;
         const name = i.product_name || i.name || i.item_name || "Dish Item";
         const id = i.item_id || i.product_id;
         const catalogItem =

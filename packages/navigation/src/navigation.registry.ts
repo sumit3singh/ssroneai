@@ -47,6 +47,7 @@ export const moduleNavigationRegistry: Record<string, ModuleNavConfig> = {
                 title: "REPORT",
                 iconName: "BarChart3",
                 items: [
+                    { id: "pos-rep-bi", label: "Sales BI Dashboard", path: "/pos/reports/sales-dashboard", iconName: "BarChart3" },
                     { id: "pos-rep-daily", label: "Daily Sales Report", path: "/pos/reports/daily-sales", iconName: "TrendingUp" },
                     { id: "pos-rep-item", label: "Item Sales Analytics", path: "/pos/reports/item-sales", iconName: "BarChart3" },
                     { id: "pos-rep-cashier", label: "Cashier Settlement", path: "/pos/reports/cashier-settlement", iconName: "DollarSign" },

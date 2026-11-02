@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@ssrone/ui";
 import { POSOrder } from "../../types";
+import { isCancelledOrder, safeNum } from "./reportUtils";
 
 interface GSTTaxSummaryReportProps {
   orders: POSOrder[];
@@ -17,12 +18,6 @@ interface GSTTaxSummaryReportProps {
   gstin?: string;
   legalName?: string;
 }
-
-const safeNum = (val: any): number => {
-  if (val === null || val === undefined) return 0;
-  const num = typeof val === "number" ? val : parseFloat(String(val));
-  return isNaN(num) ? 0 : num;
-};
 
 export const GSTTaxSummaryReport: React.FC<GSTTaxSummaryReportProps> = ({
   orders,
@@ -32,11 +27,9 @@ export const GSTTaxSummaryReport: React.FC<GSTTaxSummaryReportProps> = ({
 }) => {
   const [activeView, setActiveView] = useState<"summary" | "invoices">("summary");
 
-  // Filter completed/paid orders
+  // Filter completed/paid orders (Strictly excluding cancelled/voided orders)
   const validOrders = useMemo(() => {
-    return orders.filter(
-      (o) => (o.status || "").toLowerCase() !== "cancelled"
-    );
+    return orders.filter((o) => !isCancelledOrder(o));
   }, [orders]);
 
   // Aggregate Tax Calculations

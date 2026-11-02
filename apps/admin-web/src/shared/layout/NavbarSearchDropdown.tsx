@@ -25,7 +25,8 @@ import {
   ArrowRight,
   TrendingUp,
   CreditCard,
-  FileText
+  FileText,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/shared/utils/cn";
 
@@ -225,6 +226,15 @@ export const NavbarSearchDropdown: React.FC<NavbarSearchDropdownProps> = ({
         path: "/pos/transaction/shift",
         icon: Lock,
         keywords: ["shift", "drawer", "cash", "handover", "closing"],
+      },
+      {
+        id: "pos-sales-bi",
+        title: "Sales BI Dashboard",
+        category: "Reports & Analytics",
+        description: "Power BI visual sales analytics, Pareto dish velocity & revenue charts",
+        path: "/pos/reports/sales-dashboard",
+        icon: BarChart3,
+        keywords: ["bi", "dashboard", "power bi", "analytics", "sales", "revenue", "charts"],
       },
       {
         id: "pos-daily-sales",

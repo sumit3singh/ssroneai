@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   TrendingUp,
   DollarSign,
@@ -17,6 +17,10 @@ import {
   Eye,
   X,
   BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { Button } from "@ssrone/ui";
 import {
@@ -30,18 +34,20 @@ import {
 } from "recharts";
 import { POSOrder, POSCartItem } from "../../types";
 import { POSOrderHoverTooltip } from "../../components/POSOrderHoverTooltip";
+import {
+  isCancelledOrder,
+  safeNum,
+  getOrderNet,
+  getOrderSub,
+  getOrderTax,
+  getOrderDisc,
+} from "./reportUtils";
 
 interface DailySalesReportProps {
   orders: POSOrder[];
   dateLabel?: string;
   onRefresh?: () => void;
 }
-
-const safeNum = (val: any): number => {
-  if (val === null || val === undefined) return 0;
-  const num = typeof val === "number" ? val : parseFloat(String(val));
-  return isNaN(num) ? 0 : num;
-};
 
 export const DailySalesReport: React.FC<DailySalesReportProps> = ({
   orders,
@@ -53,151 +59,24 @@ export const DailySalesReport: React.FC<DailySalesReportProps> = ({
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<POSOrder | null>(null);
 
-  const getOrderNet = (o: POSOrder) =>
-    safeNum(o.net_amount ?? o.grand_total ?? o.total_amount ?? 0);
-  const getOrderSub = (o: POSOrder) => safeNum(o.subtotal ?? 0);
-  const getOrderTax = (o: POSOrder) => safeNum(o.tax_amount ?? 0);
-  const getOrderDisc = (o: POSOrder) => safeNum(o.discount_amount ?? 0);
+  // Table Pagination State (Default 100 per page for microsecond rendering)
+  const [pageSize, setPageSize] = useState<number>(100);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [jumpPageInput, setJumpPageInput] = useState<string>("");
 
-  // Filter out cancelled for revenue metrics
-  const activeAndCompletedOrders = useMemo(() => {
-    return orders.filter(
-      (o) => (o.status || "").toLowerCase() !== "cancelled"
-    );
-  }, [orders]);
-
-  // Financial aggregates
-  const totalNet = useMemo(
-    () => activeAndCompletedOrders.reduce((sum, o) => sum + getOrderNet(o), 0),
-    [activeAndCompletedOrders]
-  );
-  const totalSub = useMemo(
-    () => activeAndCompletedOrders.reduce((sum, o) => sum + getOrderSub(o), 0),
-    [activeAndCompletedOrders]
-  );
-  const totalTax = useMemo(
-    () => activeAndCompletedOrders.reduce((sum, o) => sum + getOrderTax(o), 0),
-    [activeAndCompletedOrders]
-  );
-  const totalDisc = useMemo(
-    () => activeAndCompletedOrders.reduce((sum, o) => sum + getOrderDisc(o), 0),
-    [activeAndCompletedOrders]
-  );
-
-  const avgOrderValue =
-    activeAndCompletedOrders.length > 0
-      ? totalNet / activeAndCompletedOrders.length
-      : 0;
-
-  // Payment Breakdown with exact tender attribution and Udhar (Debt) segregation
-  const paymentBreakdown = useMemo(() => {
-    let cash = 0;
-    let upi = 0;
-    let card = 0;
-    let debt = 0;
-
-    activeAndCompletedOrders.forEach((o: any) => {
-      const net = getOrderNet(o);
-      const isUnpaid = (o.payment_status || "").toLowerCase() === "unpaid";
-      const isPartial = (o.payment_status || "").toLowerCase() === "partial";
-      const hasBalanceDue = safeNum(o.balance_due) > 0;
-
-      let paid = 0;
-      let due = 0;
-
-      if (o.amount_paid !== undefined && o.amount_paid !== null) {
-        paid = safeNum(o.amount_paid);
-      } else {
-        paid = isUnpaid ? 0 : net;
-      }
-
-      if (hasBalanceDue) {
-        due = safeNum(o.balance_due);
-      } else if (isUnpaid) {
-        due = net;
-      } else if (isPartial) {
-        due = Math.max(0, net - paid);
-      }
-
-      if (due > 0) {
-        debt += due;
-      }
-
-      if (paid > 0) {
-        const pm = (o.payment_method || "CASH").toUpperCase();
-        if (pm.includes("UPI") || pm.includes("QR") || pm.includes("GPAY") || pm.includes("PAYTM") || pm.includes("PHONEPE")) {
-          upi += paid;
-        } else if (pm.includes("CARD")) {
-          card += paid;
-        } else {
-          cash += paid;
-        }
-      }
-    });
-
-    return { cash, upi, card, debt };
-  }, [activeAndCompletedOrders]);
-
-  // Hourly velocity chart data (09:00 to 23:00)
-  const hourlyChartData = useMemo(() => {
-    const hoursMap: Record<number, { hour: string; revenue: number; orders: number }> = {};
-
-    // Prepopulate standard restaurant operating hours
-    for (let h = 9; h <= 23; h++) {
-      const label = `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? "AM" : "PM"}`;
-      hoursMap[h] = { hour: label, revenue: 0, orders: 0 };
-    }
-
-    activeAndCompletedOrders.forEach((o) => {
-      const d = new Date(o.created_at || Date.now());
-      const h = d.getHours();
-      if (!hoursMap[h]) {
-        const label = `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? "AM" : "PM"}`;
-        hoursMap[h] = { hour: label, revenue: 0, orders: 0 };
-      }
-      hoursMap[h].revenue += getOrderNet(o);
-      hoursMap[h].orders += 1;
-    });
-
-    return Object.keys(hoursMap)
-      .map(Number)
-      .sort((a, b) => a - b)
-      .map((k) => hoursMap[k]);
-  }, [activeAndCompletedOrders]);
-
-  // Order Type Distribution
-  const orderTypeStats = useMemo(() => {
-    const dineIn = activeAndCompletedOrders.filter(
-      (o) => (o.order_type || o.order_mode || "").toLowerCase().includes("dine")
-    );
-    const takeaway = activeAndCompletedOrders.filter(
-      (o) => (o.order_type || o.order_mode || "").toLowerCase().includes("take")
-    );
-    const delivery = activeAndCompletedOrders.filter(
-      (o) => (o.order_type || o.order_mode || "").toLowerCase().includes("deliv")
-    );
-
-    const dineInRev = dineIn.reduce((s, o) => s + getOrderNet(o), 0);
-    const takeRev = takeaway.reduce((s, o) => s + getOrderNet(o), 0);
-    const delivRev = delivery.reduce((s, o) => s + getOrderNet(o), 0);
-
-    return {
-      dineIn: { count: dineIn.length, rev: dineInRev },
-      takeaway: { count: takeaway.length, rev: takeRev },
-      delivery: { count: delivery.length, rev: delivRev },
-    };
-  }, [activeAndCompletedOrders]);
-
-  // Filtered orders for table
+  // 1. Comprehensive Filtered Orders List (Searches across Bill #, Table, Waiter, Customer, Phone, Items)
   const filteredOrders = useMemo(() => {
-    return orders.filter((o) => {
+    return orders.filter((o: any) => {
+      const term = searchTerm.trim().toLowerCase();
       const matchesSearch =
-        !searchTerm.trim() ||
-        o.order_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        o.table_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        o.waiter_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (o.items || []).some((i) =>
-          i.name?.toLowerCase().includes(searchTerm.toLowerCase())
+        !term ||
+        o.order_number?.toLowerCase().includes(term) ||
+        o.table_name?.toLowerCase().includes(term) ||
+        o.waiter_name?.toLowerCase().includes(term) ||
+        o.customer_name?.toLowerCase().includes(term) ||
+        o.customer_phone?.toLowerCase().includes(term) ||
+        (o.items || []).some((i: any) =>
+          (i.name || i.product_name || i.item_name)?.toLowerCase().includes(term)
         );
 
       const mode = (o.order_type || o.order_mode || "DINE_IN").toUpperCase();
@@ -217,16 +96,208 @@ export const DailySalesReport: React.FC<DailySalesReportProps> = ({
         (selectedPayment === "DEBT" && hasDebt);
 
       const st = (o.status || "COMPLETED").toUpperCase();
+      const isCancelled = isCancelledOrder(o);
+      const isCompleted = !isCancelled && (st === "COMPLETED" || st === "PAID" || st === "SERVED");
       const matchesStatus =
         selectedStatus === "ALL" ||
-        (selectedStatus === "COMPLETED" &&
-          (st === "COMPLETED" || st === "PAID" || st === "SERVED")) ||
-        (selectedStatus === "CANCELLED" && st === "CANCELLED") ||
-        (selectedStatus === "RUNNING" && st !== "COMPLETED" && st !== "CANCELLED");
+        (selectedStatus === "COMPLETED" && isCompleted) ||
+        (selectedStatus === "CANCELLED" && isCancelled) ||
+        (selectedStatus === "RUNNING" && !isCompleted && !isCancelled);
 
       return matchesSearch && matchesType && matchesPayment && matchesStatus;
     });
   }, [orders, searchTerm, selectedType, selectedPayment, selectedStatus]);
+
+  // Reset pagination to Page 1 whenever filter parameters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedType, selectedPayment, selectedStatus, orders]);
+
+  const isFiltered =
+    searchTerm.trim() !== "" ||
+    selectedType !== "ALL" ||
+    selectedPayment !== "ALL" ||
+    selectedStatus !== "ALL";
+
+  // When filters are active, metrics & graphs reflect the filtered subset.
+  // When no filter is active, metrics reflect all non-cancelled orders in the selected period.
+  const activeAndCompletedOrders = useMemo(() => {
+    const baseList = isFiltered ? filteredOrders : orders;
+    return baseList.filter((o) => {
+      if (selectedStatus === "CANCELLED") return true;
+      return !isCancelledOrder(o);
+    });
+  }, [orders, filteredOrders, isFiltered, selectedStatus]);
+
+  // High-performance single-pass computation for all metrics, payment realization, channels & hourly curve
+  const {
+    totalNet,
+    totalSub,
+    totalTax,
+    totalDisc,
+    paymentBreakdown,
+    orderTypeStats,
+    hourlyChartData,
+  } = useMemo(() => {
+    let net = 0;
+    let sub = 0;
+    let tax = 0;
+    let disc = 0;
+
+    let cash = 0;
+    let upi = 0;
+    let card = 0;
+    let debt = 0;
+
+    let dineCount = 0;
+    let dineRev = 0;
+    let takeCount = 0;
+    let takeRev = 0;
+    let delivCount = 0;
+    let delivRev = 0;
+
+    // Prepopulate standard restaurant operating hours (09:00 to 23:00)
+    const hoursMap: Record<number, { hour: string; revenue: number; orders: number }> = {};
+    for (let h = 9; h <= 23; h++) {
+      const label = `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? "AM" : "PM"}`;
+      hoursMap[h] = { hour: label, revenue: 0, orders: 0 };
+    }
+
+    const len = activeAndCompletedOrders.length;
+    for (let i = 0; i < len; i++) {
+      const o = activeAndCompletedOrders[i];
+      const oNet = getOrderNet(o);
+      const oSub = getOrderSub(o);
+      const oTax = getOrderTax(o);
+      const oDisc = getOrderDisc(o);
+
+      net += oNet;
+      sub += oSub;
+      tax += oTax;
+      disc += oDisc;
+
+      // Order type attribution
+      const mode = (o.order_type || o.order_mode || "DINE_IN").toLowerCase();
+      if (mode.includes("take")) {
+        takeCount++;
+        takeRev += oNet;
+      } else if (mode.includes("deliv")) {
+        delivCount++;
+        delivRev += oNet;
+      } else {
+        dineCount++;
+        dineRev += oNet;
+      }
+
+      // Payment realization & Udhar
+      const isUnpaid = (o.payment_status || "").toLowerCase() === "unpaid";
+      const isPartial = (o.payment_status || "").toLowerCase() === "partial";
+      const hasBalanceDue = safeNum(o.balance_due) > 0;
+
+      let paid = 0;
+      let due = 0;
+
+      if (o.amount_paid !== undefined && o.amount_paid !== null) {
+        paid = safeNum(o.amount_paid);
+      } else {
+        paid = isUnpaid ? 0 : oNet;
+      }
+
+      if (hasBalanceDue) {
+        due = safeNum(o.balance_due);
+      } else if (isUnpaid) {
+        due = oNet;
+      } else if (isPartial) {
+        due = Math.max(0, oNet - paid);
+      }
+
+      if (due > 0) {
+        debt += due;
+      }
+
+      if (paid > 0) {
+        const pm = (o.payment_method || "CASH").toUpperCase();
+        if (
+          pm.includes("UPI") ||
+          pm.includes("QR") ||
+          pm.includes("GPAY") ||
+          pm.includes("PAYTM") ||
+          pm.includes("PHONEPE")
+        ) {
+          upi += paid;
+        } else if (pm.includes("CARD")) {
+          card += paid;
+        } else {
+          cash += paid;
+        }
+      }
+
+      // Hourly velocity aggregation
+      const d = new Date(o.created_at || Date.now());
+      const h = d.getHours();
+      if (!hoursMap[h]) {
+        const label = `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? "AM" : "PM"}`;
+        hoursMap[h] = { hour: label, revenue: 0, orders: 0 };
+      }
+      hoursMap[h].revenue += oNet;
+      hoursMap[h].orders += 1;
+    }
+
+    const sortedHourly = Object.keys(hoursMap)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .map((k) => hoursMap[k]);
+
+    return {
+      totalNet: net,
+      totalSub: sub,
+      totalTax: tax,
+      totalDisc: disc,
+      paymentBreakdown: { cash, upi, card, debt },
+      orderTypeStats: {
+        dineIn: { count: dineCount, rev: dineRev },
+        takeaway: { count: takeCount, rev: takeRev },
+        delivery: { count: delivCount, rev: delivRev },
+      },
+      hourlyChartData: sortedHourly,
+    };
+  }, [activeAndCompletedOrders]);
+
+  const avgOrderValue =
+    activeAndCompletedOrders.length > 0
+      ? totalNet / activeAndCompletedOrders.length
+      : 0;
+
+  // Pagination Calculations
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedOrders = useMemo(() => {
+    const startIndex = (safeCurrentPage - 1) * pageSize;
+    return filteredOrders.slice(startIndex, startIndex + pageSize);
+  }, [filteredOrders, safeCurrentPage, pageSize]);
+
+  // Smart page numbers windowing
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const pages: (number | "...")[] = [];
+    pages.push(1);
+    if (safeCurrentPage > 3) {
+      pages.push("...");
+    }
+    const start = Math.max(2, safeCurrentPage - 1);
+    const end = Math.min(totalPages - 1, safeCurrentPage + 1);
+    for (let p = start; p <= end; p++) {
+      pages.push(p);
+    }
+    if (safeCurrentPage < totalPages - 2) {
+      pages.push("...");
+    }
+    pages.push(totalPages);
+    return pages;
+  }, [totalPages, safeCurrentPage]);
 
   const handleExportCSV = () => {
     const headers = [
@@ -589,9 +660,34 @@ export const DailySalesReport: React.FC<DailySalesReportProps> = ({
           </select>
         </div>
 
-        <span className="text-xs text-muted-foreground">
-          Showing <span className="font-mono font-bold text-foreground">{filteredOrders.length}</span> of {orders.length} orders
-        </span>
+        <div className="flex items-center gap-3">
+          {/* Rows per page selector */}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span>Per Page:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="text-xs bg-background border border-border rounded px-2 py-1 font-semibold text-foreground focus:outline-hidden cursor-pointer"
+            >
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={250}>250</option>
+              <option value={500}>500</option>
+            </select>
+          </div>
+
+          <span className="text-xs text-muted-foreground">
+            Showing{" "}
+            <span className="font-mono font-bold text-foreground">
+              {filteredOrders.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1}–{Math.min(safeCurrentPage * pageSize, filteredOrders.length)}
+            </span>{" "}
+            of <span className="font-mono font-bold text-foreground">{filteredOrders.length.toLocaleString()}</span> orders
+          </span>
+        </div>
       </div>
 
       {/* Main Orders Ledger Table */}
@@ -613,14 +709,14 @@ export const DailySalesReport: React.FC<DailySalesReportProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-border text-xs">
-            {filteredOrders.length === 0 ? (
+            {paginatedOrders.length === 0 ? (
               <tr>
                 <td colSpan={11} className="py-8 text-center text-muted-foreground font-medium">
                   No sales orders recorded matching your filter.
                 </td>
               </tr>
             ) : (
-              filteredOrders.map((o) => {
+              paginatedOrders.map((o) => {
                 const isCancelled = (o.status || "").toLowerCase() === "cancelled";
                 return (
                   <tr
@@ -726,6 +822,153 @@ export const DailySalesReport: React.FC<DailySalesReportProps> = ({
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Controls Footer */}
+      {filteredOrders.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card border border-border rounded-md px-3.5 py-2.5 text-xs select-none">
+          {/* Left: Summary and Page Size */}
+          <div className="flex flex-wrap items-center gap-3 text-muted-foreground">
+            <span>
+              Showing{" "}
+              <span className="font-mono font-bold text-foreground">
+                {(safeCurrentPage - 1) * pageSize + 1}
+              </span>{" "}
+              to{" "}
+              <span className="font-mono font-bold text-foreground">
+                {Math.min(safeCurrentPage * pageSize, filteredOrders.length)}
+              </span>{" "}
+              of{" "}
+              <span className="font-mono font-bold text-foreground">
+                {filteredOrders.length.toLocaleString()}
+              </span>{" "}
+              orders
+            </span>
+
+            <div className="flex items-center gap-1.5 border-l border-border pl-3">
+              <span>Show:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="text-xs bg-background border border-border rounded px-2 py-1 font-semibold text-foreground focus:outline-hidden cursor-pointer"
+              >
+                <option value={25}>25 per page</option>
+                <option value={50}>50 per page</option>
+                <option value={100}>100 per page</option>
+                <option value={250}>250 per page</option>
+                <option value={500}>500 per page</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Right: Page Navigation Buttons */}
+          <div className="flex items-center gap-1.5">
+            {/* First Page */}
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={safeCurrentPage === 1}
+              className="p-1.5 rounded border border-border bg-background hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition text-foreground"
+              title="First Page"
+            >
+              <ChevronsLeft size={14} />
+            </button>
+
+            {/* Previous Page */}
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={safeCurrentPage === 1}
+              className="p-1.5 rounded border border-border bg-background hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition text-foreground"
+              title="Previous Page"
+            >
+              <ChevronLeft size={14} />
+            </button>
+
+            {/* Page Number Buttons */}
+            <div className="flex items-center gap-1">
+              {pageNumbers.map((num, idx) => {
+                if (num === "...") {
+                  return (
+                    <span
+                      key={`ellipsis-${idx}`}
+                      className="px-2 py-1 text-muted-foreground font-mono text-xs"
+                    >
+                      …
+                    </span>
+                  );
+                }
+                const isActive = num === safeCurrentPage;
+                return (
+                  <button
+                    key={`page-${num}`}
+                    onClick={() => setCurrentPage(num)}
+                    className={`min-w-[28px] h-7 px-2 rounded text-xs font-mono font-semibold transition cursor-pointer ${
+                      isActive
+                        ? "bg-primary text-primary-foreground shadow-xs font-bold"
+                        : "bg-background border border-border text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {num}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Next Page */}
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safeCurrentPage === totalPages}
+              className="p-1.5 rounded border border-border bg-background hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition text-foreground"
+              title="Next Page"
+            >
+              <ChevronRight size={14} />
+            </button>
+
+            {/* Last Page */}
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={safeCurrentPage === totalPages}
+              className="p-1.5 rounded border border-border bg-background hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition text-foreground"
+              title="Last Page"
+            >
+              <ChevronsRight size={14} />
+            </button>
+
+            {/* Jump to Page */}
+            {totalPages > 5 && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const target = parseInt(jumpPageInput, 10);
+                  if (!isNaN(target) && target >= 1 && target <= totalPages) {
+                    setCurrentPage(target);
+                    setJumpPageInput("");
+                  }
+                }}
+                className="flex items-center gap-1 ml-2 border-l border-border pl-2"
+              >
+                <span className="text-muted-foreground text-[11px]">Go:</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={totalPages}
+                  placeholder={String(safeCurrentPage)}
+                  value={jumpPageInput}
+                  onChange={(e) => setJumpPageInput(e.target.value)}
+                  className="w-12 h-7 px-1.5 text-center text-xs font-mono bg-background border border-border rounded focus:outline-hidden focus:ring-1 focus:ring-primary"
+                />
+                <button
+                  type="submit"
+                  className="h-7 px-2 text-xs font-semibold rounded bg-muted hover:bg-muted/80 text-foreground border border-border cursor-pointer transition"
+                >
+                  Go
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Detailed Bill Receipt Modal */}
       {selectedOrderForModal && (

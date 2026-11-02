@@ -309,6 +309,16 @@ const posTransactionShiftRoute = createRoute({
   ),
 });
 
+const posReportsSalesDashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pos/reports/sales-dashboard",
+  component: () => (
+    <ProtectedRoute>
+      <POSPage />
+    </ProtectedRoute>
+  ),
+});
+
 const posReportsDailySalesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/pos/reports/daily-sales",
@@ -1960,6 +1970,7 @@ const routeTree = rootRoute.addChildren([
   posTransactionOrdersRoute,
   posTransactionTablesRoute,
   posTransactionShiftRoute,
+  posReportsSalesDashboardRoute,
   posReportsDailySalesRoute,
   posReportsItemSalesRoute,
   posReportsCashierRoute,

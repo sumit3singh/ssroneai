@@ -16,18 +16,13 @@ import {
 import { Button } from "@ssrone/ui";
 import { POSOrder } from "../../types";
 import { POSReportThermalSlip } from "./POSReportThermalSlip";
+import { isCancelledOrder, safeNum, getOrderNet } from "./reportUtils";
 
 interface CashierSettlementReportProps {
   orders: POSOrder[];
   dateLabel?: string;
   branchName?: string;
 }
-
-const safeNum = (val: any): number => {
-  if (val === null || val === undefined) return 0;
-  const num = typeof val === "number" ? val : parseFloat(String(val));
-  return isNaN(num) ? 0 : num;
-};
 
 export const CashierSettlementReport: React.FC<CashierSettlementReportProps> = ({
   orders,
@@ -41,19 +36,12 @@ export const CashierSettlementReport: React.FC<CashierSettlementReportProps> = (
   const [cashierName, setCashierName] = useState<string>("Admin Cashier");
 
   const validOrders = useMemo(() => {
-    return orders.filter(
-      (o) => (o.status || "").toLowerCase() !== "cancelled"
-    );
+    return orders.filter((o) => !isCancelledOrder(o));
   }, [orders]);
 
   const cancelledOrders = useMemo(() => {
-    return orders.filter(
-      (o) => (o.status || "").toLowerCase() === "cancelled"
-    );
+    return orders.filter((o) => isCancelledOrder(o));
   }, [orders]);
-
-  const getOrderNet = (o: POSOrder) =>
-    safeNum(o.net_amount ?? o.grand_total ?? o.total_amount ?? 0);
 
   // Payment Breakdown with exact tender attribution and Udhar (Debt) segregation
   const paymentBreakdown = useMemo(() => {
