@@ -13,14 +13,26 @@ import { getDishImage } from "@/utils/dishImages";
 
 interface PosMenuCatalogProps {
   products: MenuItem[];
+  categories?: Array<{ id: string | number; name: string }>;
   onSelectItem: (item: MenuItem, variant?: any) => void;
 }
 
 export const PosMenuCatalog: React.FC<PosMenuCatalogProps> = ({
   products,
+  categories = [],
   onSelectItem,
 }) => {
   const store = useStaffPOS();
+
+  // Extract unique categories if not provided
+  const availableCategories = React.useMemo(() => {
+    if (categories && categories.length > 0) return categories;
+    const catSet = new Set<string>();
+    products.forEach((p) => {
+      if (p.category) catSet.add(p.category);
+    });
+    return Array.from(catSet).map((name) => ({ id: name, name }));
+  }, [categories, products]);
 
   // Filter products based on selectedCategory, filterMode, searchQuery
   const filteredProducts = React.useMemo(() => {
@@ -54,54 +66,111 @@ export const PosMenuCatalog: React.FC<PosMenuCatalogProps> = ({
 
   return (
     <section className="flex-1 bg-slate-50/50 p-2 sm:p-2.5 flex flex-col space-y-2 overflow-y-auto min-h-0 select-none">
-      {/* 1. TOP QUICK FILTER BAR (Matching Reference Image) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 pb-0.5">
-        {/* All Items */}
+      {/* 1. HORIZONTAL CATEGORY SWIPE RAIL (Instant touch access on mobile, tablet & touchscreens) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 pb-1 pt-0.5">
         <button
           type="button"
-          onClick={() => store.setFilterMode("all")}
-          className={`min-h-[34px] px-3 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 shadow-2xs ${store.filterMode === "all"
-              ? "bg-[#0B3B2C] text-white shadow-xs font-black"
+          onClick={() => {
+            sound.tap();
+            store.setSelectedCategory("all");
+          }}
+          className={`min-h-[36px] px-3.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shrink-0 shadow-2xs active:scale-95 ${
+            store.selectedCategory === "all"
+              ? "bg-[#0B3B2C] text-white font-black shadow-xs"
               : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
-            }`}
+          }`}
         >
-          All Items
+          <span>All Menu</span>
+          <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+            store.selectedCategory === "all" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
+          }`}>
+            {products.length}
+          </span>
         </button>
 
-        {/* Favourites */}
+        {availableCategories.map((cat) => {
+          const isSelected =
+            String(store.selectedCategory).toLowerCase() === String(cat.name).toLowerCase() ||
+            String(store.selectedCategory) === String(cat.id);
+          const count = products.filter(
+            (p) =>
+              String(p.category).toLowerCase() === String(cat.name).toLowerCase() ||
+              String(p.categoryId) === String(cat.id)
+          ).length;
+
+          return (
+            <button
+              key={cat.id || cat.name}
+              type="button"
+              onClick={() => {
+                sound.tap();
+                store.setSelectedCategory(cat.name);
+              }}
+              className={`min-h-[36px] px-3.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shrink-0 shadow-2xs active:scale-95 whitespace-nowrap ${
+                isSelected
+                  ? "bg-[#0B3B2C] text-white font-black shadow-xs ring-2 ring-[#0B3B2C]/20"
+                  : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
+              }`}
+            >
+              <span>{cat.name}</span>
+              {count > 0 && (
+                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                  isSelected ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
+                }`}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 2. SUB-FILTER ROW (Veg / Non-Veg / Bestseller / Favourites) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 pb-0.5">
         <button
           type="button"
-          onClick={() => store.setFilterMode("favourites")}
-          className={`min-h-[34px] px-3 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 shrink-0 ${store.filterMode === "favourites"
-              ? "bg-[#f59e0b] text-white shadow-xs font-black"
-              : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
-            }`}
+          onClick={() => {
+            sound.tap();
+            store.setFilterMode("all");
+          }}
+          className={`min-h-[30px] px-2.5 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 ${
+            store.filterMode === "all"
+              ? "bg-slate-900 text-white shadow-xs font-black"
+              : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+          }`}
         >
-          <Star size={12} className="text-amber-500 fill-amber-500" />
-          <span>Favourites</span>
+          All Items
         </button>
 
         {/* Veg */}
         <button
           type="button"
-          onClick={() => store.setFilterMode("veg")}
-          className={`min-h-[34px] px-3 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shrink-0 ${store.filterMode === "veg"
+          onClick={() => {
+            sound.tap();
+            store.setFilterMode(store.filterMode === "veg" ? "all" : "veg");
+          }}
+          className={`min-h-[30px] px-2.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
+            store.filterMode === "veg"
               ? "bg-emerald-600 text-white shadow-xs font-black"
               : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
-            }`}
+          }`}
         >
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0" />
-          <span>Veg</span>
+          <span>Pure Veg</span>
         </button>
 
         {/* Non-Veg */}
         <button
           type="button"
-          onClick={() => store.setFilterMode("non_veg")}
-          className={`min-h-[34px] px-3 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shrink-0 ${store.filterMode === "non_veg"
+          onClick={() => {
+            sound.tap();
+            store.setFilterMode(store.filterMode === "non_veg" ? "all" : "non_veg");
+          }}
+          className={`min-h-[30px] px-2.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
+            store.filterMode === "non_veg"
               ? "bg-rose-600 text-white shadow-xs font-black"
               : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
-            }`}
+          }`}
         >
           <span className="w-2.5 h-2.5 rounded-full bg-rose-600 shrink-0" />
           <span>Non-Veg</span>
@@ -110,44 +179,39 @@ export const PosMenuCatalog: React.FC<PosMenuCatalogProps> = ({
         {/* Bestseller */}
         <button
           type="button"
-          onClick={() => store.setFilterMode("bestseller")}
-          className={`min-h-[34px] px-3 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 shrink-0 ${store.filterMode === "bestseller"
-              ? "bg-[#f59e0b] text-white shadow-xs font-black"
+          onClick={() => {
+            sound.tap();
+            store.setFilterMode(store.filterMode === "bestseller" ? "all" : "bestseller");
+          }}
+          className={`min-h-[30px] px-2.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 shrink-0 ${
+            store.filterMode === "bestseller"
+              ? "bg-amber-500 text-white shadow-xs font-black"
               : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
-            }`}
+          }`}
         >
-          <Sparkles size={12} className="text-amber-500" />
+          <Sparkles size={12} className={store.filterMode === "bestseller" ? "text-white" : "text-amber-500"} />
           <span>Bestseller</span>
         </button>
 
-        {/* New */}
+        {/* Favourites */}
         <button
           type="button"
-          onClick={() => store.setFilterMode("new")}
-          className={`min-h-[34px] px-3 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 shrink-0 ${store.filterMode === "new"
-              ? "bg-sky-600 text-white shadow-xs font-black"
+          onClick={() => {
+            sound.tap();
+            store.setFilterMode(store.filterMode === "favourites" ? "all" : "favourites");
+          }}
+          className={`min-h-[30px] px-2.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 shrink-0 ${
+            store.filterMode === "favourites"
+              ? "bg-amber-500 text-white shadow-xs font-black"
               : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
-            }`}
+          }`}
         >
-          <Tag size={12} className="text-sky-500" />
-          <span>New</span>
-        </button>
-
-        {/* Offers */}
-        <button
-          type="button"
-          onClick={() => store.setFilterMode("offers")}
-          className={`min-h-[34px] px-3 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 shrink-0 ${store.filterMode === "offers"
-              ? "bg-rose-600 text-white shadow-xs font-black"
-              : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
-            }`}
-        >
-          <Percent size={12} className="text-rose-500" />
-          <span>Offers</span>
+          <Star size={12} className={store.filterMode === "favourites" ? "text-white fill-white" : "text-amber-500 fill-amber-500"} />
+          <span>Favourites</span>
         </button>
       </div>
 
-      {/* 2. DENSE FOOD CARDS GRID (Touchscreen Optimized with Half / Full Portions) */}
+      {/* 3. DENSE FOOD CARDS GRID (Touchscreen Optimized with Half / Full Portions) */}
       <div className="flex-1 overflow-y-auto min-h-0 pr-0.5">
         {filteredProducts.length === 0 ? (
           <div className="py-24 text-center text-slate-400">
@@ -155,7 +219,7 @@ export const PosMenuCatalog: React.FC<PosMenuCatalogProps> = ({
             <p className="text-xs text-slate-400">Try selecting another category or clear search filter.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 sm:gap-2.5">
             {filteredProducts.map((dish) => {
               const imageUrl = dish.image || getDishImage(dish.name, dish.category);
               const inCartItem = store.cart.find((c) => c.id === dish.id);

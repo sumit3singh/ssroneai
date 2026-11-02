@@ -81,8 +81,8 @@ export const PosTerminalHeader: React.FC<PosTerminalHeaderProps> = ({
 
   return (
     <header className="h-14 bg-[#141b27] border-b border-slate-800 px-3 sm:px-4 flex items-center justify-between gap-3 text-white shrink-0 z-40 select-none shadow-md">
-      {/* 1. BRAND LOGO (Matching Reference Screenshot) */}
-      <div className="flex items-center gap-2.5 shrink-0">
+      {/* 1. BRAND LOGO & TABLE BADGE */}
+      <div className="flex items-center gap-2 shrink-0">
         <button
           type="button"
           onClick={() => {
@@ -90,20 +90,44 @@ export const PosTerminalHeader: React.FC<PosTerminalHeaderProps> = ({
             if (onBackToFloor) onBackToFloor();
             else store.setActiveTab("floor");
           }}
-          className="flex items-center gap-2 cursor-pointer hover:opacity-90 transition text-left group"
+          className="flex items-center gap-1.5 sm:gap-2 cursor-pointer hover:opacity-90 active:scale-95 transition text-left group"
           title="Click to view Table Floor"
         >
-          <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center shrink-0 shadow-xs">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center shrink-0 shadow-xs">
             <Crown size={18} />
           </div>
           <div>
-            <h1 className="text-sm font-black tracking-tight leading-none text-white">
-              {branchName || "The Baithak"}
-            </h1>
-            <span className="text-[9px] font-mono tracking-widest uppercase text-slate-400 font-bold block mt-0.5">
+            <div className="flex items-center gap-1.5">
+              <h1 className="text-xs sm:text-sm font-black tracking-tight leading-none text-white truncate max-w-[90px] sm:max-w-none">
+                {branchName || "The Baithak"}
+              </h1>
+              {store.selectedTable && (
+                <span className="px-1.5 py-0.5 rounded-md bg-amber-500 text-slate-950 font-mono font-black text-[10px] leading-none shrink-0 shadow-2xs">
+                  {store.selectedTable}
+                </span>
+              )}
+            </div>
+            <span className="hidden sm:block text-[9px] font-mono tracking-widest uppercase text-slate-400 font-bold mt-0.5">
               RESTAURANT &amp; CAFÉ
             </span>
           </div>
+        </button>
+      </div>
+
+      {/* 2. MOBILE ORDER TYPE TOGGLER (< md) */}
+      <div className="flex md:hidden items-center shrink-0">
+        <button
+          type="button"
+          onClick={() => {
+            sound.tap();
+            const nextType = store.orderType === "dine_in" ? "takeaway" : store.orderType === "takeaway" ? "delivery" : "dine_in";
+            store.setOrderType(nextType);
+            if (nextType !== "dine_in") store.setSelectedTable(nextType === "takeaway" ? "Takeaway" : "Delivery");
+          }}
+          className="px-2.5 py-1 rounded-lg bg-[#20293a] border border-amber-500/40 text-amber-400 text-[11px] font-black uppercase tracking-tight flex items-center gap-1 shadow-2xs active:scale-95 transition"
+        >
+          <Utensils size={12} />
+          <span>{store.orderType === "dine_in" ? "Dine-In" : store.orderType === "takeaway" ? "Takeaway" : "Delivery"}</span>
         </button>
       </div>
 
@@ -176,8 +200,8 @@ export const PosTerminalHeader: React.FC<PosTerminalHeaderProps> = ({
         </button>
       </div>
 
-      {/* 3. CENTER SEARCH BAR (Matching Reference Screenshot) */}
-      <div className="relative flex-1 max-w-xs lg:max-w-md">
+      {/* 3. CENTER SEARCH BAR */}
+      <div className="relative flex-1 min-w-[70px] max-w-[160px] sm:max-w-xs lg:max-w-md">
         <div className="relative flex items-center">
           <Search size={14} className="absolute left-3 text-slate-400" />
           <input

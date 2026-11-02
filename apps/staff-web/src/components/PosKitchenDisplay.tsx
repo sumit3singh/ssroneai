@@ -31,6 +31,7 @@ export const PosKitchenDisplay: React.FC<PosKitchenDisplayProps> = ({
   onBack,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [mobileKdsTab, setMobileKdsTab] = useState<"ALL" | "NEW" | "PREPARING" | "READY">("ALL");
 
   const filteredOrders = React.useMemo(() => {
     return orders.filter((o) => {
@@ -55,10 +56,10 @@ export const PosKitchenDisplay: React.FC<PosKitchenDisplayProps> = ({
   const servedOrders = filteredOrders.filter((o) => (o.status || "").toLowerCase() === "served");
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Top Controls: Search & Live KDS Counter */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 sm:p-4 rounded-2xl border border-pos-border shadow-2xs">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 bg-white p-3 sm:p-4 rounded-2xl border border-pos-border shadow-2xs">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           {onBack && (
             <button
               type="button"
@@ -66,43 +67,95 @@ export const PosKitchenDisplay: React.FC<PosKitchenDisplayProps> = ({
                 sound.tap();
                 onBack();
               }}
-              className="min-h-[36px] px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition active:scale-95 border border-slate-200"
+              className="min-h-[36px] px-2.5 sm:px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1 cursor-pointer transition active:scale-95 border border-slate-200"
             >
               <ChevronLeft size={16} />
               <span>Back</span>
             </button>
           )}
 
-          <div className="w-10 h-10 rounded-2xl bg-pos-primary-light text-pos-primary flex items-center justify-center shrink-0">
-            <ChefHat size={22} />
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-pos-primary-light text-pos-primary flex items-center justify-center shrink-0">
+            <ChefHat size={20} />
           </div>
           <div>
-            <h3 className="font-black text-sm sm:text-base text-pos-text">
-              Kitchen Display System (KDS) & KOT Tracker
+            <h3 className="font-black text-xs sm:text-base text-pos-text">
+              Kitchen Display (KDS) &amp; KOT Tracker
             </h3>
-            <p className="text-xs text-pos-muted">
-              Live floor order preparation pipeline & table pickup alerts
+            <p className="text-[10px] sm:text-xs text-pos-muted">
+              Live floor order preparation pipeline &amp; pickup alerts
             </p>
           </div>
         </div>
 
         {/* Search */}
-        <div className="relative min-w-[240px]">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-pos-muted" />
+        <div className="relative w-full sm:w-auto sm:min-w-[240px]">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-pos-muted" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search Table # or KOT #..."
-            className="w-full h-10 pl-9 pr-3 rounded-xl bg-pos-bg border border-pos-border text-xs text-pos-text placeholder-pos-muted focus:outline-none focus:ring-1 focus:ring-pos-primary"
+            className="w-full h-9 sm:h-10 pl-9 pr-3 rounded-xl bg-pos-bg border border-pos-border text-xs text-pos-text placeholder-pos-muted focus:outline-none focus:ring-1 focus:ring-pos-primary"
           />
         </div>
       </div>
 
+      {/* MOBILE TAB SELECTOR (< md) */}
+      <div className="flex md:hidden items-center gap-1.5 overflow-x-auto no-scrollbar p-1 bg-white rounded-xl border border-pos-border shadow-2xs">
+        <button
+          type="button"
+          onClick={() => {
+            sound.tap();
+            setMobileKdsTab("ALL");
+          }}
+          className={`flex-1 min-h-[34px] px-2 rounded-lg text-xs font-bold transition ${
+            mobileKdsTab === "ALL" ? "bg-[#0B3B2C] text-white font-black" : "text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          All ({filteredOrders.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            sound.tap();
+            setMobileKdsTab("NEW");
+          }}
+          className={`flex-1 min-h-[34px] px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 ${
+            mobileKdsTab === "NEW" ? "bg-sky-600 text-white font-black" : "text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          New ({newOrders.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            sound.tap();
+            setMobileKdsTab("PREPARING");
+          }}
+          className={`flex-1 min-h-[34px] px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 ${
+            mobileKdsTab === "PREPARING" ? "bg-amber-600 text-white font-black" : "text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          Cooking ({preparingOrders.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            sound.tap();
+            setMobileKdsTab("READY");
+          }}
+          className={`flex-1 min-h-[34px] px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 ${
+            mobileKdsTab === "READY" ? "bg-emerald-600 text-white font-black" : "text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          Ready ({readyOrders.length})
+        </button>
+      </div>
+
       {/* 4 COLUMNS KDS PIPELINE */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3.5 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-3.5 items-start">
         {/* COLUMN 1: NEW ORDERS */}
-        <div className="space-y-3">
+        <div className={`space-y-3 ${mobileKdsTab === "ALL" || mobileKdsTab === "NEW" ? "block" : "hidden md:block"}`}>
           <div className="p-3 rounded-2xl bg-white border border-pos-border shadow-2xs flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
@@ -135,7 +188,7 @@ export const PosKitchenDisplay: React.FC<PosKitchenDisplayProps> = ({
         </div>
 
         {/* COLUMN 2: PREPARING (Cooking on Wok / Oven) */}
-        <div className="space-y-3">
+        <div className={`space-y-3 ${mobileKdsTab === "ALL" || mobileKdsTab === "PREPARING" ? "block" : "hidden md:block"}`}>
           <div className="p-3 rounded-2xl bg-white border border-pos-border shadow-2xs flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Flame size={14} className="text-amber-600 animate-bounce" />
@@ -168,7 +221,7 @@ export const PosKitchenDisplay: React.FC<PosKitchenDisplayProps> = ({
         </div>
 
         {/* COLUMN 3: READY TO SERVE (Pickup Counter Alert) */}
-        <div className="space-y-3">
+        <div className={`space-y-3 ${mobileKdsTab === "ALL" || mobileKdsTab === "READY" ? "block" : "hidden md:block"}`}>
           <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-300 shadow-2xs flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Bell size={14} className="text-emerald-700 animate-pulse" />
@@ -201,7 +254,7 @@ export const PosKitchenDisplay: React.FC<PosKitchenDisplayProps> = ({
         </div>
 
         {/* COLUMN 4: SERVED */}
-        <div className="space-y-3">
+        <div className={`space-y-3 ${mobileKdsTab === "ALL" ? "block" : "hidden md:block"}`}>
           <div className="p-3 rounded-2xl bg-white border border-pos-border shadow-2xs flex items-center justify-between">
             <div className="flex items-center gap-2">
               <CheckCircle2 size={14} className="text-pos-muted" />

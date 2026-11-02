@@ -194,18 +194,19 @@ export const PosLiveCart: React.FC<PosLiveCartProps> = ({
   }, [store.cart, isSubmitting, subtotal, netPayable]);
 
   return (
-    <aside className="w-full lg:w-[350px] xl:w-[380px] bg-white border-r border-slate-200 flex flex-col h-full min-h-0 justify-between shrink-0 select-none shadow-sm z-10">
-      {/* Mobile Back To Menu Bar (< lg) */}
+    <aside className="w-full md:w-[320px] lg:w-[350px] xl:w-[380px] bg-white border-r border-slate-200 flex flex-col h-full min-h-0 justify-between shrink-0 select-none shadow-sm z-10">
+      {/* Mobile Back To Menu Bar (< md) */}
       {onMobileBackToMenu && (
-        <div className="lg:hidden px-2.5 py-1.5 bg-slate-100 border-b border-slate-200 flex items-center justify-between shrink-0">
+        <div className="md:hidden px-3 py-2 bg-slate-900 text-white flex items-center justify-between shrink-0 shadow-xs">
           <button
             type="button"
             onClick={onMobileBackToMenu}
-            className="text-xs font-bold text-slate-800 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-slate-300 hover:bg-slate-50 cursor-pointer shadow-2xs active:scale-95 transition"
+            className="text-xs font-bold text-white flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 cursor-pointer shadow-2xs active:scale-95 transition"
           >
-            <ChevronLeft size={14} /> Back to Food Menu
+            <ChevronLeft size={16} />
+            <span>Add More Food</span>
           </button>
-          <span className="text-[11px] font-mono font-bold text-slate-600">
+          <span className="text-xs font-mono font-black text-amber-400">
             {store.selectedTable ? `Table ${store.selectedTable}` : store.orderType.toUpperCase()}
           </span>
         </div>
@@ -593,22 +594,22 @@ export const PosLiveCart: React.FC<PosLiveCartProps> = ({
                     </div>
                   </div>
 
-                  {/* Qty Stepper [- 1 +] */}
+                  {/* Qty Stepper [- 1 +] with touch-friendly 28px hitboxes */}
                   <div className="col-span-2 flex items-center justify-center gap-1">
                     <button
                       type="button"
                       onClick={() => store.updateQuantity(item.cartKey, -1)}
-                      className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold cursor-pointer"
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 flex items-center justify-center text-sm font-black cursor-pointer active:scale-90 transition shadow-2xs"
                     >
                       -
                     </button>
-                    <span className="w-4 text-center font-mono font-black text-xs text-slate-900">
+                    <span className="w-5 text-center font-mono font-black text-xs sm:text-sm text-slate-900">
                       {item.quantity}
                     </span>
                     <button
                       type="button"
                       onClick={() => store.updateQuantity(item.cartKey, 1)}
-                      className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold cursor-pointer"
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 flex items-center justify-center text-sm font-black cursor-pointer active:scale-90 transition shadow-2xs"
                     >
                       +
                     </button>

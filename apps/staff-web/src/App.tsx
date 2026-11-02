@@ -884,10 +884,10 @@ export function App() {
               onQuickAddItemByCode={handleQuickAddItemByCode}
             />
 
-            {/* 3 Columns Layout: Desktop / Big Touchscreen POS (lg+) shows 3 panels side-by-side; Mobile / Tablet (< lg) supports smooth Menu & Cart flipping */}
-            <div className="flex-1 flex flex-col lg:flex-row w-full overflow-hidden min-h-0 bg-white relative">
-              {/* Left Column: Cart / Billing Panel */}
-              <div className={`${mobilePosTab === "cart" ? "flex flex-col flex-1" : "hidden"} lg:flex lg:flex-col lg:flex-initial h-full min-h-0`}>
+            {/* 3 Columns Layout: Desktop (xl+) shows 3 panels; Tablet (md - lg) shows 2 panels side-by-side; Mobile (< md) supports quick Menu & Cart flipping */}
+            <div className="flex-1 flex flex-col md:flex-row w-full overflow-hidden min-h-0 bg-white relative">
+              {/* Left Column: Cart / Billing Panel (Visible in 'cart' tab on mobile, always visible on tablet & desktop) */}
+              <div className={`${mobilePosTab === "cart" ? "flex flex-col flex-1" : "hidden"} md:flex md:flex-col md:flex-initial h-full min-h-0`}>
                 <PosLiveCart
                   isSubmitting={isSubmittingOrder}
                   onDispatchKOT={handleDispatchKOT}
@@ -903,27 +903,28 @@ export function App() {
                 />
               </div>
 
-              {/* Center Column: 5-Column Food Cards Grid with Filter Row */}
-              <div className={`${mobilePosTab === "menu" ? "flex flex-1" : "hidden"} lg:flex h-full min-h-0 overflow-hidden`}>
+              {/* Center Column: Food Cards Grid with Filter Row & Horizontal Category Chips */}
+              <div className={`${mobilePosTab === "menu" ? "flex flex-1" : "hidden"} md:flex h-full min-h-0 overflow-hidden`}>
                 <PosMenuCatalog
                   products={products}
+                  categories={categories}
                   onSelectItem={(item, variant) => {
                     handleSelectMenuItem(item, variant);
                   }}
                 />
               </div>
 
-              {/* Right Column: Vertical Categories Rail */}
-              <div className={`${mobilePosTab === "menu" ? "flex" : "hidden"} lg:flex h-full min-h-0`}>
+              {/* Right Column: Vertical Categories Rail (Visible on Big Touchscreens xl: 1200px+) */}
+              <div className="hidden xl:flex h-full min-h-0">
                 <PosCategorySidebar
                   categories={categories}
                   categoryCounts={categoryCounts}
                 />
               </div>
 
-              {/* Floating Bottom Quick Cart Bar for Mobile & Tablets (< lg) */}
+              {/* Floating Bottom Quick Cart Bar for Mobile Only (< md) */}
               {mobilePosTab === "menu" && store.cart.length > 0 && (
-                <div className="lg:hidden absolute bottom-3 left-3 right-3 z-30 bg-slate-900 text-white rounded-2xl p-2.5 shadow-2xl border border-slate-700 flex items-center justify-between animate-in slide-in-from-bottom duration-200">
+                <div className="md:hidden absolute bottom-3 left-3 right-3 z-30 bg-slate-900 text-white rounded-2xl p-2.5 shadow-2xl border border-slate-700 flex items-center justify-between animate-in slide-in-from-bottom duration-200">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-xs">
                       {store.cart.reduce((s, it) => s + it.quantity, 0)}
@@ -957,7 +958,7 @@ export function App() {
         {/* TAB 4: KITCHEN DISPLAY SYSTEM (KDS) & KOT PIPELINE                */}
         {/* ------------------------------------------------------------------ */}
         {store.activeTab === "kots" && (
-          <div className="flex-1 p-3 sm:p-5 overflow-y-auto max-w-7xl mx-auto w-full">
+          <div className="flex-1 p-2 sm:p-4 lg:p-5 overflow-y-auto max-w-7xl mx-auto w-full">
             <PosKitchenDisplay
               orders={runningOrders}
               onBack={() => store.setActiveTab("floor")}
@@ -994,6 +995,107 @@ export function App() {
           </div>
         )}
       </main>
+
+      {/* MOBILE BOTTOM NAVIGATION BAR (< md) */}
+      <nav className="md:hidden bg-[#0e1622] border-t border-slate-800 flex items-center justify-around py-1 px-1.5 shrink-0 z-40 select-none shadow-2xl">
+        {/* Hub */}
+        <button
+          type="button"
+          onClick={() => {
+            sound.tap();
+            store.setActiveTab("dashboard");
+          }}
+          className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl text-[10px] font-bold transition active:scale-90 ${
+            store.activeTab === "dashboard"
+              ? "text-amber-400 bg-white/10 font-black"
+              : "text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <Store size={18} />
+          <span className="mt-0.5">Hub</span>
+        </button>
+
+        {/* Floor */}
+        <button
+          type="button"
+          onClick={() => {
+            sound.tap();
+            store.setActiveTab("floor");
+          }}
+          className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl text-[10px] font-bold transition active:scale-90 relative ${
+            store.activeTab === "floor"
+              ? "text-amber-400 bg-white/10 font-black"
+              : "text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <LayoutGrid size={18} />
+          <span className="mt-0.5">Tables</span>
+          {tables.filter((t) => t.status === "occupied").length > 0 && (
+            <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          )}
+        </button>
+
+        {/* POS Order Pad */}
+        <button
+          type="button"
+          onClick={() => {
+            sound.tap();
+            store.setActiveTab("pos");
+          }}
+          className={`flex flex-col items-center justify-center py-1 px-3.5 rounded-2xl text-[10px] font-black transition active:scale-90 relative shadow-sm ${
+            store.activeTab === "pos"
+              ? "text-slate-950 bg-amber-400 shadow-amber-400/30"
+              : "text-white bg-[#0B3B2C] border border-emerald-600/40"
+          }`}
+        >
+          <Utensils size={18} />
+          <span className="mt-0.5">Order POS</span>
+          {store.cart.length > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white font-mono text-[9px] flex items-center justify-center font-black shadow-xs">
+              {store.cart.reduce((s, it) => s + it.quantity, 0)}
+            </span>
+          )}
+        </button>
+
+        {/* Kitchen KDS */}
+        <button
+          type="button"
+          onClick={() => {
+            sound.tap();
+            store.setActiveTab("kots");
+          }}
+          className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl text-[10px] font-bold transition active:scale-90 relative ${
+            store.activeTab === "kots"
+              ? "text-amber-400 bg-white/10 font-black"
+              : "text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <ChefHat size={18} />
+          <span className="mt-0.5">Kitchen</span>
+          {runningOrders.length > 0 && (
+            <span className="absolute -top-0.5 right-1 px-1 py-0.2 rounded-full bg-rose-500 text-white font-mono text-[8px] font-black">
+              {runningOrders.length}
+            </span>
+          )}
+        </button>
+
+        {/* Staff / Shifts */}
+        <button
+          type="button"
+          onClick={() => {
+            sound.tap();
+            store.setActiveTab("ledger");
+          }}
+          className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl text-[10px] font-bold transition active:scale-90 ${
+            store.activeTab === "ledger"
+              ? "text-amber-400 bg-white/10 font-black"
+              : "text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <Tablet size={18} />
+          <span className="mt-0.5">Staff</span>
+        </button>
+      </nav>
 
       {/* 4. MODALS */}
       {/* Advanced Customization Modal */}

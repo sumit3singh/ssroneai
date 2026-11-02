@@ -626,7 +626,7 @@ export const PosFloorPlan: React.FC<PosFloorPlanProps> = ({
                         </div>
                       )}
 
-                      {/* Bottom Action Buttons (Direct Parity with Screenshot 1) */}
+                      {/* Bottom Action Buttons (Touch-Friendly 34px targets) */}
                       {isOccupied ? (
                         <div className="pt-2 border-t border-amber-200/60 grid grid-cols-2 gap-1.5">
                           {/* [Edit] Button */}
@@ -641,7 +641,7 @@ export const PosFloorPlan: React.FC<PosFloorPlanProps> = ({
                                 onSelectTableForOrder(tbl.number);
                               }
                             }}
-                            className="min-h-[28px] px-2 rounded-md bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 text-[11px] font-bold cursor-pointer transition active:scale-95"
+                            className="min-h-[34px] px-2 rounded-lg bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-bold cursor-pointer transition active:scale-95 shadow-2xs"
                           >
                             Edit
                           </button>
@@ -655,15 +655,15 @@ export const PosFloorPlan: React.FC<PosFloorPlanProps> = ({
                                 handleOpenSettle(primaryOrder, tbl.number);
                               }
                             }}
-                            className="min-h-[28px] px-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition active:scale-95 shadow-2xs"
+                            className="min-h-[34px] px-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black cursor-pointer transition active:scale-95 shadow-xs"
                           >
                             Settle
                           </button>
                         </div>
                       ) : (
                         <div className="pt-1.5 border-t border-slate-100">
-                          <span className="w-full min-h-[26px] rounded-md bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 text-[11px] font-bold flex items-center justify-center gap-1 transition">
-                            <Plus size={12} />
+                          <span className="w-full min-h-[32px] rounded-lg bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-800 text-xs font-black flex items-center justify-center gap-1 transition shadow-2xs">
+                            <Plus size={14} />
                             <span>Take Order</span>
                           </span>
                         </div>
