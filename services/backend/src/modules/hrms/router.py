@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.database.engine import get_db_session
 from src.modules.auth.dependencies import get_current_user
 from src.modules.auth.models import User
+from src.modules.auth.service import auth_service
 from src.shared.logger import get_logger
 from src.modules.hrms.models import (
     AttendanceRecord,
@@ -144,8 +145,6 @@ async def staff_login(
     t_user = (await db.execute(select(User).where(User.tenant_id == tenant_id, User.is_deleted == False).order_by(User.id.asc()))).scalars().first()
     valid_user_id = t_user.id if t_user else emp.id
 
-    from src.modules.auth.service import AuthService
-    auth_service = AuthService()
     token = auth_service.create_access_token({
         "sub": str(valid_user_id),
         "user_id": valid_user_id,
@@ -795,7 +794,6 @@ async def staff_login(
         t_user = (await db.execute(select(User).where(User.tenant_id == tenant_id, User.is_deleted == False).order_by(User.id.asc()))).scalars().first()
         valid_user_id = t_user.id if t_user else emp.id
 
-        auth_service = AuthService()
         access_token = auth_service.create_access_token({
             "sub": str(valid_user_id),
             "user_id": valid_user_id,

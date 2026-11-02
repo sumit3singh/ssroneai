@@ -8,6 +8,7 @@ from jose import jwt, JWTError
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from src.core.database.engine import get_db_session
 from src.modules.auth.models import User, UserRole
@@ -96,7 +97,6 @@ async def get_current_user(
             )
             t_id = payload.get("tenant_id")
             if t_id:
-                from sqlalchemy.orm import selectinload
                 t_user_res = await db.execute(
                     select(User)
                     .options(selectinload(User.roles).selectinload(UserRole.role))
